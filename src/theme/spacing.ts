@@ -7,6 +7,7 @@ export const spacing = {
   xl: 24,
   xxl: 32,
   xxxl: 40,
+  screenLarge: 24,
   screen: 16,
   section: 24,
   formGroup: 24,

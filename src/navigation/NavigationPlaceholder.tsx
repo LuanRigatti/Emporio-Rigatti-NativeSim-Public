@@ -1,7 +1,7 @@
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 
+import { AppText, Card, Screen } from '@/components';
 import { useAppTheme } from '@/theme';
 
 export type NavigationPlaceholderProps = {
@@ -16,72 +16,29 @@ export const NavigationPlaceholder: FC<NavigationPlaceholderProps> = ({
   description = 'Tela provisória para validação da navegação',
 }) => {
   const { theme } = useAppTheme();
-  const { colors, typography, spacing, radius, borders, shadows, layout } = theme;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <Screen>
       <View
-        style={[
-          styles.container,
-          {
-            paddingHorizontal: layout.screenHorizontalPadding,
-            paddingVertical: spacing.xl,
-          },
-        ]}
+        style={{
+          flex: 1,
+          paddingHorizontal: theme.layout.screenHorizontalPadding,
+          paddingVertical: theme.spacing.xl,
+        }}
       >
-        <Text style={[typography.largeTitle, { color: colors.textPrimary }]}>{title}</Text>
-        <Text
-          style={[
-            typography.body,
-            styles.description,
-            {
-              color: colors.textSecondary,
-              marginTop: spacing.sm,
-              maxWidth: layout.contentMaxWidth,
-            },
-          ]}
-        >
+        <AppText variant="largeTitle">{title}</AppText>
+        <AppText style={{ marginTop: theme.spacing.sm, maxWidth: theme.layout.contentMaxWidth }}>
           {description}
-        </Text>
-
-        <View
-          style={[
-            styles.card,
-            shadows.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.separator,
-              borderRadius: radius.lg,
-              borderWidth: borders.width.thin,
-              marginTop: spacing.xl,
-              padding: spacing.lg,
-            },
-          ]}
-        >
-          <Text style={[typography.footnote, { color: colors.textTertiary }]}>Rota</Text>
-          <Text
-            accessibilityRole="text"
-            style={[typography.headline, { color: colors.textPrimary, marginTop: spacing.xs }]}
-          >
+        </AppText>
+        <Card style={{ marginTop: theme.spacing.xl }}>
+          <AppText variant="footnote" style={{ color: theme.colors.textTertiary }}>
+            Rota
+          </AppText>
+          <AppText variant="headline" style={{ marginTop: theme.spacing.xs }}>
             {routeName}
-          </Text>
-        </View>
+          </AppText>
+        </Card>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
-  description: {
-    flexShrink: 1,
-  },
-  card: {
-    alignSelf: 'stretch',
-  },
-});

@@ -28,6 +28,14 @@ export const icons = {
     warning: 'warning',
     checkmark: 'checkmark',
   } satisfies Record<string, IconName>,
+  status: {
+    paid: 'checkmark-circle',
+    unpaid: 'time-outline',
+    delivered: 'checkmark-done-circle',
+    pending: 'time-outline',
+    issued: 'document-text-outline',
+    toIssue: 'document-outline',
+  } satisfies Record<'paid' | 'unpaid' | 'delivered' | 'pending' | 'issued' | 'toIssue', IconName>,
 } as const;
 
 export type IconTokens = typeof icons;

@@ -48,27 +48,27 @@ export const lightColors: ThemeColors = {
   textDisabled: '#9CA3AF',
   separator: '#E5E7EB',
   borderStrong: '#D1D5DB',
-  focus: '#0A84FF',
-  primary: '#0A84FF',
-  primaryPressed: '#006EDB',
+  focus: '#006EDB',
+  primary: '#006EDB',
+  primaryPressed: '#005BBB',
   secondary: '#5E5CE6',
   brand: '#CFEDE3',
   brandStrong: '#76BFAE',
-  success: '#34C759',
+  success: '#117A52',
   successSurface: '#EAF8EE',
-  warning: '#FF9F0A',
+  warning: '#8A4B08',
   warningSurface: '#FFF5E5',
-  danger: '#FF3B30',
+  danger: '#B42318',
   dangerSurface: '#FFEBEA',
-  info: '#0A84FF',
+  info: '#006EDB',
   infoSurface: '#EAF4FF',
-  paid: '#168A5B',
-  unpaid: '#B45309',
-  delivered: '#168A5B',
-  pending: '#B45309',
-  revenue: '#168A5B',
-  profit: '#0F766E',
-  expense: '#C53B36',
+  paid: '#117A52',
+  unpaid: '#8A4B08',
+  delivered: '#117A52',
+  pending: '#8A4B08',
+  revenue: '#117A52',
+  profit: '#0B6B61',
+  expense: '#B42318',
   overlay: 'rgba(17, 24, 39, 0.42)',
 };
 
@@ -108,47 +108,3 @@ export const darkColors: ThemeColors = {
   expense: '#FF817A',
   overlay: 'rgba(0, 0, 0, 0.58)',
 };
-
-/**
- * Legacy light tokens kept temporarily for existing components that have not
- * yet migrated to useAppTheme. New components must consume ThemeColors.
- */
-export const colors = {
-  brand: {
-    primary: lightColors.primary,
-    primaryPressed: lightColors.primaryPressed,
-    secondary: lightColors.secondary,
-  },
-  text: {
-    primary: lightColors.textPrimary,
-    secondary: lightColors.textSecondary,
-    tertiary: lightColors.textTertiary,
-    inverse: lightColors.textInverse,
-    disabled: lightColors.textDisabled,
-  },
-  background: {
-    canvas: lightColors.background,
-    surface: lightColors.surface,
-    elevated: lightColors.surfaceElevated,
-    muted: lightColors.surfaceMuted,
-    inverse: lightColors.textPrimary,
-  },
-  border: {
-    subtle: lightColors.separator,
-    strong: lightColors.borderStrong,
-    focus: lightColors.focus,
-  },
-  feedback: {
-    positive: lightColors.success,
-    positiveSurface: lightColors.successSurface,
-    warning: lightColors.warning,
-    warningSurface: lightColors.warningSurface,
-    negative: lightColors.danger,
-    negativeSurface: lightColors.dangerSurface,
-    info: lightColors.info,
-    infoSurface: lightColors.infoSurface,
-  },
-  overlay: lightColors.overlay,
-} as const;
-
-export type Colors = typeof colors;

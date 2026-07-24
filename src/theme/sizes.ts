@@ -9,6 +9,12 @@ export const sizes = {
   avatarSmall: 32,
   avatarMedium: 40,
   avatarLarge: 56,
+  progressBarHeight: 6,
+  loadingLineHeight: 20,
+  bottomSheetMinimumHeight: 160,
+  dragIndicatorWidth: 40,
+  dragIndicatorHeight: 4,
+  hiddenValueWidth: 128,
 } as const;
 
 export type Sizes = typeof sizes;

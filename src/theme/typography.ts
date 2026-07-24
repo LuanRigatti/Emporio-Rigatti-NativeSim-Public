@@ -48,7 +48,7 @@ const headline = {
 const body = {
   fontFamily: systemFontFamily,
   fontSize: 17,
-  lineHeight: 24,
+  lineHeight: 22,
   fontWeight: fonts.weight.regular,
 } satisfies TextStyle;
 

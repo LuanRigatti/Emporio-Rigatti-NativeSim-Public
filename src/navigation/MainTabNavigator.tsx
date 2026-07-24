@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { ComponentProps } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme';
 
@@ -33,7 +34,8 @@ function SettingsPlaceholderScreen() {
 
 export function MainTabNavigator() {
   const { theme } = useAppTheme();
-  const { colors, typography, borders, spacing, icons, layout } = theme;
+  const insets = useSafeAreaInsets();
+  const { colors, typography, borders, spacing, icons, layout, sizes } = theme;
   const tabIcons: Record<keyof MainTabParamList, { focused: TabIconName; unfocused: TabIconName }> =
     {
       Dashboard: {
@@ -63,6 +65,7 @@ export function MainTabNavigator() {
       initialRouteName="Dashboard"
       screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarIcon: ({ focused, color, size }) => {
@@ -74,13 +77,15 @@ export function MainTabNavigator() {
         },
         tabBarLabelStyle: {
           ...typography.caption,
-          marginBottom: 2,
+          marginBottom: spacing.xxs,
         },
+        tabBarItemStyle: { minHeight: sizes.touchTargetMinimum },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.separator,
           borderTopWidth: borders.width.hairline,
-          height: layout.tabBarHeight,
+          height: layout.tabBarHeight + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: spacing.xs,
         },
       })}

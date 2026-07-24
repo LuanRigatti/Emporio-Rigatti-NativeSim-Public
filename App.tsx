@@ -1,20 +1,34 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-export default function App() {
+import { NavigationRoot } from '@/navigation';
+import { ThemeProvider, useAppTheme } from '@/theme';
+
+function AppContent() {
+  const { resolvedMode } = useAppTheme();
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      <NavigationRoot />
+      <StatusBar style={resolvedMode === 'dark' ? 'light' : 'dark'} />
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  const [iconsLoaded, iconsError] = useFonts(Ionicons.font);
+
+  if (!iconsLoaded && !iconsError) {
+    return null;
+  }
+
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}

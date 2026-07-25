@@ -1,6 +1,9 @@
 import { FirebaseAuthService } from './FirebaseAuthService';
 
 export { FirebaseAuthService } from './FirebaseAuthService';
-export type { AuthService, AuthStateListener, AuthUser } from './types';
+export { AuthService, authService } from './AuthService';
+export { AuthUserFacingError, mapAuthError } from './AuthErrorMapper';
+export type { AuthErrorCode } from './AuthErrorMapper';
+export type { AuthServiceContract, AuthStateListener, AuthUser } from './types';
 
-export const authService = new FirebaseAuthService();
+export const firebaseAuthService = new FirebaseAuthService();

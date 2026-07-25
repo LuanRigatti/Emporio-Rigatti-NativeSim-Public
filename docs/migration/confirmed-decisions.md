@@ -18,7 +18,7 @@ Ao quitar uma entrega, o usuário deverá escolher explicitamente um dos dois m�
 Entregas com data anterior ao dia atual continuarão sendo marcadas automaticamente como entregues quando:
 
 ```ts
-entregue === false
+entregue === false;
 ```
 
 Esse comportamento deve ser preservado, documentado e coberto por testes.
@@ -128,3 +128,31 @@ Requisitos obrigatórios:
 - não sobrescrever silenciosamente dados válidos.
 
 Toda operação de importação deve ser cancelável antes da confirmação e deve deixar claro o que será criado, atualizado ou ignorado.
+
+## 10. Pagamentos parciais da fábrica
+
+Pagamentos de recebimentos da fábrica não podem ultrapassar o saldo restante.
+
+- o valor deve ser maior que zero;
+- o valor deve ser menor ou igual ao saldo restante;
+- a comparação deve considerar a tolerância monetária de R$ 0,01;
+- pagamentos acima do saldo não devem ser persistidos;
+- a interface deve informar o saldo máximo permitido e manter o formulário aberto;
+- não criar saldo negativo, crédito ou valor excedente nesta versão;
+- pagamento igual ao saldo conclui automaticamente o recebimento;
+- remover uma parcela deve recalcular o total pago, o saldo e a conclusão.
+
+## 11. Compatibilidade de tokens de notificação
+
+Na primeira versão React Native, o campo Firebase `/usuarios/{uid}/pushToken` continuará sendo
+utilizado sem alteração estrutural.
+
+- iOS e Android registrarão o Expo Push Token nesse campo;
+- Web continuará compatível com o token FCM usado pelo Ionic;
+- as Cloud Functions deverão identificar o formato do token e encaminhar pela integração
+  correspondente;
+- não será criada uma coleção de tokens por dispositivo nesta etapa;
+- portanto, permanece a limitação histórica de um único token por usuário, com o último
+  dispositivo registrado prevalecendo;
+- a migração futura para múltiplos dispositivos exigirá uma etapa própria, com backup,
+  conversão, validação, integridade e rollback.

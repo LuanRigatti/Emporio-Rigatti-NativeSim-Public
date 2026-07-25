@@ -1,0 +1,35 @@
+import { get, ref, set } from 'firebase/database';
+
+import { DataError, toDataError } from '@/services/data/DataError';
+import { getFirebaseDatabase } from '@/services/firebase';
+import { DataValidationError, validatePushToken } from '@/utils/data';
+
+export class PushTokenRepository {
+  public constructor(private readonly uid: string) {}
+
+  public async read(): Promise<string | undefined> {
+    try {
+      const snapshot = await get(ref(getFirebaseDatabase(), `usuarios/${this.uid}/pushToken`));
+      if (!snapshot.exists()) return undefined;
+      const value: unknown = snapshot.val();
+      validatePushToken(value);
+      return typeof value === 'string' ? value : undefined;
+    } catch (error) {
+      if (error instanceof DataError) throw error;
+      if (error instanceof DataValidationError) {
+        throw new DataError('validation', error.message, error);
+      }
+      throw toDataError(error, 'Não foi possível ler o token de push.');
+    }
+  }
+
+  public async replace(token: string): Promise<void> {
+    if (token.trim() === '') throw new DataError('validation', 'Token de push vazio.');
+    try {
+      await set(ref(getFirebaseDatabase(), `usuarios/${this.uid}/pushToken`), token);
+    } catch (error) {
+      if (error instanceof DataError) throw error;
+      throw toDataError(error, 'Não foi possível gravar o token de push.');
+    }
+  }
+}

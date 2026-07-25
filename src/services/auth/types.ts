@@ -1,17 +1,14 @@
-export type AuthUser = {
-  id: string;
-  email: string | null;
-  displayName: string | null;
-  photoUrl: string | null;
-  phoneNumber: string | null;
-};
+import type { User } from '@/types/data';
+
+export type AuthUser = User;
 
 export type AuthStateListener = (user: AuthUser | null) => void;
 
-export interface AuthService {
+export interface AuthServiceContract {
   getCurrentUser(): AuthUser | null;
-  subscribe(listener: AuthStateListener): () => void;
+  subscribe(listener: AuthStateListener, onError?: (error: unknown) => void): () => void;
   signIn(email: string, password: string): Promise<AuthUser>;
-  register(email: string, password: string): Promise<AuthUser>;
+  signInWithGooglePopup(): Promise<AuthUser>;
+  signInWithGoogleCredential(idToken: string, accessToken?: string): Promise<AuthUser>;
   signOut(): Promise<void>;
 }

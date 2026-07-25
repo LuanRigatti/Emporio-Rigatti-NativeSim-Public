@@ -5,32 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme';
 
-import { NavigationPlaceholder } from './NavigationPlaceholder';
+import { ClientsNavigator } from './ClientsNavigator';
+import { DeliveriesNavigator } from './DeliveriesNavigator';
+import { DashboardNavigator } from './DashboardNavigator';
+import { FinanceNavigator } from './FinanceNavigator';
+import { MoreNavigator } from './MoreNavigator';
 import type { MainTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 type TabIconName = ComponentProps<typeof Ionicons>['name'];
-
-function HomePlaceholderScreen() {
-  return <NavigationPlaceholder title="Início" routeName="Home" />;
-}
-
-function FinancePlaceholderScreen() {
-  return <NavigationPlaceholder title="Financeiro" routeName="Financeiro" />;
-}
-
-function ClientsPlaceholderScreen() {
-  return <NavigationPlaceholder title="Clientes" routeName="Clientes" />;
-}
-
-function DeliveriesPlaceholderScreen() {
-  return <NavigationPlaceholder title="Entregas" routeName="Entregas" />;
-}
-
-function SettingsPlaceholderScreen() {
-  return <NavigationPlaceholder title="Ajustes" routeName="Configuracoes" />;
-}
 
 export function MainTabNavigator() {
   const { theme } = useAppTheme();
@@ -54,7 +38,7 @@ export function MainTabNavigator() {
         focused: icons.tabBar.deliveries.active,
         unfocused: icons.tabBar.deliveries.inactive,
       },
-      Configuracoes: {
+      Mais: {
         focused: icons.tabBar.settings.active,
         unfocused: icons.tabBar.settings.inactive,
       },
@@ -90,31 +74,15 @@ export function MainTabNavigator() {
         },
       })}
     >
-      <Tab.Screen
-        name="Dashboard"
-        component={HomePlaceholderScreen}
-        options={{ title: 'Início' }}
-      />
+      <Tab.Screen name="Dashboard" component={DashboardNavigator} options={{ title: 'Início' }} />
       <Tab.Screen
         name="Financeiro"
-        component={FinancePlaceholderScreen}
+        component={FinanceNavigator}
         options={{ title: 'Financeiro' }}
       />
-      <Tab.Screen
-        name="Clientes"
-        component={ClientsPlaceholderScreen}
-        options={{ title: 'Clientes' }}
-      />
-      <Tab.Screen
-        name="Entregas"
-        component={DeliveriesPlaceholderScreen}
-        options={{ title: 'Entregas' }}
-      />
-      <Tab.Screen
-        name="Configuracoes"
-        component={SettingsPlaceholderScreen}
-        options={{ title: 'Ajustes' }}
-      />
+      <Tab.Screen name="Clientes" component={ClientsNavigator} options={{ title: 'Clientes' }} />
+      <Tab.Screen name="Entregas" component={DeliveriesNavigator} options={{ title: 'Entregas' }} />
+      <Tab.Screen name="Mais" component={MoreNavigator} options={{ title: 'Mais' }} />
     </Tab.Navigator>
   );
 }

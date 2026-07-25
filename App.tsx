@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { NavigationRoot } from '@/navigation';
+import { AuthProvider, FinancialPrivacyProvider, NotificationProvider } from '@/providers';
 import { ThemeProvider, useAppTheme } from '@/theme';
 
 function AppContent() {
@@ -27,7 +28,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <AuthProvider>
+          <FinancialPrivacyProvider>
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
+          </FinancialPrivacyProvider>
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

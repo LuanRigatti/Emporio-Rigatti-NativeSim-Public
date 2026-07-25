@@ -4,8 +4,10 @@
     "strict": true,
     "baseUrl": ".",
     "ignoreDeprecations": "6.0",
+    "types": ["jest"],
     "paths": {
       "@/*": ["src/*"]
     }
-  }
+  },
+  "exclude": ["dist"]
 }

@@ -4,6 +4,7 @@
     "slug": "PAReact",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "pareact",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
@@ -25,7 +26,18 @@
       "tsconfigPaths": true
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "expo-sharing",
+      "expo-maps"
     ]
   }
 }

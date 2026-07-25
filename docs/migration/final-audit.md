@@ -424,4 +424,124 @@ Antes de considerar a migração equivalente ao Ionic, ainda é necessário:
 - `functions/index.js`;
 - `tests/`.
 
+## Atualização da Etapa 34A — Financeiro e gráficos
+
+### Corrigido
+
+- O período financeiro passou a ser compartilhado entre Financeiro, Relatório, Ranking, Gráficos e detalhes de indicadores.
+- A seleção suporta Hoje, Semana, Mês com mês/ano explícitos, Ano, Todo o histórico e intervalo personalizado.
+- A seleção de Mês não fica limitada silenciosamente ao mês atual; mês e ano ficam visíveis e alteráveis.
+- A seleção de Ano é convertida em intervalo explícito de 1º de janeiro a 31 de dezembro, sem alterar fórmulas financeiras.
+- As séries são agrupadas por dia, semana, mês ou ano e permitem faturamento, recebido, pendente, lucro líquido, custos e quantidade de baldes.
+- As séries usam exclusivamente `FinancialCalculationService`; nenhuma fórmula foi duplicada nas telas.
+- Pontos inexistentes não são fabricados.
+- Períodos vazios exibem `EmptyState`; um único ponto exibe estado informativo e o valor do período, sem simular evolução.
+- Foi adicionada visualização SVG compatível com Expo SDK 57, iOS, Android e Web usando `react-native-svg`.
+- Foram adicionados testes para mês, ano, todos, intervalo, período vazio, ponto único, múltiplos pontos, troca de métrica e consistência dos valores agrupados.
+
+### Pendente
+
+- Validação visual com dados reais no Expo Web para todos os indicadores e tamanhos de tela.
+- Comparação visual do gráfico React Native com a evolução do Ionic em uma base histórica equivalente.
+- Validação de performance com grande volume de entregas.
+- Validação nativa em Development Build; isso não é substituído pelo teste Web.
+
+### Polimento futuro
+
+- Tooltip acessível ao tocar em um ponto.
+- Navegação horizontal para séries muito longas.
+- Exportação de relatórios e gráficos.
+- Animações discretas respeitando Reduce Motion.
+
 Este documento é um relatório de divergências e riscos. Ele não autoriza nem aplica correções automaticamente.
+
+## Atualização da Etapa 34A.1 — Filtros e navegação funcional
+
+### Corrigido
+
+- Gráficos passou a permitir a alteração do período diretamente na própria tela.
+- O seletor de Gráficos reutiliza o estado compartilhado de período e mantém consistência com Financeiro, Relatório e Ranking.
+- Gráficos passou a expor Hoje, Semana, Mês, Ano, Tudo e intervalo personalizado, incluindo mês e ano explícitos.
+- Datas de mês, eixo e interface passaram a usar formatadores centralizados: `Julho 2026`, `Jul/26` e `25/07/2026`.
+- O eixo do gráfico mantém todos os pontos, mas reduz os rótulos exibidos de forma proporcional para evitar sobreposição.
+- A aba Entregas deixou de oferecer a alternância Hoje/Todas e passou a representar somente a operação do dia.
+- O histórico permanece separado em Mais → Histórico.
+- A data operacional é apresentada de forma amigável, como `Hoje, 25 de julho`.
+- Entregas passou a filtrar pagamento, entrega realizada/não realizada e nota fiscal.
+- Chips de filtro são exibidos somente quando representam filtros ativos e podem ser removidos individualmente.
+- A seleção múltipla fica oculta quando não há registros e mostra quantidade/cancelamento quando ativa.
+- O EmptyState informa a data operacional e oferece Nova entrega ou limpeza dos filtros conforme o caso.
+- Foi corrigida a dependência de `toISOString()` para o cálculo do dia operacional, usando a data local.
+- Nenhuma fórmula financeira, gravação Firebase ou estrutura persistida foi alterada.
+
+### Testes adicionados ou atualizados
+
+- seleção explícita de mês e ano;
+- formatação `Julho 2026`, `Jul/26` e `25/07/2026`;
+- período vazio e série com múltiplos períodos;
+- seleção inteligente de rótulos em série extensa;
+- filtros combinados de pagamento, entrega e nota fiscal;
+- comportamento sem filtros ativos.
+
+### Pendente
+
+- validação visual final no Expo Web com dados reais e séries longas;
+- validação nativa em Development Build;
+- comparação visual dos controles com o Ionic em diferentes tamanhos de tela;
+- validação de acessibilidade dos novos filtros em VoiceOver e TalkBack.
+
+### Polimento futuro
+
+- calendário nativo para intervalos personalizados;
+- tooltip acessível nos pontos do gráfico;
+- navegação horizontal para séries muito extensas;
+- seleção de data operacional diferente de hoje, caso esse fluxo seja aprovado futuramente.
+
+## Atualização da Etapa 34A.3 — Paridade funcional do mapa e rotas
+
+### Corrigido
+
+- O mapa Web deixou de ser um placeholder e passou a usar a Google Maps JavaScript API por meio de carregamento assíncrono.
+- A tela de rota Web agora exibe marcadores de origem, paradas obrigatórias, entregas e destino final.
+- As Polylines decodificadas pela camada de rotas são desenhadas por trecho e o viewport é ajustado à rota.
+- A correção de endereço passou a permitir seleção de ponto manual no mapa Web, mantendo a coordenada apenas na sessão.
+- A ausência de chave Web, centro ou pontos confirmados produz estado explícito de erro/vazio; nenhuma coordenada aleatória é criada.
+- O mapa nativo continua separado por plataforma: Apple Maps no iOS e Google Maps no Android via `expo-maps`.
+- O primeiro preset permanece `Flamboyant → Entregas → Francisco`, conforme decisão mais recente; o segundo permanece `PLAV → Entregas → Flamboyant → Francisco`.
+- A gravação da quilometragem agora exige confirmação e não ocorre durante a simples visualização do mapa.
+- A chave Web é pública apenas no sentido necessário ao navegador e deve ser restrita por domínio; a chave sensível de Routes permanece no proxy.
+
+### Testes
+
+- estado Web sem paradas;
+- estado Web sem chave;
+- seleção manual com centro inicial;
+- montagem do payload de quilometragem;
+- rota com uma e múltiplas entregas;
+- endereço inválido;
+- ponto manual;
+- presets;
+- mais de 25 paradas;
+- regra de Viana.
+
+### Pendente
+
+- validação real do mapa Google Maps Web com uma chave restrita configurada;
+- validação de Apple Maps e Google Maps em Development Build;
+- validação de toque manual no mapa em iPhone e Android físicos;
+- validação real das quotas e respostas de uso do `routeProxy` com dados controlados; o deploy e o vínculo do secret já foram confirmados.
+
+### Confirmacao da separacao de projetos
+
+- Firebase Authentication, Realtime Database, Cloud Functions e Secret Manager permanecem no projeto `venda-e-faturamento`.
+- Geocoding API, Routes API, faturamento e a chave server-side pertencem ao projeto Google Cloud `Meu Otimizador`.
+- A chave utilizada pelo proxy esta restrita somente a Geocoding API e Routes API.
+- O secret `GOOGLE_MAPS_SERVER_API_KEY` foi atualizado no projeto Firebase e a `routeProxy` foi republicada em `us-central1`.
+- URL publicada: `https://us-central1-venda-e-faturamento.cloudfunctions.net/routeProxy`.
+- Essa separacao e intencional e nao constitui divergencia de arquitetura.
+
+### Riscos mantidos
+
+- Google Maps Platform possui cobrança por evento e limites definidos no projeto Google Cloud `Meu Otimizador`; o faturamento desse projeto está habilitado;
+- `expo-maps` continua exigindo Development Build e não foi declarado validado em aparelho físico;
+- nenhum contrato Firebase, cálculo financeiro ou estrutura de backup foi alterado.

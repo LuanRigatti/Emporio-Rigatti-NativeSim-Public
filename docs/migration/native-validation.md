@@ -281,3 +281,36 @@ O primeiro item foi aplicado após autorização: `app.config.js` agora declara 
 ### Status da Etapa 34
 
 A auditoria estática e o smoke test Web foram concluídos. A validação nativa permanece pendente. O aplicativo não deve ser considerado pronto para a Etapa 35 até que os testes de Mac/iPhone acima sejam executados e registrados.
+
+## Atualização da Etapa 34A.3 — Mapa e rotas
+
+| Recurso | Ambiente | Pré-requisito | Procedimento | Resultado esperado | Resultado encontrado | Status | Evidência | Correção necessária |
+|---|---|---|---|---|---|---|---|---|
+| Mapa Web com marcadores e Polyline | Expo Web | `EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY` restrita por domínio | Abrir uma sessão de rota calculada | Mapa, origem, paradas, destino e Polyline visíveis | Bundle Web gerado; chave Web não configurada nesta execução | Pendente de chave Web | `npx expo export --platform web` aprovado | Configurar chave restrita e validar visualmente |
+| Fallback Web sem chave | Expo Web | Sem chave Web | Abrir o mapa | Mensagem explícita de indisponibilidade | Adapter retorna estado de erro explícito | Aprovado por código | `RouteMapService.test.ts` | Nenhuma |
+| Ponto manual no Web | Expo Web | Mapa Web configurado | Abrir correção e tocar no mapa | Coordenada selecionada somente na sessão | Implementado, não validado com mapa real | Pendente de chave Web | Teste de estado manual | Validar clique no navegador |
+| Mapa nativo iOS | Development Build + iPhone | Mac, Xcode, assinatura e `expo-maps` | Abrir rota calculada | Apple Maps com marcadores e Polyline | Não executado | Pendente — Mac/iPhone | Não disponível | Compilar e instalar Development Build |
+| Mapa nativo Android | Development Build + Android | Google Maps SDK e chave Android restrita | Abrir rota calculada | Google Maps com marcadores e Polyline | Não executado | Pendente — dispositivo | Não disponível | Validar em dispositivo Android |
+| Confirmação de quilometragem | Expo Web/testes | Dados controlados | Calcular rota e tocar em salvar | Confirmação antes de gravar em `gastosDiarios[data].km` | Implementado e coberto por teste de payload | Aprovado por código | `RouteKilometers.test.ts` | Validar escrita real com Firebase controlado |
+
+### Separacao de projetos do proxy de mapas
+
+- Firebase Authentication, Realtime Database, Cloud Functions e Secret Manager permanecem no projeto `venda-e-faturamento`.
+- Geocoding API, Routes API, faturamento Maps e a chave server-side pertencem ao projeto Google Cloud `Meu Otimizador`.
+- `GOOGLE_MAPS_SERVER_API_KEY` e mantida somente como secret no projeto Firebase e esta vinculada a `routeProxy`; seu valor nao e registrado neste documento.
+- A chave server-side esta restrita exclusivamente a Geocoding API e Routes API. A chave publica Web continua sendo uma configuracao separada do navegador.
+- A URL de consumo permanece `https://us-central1-venda-e-faturamento.cloudfunctions.net/routeProxy`.
+
+### Configurações novas
+
+- `EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY`: chave pública restrita por HTTP referrer, usada somente pela Maps JavaScript API Web.
+- `EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY`: permanece restrita ao SDK Android.
+- A chave do Google Routes/Geocoding não é adicionada ao bundle; pertence ao projeto `Meu Otimizador` e permanece no secret `GOOGLE_MAPS_SERVER_API_KEY` do projeto Firebase `venda-e-faturamento`, consumida somente pela Cloud Function `routeProxy`.
+
+### Atualizacao da separacao de projetos
+
+A configuracao externa foi confirmada: Geocoding API, Routes API e faturamento estao ativos em `Meu Otimizador`; o secret `GOOGLE_MAPS_SERVER_API_KEY` esta ativo em `venda-e-faturamento` e a `routeProxy` foi republicada para consumir a nova versao. Isso nao altera Firebase Database, calculos ou regras de negocio.
+
+### Situação de aceite
+
+O fallback Web deixou de ser silencioso, mas o mapa Web real ainda depende da configuração da chave restrita. Apple Maps, Google Maps nativo, permissão de toque manual e integração física continuam pendentes de Development Build e dispositivo real. Nenhum comportamento nativo foi declarado aprovado.

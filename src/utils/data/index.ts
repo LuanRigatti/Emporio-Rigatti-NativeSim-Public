@@ -1,4 +1,16 @@
-export { isValidIsoDate, monthKey } from './dates';
+export {
+  formatOperationalDate,
+  formatPtBrCompactMonthYear,
+  formatPtBrDate,
+  formatPtBrDayMonth,
+  formatPtBrLongDate,
+  formatPtBrMonthYear,
+  isValidIsoDate,
+  monthKey,
+  parseIsoCalendarDate,
+  todayIso,
+} from './dates';
+export { getFinancialChartLabelIndexes } from './chart';
 export { formatCurrency, maskFinancialValue } from './formatters';
 export { isBoolean, isFiniteNumber, isRecord, isString, readNumber, readString } from './guards';
 export {

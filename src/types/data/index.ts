@@ -51,11 +51,16 @@ export type {
 } from './factory';
 export type {
   ClientFinancialRankingItem,
+  FinancialChartGranularity,
   FinancialCalculationFilters,
   FinancialCalculationInput,
   FinancialComparison,
   FinancialComparisonResult,
+  FinancialMetric,
+  FinancialPeriodSelection,
   FinancialPeriod,
+  FinancialReportPeriod,
+  FinancialSeriesPoint,
   FinancialSummary,
 } from './finance';
 export type { Filters, PeriodFilter } from './filters';

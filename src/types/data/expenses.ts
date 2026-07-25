@@ -20,7 +20,7 @@ export type MonthlyExpense = number | MonthlyExpenseRecord;
 export type DailyExpenses = Record<string, DailyExpense>;
 export type MonthlyExpenses = Record<string, MonthlyExpense>;
 
-export type ExpensePeriod = 'day' | 'week' | 'month' | 'all';
+export type ExpensePeriod = 'day' | 'week' | 'month' | 'all' | 'range';
 
 export interface ExpenseFilters {
   period: ExpensePeriod;

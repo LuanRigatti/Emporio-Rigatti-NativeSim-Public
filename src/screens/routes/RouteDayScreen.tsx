@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
 import {
+  BottomSheet,
   Card,
   DateInput,
   EmptyState,
@@ -14,13 +14,18 @@ import {
   Loading,
   PrimaryButton,
   ScrollScreen,
+  SelectableListItem,
   SegmentedControl,
   SecondaryButton,
 } from '@/components';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useRoute } from '@/hooks/useRoute';
 import type { DeliveriesStackParamList } from '@/navigation/types';
-import { createRouteLocation, createRoutePlanFromPreset } from '@/services/routes';
+import {
+  createRouteLocation,
+  createRoutePlanFromPreset,
+  getAvailableRouteDates,
+} from '@/services/routes';
 import {
   ROUTE_BASE_ADDRESS,
   ROUTE_FLAMBOYANT_ADDRESS,
@@ -28,23 +33,22 @@ import {
   type RoutePreset,
   type RouteOptimizationMode,
 } from '@/types/route';
+import { formatPtBrDate, normalizeLegacyDate, todayIso } from '@/utils/data';
 import { useAppTheme } from '@/theme';
 
 type Props = NativeStackScreenProps<DeliveriesStackParamList, 'RouteDay'>;
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 const presetLabels: Readonly<Record<RoutePreset, string>> = {
-  'flamboyant-plav': 'Flamboyant → PLAV → Entregas → Francisco',
+  'flamboyant-plav': 'Flamboyant → Entregas → Francisco',
   'plav-flamboyant': 'PLAV → Entregas → Flamboyant → Francisco',
   custom: 'Personalizar',
 };
 
 export function RouteDayScreen({ navigation, route }: Props) {
   const { theme } = useAppTheme();
-  const [date, setDate] = useState(route.params?.date ?? todayIso());
+  const [date, setDate] = useState(
+    () => normalizeLegacyDate(route.params?.date ?? '') ?? todayIso(),
+  );
   const [preset, setPreset] = useState<RoutePreset>('flamboyant-plav');
   const [optimization, setOptimization] = useState<RouteOptimizationMode>('distance');
   const [customOrigin, setCustomOrigin] = useState(ROUTE_BASE_ADDRESS);
@@ -55,12 +59,27 @@ export function RouteDayScreen({ navigation, route }: Props) {
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const {
     deliveries,
+    allDeliveries,
     loading: deliveriesLoading,
     error: deliveriesError,
     snapshot,
     reload,
   } = useDeliveries({ mode: 'today', date });
   const { create, loading: routeLoading } = useRoute();
+  const availableRouteDates = useMemo(() => {
+    const dates = getAvailableRouteDates(allDeliveries);
+    return dates.includes(date)
+      ? dates
+      : [date, ...dates].sort((left, right) => right.localeCompare(left));
+  }, [allDeliveries, date]);
+  const deliveryCountByDate = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allDeliveries.forEach((delivery) => {
+      const normalizedDate = normalizeLegacyDate(delivery.data);
+      if (normalizedDate) counts[normalizedDate] = (counts[normalizedDate] ?? 0) + 1;
+    });
+    return counts;
+  }, [allDeliveries]);
 
   const createCustomLocations = (value: string, prefix: string) =>
     value
@@ -116,21 +135,43 @@ export function RouteDayScreen({ navigation, route }: Props) {
       />
       <View style={{ gap: theme.spacing.md, padding: theme.spacing.md }}>
         <DateInput
+          helperText="Selecione uma data com entregas para montar a rota."
           label="Data das entregas"
           required
-          value={date}
+          value={formatPtBrDate(date)}
           onPress={() => setDatePickerVisible(true)}
         />
-        {datePickerVisible ? (
-          <DateTimePicker
-            mode="date"
-            value={new Date(`${date}T12:00:00`)}
-            onChange={(_, selectedDate) => {
-              setDatePickerVisible(false);
-              if (selectedDate) setDate(selectedDate.toISOString().slice(0, 10));
-            }}
-          />
-        ) : null}
+        <BottomSheet
+          onClose={() => setDatePickerVisible(false)}
+          title="Selecionar data da rota"
+          visible={datePickerVisible}
+        >
+          <ScrollView
+            contentContainerStyle={{ gap: theme.spacing.xs }}
+            showsVerticalScrollIndicator={false}
+            style={{ maxHeight: theme.sizes.bottomSheetMinimumHeight * 3 }}
+          >
+            {availableRouteDates.length > 0 ? (
+              availableRouteDates.map((availableDate) => (
+                <SelectableListItem
+                  key={availableDate}
+                  onSelect={() => {
+                    setDate(availableDate);
+                    setDatePickerVisible(false);
+                  }}
+                  selected={availableDate === date}
+                  subtitle={`${deliveryCountByDate[availableDate] ?? 0} entrega(s)`}
+                  title={formatPtBrDate(availableDate)}
+                />
+              ))
+            ) : (
+              <EmptyState
+                description="Não existem entregas com data válida para selecionar."
+                title="Nenhuma data disponível"
+              />
+            )}
+          </ScrollView>
+        </BottomSheet>
 
         <View style={{ gap: theme.spacing.sm }}>
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
@@ -202,7 +243,7 @@ export function RouteDayScreen({ navigation, route }: Props) {
             ]}
           >
             {preset === 'flamboyant-plav'
-              ? `${ROUTE_FLAMBOYANT_ADDRESS} → ${ROUTE_PLAV_ADDRESS}`
+              ? ROUTE_FLAMBOYANT_ADDRESS
               : preset === 'plav-flamboyant'
                 ? `${ROUTE_PLAV_ADDRESS} → ${ROUTE_FLAMBOYANT_ADDRESS}`
                 : 'A ordem informada será preservada.'}

@@ -15,3 +15,11 @@ export {
   factoryReceiptQueryService,
   FactoryReceiptQueryService,
 } from './FactoryReceiptQueryService';
+export {
+  financialFiltersForSelection,
+  formatFinancialPeriodLabel,
+  formatFinancialSeriesLabel,
+  selectionFromReportPeriod,
+  todayIso,
+} from './FinancialPeriodService';
+export { financialSeriesService, FinancialSeriesService } from './FinancialSeriesService';

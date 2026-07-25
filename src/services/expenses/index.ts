@@ -4,5 +4,13 @@ export {
   expenseCalculationService,
   ExpenseCalculationService,
 } from './ExpenseCalculationService';
-export { ExpenseMutationService, createExpenseMutationService } from './ExpenseMutationService';
-export { expenseQueryService, ExpenseQueryService } from './ExpenseQueryService';
+export {
+  createExpenseMutationService,
+  createRouteKilometersExpense,
+  ExpenseMutationService,
+} from './ExpenseMutationService';
+export {
+  expenseFiltersForSelection,
+  expenseQueryService,
+  ExpenseQueryService,
+} from './ExpenseQueryService';

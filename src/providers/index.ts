@@ -8,3 +8,5 @@ export {
   useFinancialPrivacyContext,
 } from './FinancialPrivacyProvider';
 export type { FinancialPrivacyContextValue } from './FinancialPrivacyProvider';
+export { FinancialPeriodProvider, useFinancialPeriod } from './FinancialPeriodProvider';
+export type { FinancialPeriodContextValue } from './FinancialPeriodProvider';

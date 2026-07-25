@@ -15,9 +15,12 @@ import {
 } from '@/components';
 import { summaryValue, useFinancialReport } from '@/hooks/useFinancialReport';
 import { useFinancialPrivacy } from '@/hooks/useFinancialPrivacy';
+import { useFinancialPeriod } from '@/providers';
+import { formatFinancialPeriodLabel, selectionFromReportPeriod } from '@/services/finance';
 import type { FinanceMetric, FinanceStackParamList, MainTabParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme';
 import { formatCurrency } from '@/utils/data';
+import { useEffect } from 'react';
 
 type Props = NativeStackScreenProps<FinanceStackParamList, 'FinanceIndicatorDetails'>;
 
@@ -60,7 +63,12 @@ function metricValue(metric: FinanceMetric, value: number): string {
 export function FinanceIndicatorDetailsScreen({ navigation, route }: Props) {
   const { theme } = useAppTheme();
   const { hidden } = useFinancialPrivacy();
-  const report = useFinancialReport(route.params.period);
+  const { selection, setSelection } = useFinancialPeriod();
+  useEffect(() => {
+    const nextSelection = route.params.selection ?? selectionFromReportPeriod(route.params.period);
+    setSelection(nextSelection);
+  }, [route.params.period, route.params.selection, setSelection]);
+  const report = useFinancialReport(selection);
   const summary = report.summary;
 
   return (
@@ -78,7 +86,7 @@ export function FinanceIndicatorDetailsScreen({ navigation, route }: Props) {
         ) : summary ? (
           <>
             <FinanceCard
-              label={route.params.periodLabel}
+              label={formatFinancialPeriodLabel(selection)}
               subtitle={descriptions[route.params.metric]}
               value={
                 hidden

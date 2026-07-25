@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 
 import {
@@ -13,22 +14,44 @@ import {
 } from '@/components';
 import { useFinancialReport } from '@/hooks/useFinancialReport';
 import { useFinancialPrivacy } from '@/hooks/useFinancialPrivacy';
+import { useFinancialPeriod } from '@/providers';
+import { formatFinancialPeriodLabel, selectionFromReportPeriod } from '@/services/finance';
 import type { FinanceStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme';
 import { formatCurrency } from '@/utils/data';
+
+import { FinancePeriodControl } from './FinancePeriodControl';
 
 type Props = NativeStackScreenProps<FinanceStackParamList, 'FinanceRanking'>;
 
 export function FinanceRankingScreen({ navigation, route }: Props) {
   const { theme } = useAppTheme();
   const { hidden } = useFinancialPrivacy();
-  const report = useFinancialReport(route.params?.period ?? 'month');
+  const { selection, setSelection } = useFinancialPeriod();
+
+  useEffect(() => {
+    const nextSelection =
+      route.params?.selection ??
+      (route.params?.period ? selectionFromReportPeriod(route.params.period) : undefined);
+    if (nextSelection) setSelection(nextSelection);
+  }, [route.params?.period, route.params?.selection, setSelection]);
+
+  const report = useFinancialReport(selection);
   const ranking = report.ranking ?? [];
 
   return (
     <ScrollScreen onRefresh={() => void report.reload()} refreshing={report.refreshing}>
-      <LargeTitleHeader onBack={() => navigation.goBack()} title="Ranking de clientes" />
-      <View style={{ padding: theme.spacing.md }}>
+      <LargeTitleHeader
+        onBack={() => navigation.goBack()}
+        subtitle={formatFinancialPeriodLabel(selection)}
+        title="Ranking de clientes"
+      />
+      <View style={{ gap: theme.spacing.lg, padding: theme.spacing.md }}>
+        <FinancePeriodControl
+          availableYears={report?.availableYears ?? []}
+          onChange={setSelection}
+          selection={selection}
+        />
         {report.loading ? (
           <View style={{ gap: theme.spacing.sm }}>
             <Skeleton height={theme.sizes.loadingLineHeight * 3} />

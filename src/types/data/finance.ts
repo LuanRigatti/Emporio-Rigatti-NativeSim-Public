@@ -21,6 +21,37 @@ export interface FinancialSummary {
 
 export type FinancialPeriod = 'todos' | 'mes' | 'dia' | 'semana' | 'range';
 
+export type FinancialReportPeriod = 'day' | 'week' | 'month' | 'year' | 'all' | 'range';
+
+export type FinancialPeriodSelection =
+  | { kind: 'day'; date: string }
+  | { kind: 'week'; date: string }
+  | { kind: 'month'; month: string }
+  | { kind: 'year'; year: string }
+  | { kind: 'all' }
+  | { kind: 'range'; start: string; end: string };
+
+export type FinancialChartGranularity = 'day' | 'week' | 'month' | 'year';
+
+export type FinancialMetric =
+  | 'faturamento'
+  | 'pago'
+  | 'pendente'
+  | 'lucroBruto'
+  | 'lucroLiquido'
+  | 'custos'
+  | 'margemBruta'
+  | 'margemLiquida'
+  | 'quantidade'
+  | 'precoMedio'
+  | 'custoMedio';
+
+export interface FinancialSeriesPoint {
+  key: string;
+  label: string;
+  value: number;
+}
+
 export interface FinancialCalculationFilters {
   periodo: FinancialPeriod;
   mesSelecionado?: string;

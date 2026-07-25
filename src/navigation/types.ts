@@ -1,6 +1,13 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
-import type { ClientId, HistoryFilters } from '@/types/data';
+import type {
+  ClientId,
+  FinancialChartGranularity,
+  FinancialMetric,
+  FinancialPeriodSelection,
+  FinancialReportPeriod,
+  HistoryFilters,
+} from '@/types/data';
 
 export type RootStackParamList = {
   Auth: undefined;
@@ -30,18 +37,7 @@ export type MainTabParamList = {
   Mais: NavigatorScreenParams<MoreStackParamList>;
 };
 
-export type FinanceMetric =
-  | 'faturamento'
-  | 'pago'
-  | 'pendente'
-  | 'lucroBruto'
-  | 'lucroLiquido'
-  | 'custos'
-  | 'margemBruta'
-  | 'margemLiquida'
-  | 'quantidade'
-  | 'precoMedio'
-  | 'custoMedio';
+export type FinanceMetric = FinancialMetric;
 
 export type DashboardPeriod = 'day' | 'month';
 
@@ -53,23 +49,39 @@ export type DashboardStackParamList = {
 
 export type FinanceStackParamList = {
   FinanceHome: undefined;
-  FinancePeriodReport: { period?: 'day' | 'month' | 'all' } | undefined;
+  FinancePeriodReport:
+    { period?: FinancialReportPeriod; selection?: FinancialPeriodSelection } | undefined;
   FinanceIndicatorDetails: {
     metric: FinanceMetric;
-    period: 'day' | 'month' | 'all';
+    period: FinancialReportPeriod;
     periodLabel: string;
+    selection?: FinancialPeriodSelection;
   };
-  FinanceCharts: { period?: 'month' | 'all' } | undefined;
-  FinanceRanking: { period?: 'month' | 'all' } | undefined;
+  FinanceCharts:
+    | {
+        period?: FinancialReportPeriod;
+        selection?: FinancialPeriodSelection;
+        metric?: FinanceMetric;
+        granularity?: FinancialChartGranularity;
+      }
+    | undefined;
+  FinanceRanking:
+    { period?: FinancialReportPeriod; selection?: FinancialPeriodSelection } | undefined;
   FinanceFactory: undefined;
   FinanceFactoryDetails: { receiptId?: string } | undefined;
   FinanceFactoryForm: undefined;
   ExpensesHome: undefined;
-  ExpenseHistory: undefined;
+  ExpenseHistory: { selection?: FinancialPeriodSelection } | undefined;
   DailyExpenseForm: { date?: string } | undefined;
   MonthlyLight: { month?: string } | undefined;
   CostPeriod:
-    { period?: 'day' | 'week' | 'month' | 'all'; date?: string; month?: string } | undefined;
+    | {
+        period?: 'day' | 'week' | 'month' | 'all' | 'range';
+        date?: string;
+        month?: string;
+        selection?: FinancialPeriodSelection;
+      }
+    | undefined;
   CostCalculationDetails: {
     metric: 'estar' | 'combustivel' | 'luz' | 'total' | 'mediaCombustivel';
     periodLabel: string;
@@ -87,14 +99,7 @@ export type ClientsStackParamList = {
 };
 
 export type DeliveriesStackParamList = {
-  DeliveriesHome:
-    | {
-        mode?: 'today' | 'all';
-        date?: string;
-        clientName?: string;
-        status?: 'Todos' | 'Pago' | 'Não Pago';
-      }
-    | undefined;
+  DeliveriesHome: undefined;
   DeliveryDetails: { deliveryId: string };
   NewDelivery: { date?: string; clientName?: string } | undefined;
   EditDelivery: { deliveryId: string };

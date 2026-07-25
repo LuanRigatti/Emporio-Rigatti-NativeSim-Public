@@ -5,6 +5,9 @@ import { View } from 'react-native';
 import { FinanceCard, LargeTitleHeader, Screen, Section, TextButton } from '@/components';
 import { useExpenses } from '@/hooks/useExpenses';
 import type { FinanceStackParamList } from '@/navigation/types';
+import { expenseFiltersForSelection } from '@/services/expenses';
+import { formatFinancialPeriodLabel } from '@/services/finance';
+import { todayIso } from '@/utils/data';
 import { useAppTheme } from '@/theme';
 
 type Props = NativeStackScreenProps<FinanceStackParamList, 'CostPeriod'>;
@@ -15,15 +18,28 @@ function formatCurrency(value: number): string {
 
 export function CostPeriod({ navigation, route }: Props) {
   const { theme } = useAppTheme();
+  const selection = route.params?.selection;
   const period = route.params?.period ?? 'month';
-  const date = route.params?.date ?? new Date().toISOString().slice(0, 10);
+  const date = route.params?.date ?? todayIso();
   const month = route.params?.month ?? date.slice(0, 7);
-  const filters = useMemo(() => ({ period, date, month }), [date, month, period]);
+  const filters = useMemo(
+    () => (selection ? expenseFiltersForSelection(selection) : { period, date, month }),
+    [date, month, period, selection],
+  );
   const { summary, loading } = useExpenses(filters);
+  const periodLabel = selection
+    ? formatFinancialPeriodLabel(selection)
+    : period === 'month'
+      ? `Mês ${month}`
+      : period;
 
   return (
     <Screen>
-      <LargeTitleHeader onBack={() => navigation.goBack()} title="Custos do período" />
+      <LargeTitleHeader
+        onBack={() => navigation.goBack()}
+        subtitle={periodLabel}
+        title="Custos do período"
+      />
       <View style={{ gap: theme.spacing.sm, padding: theme.spacing.md }}>
         <Section title="Resumo">
           <FinanceCard
@@ -54,7 +70,10 @@ export function CostPeriod({ navigation, route }: Props) {
         </Section>
         <TextButton
           onPress={() =>
-            navigation.navigate('CostCalculationDetails', { metric: 'total', periodLabel: period })
+            navigation.navigate('CostCalculationDetails', {
+              metric: 'total',
+              periodLabel,
+            })
           }
         >
           Ver detalhes dos cálculos

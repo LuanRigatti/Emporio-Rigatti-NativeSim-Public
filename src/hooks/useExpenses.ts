@@ -51,6 +51,10 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
         : undefined,
     [filters, snapshot],
   );
+  const dailyExpenses = useMemo(
+    () => (snapshot ? expenseQueryService.listDailyExpenses(snapshot.gastosDiarios, filters) : []),
+    [filters, snapshot],
+  );
 
   const mutate = useCallback(
     async (
@@ -68,6 +72,7 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
   return {
     snapshot,
     summary,
+    dailyExpenses,
     loading,
     refreshing,
     error,

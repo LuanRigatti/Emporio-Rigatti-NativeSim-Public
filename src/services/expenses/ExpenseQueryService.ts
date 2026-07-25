@@ -3,13 +3,28 @@ import type {
   Delivery,
   ExpenseFilters,
   ExpenseSummary,
+  FinancialPeriodSelection,
   MonthlyExpenses,
 } from '@/types/data';
+import { normalizeLegacyDate, todayIso } from '@/utils/data';
 
 import { expenseCalculationService } from './ExpenseCalculationService';
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+export function expenseFiltersForSelection(selection: FinancialPeriodSelection): ExpenseFilters {
+  if (selection.kind === 'day') return { period: 'day', date: selection.date };
+  if (selection.kind === 'week') return { period: 'week', date: selection.date };
+  if (selection.kind === 'month') return { period: 'month', month: selection.month };
+  if (selection.kind === 'year') {
+    return {
+      period: 'range',
+      startDate: `${selection.year}-01-01`,
+      endDate: `${selection.year}-12-31`,
+    };
+  }
+  if (selection.kind === 'range') {
+    return { period: 'range', startDate: selection.start, endDate: selection.end };
+  }
+  return { period: 'all' };
 }
 
 function weekRange(date: string): { start: string; end: string } {
@@ -55,6 +70,23 @@ export class ExpenseQueryService {
       monthlyExpenses,
       deliveries,
     );
+  }
+
+  public listDailyExpenses(
+    dailyExpenses: DailyExpenses,
+    filters: ExpenseFilters = { period: 'all' },
+  ): DailyExpenses[string][] {
+    const range = this.getRange(filters);
+    return Object.values(dailyExpenses)
+      .filter((expense) => {
+        const date = normalizeLegacyDate(expense.data);
+        return Boolean(date && date >= range.start && date <= range.end);
+      })
+      .sort((left, right) => {
+        const leftDate = normalizeLegacyDate(left.data) ?? '';
+        const rightDate = normalizeLegacyDate(right.data) ?? '';
+        return rightDate.localeCompare(leftDate);
+      });
   }
 }
 

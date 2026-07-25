@@ -1,9 +1,5 @@
 import type { Delivery, DeliveryFilters } from '@/types/data';
-import { formatClientName, normalizeClientKey } from '@/utils/data';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { formatClientName, normalizeClientKey, todayIso } from '@/utils/data';
 
 export class DeliveryQueryService {
   public filter(deliveries: Delivery[], filters: DeliveryFilters): Delivery[] {
@@ -21,6 +17,18 @@ export class DeliveryQueryService {
       .filter(
         (delivery) =>
           !filters.status || filters.status === 'Todos' || delivery.status === filters.status,
+      )
+      .filter(
+        (delivery) =>
+          !filters.deliveryStatus ||
+          filters.deliveryStatus === 'Todos' ||
+          (filters.deliveryStatus === 'Entregue' ? delivery.entregue : !delivery.entregue),
+      )
+      .filter(
+        (delivery) =>
+          !filters.invoiceStatus ||
+          filters.invoiceStatus === 'Todos' ||
+          delivery.invoiceStatus === filters.invoiceStatus,
       )
       .sort(
         (left, right) =>

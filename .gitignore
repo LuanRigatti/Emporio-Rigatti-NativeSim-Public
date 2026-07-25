@@ -35,6 +35,8 @@ yarn-error.*
 .env
 .env.*
 !.env.example
+functions/.secret.local
+functions/.env.local
 
 # typescript
 *.tsbuildinfo
@@ -43,4 +45,3 @@ yarn-error.*
 /ios
 /android
 ionic-reference/
-

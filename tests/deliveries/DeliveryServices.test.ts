@@ -64,4 +64,36 @@ describe('delivery services', () => {
 
     expect(result.map((item) => item.id)).toEqual(['new']);
   });
+
+  it('filters operational deliveries by payment, delivery and invoice status', () => {
+    const service = new DeliveryQueryService();
+    const result = service.filter(
+      [
+        delivery({ id: 'paid', status: 'Pago', entregue: true, invoiceStatus: 'emitido' }),
+        delivery({ id: 'pending', status: 'Não Pago', entregue: false, invoiceStatus: 'a_emitir' }),
+      ],
+      {
+        mode: 'today',
+        date: '2026-07-24',
+        status: 'Não Pago',
+        deliveryStatus: 'Não entregue',
+        invoiceStatus: 'a_emitir',
+      },
+    );
+
+    expect(result.map((item) => item.id)).toEqual(['pending']);
+  });
+
+  it('does not require status chips when all delivery filters are selected', () => {
+    const service = new DeliveryQueryService();
+    const result = service.filter([delivery()], {
+      mode: 'today',
+      date: '2026-07-24',
+      status: 'Todos',
+      deliveryStatus: 'Todos',
+      invoiceStatus: 'Todos',
+    });
+
+    expect(result).toHaveLength(1);
+  });
 });

@@ -42,6 +42,8 @@ export interface DeliveryFilters {
   search?: string;
   clientName?: string;
   status?: 'Todos' | 'Pago' | 'Não Pago';
+  deliveryStatus?: 'Todos' | 'Entregue' | 'Não entregue';
+  invoiceStatus?: 'Todos' | InvoiceStatus;
 }
 
 export interface DeliveryBulkPatch {

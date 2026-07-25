@@ -142,7 +142,6 @@ export function DashboardScreen({ navigation }: Props) {
                 onPress={() =>
                   tabs?.navigate('Entregas', {
                     screen: 'DeliveriesHome',
-                    params: { mode: 'today', date: dashboard.date },
                   })
                 }
                 title="Entregas do dia"

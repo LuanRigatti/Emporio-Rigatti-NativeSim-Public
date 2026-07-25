@@ -10,6 +10,10 @@ import type {
 import type { UserDataSnapshot } from '@/services/data';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
 
+import { createRouteKilometersExpense } from './routeKilometers';
+
+export { createRouteKilometersExpense } from './routeKilometers';
+
 function requiredDate(value: string): string {
   const date = normalizeLegacyDate(value);
   if (!date) throw new Error('Informe uma data válida.');
@@ -62,11 +66,11 @@ export class ExpenseMutationService {
     const date = requiredDate(dateValue);
     const normalizedKm = nonNegative(kilometers, 'a quilometragem da rota');
     const snapshot = await this.readSnapshot();
-    const nextExpense: DailyExpense = {
-      ...snapshot.gastosDiarios[date],
-      data: date,
-      km: normalizedKm,
-    };
+    const nextExpense = createRouteKilometersExpense(
+      date,
+      normalizedKm,
+      snapshot.gastosDiarios[date],
+    );
     const nextSnapshot: UserDataSnapshot = {
       ...snapshot,
       gastosDiarios: { ...snapshot.gastosDiarios, [date]: nextExpense },

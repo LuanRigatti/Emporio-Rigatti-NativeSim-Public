@@ -36,35 +36,27 @@ import type {
 } from '@/types/data';
 import type { MainTabParamList, MoreStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme';
-import { formatCurrency } from '@/utils/data';
+import {
+  formatCurrency,
+  formatPtBrDate,
+  formatPtBrLongDate,
+  formatPtBrMonthYear,
+  parseIsoCalendarDate,
+  todayIso,
+} from '@/utils/data';
 
 type Props = NativeStackScreenProps<MoreStackParamList, 'History'>;
 
-function todayIso(): string {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
-}
-
 function parseDate(value: string): Date {
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year || new Date().getFullYear(), (month || 1) - 1, day || 1, 12);
+  return parseIsoCalendarDate(value) ?? new Date();
 }
 
 function formatMonth(value: string): string {
-  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(
-    parseDate(`${value}-01`),
-  );
+  return formatPtBrMonthYear(value);
 }
 
 function formatDay(value: string): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    weekday: 'long',
-  }).format(parseDate(value));
+  return formatPtBrLongDate(value);
 }
 
 function summaryText(day: HistoryDayGroup, hidden: boolean): string {
@@ -334,7 +326,7 @@ export function HistoryScreen({ navigation, route }: Props) {
                     >
                       <DeliveryCard
                         clientName={delivery.cliente}
-                        dateLabel={delivery.data}
+                        dateLabel={formatPtBrDate(delivery.data)}
                         delivered={delivery.entregue}
                         onPress={() => openDetails(delivery.id)}
                         onPrimaryAction={() => openDetails(delivery.id)}

@@ -42,6 +42,18 @@ Dependências observadas:
 
 O mesmo objeto de configuração está duplicado no HTML e no service worker. A configuração web está exposta no frontend, como é usual para Firebase Web, mas a proteção real depende das regras e da configuração do projeto.
 
+## 1.1 Separacao de projetos Firebase e Google Maps Platform
+
+A separacao entre os projetos e intencional e nao representa uma inconsistencia:
+
+- **`venda-e-faturamento`** e o projeto Firebase da aplicacao. Ele hospeda Authentication, Realtime Database, Cloud Functions e o Secret Manager usado pela `routeProxy`.
+- **`Meu Otimizador`** e o projeto Google Cloud das APIs Google Maps Platform. Nele estao ativas a **Geocoding API** e a **Routes API**, com faturamento habilitado.
+- A chave server-side pertence a `Meu Otimizador`, possui restricao de API somente para Geocoding API e Routes API e nao e enviada ao aplicativo.
+- O valor dessa chave e armazenado como `GOOGLE_MAPS_SERVER_API_KEY` no Secret Manager de `venda-e-faturamento`. A `routeProxy` le o secret somente no backend.
+- A `routeProxy` permanece uma Cloud Function v2 em `venda-e-faturamento`, regiao `us-central1`, com timeout de 30 segundos.
+
+Assim, o projeto que executa a funcao e o projeto que licencia/fatura as APIs Maps podem ser diferentes. Nenhuma chave Maps server-side deve ser colocada em `EXPO_PUBLIC_*`, no bundle ou em logs.
+
 ## 2. Firebase Authentication
 
 O app usa Firebase Authentication diretamente no cliente:
@@ -313,6 +325,15 @@ O código original comprova push Web/FCM, mas não comprova token nativo Expo/iO
 ## 16. Cloud Functions
 
 Arquivo: `ionic-reference/functions/index.js`.
+
+### `routeProxy` na primeira versao React Native
+
+Na arquitetura React Native, `routeProxy` e uma Cloud Function v2 publicada em
+`venda-e-faturamento` (`us-central1`). Ela usa o secret
+`GOOGLE_MAPS_SERVER_API_KEY` desse projeto, cujo valor e a chave dedicada do projeto
+Google Cloud `Meu Otimizador`. As chamadas server-side sao feitas para Geocoding API e
+Routes API, ambas habilitadas em `Meu Otimizador`. A separacao nao altera o contrato do
+Realtime Database.
 
 ### `notificarNovaEntrega`
 

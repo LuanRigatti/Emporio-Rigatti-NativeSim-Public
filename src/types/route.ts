@@ -5,6 +5,13 @@ export const ROUTE_FLAMBOYANT_ADDRESS = 'Rua Flamboyant, 111 - Cachoeira, Curiti
 export const ROUTE_PLAV_ADDRESS =
   'Rua Cyro Correia Pereira, 2000 - Cidade Industrial de Curitiba, Curitiba - PR, 81460-050';
 
+// Used only as the initial viewport for manual selection; it is never persisted
+// or added to a route unless the user explicitly selects a point on the map.
+export const ROUTE_MAP_DEFAULT_CENTER: RouteCoordinate = {
+  latitude: -25.4296,
+  longitude: -49.2719,
+};
+
 export type RoutePreset = 'flamboyant-plav' | 'plav-flamboyant' | 'custom';
 export type RouteOptimizationMode = 'distance' | 'time';
 export type RouteAddressStatus = 'resolved' | 'invalid' | 'manualConfirmed';

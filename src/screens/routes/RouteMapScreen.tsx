@@ -1,10 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import {
   Card,
+  ConfirmationDialog,
+  EmptyState,
   ErrorState,
   LargeTitleHeader,
   Loading,
@@ -13,6 +15,7 @@ import {
   RouteStopCard,
   ScrollScreen,
   SecondaryButton,
+  Toast,
 } from '@/components';
 import { useRoute } from '@/hooks/useRoute';
 import type { DeliveriesStackParamList } from '@/navigation/types';
@@ -33,6 +36,10 @@ export function RouteMapScreen({ navigation, route }: Props) {
         .filter((line) => line.length > 0) ?? [],
     [session?.summary.segments],
   );
+  const [saveDistanceVisible, setSaveDistanceVisible] = useState(false);
+  const [saveDistanceLoading, setSaveDistanceLoading] = useState(false);
+  const [saveDistanceError, setSaveDistanceError] = useState<string>();
+  const [saveDistanceCompleted, setSaveDistanceCompleted] = useState(false);
 
   if (!session)
     return (
@@ -73,7 +80,19 @@ export function RouteMapScreen({ navigation, route }: Props) {
   };
 
   const saveDistance = async () => {
-    await routeState.saveDistance(session);
+    setSaveDistanceLoading(true);
+    setSaveDistanceError(undefined);
+    try {
+      await routeState.saveDistance(session);
+      setSaveDistanceVisible(false);
+      setSaveDistanceCompleted(true);
+    } catch (error) {
+      setSaveDistanceError(
+        error instanceof Error ? error.message : 'Não foi possível salvar a quilometragem.',
+      );
+    } finally {
+      setSaveDistanceLoading(false);
+    }
   };
 
   return (
@@ -84,9 +103,16 @@ export function RouteMapScreen({ navigation, route }: Props) {
         title="Mapa da rota"
       />
       <View style={{ gap: theme.spacing.md, padding: theme.spacing.md }}>
-        <Card style={{ height: 320, overflow: 'hidden', padding: 0 }}>
-          <NativeRouteMap polylines={polylines} stops={session.stops} />
-        </Card>
+        {session.stops.length > 0 ? (
+          <Card style={{ height: 320, overflow: 'hidden', padding: 0 }}>
+            <NativeRouteMap polylines={polylines} stops={session.stops} />
+          </Card>
+        ) : (
+          <EmptyState
+            description="Não há paradas confirmadas para exibir nesta rota."
+            title="Mapa sem paradas"
+          />
+        )}
         <Card>
           <Text style={[theme.typography.title2, { color: theme.colors.textPrimary }]}>Resumo</Text>
           <View
@@ -112,6 +138,12 @@ export function RouteMapScreen({ navigation, route }: Props) {
         </Card>
         {routeState.error ? (
           <ErrorState title="Erro na rota" description={routeState.error} />
+        ) : null}
+        {saveDistanceError ? (
+          <ErrorState
+            title="Não foi possível salvar a quilometragem"
+            description={saveDistanceError}
+          />
         ) : null}
         {routeState.loading ? <Loading label="Atualizando rota" /> : null}
         {currentStop ? (
@@ -189,9 +221,24 @@ export function RouteMapScreen({ navigation, route }: Props) {
             />
           ))}
         </View>
-        <SecondaryButton fullWidth onPress={() => void saveDistance()}>
+        <SecondaryButton fullWidth onPress={() => setSaveDistanceVisible(true)}>
           Salvar quilometragem do dia
         </SecondaryButton>
+        <ConfirmationDialog
+          confirmLabel="Salvar quilometragem"
+          loading={saveDistanceLoading}
+          message={`Salvar ${session.summary.distanceKm.toFixed(1)} km em gastosDiarios[${session.plan.date}].km?`}
+          onCancel={() => setSaveDistanceVisible(false)}
+          onConfirm={() => void saveDistance()}
+          title="Confirmar quilometragem"
+          visible={saveDistanceVisible}
+        />
+        <Toast
+          message="Quilometragem salva com sucesso."
+          onDismiss={() => setSaveDistanceCompleted(false)}
+          tone="success"
+          visible={saveDistanceCompleted}
+        />
       </View>
     </ScrollScreen>
   );

@@ -6,6 +6,8 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
+const { createRouteProxy } = require('./routeProxy');
+
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const APP_WEB_URL = 'https://venda-e-faturamento.web.app';
 const googleMapsServerKey = defineSecret('GOOGLE_MAPS_SERVER_API_KEY');
@@ -36,133 +38,16 @@ function notificationData(data) {
   return Object.fromEntries(Object.entries(data).map(([key, value]) => [key, asString(value)]));
 }
 
-function routeError(response, status, message) {
-  response.status(status).json({ error: message });
-}
-
-function isCoordinate(value) {
-  return (
-    value &&
-    typeof value === 'object' &&
-    Number.isFinite(value.latitude) &&
-    Number.isFinite(value.longitude)
-  );
-}
-
-function routePoint(coordinate) {
-  return { location: { latLng: coordinate } };
-}
-
-async function verifyRouteUser(request) {
-  const header = request.get('authorization') || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-  if (!token) throw new Error('Autenticação obrigatória.');
-  return admin.auth().verifyIdToken(token);
-}
-
-async function proxyGeocode(payload, apiKey) {
-  if (!payload || typeof payload.address !== 'string' || !payload.address.trim()) {
-    throw new Error('Endereço obrigatório.');
-  }
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-    payload.address.trim(),
-  )}&key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(url);
-  const result = await response.json();
-  const location = result?.results?.[0]?.geometry?.location;
-  if (!response.ok || result?.status !== 'OK' || !location) {
-    throw new Error('Endereço não localizado.');
-  }
-  return { location: { latitude: Number(location.lat), longitude: Number(location.lng) } };
-}
-
-async function proxyComputeRoutes(payload, apiKey) {
-  const intermediates = Array.isArray(payload?.intermediates) ? payload.intermediates : [];
-  if (!isCoordinate(payload?.origin) || !isCoordinate(payload?.destination)) {
-    throw new Error('Origem e destino devem possuir coordenadas válidas.');
-  }
-  if (intermediates.length > 25 || intermediates.some((item) => !isCoordinate(item))) {
-    throw new Error(
-      'A requisição de rota deve possuir no máximo 25 pontos intermediários válidos.',
-    );
-  }
-  const optimization = payload.optimization === 'time' ? 'time' : 'distance';
-  const body = {
-    origin: routePoint(payload.origin),
-    destination: routePoint(payload.destination),
-    intermediates: intermediates.map(routePoint),
-    travelMode: 'DRIVE',
-    routingPreference:
-      optimization === 'time'
-        ? payload.finalRoute
-          ? 'TRAFFIC_AWARE_OPTIMAL'
-          : 'TRAFFIC_AWARE'
-        : 'TRAFFIC_UNAWARE',
-    computeAlternativeRoutes: false,
-    optimizeWaypointOrder: Boolean(payload.optimizeWaypointOrder),
-    ...(optimization === 'distance' ? { requestedReferenceRoutes: ['SHORTER_DISTANCE'] } : {}),
-  };
-  const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask':
-        'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.optimizedIntermediateWaypointIndex',
-    },
-    body: JSON.stringify(body),
-  });
-  const result = await response.json();
-  const route = result?.routes?.[0];
-  if (!response.ok || !route) throw new Error('Não foi possível calcular a rota.');
-  const durationMatch =
-    typeof route.duration === 'string' ? route.duration.match(/([0-9.]+)s/) : null;
-  return {
-    distanceMeters: Number(route.distanceMeters) || 0,
-    durationSeconds: durationMatch ? Number(durationMatch[1]) : 0,
-    encodedPolyline: route.polyline?.encodedPolyline,
-    optimizedIntermediateWaypointIndex: Array.isArray(route.optimizedIntermediateWaypointIndex)
-      ? route.optimizedIntermediateWaypointIndex
-      : undefined,
-  };
-}
-
-exports.routeProxy = onRequest({ secrets: [googleMapsServerKey] }, async (request, response) => {
-  response.set('Access-Control-Allow-Origin', '*');
-  response.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  response.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  if (request.method === 'OPTIONS') {
-    response.status(204).send('');
-    return;
-  }
-  if (request.method !== 'POST') {
-    routeError(response, 405, 'Método não permitido.');
-    return;
-  }
-
-  try {
-    await verifyRouteUser(request);
-    const apiKey = googleMapsServerKey.value() || process.env.GOOGLE_MAPS_SERVER_API_KEY;
-    if (!apiKey) {
-      routeError(response, 503, 'Serviço de rotas não configurado.');
-      return;
-    }
-    const operation = request.body?.operation;
-    const payload = request.body?.payload;
-    if (operation === 'geocode') {
-      response.status(200).json(await proxyGeocode(payload, apiKey));
-      return;
-    }
-    if (operation === 'computeRoutes') {
-      response.status(200).json(await proxyComputeRoutes(payload, apiKey));
-      return;
-    }
-    routeError(response, 400, 'Operação de rota inválida.');
-  } catch (error) {
-    console.error('Erro no proxy seguro de rotas:', error);
-    routeError(response, 400, error instanceof Error ? error.message : 'Erro ao processar rota.');
-  }
-});
+// Keep the route proxy declaration isolated from the remaining notification functions.
+exports.routeProxy = onRequest(
+  {
+    region: 'us-central1',
+    timeoutSeconds: 30,
+    cors: false,
+    secrets: [googleMapsServerKey],
+  },
+  createRouteProxy({ getApiKey: () => googleMapsServerKey.value() }),
+);
 
 async function sendNotification(token, message) {
   if (isExpoToken(token)) {

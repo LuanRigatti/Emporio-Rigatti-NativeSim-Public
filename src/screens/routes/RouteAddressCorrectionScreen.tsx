@@ -15,7 +15,12 @@ import {
 } from '@/components';
 import { useRoute } from '@/hooks/useRoute';
 import type { DeliveriesStackParamList } from '@/navigation/types';
-import type { RouteAddressResolution, RouteCoordinate, RouteSession } from '@/types/route';
+import {
+  ROUTE_MAP_DEFAULT_CENTER,
+  type RouteAddressResolution,
+  type RouteCoordinate,
+  type RouteSession,
+} from '@/types/route';
 import { useAppTheme } from '@/theme';
 
 type Props = NativeStackScreenProps<DeliveriesStackParamList, 'RouteAddressCorrection'>;
@@ -109,16 +114,15 @@ export function RouteAddressCorrectionScreen({ navigation, route }: Props) {
         >
           Editar cadastro do cliente
         </SecondaryButton>
-        {mapStops.length > 0 ? (
-          <Card style={{ height: 280, overflow: 'hidden', padding: 0 }}>
-            <NativeRouteMap
-              selectable
-              onSelectCoordinate={setManualCoordinate}
-              polylines={[]}
-              stops={mapStops}
-            />
-          </Card>
-        ) : null}
+        <Card style={{ height: 280, overflow: 'hidden', padding: 0 }}>
+          <NativeRouteMap
+            initialCoordinate={mapStops[0]?.coordinates ?? ROUTE_MAP_DEFAULT_CENTER}
+            selectable
+            onSelectCoordinate={setManualCoordinate}
+            polylines={[]}
+            stops={mapStops}
+          />
+        </Card>
         <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
           {manualCoordinate
             ? `Ponto manual selecionado: ${manualCoordinate.latitude.toFixed(5)}, ${manualCoordinate.longitude.toFixed(5)}`

@@ -13,14 +13,18 @@ import {
   PrimaryButton,
   Screen,
   Section,
-  SegmentedControl,
   Skeleton,
   TextButton,
 } from '@/components';
 import { useExpenses } from '@/hooks/useExpenses';
 import type { FinanceStackParamList } from '@/navigation/types';
-import type { ExpensePeriod } from '@/types/data';
+import { expenseFiltersForSelection } from '@/services/expenses';
+import { formatFinancialPeriodLabel } from '@/services/finance';
+import type { FinancialPeriodSelection } from '@/types/data';
+import { formatPtBrDate, todayIso } from '@/utils/data';
 import { useAppTheme } from '@/theme';
+
+import { FinancePeriodControl } from '../finance/FinancePeriodControl';
 
 type Props = NativeStackScreenProps<FinanceStackParamList, 'ExpensesHome'>;
 
@@ -28,24 +32,22 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' }).format(value);
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-const periods: readonly { value: ExpensePeriod; label: string }[] = [
-  { value: 'day', label: 'Dia' },
-  { value: 'week', label: 'Semana' },
-  { value: 'month', label: 'Mês' },
-  { value: 'all', label: 'Tudo' },
-];
-
 export function ExpensesHome({ navigation }: Props) {
   const { theme } = useAppTheme();
-  const [period, setPeriod] = useState<ExpensePeriod>('day');
-  const [date] = useState(todayIso());
-  const filters = useMemo(() => ({ period, date, month: date.slice(0, 7) }), [date, period]);
-  const { snapshot, summary, loading, refreshing, error, reload } = useExpenses(filters);
-  const dailyExpenses = snapshot ? Object.values(snapshot.gastosDiarios) : [];
+  const date = todayIso();
+  const [selection, setSelection] = useState<FinancialPeriodSelection>({ kind: 'day', date });
+  const filters = useMemo(() => expenseFiltersForSelection(selection), [selection]);
+  const { snapshot, summary, dailyExpenses, loading, refreshing, error, reload } =
+    useExpenses(filters);
+  const availableYears = useMemo(
+    () =>
+      Object.keys(snapshot?.gastosDiarios ?? {})
+        .map((value) => value.slice(0, 4))
+        .filter((value, index, values) => /^\d{4}$/.test(value) && values.indexOf(value) === index)
+        .sort((left, right) => right.localeCompare(left)),
+    [snapshot],
+  );
+  const periodLabel = formatFinancialPeriodLabel(selection);
 
   return (
     <Screen>
@@ -63,7 +65,11 @@ export function ExpensesHome({ navigation }: Props) {
         title="Financeiro"
       />
       <View style={{ flex: 1, paddingHorizontal: theme.spacing.md }}>
-        <SegmentedControl options={periods} value={period} onChange={setPeriod} />
+        <FinancePeriodControl
+          availableYears={availableYears}
+          onChange={setSelection}
+          selection={selection}
+        />
         {loading ? (
           <View style={{ gap: theme.spacing.sm, paddingTop: theme.spacing.lg }}>
             <Skeleton height={theme.sizes.loadingLineHeight * 3} />
@@ -92,7 +98,7 @@ export function ExpensesHome({ navigation }: Props) {
                       onPress={() =>
                         navigation.navigate('CostCalculationDetails', {
                           metric: 'estar',
-                          periodLabel: period,
+                          periodLabel,
                         })
                       }
                       style={{ flex: 1 }}
@@ -103,7 +109,7 @@ export function ExpensesHome({ navigation }: Props) {
                       onPress={() =>
                         navigation.navigate('CostCalculationDetails', {
                           metric: 'combustivel',
-                          periodLabel: period,
+                          periodLabel,
                         })
                       }
                       style={{ flex: 1 }}
@@ -115,7 +121,7 @@ export function ExpensesHome({ navigation }: Props) {
                     onPress={() =>
                       navigation.navigate('CostCalculationDetails', {
                         metric: 'luz',
-                        periodLabel: period,
+                        periodLabel,
                       })
                     }
                   />
@@ -125,18 +131,14 @@ export function ExpensesHome({ navigation }: Props) {
                     onPress={() =>
                       navigation.navigate('CostCalculationDetails', {
                         metric: 'total',
-                        periodLabel: period,
+                        periodLabel,
                       })
                     }
                   />
-                  <TextButton
-                    onPress={() =>
-                      navigation.navigate('CostPeriod', { period, date, month: date.slice(0, 7) })
-                    }
-                  >
+                  <TextButton onPress={() => navigation.navigate('CostPeriod', { selection })}>
                     Ver custos do período
                   </TextButton>
-                  <TextButton onPress={() => navigation.navigate('ExpenseHistory')}>
+                  <TextButton onPress={() => navigation.navigate('ExpenseHistory', { selection })}>
                     Ver histórico de gastos
                   </TextButton>
                 </View>
@@ -151,7 +153,7 @@ export function ExpensesHome({ navigation }: Props) {
               />
             }
             renderItem={({ item }) => (
-              <Section title={item.data}>
+              <Section title={formatPtBrDate(item.data)}>
                 <ListItem
                   title="Estar"
                   subtitle={formatCurrency(item.estar ?? 0)}
@@ -171,7 +173,11 @@ export function ExpensesHome({ navigation }: Props) {
         )}
         <PrimaryButton
           fullWidth
-          onPress={() => navigation.navigate('MonthlyLight', { month: date.slice(0, 7) })}
+          onPress={() =>
+            navigation.navigate('MonthlyLight', {
+              month: selection.kind === 'month' ? selection.month : date.slice(0, 7),
+            })
+          }
         >
           Editar luz mensal
         </PrimaryButton>

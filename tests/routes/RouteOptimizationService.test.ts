@@ -56,7 +56,7 @@ describe('RouteOptimizationService', () => {
     const second = createRoutePlanFromPreset('2026-07-25', 'plav-flamboyant', 'distance');
 
     expect(first.origin.address).toBe(ROUTE_FLAMBOYANT_ADDRESS);
-    expect(first.mandatoryBeforeDeliveries[0]?.address).toBe(ROUTE_PLAV_ADDRESS);
+    expect(first.mandatoryBeforeDeliveries).toEqual([]);
     expect(first.destination.address).toBe(ROUTE_BASE_ADDRESS);
     expect(second.origin.address).toBe(ROUTE_PLAV_ADDRESS);
     expect(second.mandatoryAfterDeliveries[0]?.address).toBe(ROUTE_FLAMBOYANT_ADDRESS);
@@ -79,6 +79,28 @@ describe('RouteOptimizationService', () => {
     expect(session.stops.some((stop) => stop.deliveryId === 'delivery-1')).toBe(false);
     expect(computeRoutes).not.toHaveBeenCalled();
     expect(session.unresolvedAddresses[0]?.coordinates).toBeUndefined();
+  });
+
+  it('creates a route session without delivery stops when the selected day is empty', async () => {
+    const plan = createRoutePlanFromPreset('2026-07-25', 'flamboyant-plav', 'distance');
+    const session = await service.createSession(plan, [], {});
+
+    expect(session.deliveries).toEqual([]);
+    expect(session.stops.filter((stop) => stop.kind === 'delivery')).toEqual([]);
+    expect(session.unresolvedAddresses).toEqual([]);
+  });
+
+  it('creates a route session with one delivery and a calculated summary', async () => {
+    const plan = createRoutePlanFromPreset('2026-07-25', 'flamboyant-plav', 'distance');
+    const session = await service.createSession(
+      plan,
+      [delivery('delivery-1', 'Cliente 1', 'Rua 1, Curitiba - PR')],
+      {},
+    );
+
+    expect(session.stops.filter((stop) => stop.kind === 'delivery')).toHaveLength(1);
+    expect(session.summary.distanceKm).toBeGreaterThan(0);
+    expect(session.summary.durationMinutes).toBeGreaterThan(0);
   });
 
   it('accepts a manually confirmed coordinate only for the current session', async () => {

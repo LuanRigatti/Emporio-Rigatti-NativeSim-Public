@@ -40,9 +40,7 @@ export function createRoutePlanFromPreset(
         ROUTE_FLAMBOYANT_ADDRESS,
         'origin',
       ),
-      mandatoryBeforeDeliveries: [
-        createRouteLocation('mandatory-plav', 'PLAV', ROUTE_PLAV_ADDRESS, 'mandatory'),
-      ],
+      mandatoryBeforeDeliveries: [],
       mandatoryAfterDeliveries: [],
       destination,
     };

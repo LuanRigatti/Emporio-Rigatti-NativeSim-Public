@@ -15,10 +15,7 @@ import type {
   PaymentMethod,
 } from '@/types/data';
 import { DeliveryRepository } from '@/repositories/DeliveryRepository';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayIso } from '@/utils/data';
 
 export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   const { user } = useAuth();

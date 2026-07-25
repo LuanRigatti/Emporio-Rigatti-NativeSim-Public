@@ -7,6 +7,7 @@ import type { RouteCoordinate, RouteStop } from '@/types/route';
 export type NativeRouteMapProps = {
   stops: readonly RouteStop[];
   polylines: readonly RouteCoordinate[][];
+  initialCoordinate?: RouteCoordinate;
   selectable?: boolean;
   onSelectCoordinate?: (coordinate: RouteCoordinate) => void;
 };
@@ -21,15 +22,33 @@ function validCoordinate(coordinate: {
 export function NativeRouteMap({
   stops,
   polylines,
+  initialCoordinate,
   selectable = false,
   onSelectCoordinate,
 }: NativeRouteMapProps) {
   const { theme } = useAppTheme();
   const firstStop = stops[0];
-  if (!firstStop) return null;
+  const cameraCoordinate = firstStop?.coordinates ?? initialCoordinate;
+  if (!cameraCoordinate) {
+    return (
+      <View
+        style={{
+          alignItems: 'center',
+          backgroundColor: theme.colors.surface,
+          flex: 1,
+          justifyContent: 'center',
+          padding: theme.spacing.md,
+        }}
+      >
+        <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
+          Nenhum ponto confirmado para exibir no mapa.
+        </Text>
+      </View>
+    );
+  }
 
   const cameraPosition = {
-    coordinates: firstStop.coordinates,
+    coordinates: cameraCoordinate,
     zoom: 11,
   };
 

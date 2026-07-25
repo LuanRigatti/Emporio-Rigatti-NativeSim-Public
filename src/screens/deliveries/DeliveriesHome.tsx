@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 
 import {
+  BottomSheet,
   ConfirmationDialog,
   DeliveryCard,
   EmptyState,
@@ -25,10 +26,12 @@ import { useDeliveries } from '@/hooks/useDeliveries';
 import { useFinancialPrivacy } from '@/hooks/useFinancialPrivacy';
 import type { DeliveriesStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme';
+import { formatOperationalDate, formatPtBrDate, todayIso } from '@/utils/data';
 
 type Props = NativeStackScreenProps<DeliveriesStackParamList, 'DeliveriesHome'>;
-type Mode = 'today' | 'all';
 type PaymentStatus = 'Todos' | 'Pago' | 'Não Pago';
+type DeliveryStatusFilter = 'Todos' | 'Entregue' | 'Não entregue';
+type InvoiceStatusFilter = 'Todos' | 'emitido' | 'a_emitir';
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' }).format(value);
@@ -45,31 +48,74 @@ function DeliveryLoadingState() {
   );
 }
 
-export function DeliveriesHome({ navigation, route }: Props) {
+export function DeliveriesHome({ navigation }: Props) {
   const { theme } = useAppTheme();
   const { hidden } = useFinancialPrivacy();
-  const [mode, setMode] = useState<Mode>(route.params?.mode ?? 'today');
-  const [status, setStatus] = useState<PaymentStatus>(route.params?.status ?? 'Todos');
+  const operationalDate = todayIso();
+  const [status, setStatus] = useState<PaymentStatus>('Todos');
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatusFilter>('Todos');
+  const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatusFilter>('Todos');
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<PaymentStatus>('Todos');
+  const [draftDeliveryStatus, setDraftDeliveryStatus] = useState<DeliveryStatusFilter>('Todos');
+  const [draftInvoiceStatus, setDraftInvoiceStatus] = useState<InvoiceStatusFilter>('Todos');
   const [search, setSearch] = useState('');
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<string | undefined>();
   const [actionError, setActionError] = useState<string | undefined>();
   const { deliveries, loading, refreshing, error, reload, remove } = useDeliveries({
-    mode,
-    date: route.params?.date,
+    mode: 'today',
+    date: operationalDate,
     search,
-    clientName: route.params?.clientName,
     status,
+    deliveryStatus,
+    invoiceStatus,
   });
 
   const filters = useMemo(
     () => [
-      { key: 'mode', label: mode === 'today' ? 'Hoje' : 'Todas' },
       ...(status !== 'Todos' ? [{ key: 'status', label: status }] : []),
+      ...(deliveryStatus !== 'Todos' ? [{ key: 'deliveryStatus', label: deliveryStatus }] : []),
+      ...(invoiceStatus !== 'Todos'
+        ? [
+            {
+              key: 'invoiceStatus',
+              label: invoiceStatus === 'emitido' ? 'Nota emitida' : 'Nota a emitir',
+            },
+          ]
+        : []),
     ],
-    [mode, status],
+    [deliveryStatus, invoiceStatus, status],
   );
+
+  const hasActiveFilters = filters.length > 0;
+  const showListControls = loading || deliveries.length > 0 || Boolean(search) || hasActiveFilters;
+
+  const openFilters = () => {
+    setDraftStatus(status);
+    setDraftDeliveryStatus(deliveryStatus);
+    setDraftInvoiceStatus(invoiceStatus);
+    setFiltersVisible(true);
+  };
+
+  const applyFilters = () => {
+    setStatus(draftStatus);
+    setDeliveryStatus(draftDeliveryStatus);
+    setInvoiceStatus(draftInvoiceStatus);
+    setFiltersVisible(false);
+    setSelectionMode(false);
+    setSelectedIds([]);
+  };
+
+  const clearFilters = () => {
+    setStatus('Todos');
+    setDeliveryStatus('Todos');
+    setInvoiceStatus('Todos');
+    setSearch('');
+    setSelectionMode(false);
+    setSelectedIds([]);
+  };
 
   const toggleSelection = (deliveryId: string) => {
     setSelectedIds((current) =>
@@ -104,7 +150,7 @@ export function DeliveriesHome({ navigation, route }: Props) {
                 size={theme.sizes.iconMedium}
               />
             }
-            onPress={() => navigation.navigate('RouteDay', { date: route.params?.date })}
+            onPress={() => navigation.navigate('RouteDay', { date: operationalDate })}
           />
         }
         rightAction={
@@ -113,50 +159,44 @@ export function DeliveriesHome({ navigation, route }: Props) {
             icon={
               <Ionicons color={theme.colors.primary} name="add" size={theme.sizes.iconMedium} />
             }
-            onPress={() => navigation.navigate('NewDelivery', { date: route.params?.date })}
+            onPress={() => navigation.navigate('NewDelivery', { date: operationalDate })}
           />
         }
         subtitle={
-          selectionMode ? `${selectedIds.length} selecionada(s)` : 'Entregas do dia e histórico'
+          selectionMode
+            ? `${selectedIds.length} selecionada(s)`
+            : formatOperationalDate(operationalDate)
         }
         title="Entregas"
       />
       <View style={{ flex: 1, paddingHorizontal: theme.spacing.md }}>
-        <SegmentedControl
-          options={[
-            { value: 'today' as const, label: 'Hoje' },
-            { value: 'all' as const, label: 'Todas' },
-          ]}
-          value={mode}
-          onChange={setMode}
-        />
-        <SearchBar
-          clearable
-          onChangeText={setSearch}
-          onClear={() => setSearch('')}
-          placeholder="Buscar cliente"
-          style={{ marginTop: theme.spacing.sm }}
-          value={search}
-        />
-        <FilterBar
-          filters={filters}
-          onPress={() => setStatus(status === 'Todos' ? 'Não Pago' : 'Todos')}
-          onRemove={(key) => {
-            if (key === 'status') setStatus('Todos');
-            if (key === 'mode') setMode('today');
-          }}
-          style={{ marginTop: theme.spacing.xs }}
-        />
-        <View style={{ alignItems: 'flex-end', minHeight: theme.sizes.touchTargetMinimum }}>
-          <TextButton
-            onPress={() => {
-              setSelectionMode((current) => !current);
-              setSelectedIds([]);
-            }}
-          >
-            {selectionMode ? 'Cancelar seleção' : 'Selecionar várias'}
-          </TextButton>
-        </View>
+        {showListControls ? (
+          <>
+            <SearchBar
+              clearable
+              onChangeText={setSearch}
+              onClear={() => setSearch('')}
+              placeholder="Buscar cliente nas entregas de hoje"
+              style={{ marginTop: theme.spacing.sm }}
+              value={search}
+            />
+            <FilterBar
+              filters={filters}
+              onPress={openFilters}
+              onRemove={(key) => {
+                if (key === 'status') setStatus('Todos');
+                if (key === 'deliveryStatus') setDeliveryStatus('Todos');
+                if (key === 'invoiceStatus') setInvoiceStatus('Todos');
+              }}
+              style={{ marginTop: theme.spacing.xs }}
+            />
+            {hasActiveFilters || search ? (
+              <View style={{ alignItems: 'flex-end', minHeight: theme.sizes.touchTargetMinimum }}>
+                <TextButton onPress={clearFilters}>Limpar filtros</TextButton>
+              </View>
+            ) : null}
+          </>
+        ) : null}
         {loading ? (
           <DeliveryLoadingState />
         ) : error ? (
@@ -168,13 +208,16 @@ export function DeliveriesHome({ navigation, route }: Props) {
         ) : deliveries.length === 0 ? (
           <EmptyState
             description={
-              mode === 'today'
-                ? 'Nenhuma entrega está prevista para hoje.'
-                : 'Cadastre uma entrega para começar.'
+              hasActiveFilters || search
+                ? 'Nenhuma entrega corresponde aos filtros selecionados.'
+                : `Nenhuma entrega está prevista para ${formatOperationalDate(operationalDate)}.`
             }
             title="Nenhuma entrega encontrada"
-            actionLabel="Nova entrega"
-            onActionPress={() => navigation.navigate('NewDelivery')}
+            actionLabel={hasActiveFilters || search ? 'Limpar filtros' : 'Nova entrega'}
+            onActionPress={() => {
+              if (hasActiveFilters || search) clearFilters();
+              else navigation.navigate('NewDelivery', { date: operationalDate });
+            }}
           />
         ) : (
           <FlatList
@@ -207,7 +250,7 @@ export function DeliveriesHome({ navigation, route }: Props) {
                 >
                   <DeliveryCard
                     clientName={item.cliente}
-                    dateLabel={item.data}
+                    dateLabel={formatPtBrDate(item.data)}
                     delivered={item.entregue}
                     onPress={() => {
                       if (selectionMode) toggleSelection(item.id);
@@ -226,6 +269,18 @@ export function DeliveriesHome({ navigation, route }: Props) {
             showsVerticalScrollIndicator={false}
           />
         )}
+        {deliveries.length > 0 ? (
+          <View style={{ alignItems: 'flex-end', minHeight: theme.sizes.touchTargetMinimum }}>
+            <TextButton
+              onPress={() => {
+                setSelectionMode((current) => !current);
+                setSelectedIds([]);
+              }}
+            >
+              {selectionMode ? 'Cancelar seleção' : 'Selecionar várias'}
+            </TextButton>
+          </View>
+        ) : null}
         {selectionMode && selectedIds.length > 0 ? (
           <View style={{ gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
             <SecondaryButton
@@ -261,6 +316,64 @@ export function DeliveriesHome({ navigation, route }: Props) {
           title="Ação não concluída"
         />
       ) : null}
+      <BottomSheet
+        footer={
+          <View style={{ gap: theme.spacing.sm }}>
+            <SecondaryButton fullWidth onPress={() => setFiltersVisible(false)}>
+              Cancelar
+            </SecondaryButton>
+            <PrimaryButton fullWidth onPress={applyFilters}>
+              Aplicar filtros
+            </PrimaryButton>
+          </View>
+        }
+        onClose={() => setFiltersVisible(false)}
+        title="Filtrar entregas de hoje"
+        visible={filtersVisible}
+      >
+        <View style={{ gap: theme.spacing.xs }}>
+          <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
+            Pagamento
+          </Text>
+          <SegmentedControl
+            options={[
+              { value: 'Todos' as const, label: 'Todos' },
+              { value: 'Pago' as const, label: 'Pago' },
+              { value: 'Não Pago' as const, label: 'Não Pago' },
+            ]}
+            value={draftStatus}
+            onChange={setDraftStatus}
+          />
+        </View>
+        <View style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+          <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
+            Entrega
+          </Text>
+          <SegmentedControl
+            options={[
+              { value: 'Todos' as const, label: 'Todos' },
+              { value: 'Entregue' as const, label: 'Entregue' },
+              { value: 'Não entregue' as const, label: 'Não entregue' },
+            ]}
+            value={draftDeliveryStatus}
+            onChange={setDraftDeliveryStatus}
+          />
+        </View>
+        <View style={{ gap: theme.spacing.xs, marginTop: theme.spacing.md }}>
+          <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
+            Nota fiscal
+          </Text>
+          <SegmentedControl
+            options={[
+              { value: 'Todos' as const, label: 'Todos' },
+              { value: 'emitido' as const, label: 'Nota emitida' },
+              { value: 'a_emitir' as const, label: 'Nota a emitir' },
+            ]}
+            value={draftInvoiceStatus}
+            onChange={setDraftInvoiceStatus}
+          />
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }

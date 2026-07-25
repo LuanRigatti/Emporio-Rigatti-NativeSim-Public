@@ -5,6 +5,7 @@ export type DataErrorCode =
   | 'network'
   | 'timeout'
   | 'validation'
+  | 'user-data-not-found'
   | 'serialization'
   | 'conflict'
   | 'unknown';

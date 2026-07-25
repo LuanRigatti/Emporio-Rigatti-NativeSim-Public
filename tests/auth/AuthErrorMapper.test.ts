@@ -29,4 +29,14 @@ describe('mapAuthError', () => {
     expect(result.code).toBe('popup-blocked');
     expect(result.message).toBe('Pop-up bloqueado pelo navegador. Por favor, permita pop-ups.');
   });
+
+  it('exposes missing Firebase configuration instead of masking it as a network issue', () => {
+    const result = mapAuthError(
+      { message: 'Firebase configuration is incomplete. Missing environment variables.' },
+      'session',
+    );
+
+    expect(result.code).toBe('configuration');
+    expect(result.message).toBe('Configuracao do Firebase incompleta. Verifique o arquivo de ambiente.');
+  });
 });

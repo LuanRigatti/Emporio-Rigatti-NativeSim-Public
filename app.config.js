@@ -1,20 +1,57 @@
-const staticConfig = require('./app.json');
-
 const androidMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
 
 module.exports = {
   expo: {
-    ...staticConfig.expo,
+    name: 'PAReact',
+    slug: 'PAReact',
+    version: '1.0.0',
+    orientation: 'portrait',
+    scheme: 'pareact',
+    icon: './assets/icon.png',
+    userInterfaceStyle: 'automatic',
+    ios: {
+      bundleIdentifier: 'com.pareact.mobile',
+      buildNumber: '1',
+      supportsTablet: true,
+      infoPlist: {
+        LSApplicationQueriesSchemes: ['comgooglemaps'],
+      },
+    },
     android: {
-      ...staticConfig.expo.android,
+      adaptiveIcon: {
+        backgroundColor: '#E6F4FE',
+        foregroundImage: './assets/android-icon-foreground.png',
+        backgroundImage: './assets/android-icon-background.png',
+        monochromeImage: './assets/android-icon-monochrome.png',
+      },
+      predictiveBackGestureEnabled: false,
       ...(androidMapsKey
         ? {
             config: {
-              ...staticConfig.expo.android?.config,
               googleMaps: { apiKey: androidMapsKey },
             },
           }
         : {}),
     },
+    web: {
+      favicon: './assets/favicon.png',
+    },
+    experiments: {
+      tsconfigPaths: true,
+    },
+    plugins: [
+      'expo-font',
+      'expo-web-browser',
+      '@react-native-community/datetimepicker',
+      [
+        'expo-notifications',
+        {
+          defaultChannel: 'default',
+          enableBackgroundRemoteNotifications: true,
+        },
+      ],
+      'expo-sharing',
+      'expo-maps',
+    ],
   },
 };

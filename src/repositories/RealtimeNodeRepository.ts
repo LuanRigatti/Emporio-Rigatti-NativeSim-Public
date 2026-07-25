@@ -4,6 +4,8 @@ import { getFirebaseDatabase } from '@/services/firebase';
 import { DataError, toDataError } from '@/services/data/DataError';
 import { DataValidationError } from '@/utils/data';
 
+import { UserRootRepository } from './UserRootRepository';
+
 export interface NodeCodec<T> {
   emptyValue: T;
   validate(value: unknown): void;
@@ -37,6 +39,7 @@ export class RealtimeNodeRepository<T> {
 
   public async replace(value: T): Promise<void> {
     try {
+      await new UserRootRepository(this.uid).assertExists();
       const rawValue = this.codec.toFirebase(value);
       this.codec.validate(rawValue);
       await set(ref(getFirebaseDatabase(), `usuarios/${this.uid}/${this.node}`), rawValue);

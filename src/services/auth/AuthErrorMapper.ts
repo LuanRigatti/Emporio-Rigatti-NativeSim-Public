@@ -1,7 +1,13 @@
 type ErrorRecord = { code?: unknown; message?: unknown };
 
 export type AuthErrorCode =
-  'invalid-credentials' | 'network' | 'cancelled' | 'popup-blocked' | 'configuration' | 'unknown';
+  | 'invalid-credentials'
+  | 'network'
+  | 'cancelled'
+  | 'popup-blocked'
+  | 'configuration'
+  | 'account-not-authorized'
+  | 'unknown';
 
 export class AuthUserFacingError extends Error {
   public readonly code: AuthErrorCode;
@@ -45,6 +51,14 @@ export function mapAuthError(
 ): AuthUserFacingError {
   const code = readCode(error);
   const message = readMessage(error);
+
+  if (message.includes('Firebase configuration is incomplete')) {
+    return new AuthUserFacingError(
+      'configuration',
+      'Configuracao do Firebase incompleta. Verifique o arquivo de ambiente.',
+      error,
+    );
+  }
 
   if (isNetworkError(code, message)) {
     return new AuthUserFacingError(

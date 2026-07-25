@@ -14,17 +14,23 @@ WebBrowser.maybeCompleteAuthSession();
 
 type GoogleSignInButtonProps = {
   disabled?: boolean;
+  onPopup: () => Promise<void>;
   onCredential: (idToken: string, accessToken?: string) => Promise<void>;
   onError: (error: unknown) => void;
 };
 
 export function GoogleSignInButton({
   disabled = false,
+  onPopup,
   onCredential,
   onError,
 }: GoogleSignInButtonProps) {
   const clientIds = getGoogleClientIds();
   const clientId = getGoogleClientIdForCurrentPlatform(clientIds);
+
+  if (Platform.OS === 'web') {
+    return <WebGoogleSignInButton disabled={disabled} onError={onError} onPopup={onPopup} />;
+  }
 
   if (!clientId) {
     return (
@@ -42,8 +48,38 @@ export function GoogleSignInButton({
     <ConfiguredGoogleSignInButton
       clientIds={clientIds}
       disabled={disabled}
+      onPopup={onPopup}
       onCredential={onCredential}
       onError={onError}
+    />
+  );
+}
+
+type WebGoogleSignInButtonProps = Pick<GoogleSignInButtonProps, 'disabled' | 'onError' | 'onPopup'>;
+
+function WebGoogleSignInButton({ disabled = false, onError, onPopup }: WebGoogleSignInButtonProps) {
+  const [requesting, setRequesting] = useState(false);
+
+  const handlePress = async () => {
+    setRequesting(true);
+    try {
+      await onPopup();
+    } catch (error) {
+      onError(error);
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  return (
+    <SecondaryButton
+      accessibilityHint="Abre a autenticação do Google em uma janela do navegador"
+      accessibilityLabel="Entrar com o Google"
+      disabled={disabled}
+      fullWidth
+      label="Entrar com o Google"
+      loading={requesting}
+      onPress={handlePress}
     />
   );
 }

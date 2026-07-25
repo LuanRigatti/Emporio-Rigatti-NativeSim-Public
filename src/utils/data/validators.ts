@@ -99,6 +99,10 @@ export function validateMonthlyExpenses(value: unknown, path = 'gastosMensais'):
 
 export function validateFactoryReceipts(value: unknown, path = 'recebimentoBaldes'): void {
   if (!Array.isArray(value)) throw new DataValidationError(path, 'esperado um array completo');
+}
+
+export function validateFactoryReceiptsForWrite(value: unknown, path = 'recebimentoBaldes'): void {
+  if (!Array.isArray(value)) throw new DataValidationError(path, 'esperado um array completo');
   value.forEach((item, index) => {
     const record = requireRecord(item, `${path}[${index}]`);
     requireString(record.id, `${path}[${index}].id`);

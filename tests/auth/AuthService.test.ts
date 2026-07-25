@@ -52,6 +52,12 @@ const authenticatedUser: AuthUser = {
   phoneNumber: null,
 };
 
+const authorizedGoogleUser: AuthUser = {
+  ...authenticatedUser,
+  id: 'google-user-1',
+  email: 'luanr.rigatti@gmail.com',
+};
+
 const connectedState: ConnectivityState = {
   isConnected: true,
   isInternetReachable: true,
@@ -118,13 +124,34 @@ describe('AuthService', () => {
 
   it('signs in with the Google credential produced by AuthSession', async () => {
     const repository = new FakeAuthRepository();
-    repository.googleSignIn.mockResolvedValue(authenticatedUser);
+    repository.googleSignIn.mockResolvedValue(authorizedGoogleUser);
     const service = new AuthService(repository);
 
     await expect(service.signInWithGoogleCredential('id-token', 'access-token')).resolves.toEqual(
-      authenticatedUser,
+      authorizedGoogleUser,
     );
     expect(repository.googleSignIn).toHaveBeenCalledWith('id-token', 'access-token');
+  });
+
+  it('uses the Firebase popup for Web Google login', async () => {
+    const repository = new FakeAuthRepository();
+    const popup = jest.fn<Promise<AuthUser>, []>().mockResolvedValue(authorizedGoogleUser);
+    repository.signInWithGooglePopup = popup;
+    const service = new AuthService(repository);
+
+    await expect(service.signInWithGooglePopup()).resolves.toEqual(authorizedGoogleUser);
+    expect(popup).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a Google account that is not the authorized account', async () => {
+    const repository = new FakeAuthRepository();
+    repository.googleSignIn.mockResolvedValue(authenticatedUser);
+    const service = new AuthService(repository);
+
+    await expect(service.signInWithGoogleCredential('id-token')).rejects.toMatchObject({
+      code: 'account-not-authorized',
+    });
+    expect(repository.signOutCall).toHaveBeenCalledTimes(1);
   });
 
   it('reads the restored session exposed by Firebase persistence', () => {

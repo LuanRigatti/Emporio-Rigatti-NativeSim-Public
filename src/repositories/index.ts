@@ -8,3 +8,4 @@ export { MonthlyExpenseRepository } from './MonthlyExpenseRepository';
 export { PushTokenRepository } from './PushTokenRepository';
 export { RealtimeNodeRepository } from './RealtimeNodeRepository';
 export type { NodeCodec } from './RealtimeNodeRepository';
+export { UserRootRepository } from './UserRootRepository';

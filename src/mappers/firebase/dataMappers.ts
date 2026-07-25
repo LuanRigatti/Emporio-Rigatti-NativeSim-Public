@@ -3,7 +3,6 @@ import type {
   DailyExpense,
   DailyExpenses,
   Delivery,
-  FactoryPayment,
   FactoryReceipt,
   MonthlyExpense,
   MonthlyExpenses,
@@ -13,6 +12,7 @@ import {
   collectDeliveryLegacyFields,
   collectLegacyFields,
   formatClientName,
+  normalizeFactoryReceipt,
   normalizeMoney,
 } from '@/utils/data';
 import { isRecord, readNumber } from '@/utils/data/guards';
@@ -22,6 +22,7 @@ import {
   validateDeliveryArray,
   validateDeliveryRecord,
   validateFactoryReceipts,
+  validateFactoryReceiptsForWrite,
   validateMonthlyExpenses,
 } from '@/utils/data/validators';
 
@@ -154,44 +155,18 @@ export function toFirebaseMonthlyExpenses(expenses: MonthlyExpenses): UnknownRec
   );
 }
 
-function mapFactoryPayment(value: unknown, path: string): FactoryPayment {
-  const record = requireRecord(value);
-  return {
-    id: requiredString(record.id),
-    data: requiredString(record.data),
-    valor: requiredNumber(record.valor),
-    legacyFields: collectLegacyFields(record, new Set(['id', 'data', 'valor'])),
-  };
-}
-
 export function mapFactoryReceipt(value: unknown, path = 'recebimentoBaldes[0]'): FactoryReceipt {
-  validateFactoryReceipts([value], path);
-  const record = requireRecord(value);
-  const payments = Array.isArray(record.pagamentos)
-    ? record.pagamentos.map((payment, index) =>
-        mapFactoryPayment(payment, `${path}.pagamentos[${index}]`),
-      )
-    : [];
-
-  return {
-    id: requiredString(record.id),
-    quantidade: requiredNumber(record.quantidade),
-    data: requiredString(record.data),
-    valorTotal: requiredNumber(record.valorTotal),
-    concluido: record.concluido as boolean,
-    pagamentos: payments,
-    legacyFields: collectLegacyFields(
-      record,
-      new Set(['id', 'quantidade', 'data', 'valorTotal', 'concluido', 'pagamentos']),
-    ),
-  };
+  const normalized = normalizeFactoryReceipt(value, path);
+  if (!normalized) throw new Error(`Invalid factory receipt at ${path}.`);
+  return normalized;
 }
 
 export function mapFactoryReceipts(value: unknown): FactoryReceipt[] {
   validateFactoryReceipts(value);
-  return (value as unknown[]).map((item, index) =>
-    mapFactoryReceipt(item, `recebimentoBaldes[${index}]`),
-  );
+  return (value as unknown[]).flatMap((item, index) => {
+    const normalized = normalizeFactoryReceipt(item, `recebimentoBaldes[${index}]`);
+    return normalized ? [normalized] : [];
+  });
 }
 
 export function toFirebaseFactoryReceipt(receipt: FactoryReceipt): UnknownRecord {
@@ -204,6 +179,7 @@ export function toFirebaseFactoryReceipt(receipt: FactoryReceipt): UnknownRecord
 }
 
 export function toFirebaseFactoryReceipts(receipts: FactoryReceipt[]): UnknownRecord[] {
+  validateFactoryReceiptsForWrite(receipts);
   return receipts.map(toFirebaseFactoryReceipt);
 }
 

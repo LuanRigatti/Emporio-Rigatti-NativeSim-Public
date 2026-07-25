@@ -5,9 +5,12 @@ import {
   FactoryReceiptRepository,
   MonthlyExpenseRepository,
   PushTokenRepository,
+  UserRootRepository,
 } from '@/repositories';
 import { asyncStorageCacheService } from '@/services/cache';
+import { getFirebaseConfig } from '@/config';
 import { DataError, toDataError } from './DataError';
+import { DATA_NODES } from './paths';
 
 import type { CachedUserDataSnapshot, UserDataSnapshot } from './UserDataSnapshot';
 
@@ -25,6 +28,22 @@ export interface StaleWhileRevalidateResult {
 export class UserDataService {
   public async readFromFirebase(uid: string): Promise<UserDataSnapshot> {
     try {
+      const userNodeExists = await new UserRootRepository(uid).exists();
+      if (__DEV__) {
+        console.info('[Firebase Data]', {
+          projectId: getFirebaseConfig().projectId,
+          uid,
+          userNodeExists,
+          nodes: Object.values(DATA_NODES),
+        });
+      }
+      if (!userNodeExists) {
+        throw new DataError(
+          'user-data-not-found',
+          'A conta autenticada nÃ£o possui dados em usuarios/{uid}. A sincronizaÃ§Ã£o foi interrompida.',
+        );
+      }
+
       const [entregas, gastosDiarios, gastosMensais, recebimentoBaldes, clientesCustom, pushToken] =
         await Promise.all([
           new DeliveryRepository(uid).read(),
@@ -44,6 +63,7 @@ export class UserDataService {
         pushToken,
       };
     } catch (error) {
+      if (error instanceof DataError && error.code === 'user-data-not-found') throw error;
       throw toDataError(error, 'Não foi possível carregar os dados do usuário.');
     }
   }
@@ -79,6 +99,7 @@ export class UserDataService {
     try {
       return await this.revalidate(uid);
     } catch (error) {
+      if (error instanceof DataError && error.code === 'user-data-not-found') throw error;
       if (!cached) throw error;
       return {
         snapshot: cached,

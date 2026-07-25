@@ -5,6 +5,22 @@ import { connectivityService } from '@/services/connectivity';
 import { AuthUserFacingError, mapAuthError } from './AuthErrorMapper';
 import type { AuthServiceContract, AuthStateListener, AuthUser } from './types';
 
+const AUTHORIZED_GOOGLE_EMAIL = 'luanr.rigatti@gmail.com';
+
+function logAuthentication(
+  method: 'email' | 'google-popup' | 'google-credential',
+  user: AuthUser,
+): void {
+  if (!__DEV__) return;
+
+  console.info('[Firebase Auth]', {
+    method,
+    email: user.email,
+    uid: user.id,
+    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? 'unconfigured',
+  });
+}
+
 export class AuthService implements AuthServiceContract {
   public constructor(private readonly repository: AuthRepository = firebaseAuthRepository) {}
 
@@ -40,7 +56,9 @@ export class AuthService implements AuthServiceContract {
           'Aguardando conexão com o servidor... Tente novamente.',
         );
       }
-      return await this.repository.signInWithEmailAndPassword(email.trim(), password);
+      const user = await this.repository.signInWithEmailAndPassword(email.trim(), password);
+      logAuthentication('email', user);
+      return user;
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'email');
     }
@@ -48,9 +66,10 @@ export class AuthService implements AuthServiceContract {
 
   public async signInWithGooglePopup(): Promise<AuthUser> {
     try {
-      return await this.repository.signInWithGooglePopup();
+      const user = await this.repository.signInWithGooglePopup();
+      return this.validateGoogleUser(user, 'google-popup');
     } catch (error) {
-      throw mapAuthError(error, 'google');
+      throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'google');
     }
   }
 
@@ -63,10 +82,28 @@ export class AuthService implements AuthServiceContract {
     }
 
     try {
-      return await this.repository.signInWithGoogleCredential(idToken, accessToken);
+      const user = await this.repository.signInWithGoogleCredential(idToken, accessToken);
+      return this.validateGoogleUser(user, 'google-credential');
     } catch (error) {
-      throw mapAuthError(error, 'google');
+      throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'google');
     }
+  }
+
+  private async validateGoogleUser(
+    user: AuthUser,
+    method: 'google-popup' | 'google-credential',
+  ): Promise<AuthUser> {
+    const email = user.email?.trim().toLowerCase();
+    if (email !== AUTHORIZED_GOOGLE_EMAIL) {
+      await Promise.resolve(this.repository.signOut()).catch(() => undefined);
+      throw new AuthUserFacingError(
+        'account-not-authorized',
+        `Use a conta Google autorizada: ${AUTHORIZED_GOOGLE_EMAIL}.`,
+      );
+    }
+
+    logAuthentication(method, user);
+    return user;
   }
 
   public async signOut(): Promise<void> {

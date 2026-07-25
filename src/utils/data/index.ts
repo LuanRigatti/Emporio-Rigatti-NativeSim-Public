@@ -8,6 +8,8 @@ export {
   formatClientName,
   isAliasName,
   normalizeClientAlias,
+  normalizeFactoryPayments,
+  normalizeFactoryReceipt,
   normalizeClientKey,
   normalizeLegacyDate,
   normalizeMoney,
@@ -20,6 +22,7 @@ export {
   validateDeliveryArray,
   validateDeliveryRecord,
   validateFactoryReceipts,
+  validateFactoryReceiptsForWrite,
   validateMonthlyExpenses,
   validatePushToken,
 } from './validators';

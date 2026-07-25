@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   GoogleSignInButton,
@@ -19,11 +19,19 @@ import { useAppTheme } from '@/theme';
 
 export function LoginScreen() {
   const { theme } = useAppTheme();
-  const { error, isLoading, signIn, signInWithGoogleCredential, clearError } = useAuth();
+  const {
+    error,
+    isLoading,
+    signIn,
+    signInWithGoogleCredential,
+    signInWithGooglePopup,
+    clearError,
+  } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [googleError, setGoogleError] = useState<string | undefined>();
-  const googleConfigured = Boolean(getGoogleClientIdForCurrentPlatform(getGoogleClientIds()));
+  const googleConfigured =
+    Platform.OS === 'web' || Boolean(getGoogleClientIdForCurrentPlatform(getGoogleClientIds()));
 
   const handleSubmit = () => {
     Keyboard.dismiss();
@@ -130,6 +138,7 @@ export function LoginScreen() {
 
           <GoogleSignInButton
             disabled={isLoading}
+            onPopup={signInWithGooglePopup}
             onCredential={handleGoogleCredential}
             onError={handleGoogleError}
           />

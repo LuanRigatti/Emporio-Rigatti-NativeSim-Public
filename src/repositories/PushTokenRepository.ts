@@ -4,6 +4,8 @@ import { DataError, toDataError } from '@/services/data/DataError';
 import { getFirebaseDatabase } from '@/services/firebase';
 import { DataValidationError, validatePushToken } from '@/utils/data';
 
+import { UserRootRepository } from './UserRootRepository';
+
 export class PushTokenRepository {
   public constructor(private readonly uid: string) {}
 
@@ -26,6 +28,7 @@ export class PushTokenRepository {
   public async replace(token: string): Promise<void> {
     if (token.trim() === '') throw new DataError('validation', 'Token de push vazio.');
     try {
+      await new UserRootRepository(this.uid).assertExists();
       await set(ref(getFirebaseDatabase(), `usuarios/${this.uid}/pushToken`), token);
     } catch (error) {
       if (error instanceof DataError) throw error;

@@ -1,4 +1,12 @@
-import type { ClientId, Delivery, UnknownRecord } from '@/types/data';
+import type {
+  ClientId,
+  Delivery,
+  FactoryPayment,
+  FactoryReceipt,
+  UnknownRecord,
+} from '@/types/data';
+
+import { isRecord, readString } from './guards';
 
 export function normalizeMoney(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
@@ -59,6 +67,92 @@ export function clientIdFromName(value: string): ClientId {
 
 export function isAliasName(value: string): boolean {
   return normalizeClientAlias(value) !== value.trim();
+}
+
+function warnInvalidFactoryValue(path: string, reason: string): void {
+  if (__DEV__) {
+    console.warn('[Firebase legacy data] Ignored invalid factory value.', { path, reason });
+  }
+}
+
+function normalizeFactoryPayment(
+  value: unknown,
+  path: string,
+  fallbackId?: string,
+): FactoryPayment | undefined {
+  if (!isRecord(value)) {
+    warnInvalidFactoryValue(path, 'payment is not an object');
+    return undefined;
+  }
+
+  const id = readString(value.id) ?? readString(fallbackId);
+  const data = readString(value.data);
+  const valor = normalizeMoney(value.valor);
+  if (!id || !data || valor === undefined) {
+    warnInvalidFactoryValue(path, 'payment is missing id, data, or a valid valor');
+    return undefined;
+  }
+
+  return {
+    id,
+    data,
+    valor,
+    legacyFields: collectLegacyFields(value, new Set(['id', 'data', 'valor'])),
+  };
+}
+
+export function normalizeFactoryPayments(value: unknown, path: string): FactoryPayment[] {
+  if (value === undefined || value === null) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((payment, index) => {
+      const normalized = normalizeFactoryPayment(payment, `${path}[${index}]`);
+      return normalized ? [normalized] : [];
+    });
+  }
+
+  if (isRecord(value)) {
+    return Object.entries(value).flatMap(([key, payment]) => {
+      const normalized = normalizeFactoryPayment(payment, `${path}.${key}`, key);
+      return normalized ? [normalized] : [];
+    });
+  }
+
+  warnInvalidFactoryValue(path, 'payments container has an unsupported format');
+  return [];
+}
+
+export function normalizeFactoryReceipt(value: unknown, path: string): FactoryReceipt | undefined {
+  if (!isRecord(value)) {
+    warnInvalidFactoryValue(path, 'receipt is not an object');
+    return undefined;
+  }
+
+  const id = readString(value.id);
+  const quantidade = normalizeMoney(value.quantidade);
+  const data = readString(value.data);
+  const valorTotal = normalizeMoney(value.valorTotal);
+  if (!id || quantidade === undefined || !data || valorTotal === undefined) {
+    warnInvalidFactoryValue(path, 'receipt is missing required fields');
+    return undefined;
+  }
+  if (typeof value.concluido !== 'boolean') {
+    warnInvalidFactoryValue(path, 'receipt has an invalid concluido field');
+    return undefined;
+  }
+
+  return {
+    id,
+    quantidade,
+    data,
+    valorTotal,
+    concluido: value.concluido,
+    pagamentos: normalizeFactoryPayments(value.pagamentos, `${path}.pagamentos`),
+    legacyFields: collectLegacyFields(
+      value,
+      new Set(['id', 'quantidade', 'data', 'valorTotal', 'concluido', 'pagamentos']),
+    ),
+  };
 }
 
 const deliveryKeys = new Set([

@@ -11,9 +11,10 @@ import type {
 
 export type RootStackParamList = {
   Auth: undefined;
-  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
+  MainTabs: NavigatorScreenParams<PremiumMainTabParamList> | undefined;
   Modal: undefined;
   DesignSystemShowcase: undefined;
+  PremiumTabBarShowcase: undefined;
 };
 
 export type AuthStackParamList = {
@@ -35,6 +36,13 @@ export type MainTabParamList = {
   Clientes: NavigatorScreenParams<ClientsStackParamList>;
   Entregas: NavigatorScreenParams<DeliveriesStackParamList>;
   Mais: NavigatorScreenParams<MoreStackParamList>;
+};
+
+export type PremiumMainTabParamList = {
+  Dashboard: undefined;
+  Financeiro: undefined;
+  Registrar: undefined;
+  Historico: undefined;
 };
 
 export type FinanceMetric = FinancialMetric;

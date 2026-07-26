@@ -26,6 +26,8 @@ export { icons } from './icons';
 export { lightTheme } from './lightTheme';
 export { ThemeProvider } from './ThemeProvider';
 export { useAppTheme } from './useAppTheme';
+export { useVisualCapabilities } from './visualCapabilities';
+export type { VisualCapabilities } from './visualCapabilities';
 export type { ThemeColors } from './colors';
 export type { IconName, IconTokens } from './icons';
 export type { Layout } from './layout';

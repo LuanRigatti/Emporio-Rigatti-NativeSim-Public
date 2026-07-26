@@ -14,13 +14,18 @@ import { notificationService } from '@/services/notifications';
 import { AuthNavigator } from './AuthNavigator';
 import { MainTabNavigator } from './MainTabNavigator';
 import { NavigationPlaceholder } from './NavigationPlaceholder';
-import { DesignSystemShowcase } from '@/screens/dev';
+import { DesignSystemShowcase, PremiumTabBarShowcase } from '@/screens/dev';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ['pareact://', 'https://venda-e-faturamento.web.app'],
+  prefixes: [
+    'pareact://',
+    'https://venda-e-faturamento.web.app',
+    'http://localhost',
+    'http://127.0.0.1',
+  ],
   config: {
     screens: {
       Auth: {
@@ -30,27 +35,15 @@ const linking: LinkingOptions<RootStackParamList> = {
       },
       MainTabs: {
         screens: {
-          Dashboard: { screens: { HomeDashboard: 'dashboard' } },
-          Entregas: {
-            screens: {
-              DeliveriesHome: 'entregas',
-              DeliveryDetails: 'entregas/:deliveryId',
-              RouteDay: 'rota',
-            },
-          },
-          Clientes: { screens: { ClientsHome: 'clientes' } },
-          Financeiro: { screens: { FinanceHome: 'financeiro' } },
-          Mais: {
-            screens: {
-              MoreHome: 'mais',
-              History: 'mais/historico',
-              MoreNotifications: 'mais/notificacoes',
-            },
-          },
+          Dashboard: 'dashboard',
+          Financeiro: 'financas',
+          Registrar: 'registrar',
+          Historico: 'historico',
         },
       },
       Modal: 'modal',
       DesignSystemShowcase: 'dev/design-system',
+      PremiumTabBarShowcase: 'dev/premium-tab-bar',
     },
   },
   async getInitialURL() {
@@ -96,7 +89,10 @@ export function NavigationRoot() {
               options={{ presentation: 'modal' }}
             />
             {__DEV__ ? (
-              <Stack.Screen name="DesignSystemShowcase" component={DesignSystemShowcase} />
+              <>
+                <Stack.Screen name="DesignSystemShowcase" component={DesignSystemShowcase} />
+                <Stack.Screen name="PremiumTabBarShowcase" component={PremiumTabBarShowcase} />
+              </>
             ) : null}
           </Stack.Group>
         ) : (

@@ -25,6 +25,8 @@ export type ThemeColors = {
   dangerSurface: string;
   info: string;
   infoSurface: string;
+  glassSurface: string;
+  glassBorder: string;
   paid: string;
   unpaid: string;
   delivered: string;
@@ -62,6 +64,8 @@ export const lightColors: ThemeColors = {
   dangerSurface: '#FFEBEA',
   info: '#006EDB',
   infoSurface: '#EAF4FF',
+  glassSurface: 'rgba(255, 255, 255, 0.78)',
+  glassBorder: 'rgba(17, 24, 39, 0.10)',
   paid: '#117A52',
   unpaid: '#8A4B08',
   delivered: '#117A52',
@@ -99,6 +103,8 @@ export const darkColors: ThemeColors = {
   dangerSurface: '#4A211F',
   info: '#64B5FF',
   infoSurface: '#17334A',
+  glassSurface: 'rgba(22, 27, 34, 0.82)',
+  glassBorder: 'rgba(245, 247, 250, 0.16)',
   paid: '#63D39B',
   unpaid: '#FFB340',
   delivered: '#63D39B',

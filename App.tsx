@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { NavigationRoot } from '@/navigation';
@@ -26,16 +27,22 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <FinancialPrivacyProvider>
-            <NotificationProvider>
-              <AppContent />
-            </NotificationProvider>
-          </FinancialPrivacyProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <FinancialPrivacyProvider>
+              <NotificationProvider>
+                <AppContent />
+              </NotificationProvider>
+            </FinancialPrivacyProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = {
+  root: { flex: 1 },
+} as const;

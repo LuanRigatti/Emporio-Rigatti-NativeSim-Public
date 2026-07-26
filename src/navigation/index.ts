@@ -3,6 +3,7 @@ export { ClientsNavigator } from './ClientsNavigator';
 export { DashboardNavigator } from './DashboardNavigator';
 export { FinanceNavigator } from './FinanceNavigator';
 export { MainTabNavigator } from './MainTabNavigator';
+export { PremiumTabBar } from './PremiumTabBar';
 export { MoreNavigator } from './MoreNavigator';
 export { NavigationRoot } from './RootNavigator';
 export type {
@@ -13,6 +14,7 @@ export type {
   FinanceMetric,
   FinanceStackParamList,
   MainTabParamList,
+  PremiumMainTabParamList,
   MoreStackParamList,
   RootStackParamList,
   DeliveriesStackParamList,

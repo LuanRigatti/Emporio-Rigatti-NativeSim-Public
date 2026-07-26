@@ -1,4 +1,3 @@
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -12,12 +11,11 @@ export type PremiumTabPlaceholderScreenProps = {
 
 export function PremiumTabPlaceholderScreen({ title, children }: PremiumTabPlaceholderScreenProps) {
   const { theme } = useAppTheme();
-  const tabBarHeight = useBottomTabBarHeight();
 
   return (
     <PremiumScreen
       scrollable={false}
-      contentContainerStyle={{ paddingBottom: tabBarHeight + theme.spacing.lg }}
+      contentContainerStyle={{ paddingBottom: theme.layout.tabBarHeight + theme.spacing.lg }}
     >
       <GlassHeader title={title} />
       <View style={{ flex: 1 }}>{children}</View>

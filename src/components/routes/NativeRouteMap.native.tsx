@@ -62,7 +62,6 @@ export function NativeRouteMap({
           title: `${stop.sequence}. ${stop.label}`,
         }))}
         cameraPosition={cameraPosition}
-        colorScheme={AppleMaps.MapColorScheme.AUTOMATIC}
         onMapClick={(event) => {
           if (selectable && validCoordinate(event.coordinates))
             onSelectCoordinate?.(event.coordinates);

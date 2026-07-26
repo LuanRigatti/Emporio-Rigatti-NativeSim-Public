@@ -40,6 +40,7 @@ module.exports = {
       tsconfigPaths: true,
     },
     plugins: [
+      'expo-router',
       'expo-font',
       'expo-web-browser',
       '@react-native-community/datetimepicker',
@@ -50,7 +51,6 @@ module.exports = {
           enableBackgroundRemoteNotifications: true,
         },
       ],
-      'expo-sharing',
       'expo-maps',
     ],
   },

@@ -1,10 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, useColorScheme } from 'react-native';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
+type FontAwesome6IconName = keyof typeof FontAwesome6.glyphMap;
 
-function icon(name: IoniconName, sf: 'house' | 'chart.bar' | 'plus' | 'clock', color: string) {
+function icon(
+  name: IoniconName,
+  sf: 'house' | 'house.fill' | 'chart.bar' | 'plus' | 'clock',
+  color: string,
+) {
   if (Platform.OS === 'ios') {
     return { sf };
   }
@@ -24,20 +30,27 @@ function selectedIcon(
   return { src: Ionicons.getImageSource(name, 24, color) };
 }
 
+function homeIcon(color: string) {
+  const name: FontAwesome6IconName = 'house';
+  return { src: FontAwesome6.getImageSource(name, 24, color) };
+}
+
 export default function PrototypeTabsLayout() {
   const colorScheme = useColorScheme();
   const iconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
 
   return (
-    <NativeTabs>
+    <NativeTabs labelVisibilityMode="unlabeled" tintColor={iconColor}>
       <NativeTabs.Trigger
         name="dashboard"
         options={{
-          title: 'Dashboard',
-          icon: icon('home-outline', 'house', iconColor),
-          selectedIcon: selectedIcon('home', 'house.fill', iconColor),
+          title: 'Home',
+          icon: homeIcon(iconColor),
+          selectedIcon: homeIcon(iconColor),
         }}
-      />
+      >
+        <Label hidden />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger
         name="financeiro"
         options={{
@@ -45,7 +58,9 @@ export default function PrototypeTabsLayout() {
           icon: icon('bar-chart-outline', 'chart.bar', iconColor),
           selectedIcon: selectedIcon('bar-chart', 'chart.bar.fill', iconColor),
         }}
-      />
+      >
+        <Label hidden />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger
         name="registrar"
         options={{
@@ -53,7 +68,9 @@ export default function PrototypeTabsLayout() {
           icon: icon('add-outline', 'plus', iconColor),
           selectedIcon: selectedIcon('add-circle', 'plus.circle.fill', iconColor),
         }}
-      />
+      >
+        <Label hidden />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger
         name="historico"
         options={{
@@ -61,7 +78,9 @@ export default function PrototypeTabsLayout() {
           icon: icon('time-outline', 'clock', iconColor),
           selectedIcon: selectedIcon('time', 'clock.fill', iconColor),
         }}
-      />
+      >
+        <Label hidden />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

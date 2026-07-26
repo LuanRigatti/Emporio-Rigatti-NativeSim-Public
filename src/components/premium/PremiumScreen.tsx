@@ -40,11 +40,14 @@ export function PremiumScreen({
   return (
     <SafeAreaView
       {...props}
+      edges={['top']}
       style={[styles.safeArea, { backgroundColor: theme.colors.background }, style]}
     >
       {scrollable ? (
         <ScrollView
           {...scrollViewProps}
+          automaticallyAdjustContentInsets={false}
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={contentStyle}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}

@@ -8,6 +8,8 @@ export type ThemeColors = {
   textSecondary: string;
   textTertiary: string;
   textInverse: string;
+  contrastSurface: string;
+  contrastContent: string;
   textDisabled: string;
   separator: string;
   borderStrong: string;
@@ -47,6 +49,8 @@ export const lightColors: ThemeColors = {
   textSecondary: '#4B5563',
   textTertiary: '#6B7280',
   textInverse: '#FFFFFF',
+  contrastSurface: '#000000',
+  contrastContent: '#FFFFFF',
   textDisabled: '#9CA3AF',
   separator: '#E5E7EB',
   borderStrong: '#D1D5DB',
@@ -77,18 +81,20 @@ export const lightColors: ThemeColors = {
 };
 
 export const darkColors: ThemeColors = {
-  background: '#0B0F14',
-  backgroundSecondary: '#11161D',
-  surface: '#161B22',
-  surfaceElevated: '#20262F',
-  surfaceMuted: '#11161D',
+  background: '#000000',
+  backgroundSecondary: '#0F0F0F',
+  surface: '#1F1F1F',
+  surfaceElevated: '#1F1F1F',
+  surfaceMuted: '#1F1F1F',
   textPrimary: '#F5F7FA',
   textSecondary: '#B8C0CC',
   textTertiary: '#8E98A8',
   textInverse: '#111827',
+  contrastSurface: '#FFFFFF',
+  contrastContent: '#000000',
   textDisabled: '#667085',
-  separator: '#2A313B',
-  borderStrong: '#3A4350',
+  separator: '#303030',
+  borderStrong: '#404040',
   focus: '#64B5FF',
   primary: '#64B5FF',
   primaryPressed: '#8AC7FF',
@@ -103,7 +109,7 @@ export const darkColors: ThemeColors = {
   dangerSurface: '#4A211F',
   info: '#64B5FF',
   infoSurface: '#17334A',
-  glassSurface: 'rgba(22, 27, 34, 0.82)',
+  glassSurface: 'rgba(31, 31, 31, 0.82)',
   glassBorder: 'rgba(245, 247, 250, 0.16)',
   paid: '#63D39B',
   unpaid: '#FFB340',

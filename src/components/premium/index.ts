@@ -1,5 +1,35 @@
 export { AnimatedPressable } from './AnimatedPressable';
 export type { AnimatedPressableProps } from './AnimatedPressable';
+export { AnimatedCounter } from './AnimatedCounter';
+export type { AnimatedCounterProps } from './AnimatedCounter';
+export { BottomSheet } from './BottomSheet';
+export type { PremiumBottomSheetProps } from './BottomSheet';
+export { ContextMenu } from './ContextMenu';
+export type { ContextMenuItem, ContextMenuProps } from './ContextMenu';
+export { FilterChip } from './FilterChip';
+export type { FilterChipProps } from './FilterChip';
+export { FloatingButton } from './FloatingButton';
+export type { FloatingButtonProps } from './FloatingButton';
+export { GlassCard } from './GlassCard';
+export type { GlassCardProps } from './GlassCard';
+export { LargeTitle } from './LargeTitle';
+export type { LargeTitleProps } from './LargeTitle';
+export { Loading } from './Loading';
+export type { PremiumLoadingProps } from './Loading';
+export { MetricCard } from './MetricCard';
+export type { PremiumMetricCardProps } from './MetricCard';
+export { SearchBar } from './SearchBar';
+export type { PremiumSearchBarProps } from './SearchBar';
+export { SectionHeader } from './SectionHeader';
+export type { PremiumSectionHeaderProps } from './SectionHeader';
+export { SegmentControl } from './SegmentControl';
+export type { SegmentControlItem, SegmentControlProps } from './SegmentControl';
+export { Shimmer } from './Shimmer';
+export type { ShimmerProps } from './Shimmer';
+export { Skeleton } from './Skeleton';
+export type { PremiumSkeletonProps } from './Skeleton';
+export { StatCard } from './StatCard';
+export type { StatCardProps } from './StatCard';
 export { FloatingAction } from './FloatingAction';
 export type { FloatingActionProps } from './FloatingAction';
 export { GlassButton } from './GlassButton';
@@ -20,3 +50,8 @@ export { PremiumScreen } from './PremiumScreen';
 export type { PremiumScreenProps } from './PremiumScreen';
 export { PremiumSection } from './PremiumSection';
 export type { PremiumSectionProps } from './PremiumSection';
+
+// Existing public primitives remain available from the premium namespace so
+// consumers can import the whole visual API from one module.
+export { PrimaryButton, SecondaryButton } from '../buttons';
+export { EmptyState, ErrorState } from '../feedback';

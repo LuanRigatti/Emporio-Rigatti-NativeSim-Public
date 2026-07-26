@@ -1,16 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ComponentProps } from 'react';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
-import { AnimatedPressable } from './AnimatedPressable';
 import { GlassSurface } from './GlassSurface';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-export type GlassButtonVariant = 'glass' | 'primary' | 'secondary' | 'destructive';
+export type GlassButtonVariant = 'glass' | 'primary' | 'secondary' | 'destructive' | 'contrast';
 
 export type GlassButtonProps = {
   label: string;
@@ -35,19 +35,23 @@ export function GlassButton({
   accessibilityLabel,
   accessibilityHint,
 }: GlassButtonProps) {
-  const { theme } = useAppTheme();
+  const { reduceMotionEnabled, theme } = useAppTheme();
   const isDisabled = disabled || loading;
   const isGlass = variant === 'glass';
+  const scale = useSharedValue(1);
   const backgroundColor = {
     glass: theme.colors.glassSurface,
     primary: theme.colors.primary,
     secondary: theme.colors.surfaceMuted,
     destructive: theme.colors.danger,
+    contrast: theme.colors.contrastSurface,
   }[variant];
   const foregroundColor =
-    variant === 'primary' || variant === 'destructive'
-      ? theme.colors.textInverse
-      : theme.colors.textPrimary;
+    variant === 'contrast'
+      ? theme.colors.contrastContent
+      : variant === 'primary' || variant === 'destructive'
+        ? theme.colors.textInverse
+        : theme.colors.textPrimary;
 
   const content = (
     <View style={[styles.content, { gap: theme.spacing.xs }]}>
@@ -60,36 +64,57 @@ export function GlassButton({
     </View>
   );
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const pressSpring = (toValue: number) => {
+    scale.value = withSpring(
+      reduceMotionEnabled ? 1 : toValue,
+      reduceMotionEnabled ? undefined : theme.animations.spring.responsive,
+    );
+  };
+
   const button = (
-    <AnimatedPressable
-      onPress={() => {
-        triggerLightImpactHaptic();
-        onPress();
-      }}
-      disabled={isDisabled}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: isDisabled, busy: loading }}
-      style={[
-        styles.button,
-        {
-          backgroundColor,
-          borderColor: variant === 'glass' ? theme.colors.glassBorder : backgroundColor,
-          borderRadius: theme.radius.pill,
-          minHeight: theme.sizes.touchTargetMinimum,
-          paddingHorizontal: theme.spacing.lg,
-          opacity: isDisabled ? theme.opacities.disabled : 1,
-        },
-        fullWidth && styles.fullWidth,
-      ]}
-    >
-      {content}
-    </AnimatedPressable>
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        onPress={() => {
+          triggerLightImpactHaptic();
+          onPress();
+        }}
+        onPressIn={() => pressSpring(theme.animations.scale.pressed)}
+        onPressOut={() => pressSpring(1)}
+        disabled={isDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? label}
+        accessibilityHint={accessibilityHint}
+        accessibilityState={{ disabled: isDisabled, busy: loading }}
+        style={({ pressed }) => [
+          styles.button,
+          {
+            backgroundColor: isGlass
+              ? pressed
+                ? theme.colors.glassBorder
+                : 'transparent'
+              : backgroundColor,
+            borderColor: isGlass ? 'transparent' : backgroundColor,
+            borderRadius: theme.radius.pill,
+            minHeight: theme.sizes.touchTargetMinimum,
+            paddingHorizontal: theme.spacing.lg,
+            opacity: isDisabled ? theme.opacities.disabled : 1,
+          },
+          fullWidth && styles.fullWidth,
+        ]}
+      >
+        {content}
+      </Pressable>
+    </Animated.View>
   );
 
   return isGlass ? (
-    <GlassSurface style={fullWidth && styles.fullWidth}>{button}</GlassSurface>
+    <GlassSurface interactive style={fullWidth && styles.fullWidth}>
+      {button}
+    </GlassSurface>
   ) : (
     button
   );

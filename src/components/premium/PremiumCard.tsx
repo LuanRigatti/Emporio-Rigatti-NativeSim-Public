@@ -42,5 +42,5 @@ export function PremiumCard({ children, onPress, style, accessibilityLabel }: Pr
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1 },
+  card: { borderWidth: 0 },
 });

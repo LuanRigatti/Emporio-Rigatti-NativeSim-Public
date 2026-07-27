@@ -1,4 +1,4 @@
-import { Easing } from 'react-native';
+import { Easing } from 'react-native-reanimated';
 
 /**
  * Motion tokens for short, purposeful transitions. Components should use

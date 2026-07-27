@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,31 +11,12 @@ import {
   GlassSurface,
   PremiumCard,
   PremiumScreen,
-  PremiumSection,
   type ContextMenuItem,
 } from '@/components/premium';
+import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-
-type OpenPaymentPreview = {
-  client: string;
-  quantity: string;
-  pendingDeliveries: string;
-  amount: string;
-};
-
-const openPaymentPreview: readonly OpenPaymentPreview[] = [
-  { client: 'Elias', quantity: '6 baldes', pendingDeliveries: '2 entr.', amount: 'R$ 298,80' },
-  {
-    client: 'Guilherme',
-    quantity: '4 baldes',
-    pendingDeliveries: '1 entr.',
-    amount: 'R$ 194,00',
-  },
-  { client: 'Aldo', quantity: '3 baldes', pendingDeliveries: '1 entr.', amount: 'R$ 156,00' },
-  { client: 'Rafael', quantity: '4 baldes', pendingDeliveries: '1 entr.', amount: 'R$ 124,00' },
-  { client: 'Sofia', quantity: '3 baldes', pendingDeliveries: '1 entr.', amount: 'R$ 130,00' },
-];
+import { TabHapticListener } from '@/navigation/TabHapticListener';
 
 function PreviewIcon({
   color,
@@ -49,50 +30,10 @@ function PreviewIcon({
   return <Ionicons color={color} name={name} size={theme.sizes.iconMedium} />;
 }
 
-function OpenPaymentRow({ item }: { item: OpenPaymentPreview }) {
-  const { theme } = useAppTheme();
-
-  return (
-    <View
-      style={[
-        styles.openPaymentRow,
-        {
-          gap: theme.spacing.sm,
-          minHeight: theme.sizes.touchTargetMinimum + theme.spacing.sm,
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.openPaymentIcon,
-          {
-            backgroundColor: theme.colors.dangerSurface,
-            borderRadius: theme.radius.md,
-            height: theme.sizes.touchTargetMinimum,
-            width: theme.sizes.touchTargetMinimum,
-          },
-        ]}
-      >
-        <PreviewIcon color={theme.colors.danger} name="alert-outline" />
-      </View>
-      <View style={[styles.openPaymentContent, { gap: theme.spacing.xxs }]}>
-        <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-          {item.client}
-        </Text>
-        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          {item.quantity} ·{' '}
-          <Text style={{ color: theme.colors.danger }}>{item.pendingDeliveries}</Text>
-        </Text>
-      </View>
-      <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-        {item.amount}
-      </Text>
-    </View>
-  );
-}
-
 export default function Home() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, signOutMock } = useSession();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
   const moreButtonScale = useSharedValue(1);
@@ -123,12 +64,18 @@ export default function Home() {
       { scale: 0.92 + optionsExpansion.value * 0.08 },
     ],
   }));
+  const handleSignOut = useCallback(async () => {
+    if (!isAuthenticated) return;
+
+    await signOutMock();
+    router.replace('/login');
+  }, [isAuthenticated, router, signOutMock]);
   const menuItems: readonly ContextMenuItem[] = [
     {
       key: 'logout',
       label: 'Sair da conta',
       icon: 'log-out-outline',
-      onPress: () => undefined,
+      onPress: () => void handleSignOut(),
       destructive: true,
     },
     {
@@ -153,29 +100,17 @@ export default function Home() {
 
   return (
     <View style={styles.root}>
-      <PremiumScreen contentContainerStyle={{ gap: theme.spacing.xxl }}>
+      <TabHapticListener />
+      <PremiumScreen contentContainerStyle={{ gap: theme.spacing.xl }}>
         <View style={styles.header}>
-          <View>
-            <Text
-              style={[
-                theme.typography.largeTitle,
-                {
-                  color: theme.colors.textPrimary,
-                  fontSize:
-                    (theme.typography.largeTitle.fontSize ?? theme.spacing.xxl) +
-                    theme.spacing.xxs / 2,
-                  lineHeight:
-                    (theme.typography.largeTitle.lineHeight ?? theme.spacing.xxxl) +
-                    theme.spacing.xxs / 2,
-                },
-              ]}
-            >
-              Home
-            </Text>
-          </View>
+          <Text
+            style={[theme.typography.title3, styles.pageTitle, { color: theme.colors.textPrimary }]}
+          >
+            Home
+          </Text>
           <GlassSurface
             style={[
-              styles.moreButton,
+              styles.moreButtonContainer,
               {
                 borderRadius: theme.radius.pill,
                 minHeight: theme.sizes.touchTargetMinimum,
@@ -209,7 +144,7 @@ export default function Home() {
           </GlassSurface>
         </View>
 
-        <PremiumSection title="Ações rápidas">
+        <View style={{ gap: theme.spacing.sm }}>
           <View style={[styles.actionsRow, { gap: theme.spacing.sm }]}>
             <GlassButton
               accessibilityHint="Ação visual de demonstração"
@@ -225,29 +160,27 @@ export default function Home() {
               onPress={() => undefined}
             />
           </View>
-          <GlassButton
-            accessibilityHint="Ação visual de demonstração"
-            icon="receipt-outline"
-            label="Gasto do dia"
-            onPress={() => undefined}
-          />
-        </PremiumSection>
-
-        {process.env.NODE_ENV !== 'production' ? (
-          <Link
-            accessibilityLabel="Abrir showcase de componentes nativos"
-            href="/dev/native-components-showcase"
-            style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-          >
-            Native Components Showcase
-          </Link>
-        ) : null}
+        </View>
 
         <PremiumCard
-          style={{ borderRadius: theme.radius.xl + theme.spacing.sm, gap: theme.spacing.sm }}
+          style={{
+            borderRadius: theme.radius.xl + theme.spacing.sm,
+            gap: theme.spacing.sm,
+            padding: theme.spacing.xl,
+          }}
         >
           <View style={styles.heroHeader}>
-            <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color:
+                    resolvedMode === 'dark'
+                      ? theme.colors.textPrimary
+                      : theme.colors.contrastSurface,
+                },
+              ]}
+            >
               FATURAMENTO MENSAL
             </Text>
             <PreviewIcon color={theme.colors.revenue} name="trending-up" />
@@ -255,16 +188,27 @@ export default function Home() {
           <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
             R$ 12.540,00
           </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            Julho de 2026
-          </Text>
         </PremiumCard>
 
         <PremiumCard
-          style={{ borderRadius: theme.radius.xl + theme.spacing.sm, gap: theme.spacing.sm }}
+          style={{
+            borderRadius: theme.radius.xl + theme.spacing.sm,
+            gap: theme.spacing.sm,
+            padding: theme.spacing.xl,
+          }}
         >
           <View style={styles.heroHeader}>
-            <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                theme.typography.caption,
+                {
+                  color:
+                    resolvedMode === 'dark'
+                      ? theme.colors.textPrimary
+                      : theme.colors.contrastSurface,
+                },
+              ]}
+            >
               LUCRO LÍQUIDO MENSAL
             </Text>
             <PreviewIcon color={theme.colors.profit} name="trending-up" />
@@ -272,56 +216,30 @@ export default function Home() {
           <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
             R$ 9.840,00
           </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            Após custos do período
-          </Text>
         </PremiumCard>
 
         <PremiumCard
-          style={{ borderRadius: theme.radius.xl + theme.spacing.sm, gap: theme.spacing.md }}
+          accessibilityLabel="Abrir pagamentos em aberto"
+          onPress={() => router.push('/pagamentos-em-aberto')}
+          style={{
+            backgroundColor:
+              resolvedMode === 'dark' ? theme.colors.surface : theme.colors.warningSurface,
+            borderRadius: theme.radius.xl + theme.spacing.sm,
+          }}
         >
-          <View style={styles.openPaymentHeader}>
-            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              PAGAMENTOS EM ABERTO
-            </Text>
-            <Text style={[theme.typography.headline, { color: theme.colors.danger }]}>
-              R$ 902,80
-            </Text>
-          </View>
-          <ScrollView
-            contentContainerStyle={{ gap: theme.spacing.xs }}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={false}
-            style={{ maxHeight: theme.sizes.touchTargetMinimum * 4 }}
-          >
-            {openPaymentPreview.map((item) => (
-              <OpenPaymentRow item={item} key={item.client} />
-            ))}
-          </ScrollView>
-        </PremiumCard>
-
-        <PremiumSection title="Alertas">
-          <PremiumCard
-            style={{
-              backgroundColor:
-                resolvedMode === 'dark' ? theme.colors.surface : theme.colors.warningSurface,
-              borderRadius: theme.radius.xl + theme.spacing.sm,
-            }}
-          >
-            <View style={[styles.alertRow, { gap: theme.spacing.sm }]}>
-              <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
-              <View style={[styles.alertContent, { gap: theme.spacing.xs }]}>
-                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                  4 pagamentos pendentes
-                </Text>
-                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                  Revise as cobranças em aberto.
-                </Text>
-              </View>
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+          <View style={[styles.alertRow, { gap: theme.spacing.sm }]}>
+            <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
+            <View style={[styles.alertContent, { gap: theme.spacing.xs }]}>
+              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                4 pagamentos pendentes
+              </Text>
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                Revise as cobranças em aberto.
+              </Text>
             </View>
-          </PremiumCard>
-        </PremiumSection>
+            <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+          </View>
+        </PremiumCard>
       </PremiumScreen>
 
       <GlassSurface
@@ -432,7 +350,9 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  header: { alignItems: 'center', minHeight: 44, position: 'relative' },
+  pageTitle: { textAlign: 'center' },
+  moreButtonContainer: { position: 'absolute', right: 0 },
   moreButton: { alignItems: 'center', justifyContent: 'center' },
   optionsMenuAnchor: { position: 'absolute', transformOrigin: 'top right', zIndex: 10 },
   optionsMenu: { minWidth: 236, overflow: 'hidden' },
@@ -441,14 +361,6 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row' },
   alertRow: { alignItems: 'center', flexDirection: 'row' },
   alertContent: { flex: 1 },
-  openPaymentHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  openPaymentRow: { alignItems: 'center', flexDirection: 'row' },
-  openPaymentIcon: { alignItems: 'center', justifyContent: 'center' },
-  openPaymentContent: { flex: 1 },
   floatingAction: {
     alignItems: 'center',
     justifyContent: 'center',

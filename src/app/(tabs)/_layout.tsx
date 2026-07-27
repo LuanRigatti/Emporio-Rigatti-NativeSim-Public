@@ -1,14 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, useColorScheme } from 'react-native';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
-type FontAwesome6IconName = keyof typeof FontAwesome6.glyphMap;
 
 function icon(
   name: IoniconName,
-  sf: 'house' | 'house.fill' | 'chart.bar' | 'plus' | 'clock',
+  sf: 'house' | 'chart.bar' | 'plus.circle' | 'clock' | 'gearshape',
   color: string,
 ) {
   if (Platform.OS === 'ios') {
@@ -20,7 +18,7 @@ function icon(
 
 function selectedIcon(
   name: IoniconName,
-  sf: 'house.fill' | 'chart.bar.fill' | 'plus.circle.fill' | 'clock.fill',
+  sf: 'house.fill' | 'chart.bar.fill' | 'plus.circle.fill' | 'clock.fill' | 'gearshape.fill',
   color: string,
 ) {
   if (Platform.OS === 'ios') {
@@ -28,11 +26,6 @@ function selectedIcon(
   }
 
   return { src: Ionicons.getImageSource(name, 24, color) };
-}
-
-function homeIcon(color: string) {
-  const name: FontAwesome6IconName = 'house';
-  return { src: FontAwesome6.getImageSource(name, 24, color) };
 }
 
 export default function PrototypeTabsLayout() {
@@ -45,8 +38,8 @@ export default function PrototypeTabsLayout() {
         name="dashboard"
         options={{
           title: 'Home',
-          icon: homeIcon(iconColor),
-          selectedIcon: homeIcon(iconColor),
+          icon: icon('home-outline', 'house', iconColor),
+          selectedIcon: selectedIcon('home', 'house.fill', iconColor),
         }}
       >
         <Label hidden />
@@ -65,7 +58,7 @@ export default function PrototypeTabsLayout() {
         name="registrar"
         options={{
           title: 'Registrar',
-          icon: icon('add-outline', 'plus', iconColor),
+          icon: icon('add-outline', 'plus.circle', iconColor),
           selectedIcon: selectedIcon('add-circle', 'plus.circle.fill', iconColor),
         }}
       >
@@ -77,6 +70,16 @@ export default function PrototypeTabsLayout() {
           title: 'Histórico',
           icon: icon('time-outline', 'clock', iconColor),
           selectedIcon: selectedIcon('time', 'clock.fill', iconColor),
+        }}
+      >
+        <Label hidden />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger
+        name="configuracoes"
+        options={{
+          title: 'Configurações',
+          icon: icon('settings-outline', 'gearshape', iconColor),
+          selectedIcon: selectedIcon('settings', 'gearshape.fill', iconColor),
         }}
       >
         <Label hidden />

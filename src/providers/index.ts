@@ -10,3 +10,5 @@ export {
 export type { FinancialPrivacyContextValue } from './FinancialPrivacyProvider';
 export { FinancialPeriodProvider, useFinancialPeriod } from './FinancialPeriodProvider';
 export type { FinancialPeriodContextValue } from './FinancialPeriodProvider';
+export { SessionProvider, useSession } from './SessionProvider';
+export type { SessionContextValue } from './SessionProvider';

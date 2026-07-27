@@ -10,11 +10,20 @@ export function useLazyNativeImplementation<T>(
     let mounted = true;
 
     if (enabled) {
-      void loader().then((loaded) => {
-        if (mounted) {
-          setImplementation(loaded);
-        }
-      });
+      void loader().then(
+        (loaded) => {
+          if (mounted) {
+            // A component is a function, so pass a functional updater that
+            // returns the component instead of letting React execute it as one.
+            setImplementation(() => loaded);
+          }
+        },
+        () => {
+          if (mounted) {
+            setImplementation(null);
+          }
+        },
+      );
     } else {
       setImplementation(null);
     }

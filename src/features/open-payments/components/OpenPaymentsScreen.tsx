@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -10,7 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { GlassCard, GlassSurface, PremiumScreen } from '@/components/premium';
+import { NativeGlassBackButton } from '@/components/native';
+import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
 import { OpenPaymentRow } from './OpenPaymentRow';
@@ -44,36 +45,13 @@ export function OpenPaymentsScreen() {
     >
       <Animated.View style={[styles.content, contentStyle]}>
         <View style={styles.header}>
-          <GlassSurface
-            accessibilityLabel="Voltar"
-            style={[
-              styles.backButtonSurface,
-              {
-                borderRadius: theme.radius.pill,
-                height: theme.sizes.touchTargetMinimum,
-                width: theme.sizes.touchTargetMinimum,
-              },
-            ]}
-          >
-            <Pressable
-              accessibilityLabel="Voltar para Home"
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              style={({ pressed }) => [
-                styles.backButton,
-                {
-                  borderRadius: theme.radius.pill,
-                  opacity: pressed ? theme.opacities.pressed : 1,
-                },
-              ]}
-            >
-              <Ionicons
-                color={theme.colors.textPrimary}
-                name="chevron-back"
-                size={theme.sizes.iconMedium}
-              />
-            </Pressable>
-          </GlassSurface>
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Home"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
           <View style={styles.headerCopy}>
             <Text style={[theme.typography.largeTitle, { color: theme.colors.textPrimary }]}>
               Pagamentos em aberto
@@ -138,8 +116,6 @@ const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
   header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
-  backButtonSurface: { overflow: 'hidden' },
-  backButton: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   headerCopy: { flex: 1, gap: 4 },
   summaryCard: { padding: 16 },
   summaryRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },

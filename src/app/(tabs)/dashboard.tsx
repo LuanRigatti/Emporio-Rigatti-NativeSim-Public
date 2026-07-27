@@ -13,6 +13,7 @@ import {
   PremiumScreen,
   type ContextMenuItem,
 } from '@/components/premium';
+import { NativeGlassMenu, type NativeMenuAction } from '@/components/native';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -70,11 +71,12 @@ export default function Home() {
     await signOutMock();
     router.replace('/login');
   }, [isAuthenticated, router, signOutMock]);
-  const menuItems: readonly ContextMenuItem[] = [
+  const menuItems: readonly (ContextMenuItem & { systemImage: string })[] = [
     {
       key: 'logout',
       label: 'Sair da conta',
       icon: 'log-out-outline',
+      systemImage: 'rectangle.portrait.and.arrow.right',
       onPress: () => void handleSignOut(),
       destructive: true,
     },
@@ -82,21 +84,33 @@ export default function Home() {
       key: 'notifications',
       label: 'Notificações',
       icon: 'notifications-outline',
+      systemImage: 'bell',
       onPress: () => undefined,
     },
     {
       key: 'theme',
       label: 'Modo escuro/claro',
       icon: resolvedMode === 'dark' ? 'sunny-outline' : 'moon-outline',
+      systemImage: resolvedMode === 'dark' ? 'sun.max' : 'moon',
       onPress: () => undefined,
     },
     {
       key: 'privacy',
       label: 'Ocultar valores',
       icon: 'eye-off-outline',
+      systemImage: 'eye.slash',
       onPress: () => undefined,
     },
   ];
+  const nativeMenuActions: readonly NativeMenuAction[] = menuItems.map((item) => ({
+    id: item.key,
+    title: item.label,
+    systemImage: item.systemImage,
+    onPress: item.onPress,
+    destructive: item.destructive,
+    disabled: item.disabled,
+  }));
+  const handleNativeMenuReady = useCallback(() => setIsOptionsMenuVisible(false), []);
 
   return (
     <View style={styles.root}>
@@ -108,40 +122,53 @@ export default function Home() {
           >
             Home
           </Text>
-          <GlassSurface
-            style={[
-              styles.moreButtonContainer,
-              {
-                borderRadius: theme.radius.pill,
-                minHeight: theme.sizes.touchTargetMinimum,
-                minWidth: theme.sizes.touchTargetMinimum,
-              },
-            ]}
-          >
-            <Animated.View style={moreButtonAnimatedStyle}>
-              <Pressable
-                accessibilityLabel="Mais opções da Home"
-                accessibilityRole="button"
-                onPress={() => {
-                  triggerLightImpactHaptic();
-                  setIsOptionsMenuVisible(true);
-                }}
-                onPressIn={() => animateMoreButton(theme.animations.scale.pressed)}
-                onPressOut={() => animateMoreButton(1)}
-                style={({ pressed }) => [
-                  styles.moreButton,
+          <NativeGlassMenu
+            accessibilityLabel="Mais opções da Home"
+            actions={nativeMenuActions}
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            fallbackIcon="ellipsis-horizontal"
+            onImplementationReady={handleNativeMenuReady}
+            size={theme.sizes.iconMedium}
+            style={styles.moreButtonContainer}
+            systemImage="ellipsis"
+            trigger={
+              <GlassSurface
+                style={[
+                  styles.moreButtonContainer,
                   {
-                    backgroundColor: pressed ? theme.colors.glassBorder : 'transparent',
                     borderRadius: theme.radius.pill,
                     minHeight: theme.sizes.touchTargetMinimum,
                     minWidth: theme.sizes.touchTargetMinimum,
                   },
                 ]}
               >
-                <PreviewIcon color={theme.colors.textPrimary} name="ellipsis-horizontal" />
-              </Pressable>
-            </Animated.View>
-          </GlassSurface>
+                <Animated.View style={moreButtonAnimatedStyle}>
+                  <Pressable
+                    accessibilityLabel="Mais opções da Home"
+                    accessibilityRole="button"
+                    onPress={() => {
+                      triggerLightImpactHaptic();
+                      setIsOptionsMenuVisible(true);
+                    }}
+                    onPressIn={() => animateMoreButton(theme.animations.scale.pressed)}
+                    onPressOut={() => animateMoreButton(1)}
+                    style={({ pressed }) => [
+                      styles.moreButton,
+                      {
+                        backgroundColor: pressed ? theme.colors.glassBorder : 'transparent',
+                        borderRadius: theme.radius.pill,
+                        minHeight: theme.sizes.touchTargetMinimum,
+                        minWidth: theme.sizes.touchTargetMinimum,
+                      },
+                    ]}
+                  >
+                    <PreviewIcon color={theme.colors.textPrimary} name="ellipsis-horizontal" />
+                  </Pressable>
+                </Animated.View>
+              </GlassSurface>
+            }
+          />
         </View>
 
         <View style={{ gap: theme.spacing.sm }}>

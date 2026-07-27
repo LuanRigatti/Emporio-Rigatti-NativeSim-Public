@@ -1,5 +1,6 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import type { KeyboardTypeOptions, StyleProp, TextStyle, ViewStyle } from 'react-native';
+import type Ionicons from '@expo/vector-icons/Ionicons';
 
 export type NativeMenuAction = {
   id: string;
@@ -92,6 +93,43 @@ export type NativeButtonProps = {
   disabled?: boolean;
   destructive?: boolean;
   accessibilityLabel?: string;
+};
+
+export type NativeGlassIconButtonProps = {
+  systemImage: string;
+  fallbackIcon: ComponentProps<typeof Ionicons>['name'];
+  accessibilityLabel: string;
+  onPress: () => void;
+  color?: string;
+  size?: number;
+  containerSize?: number;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+export type NativeGlassBackButtonProps = {
+  accessibilityLabel?: string;
+  onPress: () => void;
+  color?: string;
+  size?: number;
+  containerSize?: number;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+export type NativeGlassMenuProps = {
+  actions: readonly NativeMenuAction[];
+  systemImage: string;
+  fallbackIcon: ComponentProps<typeof Ionicons>['name'];
+  accessibilityLabel: string;
+  onPress?: () => void;
+  color?: string;
+  size?: number;
+  containerSize?: number;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+  onImplementationReady?: () => void;
+  trigger: ReactElement;
 };
 
 export type NativeToggleProps = {

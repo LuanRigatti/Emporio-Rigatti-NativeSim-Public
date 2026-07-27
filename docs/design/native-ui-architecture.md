@@ -53,6 +53,9 @@ No Expo Go, o módulo `ExpoUI` não está disponível e a implementação SwiftU
 | `NativeList`             | SwiftUI `List` para listas pequenas                                                                   | `FlatList`                                                           | `FlatList`                          |
 | `NativeDatePicker`       | SwiftUI `DatePicker`                                                                                  | `@react-native-community/datetimepicker`                             | campo de data compatível            |
 | `NativeButton`           | SwiftUI `Button` com variante `glass`                                                                 | `GlassButton`                                                        | `GlassButton`                       |
+| `NativeGlassIconButton`  | SwiftUI `Button` com `buttonStyle('glass')` e SF Symbol                                               | `GlassSurface` + `Pressable`                                        | `GlassSurface` + `Pressable`        |
+| `NativeGlassBackButton`  | `NativeGlassIconButton` com `chevron.left`                                                           | `NativeGlassIconButton` fallback                                    | `NativeGlassIconButton` fallback    |
+| `NativeGlassMenu`        | SwiftUI `ContextMenu` com trigger `Button` glass e acoes nativas                                     | trigger e overlay React Native existentes                           | trigger e overlay React Native existentes |
 | `NativeToggle`           | SwiftUI `Switch`                                                                                      | React Native `Switch`                                                | React Native `Switch`               |
 | `NativeTextField`        | SwiftUI `TextField`                                                                                   | React Native `TextInput`                                             | React Native `TextInput`            |
 
@@ -77,6 +80,9 @@ Ela é acessível pelo link temporário `Native Components Showcase` na Home dur
 ## Limitações do SDK 54
 
 - `@expo/ui/swift-ui` exige Development Build no SDK 54.
+- `@expo/ui@0.2.0-beta.9` nao exporta `Menu`; exporta `ContextMenu`. Por isso `NativeGlassMenu` usa `ContextMenu activationMethod="singlePress"` no iOS Development Build.
+- `ContextMenu` nao oferece abertura/fechamento controlados nem callback de estado no iOS. O estado `isOptionsMenuVisible` e o overlay atual permanecem exclusivamente no fallback Android/Web/Expo Go; o iOS usa o menu nativo do sistema.
+- O `Button` do SDK 54 nao expoe estado `isOn` para itens de `ContextMenu`. Os handlers e os icones derivados do tema sao preservados; nenhum estado de negocio novo foi inventado.
 - `Stack.Toolbar` não foi usado porque não está disponível no SDK 54.
 - `NativeDialog` usa `Alert.alert` também no Development Build porque os wrappers SwiftUI de alerta não estão disponíveis na versão `@expo/ui@0.2.0-beta.9` instalada.
 - O `Link.Menu` exige um trigger associado a `Link`; triggers arbitrários usam `ActionSheetIOS` no Expo Go.

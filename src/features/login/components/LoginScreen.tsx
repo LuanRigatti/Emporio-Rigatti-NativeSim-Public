@@ -127,20 +127,6 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           >
             PAReact
           </Text>
-          <Text
-            style={[theme.typography.title2, styles.welcome, { color: theme.colors.textPrimary }]}
-          >
-            Bem-vindo de volta.
-          </Text>
-          <Text
-            style={[
-              theme.typography.subheadline,
-              styles.description,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            Entre para continuar sua operação com simplicidade.
-          </Text>
         </View>
 
         <View style={styles.actions}>
@@ -171,12 +157,6 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               ) : null}
             </Pressable>
           </GlassSurface>
-
-          <Text
-            style={[theme.typography.caption, styles.terms, { color: theme.colors.textTertiary }]}
-          >
-            Ao continuar, você concorda com os Termos de Uso e a Política de Privacidade.
-          </Text>
         </View>
       </Animated.View>
     </View>
@@ -193,7 +173,8 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    justifyContent: 'space-between',
+    flex: 1,
+    justifyContent: 'center',
     maxWidth: 420,
     width: '100%',
   },
@@ -210,18 +191,9 @@ const styles = StyleSheet.create({
   appName: {
     marginTop: 18,
   },
-  welcome: {
-    marginTop: 44,
-    textAlign: 'center',
-  },
-  description: {
-    marginTop: 8,
-    maxWidth: 300,
-    textAlign: 'center',
-  },
   actions: {
     alignItems: 'center',
-    marginTop: 64,
+    marginTop: 48,
     width: '100%',
   },
   buttonSurface: {
@@ -233,11 +205,6 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'center',
     paddingHorizontal: 20,
-  },
-  terms: {
-    marginTop: 16,
-    maxWidth: 320,
-    textAlign: 'center',
   },
   orb: {
     borderRadius: 240,

@@ -1,2 +1,6 @@
 export { default as NativeButton } from './NativeButton';
-export type { NativeButtonProps } from './NativeButton.types';
+export type {
+  NativeButtonContent,
+  NativeButtonHaptic,
+  NativeButtonProps,
+} from './NativeButton.types';

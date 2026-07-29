@@ -10,6 +10,8 @@ export type ThemeColors = {
   textInverse: string;
   contrastSurface: string;
   contrastContent: string;
+  selectionSurface: string;
+  selectionContent: string;
   textDisabled: string;
   separator: string;
   borderStrong: string;
@@ -51,6 +53,8 @@ export const lightColors: ThemeColors = {
   textInverse: '#FFFFFF',
   contrastSurface: '#000000',
   contrastContent: '#FFFFFF',
+  selectionSurface: '#000000',
+  selectionContent: '#FFFFFF',
   textDisabled: '#9CA3AF',
   separator: '#E5E7EB',
   borderStrong: '#D1D5DB',
@@ -92,6 +96,8 @@ export const darkColors: ThemeColors = {
   textInverse: '#111827',
   contrastSurface: '#FFFFFF',
   contrastContent: '#000000',
+  selectionSurface: '#000000',
+  selectionContent: '#FFFFFF',
   textDisabled: '#667085',
   separator: '#303030',
   borderStrong: '#404040',

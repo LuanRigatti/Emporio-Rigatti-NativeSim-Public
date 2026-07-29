@@ -1,1 +1,1 @@
-export type { NativeButtonProps } from '@/types/native-ui';
+export type { NativeButtonContent, NativeButtonHaptic, NativeButtonProps } from '@/types/native-ui';

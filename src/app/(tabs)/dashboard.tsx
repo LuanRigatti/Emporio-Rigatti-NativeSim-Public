@@ -7,15 +7,17 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  GlassButton,
   GlassSurface,
   PremiumCard,
   PremiumScreen,
   type ContextMenuItem,
 } from '@/components/premium';
-import { NativeGlassMenu, type NativeMenuAction } from '@/components/native';
+import { NativeGlassHeader } from '@/components/layout';
+import { NativeButton, NativeGlassMenu, type NativeMenuAction } from '@/components/native';
+import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
+import { lightColors } from '@/theme/colors';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TabHapticListener } from '@/navigation/TabHapticListener';
 
@@ -36,6 +38,9 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated, signOutMock } = useSession();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
+  const homeActionButtonWidth =
+    theme.sizes.touchTargetMinimum * 4 - theme.spacing.md - theme.spacing.xxs;
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
   const moreButtonScale = useSharedValue(1);
   const moreButtonAnimatedStyle = useAnimatedStyle(() => ({
@@ -111,80 +116,96 @@ export default function Home() {
     disabled: item.disabled,
   }));
   const handleNativeMenuReady = useCallback(() => setIsOptionsMenuVisible(false), []);
+  const homeHeader = (
+    <NativeGlassHeader
+      includeTopSafeArea={useNativeHeaderOverlay}
+      mode={useNativeHeaderOverlay ? 'translucent' : 'transparent'}
+      rightActions={
+        <NativeGlassMenu
+          accessibilityLabel="Mais opções da Home"
+          actions={nativeMenuActions}
+          color={theme.colors.textPrimary}
+          containerSize={theme.sizes.touchTargetMinimum}
+          fallbackIcon="ellipsis-horizontal"
+          onImplementationReady={handleNativeMenuReady}
+          size={theme.sizes.iconMedium}
+          systemImage="ellipsis"
+          trigger={
+            <Animated.View style={moreButtonAnimatedStyle}>
+              <Pressable
+                accessibilityLabel="Mais opções da Home"
+                accessibilityRole="button"
+                onPress={() => {
+                  triggerLightImpactHaptic();
+                  setIsOptionsMenuVisible(true);
+                }}
+                onPressIn={() => animateMoreButton(theme.animations.scale.pressed)}
+                onPressOut={() => animateMoreButton(1)}
+                style={({ pressed }) => [
+                  styles.moreButton,
+                  {
+                    backgroundColor: pressed ? theme.colors.glassBorder : 'transparent',
+                    borderRadius: theme.sizes.touchTargetMinimum / 2,
+                    height: theme.sizes.touchTargetMinimum,
+                    width: theme.sizes.touchTargetMinimum,
+                  },
+                ]}
+              >
+                <PreviewIcon color={theme.colors.textPrimary} name="ellipsis-horizontal" />
+              </Pressable>
+            </Animated.View>
+          }
+        />
+      }
+      title="Home"
+    />
+  );
 
   return (
     <View style={styles.root}>
       <TabHapticListener />
-      <PremiumScreen contentContainerStyle={{ gap: theme.spacing.xl }}>
-        <View style={styles.header}>
-          <Text
-            style={[theme.typography.title3, styles.pageTitle, { color: theme.colors.textPrimary }]}
-          >
-            Home
-          </Text>
-          <NativeGlassMenu
-            accessibilityLabel="Mais opções da Home"
-            actions={nativeMenuActions}
-            color={theme.colors.textPrimary}
-            containerSize={theme.sizes.touchTargetMinimum}
-            fallbackIcon="ellipsis-horizontal"
-            onImplementationReady={handleNativeMenuReady}
-            size={theme.sizes.iconMedium}
-            style={styles.moreButtonContainer}
-            systemImage="ellipsis"
-            trigger={
-              <GlassSurface
-                style={[
-                  styles.moreButtonContainer,
-                  {
-                    borderRadius: theme.radius.pill,
-                    minHeight: theme.sizes.touchTargetMinimum,
-                    minWidth: theme.sizes.touchTargetMinimum,
-                  },
-                ]}
-              >
-                <Animated.View style={moreButtonAnimatedStyle}>
-                  <Pressable
-                    accessibilityLabel="Mais opções da Home"
-                    accessibilityRole="button"
-                    onPress={() => {
-                      triggerLightImpactHaptic();
-                      setIsOptionsMenuVisible(true);
-                    }}
-                    onPressIn={() => animateMoreButton(theme.animations.scale.pressed)}
-                    onPressOut={() => animateMoreButton(1)}
-                    style={({ pressed }) => [
-                      styles.moreButton,
-                      {
-                        backgroundColor: pressed ? theme.colors.glassBorder : 'transparent',
-                        borderRadius: theme.radius.pill,
-                        minHeight: theme.sizes.touchTargetMinimum,
-                        minWidth: theme.sizes.touchTargetMinimum,
-                      },
-                    ]}
-                  >
-                    <PreviewIcon color={theme.colors.textPrimary} name="ellipsis-horizontal" />
-                  </Pressable>
-                </Animated.View>
-              </GlassSurface>
-            }
-          />
-        </View>
+      <PremiumScreen
+        contentContainerStyle={{ gap: theme.spacing.lg }}
+        overlayHeader={useNativeHeaderOverlay ? homeHeader : undefined}
+      >
+        {!useNativeHeaderOverlay ? <View style={styles.header}>{homeHeader}</View> : null}
 
-        <View style={{ gap: theme.spacing.sm }}>
-          <View style={[styles.actionsRow, { gap: theme.spacing.sm }]}>
-            <GlassButton
-              accessibilityHint="Ação visual de demonstração"
-              icon="add"
+        <View
+          style={{
+            gap: theme.spacing.sm,
+            marginBottom: 0,
+            marginTop: -theme.spacing.xl,
+          }}
+        >
+          <View style={[styles.actionsRow, { alignSelf: 'flex-start', gap: theme.spacing.xs }]}>
+            <NativeButton
+              accessibilityLabel="Nova entrega"
+              controlSize="large"
+              fallbackIcon="add"
+              haptic="light"
+              horizontalPadding={theme.spacing.lg}
               label="Nova entrega"
+              minWidth={homeActionButtonWidth + theme.spacing.lg}
               onPress={() => undefined}
-              variant="contrast"
+              systemImage="plus"
+              backgroundColor={resolvedMode === 'dark' ? '#FFFFFF' : '#000000'}
+              color={resolvedMode === 'dark' ? '#000000' : '#FFFFFF'}
+              variant="filled"
             />
-            <GlassButton
-              accessibilityHint="Ação visual de demonstração"
-              icon="navigate-outline"
+            <NativeButton
+              accessibilityLabel="Rota"
+              controlSize="large"
+              fallbackIcon="navigate-outline"
+              haptic="light"
+              horizontalPadding={theme.spacing.lg}
               label="Rota"
+              minHeight={theme.sizes.touchTargetMinimum}
+              minWidth={homeActionButtonWidth}
               onPress={() => undefined}
+              systemImage="location.north"
+              backgroundColor="#FFFFFF"
+              color="#000000"
+              variant="surface"
             />
           </View>
         </View>
@@ -249,18 +270,27 @@ export default function Home() {
           accessibilityLabel="Abrir pagamentos em aberto"
           onPress={() => router.push('/pagamentos-em-aberto')}
           style={{
-            backgroundColor:
-              resolvedMode === 'dark' ? theme.colors.surface : theme.colors.warningSurface,
+            backgroundColor: lightColors.warningSurface,
             borderRadius: theme.radius.xl + theme.spacing.sm,
           }}
         >
           <View style={[styles.alertRow, { gap: theme.spacing.sm }]}>
             <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
             <View style={[styles.alertContent, { gap: theme.spacing.xs }]}>
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+              <Text
+                style={[
+                  theme.typography.headline,
+                  { color: resolvedMode === 'dark' ? '#000000' : theme.colors.textPrimary },
+                ]}
+              >
                 4 pagamentos pendentes
               </Text>
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  theme.typography.footnote,
+                  { color: resolvedMode === 'dark' ? '#000000' : theme.colors.textSecondary },
+                ]}
+              >
                 Revise as cobranças em aberto.
               </Text>
             </View>
@@ -268,36 +298,6 @@ export default function Home() {
           </View>
         </PremiumCard>
       </PremiumScreen>
-
-      <GlassSurface
-        style={[
-          styles.floatingAction,
-          theme.shadows.elevated,
-          {
-            borderRadius: theme.radius.pill,
-            bottom: theme.spacing.lg,
-            right: theme.spacing.lg,
-          },
-        ]}
-      >
-        <Pressable
-          accessibilityHint="Ação visual de demonstração"
-          accessibilityLabel="Adicionar entrega"
-          accessibilityRole="button"
-          onPress={() => undefined}
-          style={({ pressed }) => [
-            styles.floatingActionButton,
-            {
-              borderRadius: theme.radius.pill,
-              height: theme.sizes.touchTargetMinimum + theme.spacing.sm,
-              opacity: pressed ? theme.opacities.pressed : 1,
-              width: theme.sizes.touchTargetMinimum + theme.spacing.sm,
-            },
-          ]}
-        >
-          <Ionicons color={theme.colors.textPrimary} name="add" size={theme.sizes.iconLarge} />
-        </Pressable>
-      </GlassSurface>
 
       {isOptionsMenuVisible ? (
         <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -379,7 +379,6 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
   pageTitle: { textAlign: 'center' },
-  moreButtonContainer: { position: 'absolute', right: 0 },
   moreButton: { alignItems: 'center', justifyContent: 'center' },
   optionsMenuAnchor: { position: 'absolute', transformOrigin: 'top right', zIndex: 10 },
   optionsMenu: { minWidth: 236, overflow: 'hidden' },
@@ -388,14 +387,4 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row' },
   alertRow: { alignItems: 'center', flexDirection: 'row' },
   alertContent: { flex: 1 },
-  floatingAction: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'absolute',
-    right: 0,
-  },
-  floatingActionButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

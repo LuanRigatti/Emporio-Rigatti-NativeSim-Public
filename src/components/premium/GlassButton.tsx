@@ -4,7 +4,8 @@ import type { ComponentProps } from 'react';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { useAppTheme } from '@/theme';
-import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { triggerNativeButtonHaptic } from '@/utils/haptics';
+import type { NativeButtonHaptic } from '@/types/native-ui';
 
 import { GlassSurface } from './GlassSurface';
 
@@ -22,6 +23,7 @@ export type GlassButtonProps = {
   fullWidth?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  haptic?: NativeButtonHaptic;
 };
 
 export function GlassButton({
@@ -34,6 +36,7 @@ export function GlassButton({
   fullWidth = false,
   accessibilityLabel,
   accessibilityHint,
+  haptic = 'light',
 }: GlassButtonProps) {
   const { reduceMotionEnabled, theme } = useAppTheme();
   const isDisabled = disabled || loading;
@@ -79,7 +82,7 @@ export function GlassButton({
     <Animated.View style={animatedStyle}>
       <Pressable
         onPress={() => {
-          triggerLightImpactHaptic();
+          triggerNativeButtonHaptic(haptic);
           onPress();
         }}
         onPressIn={() => pressSpring(theme.animations.scale.pressed)}

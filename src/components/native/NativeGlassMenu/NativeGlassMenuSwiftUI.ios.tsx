@@ -1,5 +1,12 @@
 import { Button, ContextMenu, Host, Image } from '@expo/ui/swift-ui';
-import { accessibilityLabel, buttonStyle, frame, tint } from '@expo/ui/swift-ui/modifiers';
+import {
+  accessibilityLabel,
+  buttonStyle,
+  frame,
+  glassEffect,
+  padding,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeGlassMenuProps } from '@/types/native-ui';
@@ -9,15 +16,13 @@ export default function NativeGlassMenuSwiftUI({
   actions,
   color,
   containerSize,
-  disabled,
-  onPress,
   size,
   style,
   systemImage,
 }: NativeGlassMenuProps) {
   return (
     <Host matchContents style={style}>
-      <ContextMenu activationMethod="singlePress">
+      <ContextMenu activationMethod="singlePress" modifiers={[buttonStyle('plain')]}>
         <ContextMenu.Items>
           {actions.map((action) => (
             <Button
@@ -32,18 +37,21 @@ export default function NativeGlassMenuSwiftUI({
           ))}
         </ContextMenu.Items>
         <ContextMenu.Trigger>
-          <Button
-            disabled={disabled}
+          <Image
             modifiers={[
+              padding({ all: 0 }),
               frame({ width: containerSize, height: containerSize }),
-              buttonStyle('glass'),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'circle',
+              }),
               ...(color ? [tint(color)] : []),
               accessibilityLabel(label),
             ]}
-            onPress={onPress}
-          >
-            <Image color={color} size={size} systemName={systemImage as SFSymbol} />
-          </Button>
+            color={color}
+            size={size}
+            systemName={systemImage as SFSymbol}
+          />
         </ContextMenu.Trigger>
       </ContextMenu>
     </Host>

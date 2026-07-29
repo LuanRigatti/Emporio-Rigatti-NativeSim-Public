@@ -1,13 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GlassSurface, PremiumScreen } from '@/components/premium';
+import { PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 
 import { historyMockDeliveries, type DeliveryStatus } from '../data/historyMocks';
+import {
+  getAddedHistoryDeliveries,
+  subscribeToAddedHistoryDeliveries,
+} from '../data/historyDeliveryStore';
 import { openInAppleMapsMock, openInWazeMock } from '../utils/locationActionsMock';
 import {
   createHistoryDate,
@@ -17,7 +21,6 @@ import {
 } from '../utils/historyDateUtils';
 import { BottomFadeOverlay, HISTORY_BOTTOM_FADE_HEIGHT } from './BottomFadeOverlay';
 import { DeliveryCard } from './DeliveryCard';
-import { DeliveryActionsPopover, type DeliveryActionsAnchorRect } from './DeliveryActionsPopover';
 import { EmptyState } from './EmptyState';
 import { FilterChips, type HistoryFilter } from './FilterChips';
 import { HistoryHeader } from './HistoryHeader';
@@ -26,40 +29,56 @@ import { HorizontalCalendar } from './HorizontalCalendar';
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
+  const addedDeliveries = useSyncExternalStore(
+    subscribeToAddedHistoryDeliveries,
+    getAddedHistoryDeliveries,
+    getAddedHistoryDeliveries,
+  );
+  const allDeliveries = useMemo(
+    () => [...addedDeliveries, ...historyMockDeliveries],
+    [addedDeliveries],
+  );
   const initialPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(initialPeriod.month);
   const [selectedYear, setSelectedYear] = useState(initialPeriod.year);
   const [selectedDate, setSelectedDate] = useState(() =>
-    getInitialHistoryDate(initialPeriod.year, initialPeriod.month, historyMockDeliveries),
+    getInitialHistoryDate(initialPeriod.year, initialPeriod.month, allDeliveries),
   );
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
   const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(() =>
-    Object.fromEntries(historyMockDeliveries.map((delivery) => [delivery.id, delivery.status])),
+    Object.fromEntries(allDeliveries.map((delivery) => [delivery.id, delivery.status])),
   );
-  const [actionsPopover, setActionsPopover] = useState<{
-    deliveryId: string;
-    anchorRect: DeliveryActionsAnchorRect;
-  } | null>(null);
+  const latestAddedDelivery = addedDeliveries[0];
+  const latestAddedDeliveryId = latestAddedDelivery?.id;
+  const latestAddedDeliveryDate = latestAddedDelivery?.data;
 
+  useEffect(() => {
+    if (!latestAddedDeliveryId || !latestAddedDeliveryDate) return;
+    const [year, month] = latestAddedDeliveryDate.split('-').map(Number);
+    setSelectedYear(year);
+    setSelectedMonth(month);
+    setSelectedDate(latestAddedDeliveryDate);
+    setSelectedFilter('Todos');
+  }, [latestAddedDeliveryDate, latestAddedDeliveryId]);
   const calendarDays = useMemo(
     () => generateHistoryCalendarDays(selectedYear, selectedMonth),
     [selectedMonth, selectedYear],
   );
   const datesWithDeliveries = useMemo(
-    () => new Set(historyMockDeliveries.map((delivery) => delivery.data)),
-    [],
+    () => new Set(allDeliveries.map((delivery) => delivery.data)),
+    [allDeliveries],
   );
 
   const deliveriesForDate = useMemo(
     () =>
-      historyMockDeliveries
+      allDeliveries
         .filter((delivery) => delivery.data === selectedDate)
         .map((delivery) => ({
           ...delivery,
           status: deliveryStatuses[delivery.id] ?? delivery.status,
         })),
-    [deliveryStatuses, selectedDate],
+    [allDeliveries, deliveryStatuses, selectedDate],
   );
 
   const filteredDeliveries = useMemo(() => {
@@ -75,7 +94,6 @@ export function HistoryScreen() {
   }, [deliveriesForDate, selectedFilter]);
 
   const handleSelectDate = useCallback((date: string) => {
-    triggerSelectionHaptic();
     setSelectedDate(date);
     setSelectedFilter('Todos');
   }, []);
@@ -83,21 +101,19 @@ export function HistoryScreen() {
   const handleMonthChange = useCallback(
     (month: number) => {
       setSelectedMonth(month);
-      setSelectedDate(getInitialHistoryDate(selectedYear, month, historyMockDeliveries));
+      setSelectedDate(getInitialHistoryDate(selectedYear, month, allDeliveries));
       setSelectedFilter('Todos');
-      setActionsPopover(null);
     },
-    [selectedYear],
+    [allDeliveries, selectedYear],
   );
 
   const handleYearChange = useCallback(
     (year: number) => {
       setSelectedYear(year);
-      setSelectedDate(getInitialHistoryDate(year, selectedMonth, historyMockDeliveries));
+      setSelectedDate(getInitialHistoryDate(year, selectedMonth, allDeliveries));
       setSelectedFilter('Todos');
-      setActionsPopover(null);
     },
-    [selectedMonth],
+    [allDeliveries, selectedMonth],
   );
 
   const handleFilterPress = useCallback(() => {
@@ -106,7 +122,6 @@ export function HistoryScreen() {
   }, []);
 
   const handleSelectFilter = useCallback((filter: HistoryFilter) => {
-    triggerSelectionHaptic();
     setSelectedFilter(filter);
 
     if (filter === 'Hoje') {
@@ -116,7 +131,6 @@ export function HistoryScreen() {
       setSelectedDate(
         createHistoryDate(currentPeriod.year, currentPeriod.month, new Date().getDate()),
       );
-      setActionsPopover(null);
     }
   }, []);
 
@@ -128,34 +142,18 @@ export function HistoryScreen() {
     }));
   }, []);
 
-  const handleOpenActions = useCallback(
-    (deliveryId: string, anchorRect: DeliveryActionsAnchorRect) => {
-      setActionsPopover((current) =>
-        current?.deliveryId === deliveryId ? null : { anchorRect, deliveryId },
-      );
-    },
-    [],
-  );
-
-  const handleCloseActions = useCallback(() => {
-    setActionsPopover(null);
-  }, []);
-
   const handleOpenWaze = useCallback(() => {
     openInWazeMock();
-    handleCloseActions();
-  }, [handleCloseActions]);
+  }, []);
 
   const handleOpenAppleMaps = useCallback(() => {
     openInAppleMapsMock();
-    handleCloseActions();
-  }, [handleCloseActions]);
+  }, []);
 
   return (
     <Animated.View style={styles.root}>
       <PremiumScreen
         scrollViewProps={{
-          onScroll: handleCloseActions,
           scrollEventThrottle: 16,
         }}
         contentContainerStyle={[
@@ -183,25 +181,8 @@ export function HistoryScreen() {
           onSelectDate={handleSelectDate}
           selectedDate={selectedDate}
         />
-        <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
-
         {isFilterPreviewVisible ? (
-          <GlassSurface
-            accessibilityLiveRegion="polite"
-            style={[
-              styles.filterNotice,
-              {
-                backgroundColor: theme.colors.surfaceMuted,
-                borderColor: theme.colors.glassBorder,
-                borderRadius: theme.radius.lg,
-                padding: theme.spacing.sm,
-              },
-            ]}
-          >
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              Filtros prontos para uma futura implementação.
-            </Text>
-          </GlassSurface>
+          <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
         ) : null}
 
         <Animated.View
@@ -218,8 +199,8 @@ export function HistoryScreen() {
               >
                 <DeliveryCard
                   delivery={delivery}
-                  isLocationExpanded={actionsPopover?.deliveryId === delivery.id}
-                  onOpenActions={(anchorRect) => handleOpenActions(delivery.id, anchorRect)}
+                  onOpenAppleMaps={handleOpenAppleMaps}
+                  onOpenWaze={handleOpenWaze}
                   onToggleStatus={() => handleToggleStatus(delivery.id)}
                 />
               </Animated.View>
@@ -229,6 +210,7 @@ export function HistoryScreen() {
               entering={FadeInDown.duration(
                 reduceMotionEnabled ? 0 : theme.animations.duration.standard,
               )}
+              style={styles.emptyState}
             >
               <EmptyState onBackToToday={() => handleSelectFilter('Hoje')} />
             </Animated.View>
@@ -236,15 +218,6 @@ export function HistoryScreen() {
         </Animated.View>
       </PremiumScreen>
       <BottomFadeOverlay />
-      {actionsPopover ? (
-        <DeliveryActionsPopover
-          anchorRect={actionsPopover.anchorRect}
-          onClose={handleCloseActions}
-          onOpenAppleMaps={handleOpenAppleMaps}
-          onOpenWaze={handleOpenWaze}
-          visible
-        />
-      ) : null}
     </Animated.View>
   );
 }
@@ -252,6 +225,6 @@ export function HistoryScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   screenContent: { flexGrow: 0 },
-  filterNotice: { alignItems: 'center' },
+  emptyState: { alignSelf: 'stretch', width: '100%' },
   list: { width: '100%' },
 });

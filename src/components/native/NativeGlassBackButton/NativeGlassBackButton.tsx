@@ -9,6 +9,7 @@ export default function NativeGlassBackButton({
     <NativeGlassIconButton
       accessibilityLabel={accessibilityLabel}
       fallbackIcon="chevron-back"
+      interactiveGlass
       systemImage="chevron.left"
       {...props}
     />

@@ -88,11 +88,52 @@ export type NativeDatePickerProps = {
 export type NativeButtonProps = {
   label: string;
   onPress: () => void;
+  haptic?: NativeButtonHaptic;
+  variant?: 'glass' | 'primary' | 'filled' | 'surface';
+  backgroundColor?: string;
+  controlSize?: 'mini' | 'small' | 'regular' | 'large' | 'extraLarge';
   systemImage?: string;
   fallbackIcon?: string;
+  minHeight?: number;
+  minWidth?: number;
+  horizontalPadding?: number;
+  color?: string;
   disabled?: boolean;
+  accessibilityHint?: string;
+  accessibilityValue?: string;
+  content?: NativeButtonContent;
   destructive?: boolean;
   accessibilityLabel?: string;
+};
+
+export type NativeButtonHaptic = 'none' | 'light' | 'medium' | 'heavy' | 'selection';
+
+export type NativeButtonContent = {
+  type: 'stacked';
+  title: string;
+  subtitle: string;
+  foregroundColor?: string;
+  indicator?: boolean;
+  indicatorColor?: string;
+};
+
+export type NativeDropdownVariant = 'glass' | 'plain';
+
+export type NativeDropdownItem<T extends string | number = string | number> = {
+  value: T;
+  label: string;
+  disabled?: boolean;
+};
+
+export type NativeDropdownProps<T extends string | number = string | number> = {
+  items: readonly NativeDropdownItem<T>[];
+  selectedValue: T;
+  onValueChange: (value: T) => void;
+  label?: string;
+  variant?: NativeDropdownVariant;
+  accessibilityLabel?: string;
+  disabled?: boolean;
+  color?: string;
 };
 
 export type NativeGlassIconButtonProps = {
@@ -103,6 +144,7 @@ export type NativeGlassIconButtonProps = {
   color?: string;
   size?: number;
   containerSize?: number;
+  interactiveGlass?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };

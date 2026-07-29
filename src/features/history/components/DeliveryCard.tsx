@@ -3,17 +3,15 @@ import { StyleSheet, Text, View } from 'react-native';
 import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
-import type { DeliveryActionsAnchorRect } from './DeliveryActionsPopover';
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryLocationActions } from './DeliveryLocationActions';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
 import { DeliveryStatusIndicator } from './DeliveryStatusIndicator';
-import HistorySymbolIcon from './HistorySymbolIcon';
 
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
-  isLocationExpanded: boolean;
-  onOpenActions: (anchorRect: DeliveryActionsAnchorRect) => void;
+  onOpenAppleMaps: () => void;
+  onOpenWaze: () => void;
   onToggleStatus: () => void;
 };
 
@@ -23,8 +21,8 @@ function statusLabel(status: HistoryDelivery['status']): string {
 
 export function DeliveryCard({
   delivery,
-  isLocationExpanded,
-  onOpenActions,
+  onOpenAppleMaps,
+  onOpenWaze,
   onToggleStatus,
 }: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
@@ -54,10 +52,8 @@ export function DeliveryCard({
             </View>
             <DeliveryLocationActions
               customerName={delivery.cliente}
-              distance="2,3 km"
-              expanded={isLocationExpanded}
-              neighborhood={delivery.bairro}
-              onOpen={onOpenActions}
+              onOpenAppleMaps={onOpenAppleMaps}
+              onOpenWaze={onOpenWaze}
             />
           </View>
 
@@ -72,12 +68,6 @@ export function DeliveryCard({
 
           <View style={[styles.secondaryInfo, { gap: theme.spacing.sm }]}>
             <View style={styles.secondaryItem}>
-              <HistorySymbolIcon
-                color={theme.colors.textTertiary}
-                fallbackIcon="card-outline"
-                size={theme.sizes.iconSmall}
-                systemName="creditcard.fill"
-              />
               <Text style={[theme.typography.caption, { color: theme.colors.textTertiary }]}>
                 {delivery.formaPagamento}
               </Text>

@@ -176,6 +176,7 @@ export function GlassTabBar({ items, accessibilityLabel, reduceMotionOverride }:
           />
         ) : (
           <GlassSurface
+            bordered
             blurIntensity={84}
             glassEffectStyle="regular"
             interactive
@@ -221,6 +222,7 @@ export function GlassTabBar({ items, accessibilityLabel, reduceMotionOverride }:
   return (
     <GlassSurface
       accessibilityLabel={accessibilityLabel}
+      bordered
       blurIntensity={72}
       style={[
         styles.barFrame,

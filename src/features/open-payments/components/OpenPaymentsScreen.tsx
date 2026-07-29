@@ -52,8 +52,8 @@ export function OpenPaymentsScreen() {
             onPress={() => router.back()}
             size={theme.sizes.iconMedium}
           />
-          <View style={styles.headerCopy}>
-            <Text style={[theme.typography.largeTitle, { color: theme.colors.textPrimary }]}>
+          <View pointerEvents="none" style={styles.headerCopy}>
+            <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
               Pagamentos em aberto
             </Text>
           </View>
@@ -98,14 +98,18 @@ export function OpenPaymentsScreen() {
         </GlassCard>
 
         <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
-          {openPaymentPreview.map((item) => (
-            <GlassCard
-              key={item.client}
-              style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-            >
-              <OpenPaymentRow item={item} />
-            </GlassCard>
-          ))}
+          <GlassCard
+            style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          >
+            {openPaymentPreview.map((item, index) => (
+              <View key={item.client}>
+                <OpenPaymentRow item={item} />
+                {index < openPaymentPreview.length - 1 ? (
+                  <View style={[styles.divider, { backgroundColor: theme.colors.separator }]} />
+                ) : null}
+              </View>
+            ))}
+          </GlassCard>
         </View>
       </Animated.View>
     </PremiumScreen>
@@ -115,12 +119,13 @@ export function OpenPaymentsScreen() {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
-  header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
-  headerCopy: { flex: 1, gap: 4 },
+  header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, position: 'relative' },
+  headerCopy: { alignItems: 'center', gap: 4, left: 0, position: 'absolute', right: 0 },
   summaryCard: { padding: 16 },
   summaryRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
   summaryIcon: { alignItems: 'center', justifyContent: 'center' },
   summaryCopy: { flex: 1, gap: 2 },
   clientList: { width: '100%' },
   clientCard: { padding: 16 },
+  divider: { height: StyleSheet.hairlineWidth },
 });

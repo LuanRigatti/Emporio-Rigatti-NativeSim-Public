@@ -24,8 +24,8 @@ export function HistoryHeader({
 
   return (
     <View style={styles.container}>
-      <Text style={[theme.typography.title3, styles.title, { color: theme.colors.textPrimary }]}>
-        HistÃ³rico
+      <Text style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}>
+        Histórico
       </Text>
       <View style={styles.copy}>
         <PeriodSelector
@@ -36,10 +36,11 @@ export function HistoryHeader({
         />
       </View>
       <NativeGlassIconButton
-        accessibilityLabel="Filtrar histÃ³rico"
+        accessibilityLabel="Filtrar histórico"
         color={theme.colors.textPrimary}
         containerSize={theme.sizes.touchTargetMinimum}
         fallbackIcon="filter-outline"
+        interactiveGlass
         onPress={onFilterPress}
         size={theme.sizes.iconMedium}
         style={styles.filterSurface}
@@ -50,8 +51,14 @@ export function HistoryHeader({
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', minHeight: 78, position: 'relative', width: '100%' },
-  title: { position: 'absolute', textAlign: 'center', top: 0, width: '100%' },
-  copy: { alignItems: 'flex-start', left: 0, position: 'absolute', top: 40 },
-  filterSurface: { position: 'absolute', right: 0, top: 0 },
+  container: {
+    alignItems: 'center',
+    minHeight: 94,
+    overflow: 'visible',
+    position: 'relative',
+    width: '100%',
+  },
+  title: { position: 'absolute', textAlign: 'center', top: 8, width: '100%' },
+  copy: { alignItems: 'flex-start', left: 0, position: 'absolute', top: 56 },
+  filterSurface: { overflow: 'visible', position: 'absolute', right: 0, top: 0, zIndex: 2 },
 });

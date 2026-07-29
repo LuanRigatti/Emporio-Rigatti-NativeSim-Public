@@ -28,7 +28,6 @@ export function GlassCard({
   const surfaceStyle = [
     {
       backgroundColor: theme.colors.glassSurface,
-      borderColor: theme.colors.glassBorder,
       borderRadius: theme.radius.card,
       padding: theme.spacing.lg,
     },
@@ -37,7 +36,7 @@ export function GlassCard({
   ];
 
   const surface = (
-    <GlassSurface {...props} style={surfaceStyle}>
+    <GlassSurface {...props} glassEffectStyle="none" style={surfaceStyle}>
       {children}
     </GlassSurface>
   );

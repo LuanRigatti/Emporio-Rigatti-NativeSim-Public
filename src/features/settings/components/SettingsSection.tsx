@@ -18,6 +18,7 @@ export function SettingsSection({ children, title }: SettingsSectionProps) {
         {title.toUpperCase()}
       </Text>
       <GlassSurface
+        glassEffectStyle="none"
         style={[
           styles.surface,
           {

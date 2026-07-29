@@ -13,6 +13,6 @@ export function userNodePath(uid: string, node: string): string {
 }
 
 export function userRootPath(uid: string): string {
-  if (uid.trim() === '') throw new Error('UID obrigatÃ³rio.');
+  if (uid.trim() === '') throw new Error('UID obrigatório.');
   return `usuarios/${uid}`;
 }

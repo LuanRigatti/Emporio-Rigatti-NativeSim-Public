@@ -40,7 +40,7 @@ export class UserDataService {
       if (!userNodeExists) {
         throw new DataError(
           'user-data-not-found',
-          'A conta autenticada nÃ£o possui dados em usuarios/{uid}. A sincronizaÃ§Ã£o foi interrompida.',
+          'A conta autenticada não possui dados em usuarios/{uid}. A sincronização foi interrompida.',
         );
       }
 

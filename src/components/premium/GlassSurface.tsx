@@ -10,6 +10,7 @@ import { useVisualCapabilities } from '@/theme/visualCapabilities';
 export type GlassSurfaceProps = ViewProps & {
   children?: ReactNode;
   blurIntensity?: number;
+  bordered?: boolean;
   interactive?: boolean;
   glassEffectStyle?: 'clear' | 'regular' | 'none';
 };
@@ -17,6 +18,7 @@ export type GlassSurfaceProps = ViewProps & {
 export function GlassSurface({
   children,
   blurIntensity = 64,
+  bordered = false,
   interactive = false,
   glassEffectStyle = 'regular',
   style,
@@ -27,10 +29,15 @@ export function GlassSurface({
   const surfaceStyle: StyleProp<ViewStyle> = [
     styles.surface,
     {
-      borderColor: theme.colors.glassBorder,
       backgroundColor: theme.colors.glassSurface,
       borderRadius: theme.radius.pill,
     },
+    bordered
+      ? {
+          borderColor: theme.colors.glassBorder,
+          borderWidth: 1,
+        }
+      : undefined,
     style,
   ];
 
@@ -69,8 +76,5 @@ export function GlassSurface({
 }
 
 const styles = StyleSheet.create({
-  surface: {
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
+  surface: { overflow: 'hidden' },
 });

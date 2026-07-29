@@ -13,7 +13,7 @@ export class UserRootRepository {
       return snapshot.exists();
     } catch (error) {
       if (error instanceof DataError) throw error;
-      throw toDataError(error, 'NÃ£o foi possÃ­vel verificar os dados da conta.');
+      throw toDataError(error, 'Não foi possível verificar os dados da conta.');
     }
   }
 
@@ -22,7 +22,7 @@ export class UserRootRepository {
 
     throw new DataError(
       'user-data-not-found',
-      'A conta autenticada nÃ£o possui o nÃ³ usuarios/{uid}. A sincronizaÃ§Ã£o foi interrompida.',
+      'A conta autenticada não possui o nó usuarios/{uid}. A sincronização foi interrompida.',
     );
   }
 }

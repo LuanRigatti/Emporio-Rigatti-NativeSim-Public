@@ -20,6 +20,7 @@ export function ProfileHeader() {
         PERFIL
       </Text>
       <GlassSurface
+        glassEffectStyle="none"
         accessibilityLabel="Perfil de João Silva, joao@email.com"
         style={[
           styles.container,

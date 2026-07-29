@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -14,7 +14,6 @@ import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 
 import { LogoutButton } from './LogoutButton';
-import { ProfileHeader } from './ProfileHeader';
 import { SettingItem } from './SettingItem';
 import { SettingsHeader } from './SettingsHeader';
 import { SettingsSection } from './SettingsSection';
@@ -53,41 +52,10 @@ const preferenceItems: readonly SettingsItemData[] = [
     systemName: 'paintbrush',
     fallbackIcon: 'color-palette-outline',
   },
-  {
-    title: 'Idioma',
-    description: 'Português (Brasil)',
-    systemName: 'globe',
-    fallbackIcon: 'language-outline',
-  },
 ];
 
 const dataItems: readonly SettingsItemData[] = [
   { title: 'Backup', systemName: 'arrow.down.doc', fallbackIcon: 'download-outline' },
-  {
-    title: 'Sincronização',
-    systemName: 'arrow.triangle.2.circlepath',
-    fallbackIcon: 'sync-outline',
-  },
-  { title: 'Armazenamento', systemName: 'internaldrive', fallbackIcon: 'server-outline' },
-];
-
-const helpItems: readonly SettingsItemData[] = [
-  {
-    title: 'Central de Ajuda',
-    systemName: 'questionmark.circle',
-    fallbackIcon: 'help-circle-outline',
-  },
-  {
-    title: 'Política de Privacidade',
-    systemName: 'hand.raised',
-    fallbackIcon: 'shield-checkmark-outline',
-  },
-  { title: 'Termos de Uso', systemName: 'doc.text', fallbackIcon: 'document-text-outline' },
-  {
-    title: 'Sobre o aplicativo',
-    systemName: 'info.circle',
-    fallbackIcon: 'information-circle-outline',
-  },
 ];
 
 function SettingsItems({ items }: { items: readonly SettingsItemData[] }) {
@@ -133,8 +101,6 @@ export function SettingsScreen() {
     >
       <Animated.View style={[styles.animatedContent, contentStyle]}>
         <SettingsHeader title="Configurações" />
-        <ProfileHeader />
-
         <SettingsSection title="Conta">
           <SettingsItems items={accountItems} />
         </SettingsSection>
@@ -147,11 +113,9 @@ export function SettingsScreen() {
           <SettingsItems items={dataItems} />
         </SettingsSection>
 
-        <SettingsSection title="Ajuda">
-          <SettingsItems items={helpItems} />
-        </SettingsSection>
-
-        <LogoutButton onPress={() => void handleLogout()} />
+        <View style={styles.logoutContainer}>
+          <LogoutButton onPress={() => void handleLogout()} />
+        </View>
       </Animated.View>
     </PremiumScreen>
   );
@@ -160,4 +124,5 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   content: { flexGrow: 1 },
   animatedContent: { gap: 24 },
+  logoutContainer: { alignItems: 'center', width: '100%' },
 });

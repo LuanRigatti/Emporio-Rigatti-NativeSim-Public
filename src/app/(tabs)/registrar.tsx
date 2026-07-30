@@ -37,7 +37,7 @@ export default function PrototypeRegistrar() {
             leadingFallbackIcon="add"
             leadingSystemImage="plus"
             onLeadingPress={() => openSheet('add')}
-            onTrailingPress={() => openSheet('remove')}
+            onTrailingPress={() => undefined}
             trailingAccessibilityLabel="Excluir"
             trailingFallbackIcon="trash-outline"
             trailingSystemImage="trash"

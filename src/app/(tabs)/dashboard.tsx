@@ -13,11 +13,10 @@ import {
   type ContextMenuItem,
 } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeButton, NativeGlassMenu, type NativeMenuAction } from '@/components/native';
+import { NativeGlassMenu, NativeSearchField, type NativeMenuAction } from '@/components/native';
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
-import { lightColors } from '@/theme/colors';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TabHapticListener } from '@/navigation/TabHapticListener';
 
@@ -39,9 +38,8 @@ export default function Home() {
   const { isAuthenticated, signOutMock } = useSession();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
-  const homeActionButtonWidth =
-    theme.sizes.touchTargetMinimum * 4 - theme.spacing.md - theme.spacing.xxs;
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const moreButtonScale = useSharedValue(1);
   const moreButtonAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: moreButtonScale.value }],
@@ -165,49 +163,18 @@ export default function Home() {
     <View style={styles.root}>
       <TabHapticListener />
       <PremiumScreen
-        contentContainerStyle={{ gap: theme.spacing.lg }}
+        contentContainerStyle={{ gap: theme.spacing.lg, marginTop: -theme.spacing.xs }}
         overlayHeader={useNativeHeaderOverlay ? homeHeader : undefined}
       >
         {!useNativeHeaderOverlay ? <View style={styles.header}>{homeHeader}</View> : null}
 
-        <View
-          style={{
-            gap: theme.spacing.sm,
-            marginBottom: 0,
-            marginTop: -theme.spacing.xl,
-          }}
-        >
-          <View style={[styles.actionsRow, { alignSelf: 'flex-start', gap: theme.spacing.xs }]}>
-            <NativeButton
-              accessibilityLabel="Nova entrega"
-              controlSize="large"
-              fallbackIcon="add"
-              haptic="light"
-              horizontalPadding={theme.spacing.lg}
-              label="Nova entrega"
-              minWidth={homeActionButtonWidth + theme.spacing.lg}
-              onPress={() => undefined}
-              systemImage="plus"
-              backgroundColor={resolvedMode === 'dark' ? '#FFFFFF' : '#000000'}
-              color={resolvedMode === 'dark' ? '#000000' : '#FFFFFF'}
-              variant="filled"
-            />
-            <NativeButton
-              accessibilityLabel="Rota"
-              controlSize="large"
-              fallbackIcon="navigate-outline"
-              haptic="light"
-              horizontalPadding={theme.spacing.lg}
-              label="Rota"
-              minHeight={theme.sizes.touchTargetMinimum}
-              minWidth={homeActionButtonWidth}
-              onPress={() => undefined}
-              systemImage="location.north"
-              backgroundColor="#FFFFFF"
-              color="#000000"
-              variant="surface"
-            />
-          </View>
+        <View style={{ marginBottom: theme.spacing.xs, marginTop: -theme.spacing.xs }}>
+          <NativeSearchField
+            accessibilityLabel="Buscar clientes, entregas e filtros"
+            onChangeText={setSearchText}
+            placeholder="Busque clientes, entregas, filtros"
+            value={searchText}
+          />
         </View>
 
         <PremiumCard
@@ -266,37 +233,44 @@ export default function Home() {
           </Text>
         </PremiumCard>
 
-        <PremiumCard
-          accessibilityLabel="Abrir pagamentos em aberto"
-          onPress={() => router.push('/pagamentos-em-aberto')}
-          style={{
-            backgroundColor: lightColors.warningSurface,
-            borderRadius: theme.radius.xl + theme.spacing.sm,
-          }}
-        >
-          <View style={[styles.alertRow, { gap: theme.spacing.sm }]}>
-            <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
-            <View style={[styles.alertContent, { gap: theme.spacing.xs }]}>
-              <Text
-                style={[
-                  theme.typography.headline,
-                  { color: resolvedMode === 'dark' ? '#000000' : theme.colors.textPrimary },
-                ]}
-              >
-                4 pagamentos pendentes
-              </Text>
-              <Text
-                style={[
-                  theme.typography.footnote,
-                  { color: resolvedMode === 'dark' ? '#000000' : theme.colors.textSecondary },
-                ]}
-              >
-                Revise as cobranças em aberto.
+        <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
+          <PremiumCard
+            accessibilityLabel="Abrir recebimentos em aberto"
+            onPress={() => router.push('/pagamentos-em-aberto')}
+            style={[
+              styles.widgetCard,
+              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+            ]}
+          >
+            <View style={styles.widgetHeader}>
+              <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
+              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+            </View>
+            <View style={styles.widgetCopy}>
+              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                4 recebimentos em aberto
               </Text>
             </View>
-            <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-          </View>
-        </PremiumCard>
+          </PremiumCard>
+          <PremiumCard
+            accessibilityLabel="Abrir notas fiscais e boletos"
+            onPress={() => router.push('/notas-fiscais-boletos')}
+            style={[
+              styles.widgetCard,
+              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+            ]}
+          >
+            <View style={styles.widgetHeader}>
+              <PreviewIcon color={theme.colors.textSecondary} name="document-text-outline" />
+              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+            </View>
+            <View style={styles.widgetCopy}>
+              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                Notas fiscais/boletos
+              </Text>
+            </View>
+          </PremiumCard>
+        </View>
       </PremiumScreen>
 
       {isOptionsMenuVisible ? (
@@ -384,7 +358,8 @@ const styles = StyleSheet.create({
   optionsMenu: { minWidth: 236, overflow: 'hidden' },
   optionsMenuItem: { alignItems: 'center', flexDirection: 'row' },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  actionsRow: { flexDirection: 'row' },
-  alertRow: { alignItems: 'center', flexDirection: 'row' },
-  alertContent: { flex: 1 },
+  widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
+  widgetCard: { width: 178 },
+  widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  widgetCopy: { gap: 8, marginTop: 12 },
 });

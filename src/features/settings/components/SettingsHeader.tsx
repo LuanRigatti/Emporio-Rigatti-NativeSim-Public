@@ -11,7 +11,7 @@ export function SettingsHeader({ title }: SettingsHeaderProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={[theme.typography.title3, { color: theme.colors.textPrimary }]}>{title}</Text>
+      <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>{title}</Text>
     </View>
   );
 }

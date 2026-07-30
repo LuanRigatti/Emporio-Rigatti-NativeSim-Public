@@ -212,7 +212,7 @@ export function HistoryScreen() {
               )}
               style={styles.emptyState}
             >
-              <EmptyState onBackToToday={() => handleSelectFilter('Hoje')} />
+              <EmptyState />
             </Animated.View>
           )}
         </Animated.View>

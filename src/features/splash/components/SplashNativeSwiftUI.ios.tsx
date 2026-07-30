@@ -1,17 +1,15 @@
-import { Host, Image, Text, VStack } from '@expo/ui/swift-ui';
+import { Host, Image } from '@expo/ui/swift-ui';
 import { Animation, animation, opacity, scaleEffect } from '@expo/ui/swift-ui/modifiers';
-import { GlassView } from 'expo-glass-effect';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useAppTheme, useVisualCapabilities } from '@/theme';
+import { useAppTheme } from '@/theme';
 
 import type { SplashVisualProps } from './SplashVisual.types';
 
 export default function SplashNativeSwiftUI({ phase }: SplashVisualProps) {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
-  const { useGlass } = useVisualCapabilities();
   const isVisible = phase === 'visible';
   const animationDuration = reduceMotionEnabled ? 0 : theme.animations.duration.slow / 1000;
   const transitionAnimation = Animation.easeOut({ duration: animationDuration });
@@ -26,7 +24,7 @@ export default function SplashNativeSwiftUI({ phase }: SplashVisualProps) {
       style={[
         styles.root,
         {
-          backgroundColor: theme.colors.background,
+          backgroundColor: resolvedMode === 'dark' ? '#000000' : '#FFFFFF',
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
           paddingTop: Math.max(insets.top, theme.spacing.lg),
         },
@@ -36,45 +34,19 @@ export default function SplashNativeSwiftUI({ phase }: SplashVisualProps) {
         style={[
           styles.logoCard,
           {
+            backgroundColor: theme.colors.brand,
             borderColor: theme.colors.glassBorder,
             borderRadius: theme.radius.xl,
-            overflow: 'hidden',
           },
         ]}
       >
-        {useGlass ? (
-          <GlassView
-            colorScheme={resolvedMode}
-            glassEffectStyle={{
-              animate: !reduceMotionEnabled,
-              animationDuration,
-              style: isVisible ? 'regular' : 'none',
-            }}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                backgroundColor: theme.colors.glassSurface,
-                borderRadius: theme.radius.xl,
-              },
-            ]}
-          />
-        )}
-
         <Host colorScheme={resolvedMode} matchContents style={styles.host}>
-          <VStack alignment="center" spacing={theme.spacing.md} modifiers={transitionModifiers}>
-            <Image
-              color={theme.colors.brandStrong}
-              size={theme.sizes.iconLarge + 12}
-              systemName="drop.fill"
-            />
-            <Text color={theme.colors.textPrimary} design="rounded" size={34} weight="bold">
-              PAReact
-            </Text>
-          </VStack>
+          <Image
+            color={theme.colors.brandStrong}
+            modifiers={transitionModifiers}
+            size={theme.sizes.iconLarge + 8}
+            systemName="drop.fill"
+          />
         </Host>
       </View>
     </View>
@@ -92,14 +64,12 @@ const styles = StyleSheet.create({
   logoCard: {
     alignItems: 'center',
     borderWidth: 1,
-    height: 184,
+    height: 92,
     justifyContent: 'center',
-    width: 284,
+    width: 92,
   },
   host: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 160,
-    width: 284,
   },
 });

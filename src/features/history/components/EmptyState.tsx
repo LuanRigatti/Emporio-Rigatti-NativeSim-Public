@@ -1,13 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { NativeButton } from '@/components/native';
 import { useAppTheme } from '@/theme';
 
-export type EmptyStateProps = {
-  onBackToToday: () => void;
-};
-
-export function EmptyState({ onBackToToday }: EmptyStateProps) {
+export function EmptyState() {
   const { theme } = useAppTheme();
 
   return (
@@ -15,16 +10,6 @@ export function EmptyState({ onBackToToday }: EmptyStateProps) {
       <Text style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}>
         Nenhuma entrega encontrada
       </Text>
-      <NativeButton
-        accessibilityHint="Seleciona o dia atual no calendário"
-        accessibilityLabel="Voltar para hoje"
-        fallbackIcon="today-outline"
-        haptic="light"
-        label="Voltar"
-        onPress={onBackToToday}
-        systemImage="calendar"
-        variant="glass"
-      />
     </View>
   );
 }

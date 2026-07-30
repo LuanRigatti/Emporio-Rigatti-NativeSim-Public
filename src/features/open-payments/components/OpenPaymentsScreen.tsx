@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -54,7 +53,7 @@ export function OpenPaymentsScreen() {
           />
           <View pointerEvents="none" style={styles.headerCopy}>
             <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-              Pagamentos em aberto
+              Recebimentos em aberto
             </Text>
           </View>
         </View>
@@ -63,36 +62,18 @@ export function OpenPaymentsScreen() {
           style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
         >
           <View style={styles.summaryRow}>
-            <View
-              style={[
-                styles.summaryIcon,
-                {
-                  backgroundColor: theme.colors.dangerSurface,
-                  borderRadius: theme.radius.md,
-                  height: 42,
-                  width: 42,
-                },
-              ]}
-            >
-              <Ionicons
-                color={theme.colors.danger}
-                name="alert-circle-outline"
-                size={theme.sizes.iconMedium}
-              />
-            </View>
             <View style={styles.summaryCopy}>
-              <Text style={[theme.typography.caption, { color: '#000000' }]}>TOTAL EM ABERTO</Text>
-              <Text style={[theme.typography.metricMedium, { color: theme.colors.textPrimary }]}>
-                {openPaymentsTotal}
+              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                TOTAL EM ABERTO
               </Text>
             </View>
             <Text
               style={[
-                theme.typography.footnote,
-                { color: '#000000', fontWeight: theme.typography.fontWeight.bold },
+                theme.typography.metricMedium,
+                { color: theme.colors.textPrimary, fontSize: 22, lineHeight: 28 },
               ]}
             >
-              {openPaymentPreview.length} clientes
+              {openPaymentsTotal}
             </Text>
           </View>
         </GlassCard>
@@ -123,8 +104,7 @@ const styles = StyleSheet.create({
   headerCopy: { alignItems: 'center', gap: 4, left: 0, position: 'absolute', right: 0 },
   summaryCard: { padding: 16 },
   summaryRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-  summaryIcon: { alignItems: 'center', justifyContent: 'center' },
-  summaryCopy: { flex: 1, gap: 2 },
+  summaryCopy: { flex: 1 },
   clientList: { width: '100%' },
   clientCard: { padding: 16 },
   divider: { height: StyleSheet.hairlineWidth },

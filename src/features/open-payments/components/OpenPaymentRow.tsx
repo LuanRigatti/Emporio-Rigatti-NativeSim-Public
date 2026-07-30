@@ -22,19 +22,11 @@ export function OpenPaymentRow({ item }: OpenPaymentRowProps) {
         },
       ]}
     >
-      <View
-        style={[
-          styles.iconContainer,
-          {
-            backgroundColor: theme.colors.dangerSurface,
-            borderRadius: theme.radius.md,
-            height: theme.sizes.touchTargetMinimum,
-            width: theme.sizes.touchTargetMinimum,
-          },
-        ]}
-      >
-        <Ionicons color={theme.colors.danger} name="alert-outline" size={theme.sizes.iconMedium} />
-      </View>
+      <Ionicons
+        color={theme.colors.warning}
+        name="alert-circle-outline"
+        size={theme.sizes.iconLarge}
+      />
       <View style={[styles.content, { gap: theme.spacing.xxs }]}>
         <Text
           style={[
@@ -63,6 +55,5 @@ export function OpenPaymentRow({ item }: OpenPaymentRowProps) {
 
 const styles = StyleSheet.create({
   row: { alignItems: 'center', flexDirection: 'row', paddingVertical: 10 },
-  iconContainer: { alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1 },
 });

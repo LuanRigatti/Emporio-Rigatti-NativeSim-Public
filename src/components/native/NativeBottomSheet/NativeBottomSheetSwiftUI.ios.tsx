@@ -21,6 +21,7 @@ import {
   glassEffect,
   offset,
   padding,
+  zIndex,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -32,18 +33,19 @@ export default function NativeBottomSheetSwiftUI({
   onVisibleChange,
   subtitle,
   title,
-  titleSystemImage,
   visible,
   onConfirm,
 }: NativeBottomSheetProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
+  const [isFormVisible, setIsFormVisible] = useState(false);
   const selectedItem = items.find((item) => item.id === selectedItemId);
 
   useEffect(() => {
     if (!visible) {
       setSelectedItemId(null);
+      setIsFormVisible(false);
       setBucketQuantity(1);
       setSelectedDate(new Date());
     }
@@ -51,6 +53,7 @@ export default function NativeBottomSheetSwiftUI({
 
   const handleSelect = (item: (typeof items)[number]) => {
     setSelectedItemId(item.id);
+    setIsFormVisible(true);
     onSelect?.(item);
   };
 
@@ -58,9 +61,8 @@ export default function NativeBottomSheetSwiftUI({
     <HStack
       alignment="center"
       spacing={6}
-      modifiers={[frame({ maxWidth: 1000, alignment: 'center' }), offset({ y: 6 })]}
+      modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
     >
-      {titleSystemImage ? <Image size={17} systemName={titleSystemImage as SFSymbol} /> : null}
       <Text size={17} weight="bold">
         {title}
       </Text>
@@ -156,44 +158,82 @@ export default function NativeBottomSheetSwiftUI({
   ) : null;
 
   const listView = (
-    <List listStyle="insetGrouped" scrollEnabled modifiers={[padding({ horizontal: 0 })]}>
-      {items.map((item) => (
-        <HStack
-          key={item.id}
-          {...({
-            onPress: () => handleSelect(item),
-            useTapGesture: true,
-          } as { onPress: () => void; useTapGesture: boolean })}
-          alignment="center"
-          spacing={14}
-          modifiers={[
-            frame({ maxWidth: 1000 }),
-            padding({ horizontal: 16, vertical: 3 }),
-            accessibilityLabel(item.title),
-          ]}
-        >
-          <VStack alignment="leading" spacing={3}>
-            <Text size={17} weight="semibold">
-              {item.title}
-            </Text>
-            <Text size={14}>{item.subtitle ?? 'Selecionar'}</Text>
-          </VStack>
-          <Spacer />
-          <Image color="#8B8B93" size={15} systemName="chevron.right" />
-        </HStack>
-      ))}
-    </List>
+    <VStack alignment="leading" spacing={0} modifiers={[padding({ top: 14 })]}>
+      <Text
+        color="#8B8B93"
+        size={15}
+        weight="semibold"
+        modifiers={[padding({ horizontal: 16 }), offset({ y: 20 }), zIndex(1)]}
+      >
+        {subtitle ?? 'Escolha o cliente'}
+      </Text>
+      <List listStyle="insetGrouped" scrollEnabled modifiers={[padding({ horizontal: 0 })]}>
+        {items.map((item) => (
+          <HStack
+            key={item.id}
+            {...({
+              onPress: () => handleSelect(item),
+              useTapGesture: true,
+            } as { onPress: () => void; useTapGesture: boolean })}
+            alignment="center"
+            spacing={14}
+            modifiers={[
+              frame({ maxWidth: 1000 }),
+              padding({ horizontal: 16, vertical: 3 }),
+              accessibilityLabel(item.title),
+            ]}
+          >
+            <VStack alignment="leading" spacing={3}>
+              <Text size={17} weight="semibold">
+                {item.title}
+              </Text>
+              <Text size={14}>{item.subtitle ?? 'Selecionar'}</Text>
+            </VStack>
+            <Spacer />
+            <Image color="#8B8B93" size={15} systemName="chevron.right" />
+          </HStack>
+        ))}
+      </List>
+    </VStack>
   );
 
-  const isFormVisible = selectedItemId !== null;
+  const headerView = (showCancel: boolean) => (
+    <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
+      {showCancel ? (
+        <HStack
+          alignment="center"
+          modifiers={[frame({ maxWidth: 1000, alignment: 'leading' }), padding({ horizontal: 16 })]}
+        >
+          <Button
+            color="#8B8B93"
+            controlSize="regular"
+            modifiers={[
+              buttonStyle('plain'),
+              padding({ horizontal: 12, vertical: 6 }),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'capsule',
+              }),
+              accessibilityLabel('Cancelar'),
+            ]}
+            onPress={() => onVisibleChange(false)}
+          >
+            Cancelar
+          </Button>
+          <Spacer />
+        </HStack>
+      ) : null}
+      {titleView}
+    </ZStack>
+  );
   const sheetContent = (
     <VStack
       alignment="leading"
-      spacing={-16}
-      modifiers={[padding({ horizontal: 0, top: 34, bottom: 6 })]}
+      spacing={0}
+      modifiers={[padding({ horizontal: 0, top: 12, bottom: 6 })]}
     >
-      <Spacer minLength={26} />
-      {titleView}
+      <Spacer minLength={16} />
+      {headerView(!isFormVisible)}
       <ZStack
         alignment="top"
         modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'top' })]}
@@ -224,7 +264,13 @@ export default function NativeBottomSheetSwiftUI({
     <Host style={{ flex: 1 }}>
       <BottomSheet
         isOpened={visible}
-        onIsOpenedChange={onVisibleChange}
+        onIsOpenedChange={(isOpened) => {
+          if (!isOpened) {
+            setSelectedItemId(null);
+            setIsFormVisible(false);
+          }
+          onVisibleChange(isOpened);
+        }}
         presentationDetents={[0.54, 'large']}
         presentationDragIndicator="visible"
       >

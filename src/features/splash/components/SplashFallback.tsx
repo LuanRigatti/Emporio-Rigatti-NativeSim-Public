@@ -1,5 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useEffect } from 'react';
 import Animated, {
   Easing,
@@ -11,6 +10,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme';
+import { AppLogo } from '@/components/branding/AppLogo';
 
 import type { SplashVisualProps } from './SplashVisual.types';
 
@@ -44,57 +44,14 @@ export function SplashFallback({ phase }: SplashVisualProps) {
       style={[
         styles.root,
         {
-          backgroundColor: theme.colors.background,
+          backgroundColor: resolvedMode === 'dark' ? '#000000' : '#FFFFFF',
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
           paddingTop: Math.max(insets.top, theme.spacing.lg),
         },
       ]}
     >
-      <View
-        pointerEvents="none"
-        style={[
-          styles.orb,
-          styles.orbTop,
-          {
-            backgroundColor: theme.colors.brand,
-            opacity: resolvedMode === 'dark' ? 0.16 : 0.32,
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.orb,
-          styles.orbBottom,
-          {
-            backgroundColor: theme.colors.primary,
-            opacity: resolvedMode === 'dark' ? 0.08 : 0.06,
-          },
-        ]}
-      />
-
       <Animated.View style={[styles.content, contentStyle]}>
-        <View
-          style={[
-            styles.logoSurface,
-            {
-              backgroundColor: theme.colors.brand,
-              borderColor: theme.colors.glassBorder,
-              borderRadius: theme.radius.xl,
-            },
-          ]}
-        >
-          <Ionicons
-            color={theme.colors.brandStrong}
-            name="water"
-            size={theme.sizes.iconLarge + 12}
-          />
-        </View>
-        <Text
-          style={[theme.typography.largeTitle, styles.appName, { color: theme.colors.textPrimary }]}
-        >
-          PAReact
-        </Text>
+        <AppLogo />
       </Animated.View>
     </View>
   );
@@ -111,29 +68,5 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logoSurface: {
-    alignItems: 'center',
-    borderWidth: 1,
-    height: 104,
-    justifyContent: 'center',
-    width: 104,
-  },
-  appName: {
-    marginTop: 22,
-  },
-  orb: {
-    borderRadius: 240,
-    height: 240,
-    position: 'absolute',
-    width: 240,
-  },
-  orbTop: {
-    right: -92,
-    top: -80,
-  },
-  orbBottom: {
-    bottom: -96,
-    left: -92,
   },
 });

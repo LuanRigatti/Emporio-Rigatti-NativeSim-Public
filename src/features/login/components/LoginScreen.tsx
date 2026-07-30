@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Animated, {
@@ -11,6 +10,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '@/components/premium';
+import { AppLogo } from '@/components/branding/AppLogo';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -71,62 +71,15 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       style={[
         styles.root,
         {
-          backgroundColor: theme.colors.background,
+          backgroundColor: resolvedMode === 'dark' ? '#000000' : '#FFFFFF',
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
           paddingTop: Math.max(insets.top, theme.spacing.lg),
         },
       ]}
     >
-      <View
-        pointerEvents="none"
-        style={[
-          styles.orb,
-          styles.orbTop,
-          {
-            backgroundColor: theme.colors.brand,
-            opacity: resolvedMode === 'dark' ? 0.14 : 0.28,
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.orb,
-          styles.orbBottom,
-          {
-            backgroundColor: theme.colors.primary,
-            opacity: resolvedMode === 'dark' ? 0.08 : 0.05,
-          },
-        ]}
-      />
-
       <Animated.View style={[styles.content, contentStyle]}>
         <View style={styles.brandGroup}>
-          <View
-            style={[
-              styles.logoSurface,
-              {
-                backgroundColor: theme.colors.brand,
-                borderColor: theme.colors.glassBorder,
-                borderRadius: theme.radius.xl,
-              },
-            ]}
-          >
-            <Ionicons
-              color={theme.colors.brandStrong}
-              name="water"
-              size={theme.sizes.iconLarge + 8}
-            />
-          </View>
-          <Text
-            style={[
-              theme.typography.largeTitle,
-              styles.appName,
-              { color: theme.colors.textPrimary },
-            ]}
-          >
-            PAReact
-          </Text>
+          <AppLogo />
         </View>
 
         <View style={styles.actions}>
@@ -181,16 +134,6 @@ const styles = StyleSheet.create({
   brandGroup: {
     alignItems: 'center',
   },
-  logoSurface: {
-    alignItems: 'center',
-    borderWidth: 1,
-    height: 92,
-    justifyContent: 'center',
-    width: 92,
-  },
-  appName: {
-    marginTop: 18,
-  },
   actions: {
     alignItems: 'center',
     marginTop: 48,
@@ -205,19 +148,5 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'center',
     paddingHorizontal: 20,
-  },
-  orb: {
-    borderRadius: 240,
-    height: 240,
-    position: 'absolute',
-    width: 240,
-  },
-  orbTop: {
-    right: -92,
-    top: -80,
-  },
-  orbBottom: {
-    bottom: -96,
-    left: -92,
   },
 });

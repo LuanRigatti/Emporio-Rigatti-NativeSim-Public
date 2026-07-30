@@ -40,6 +40,8 @@ export { NativeSheet } from './NativeSheet';
 export type { NativeSheetProps } from './NativeSheet';
 export { NativeTextField } from './NativeTextField';
 export type { NativeTextFieldProps } from './NativeTextField';
+export { default as NativeSearchField } from './NativeSearchField';
+export type { NativeSearchFieldProps } from './NativeSearchField';
 export { NativeToggle } from './NativeToggle';
 export type { NativeToggleProps } from './NativeToggle';
 export { NativeFallback } from './NativeFallback';

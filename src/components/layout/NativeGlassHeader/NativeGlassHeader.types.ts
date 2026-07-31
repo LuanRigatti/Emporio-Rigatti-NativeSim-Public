@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { StyleProp, ViewProps, ViewStyle } from 'react-native';
 
 export type NativeGlassHeaderMode = 'transparent' | 'translucent' | 'floating';
 
@@ -14,6 +14,7 @@ export type NativeGlassHeaderProps = {
   accessory?: ReactNode;
   mode?: NativeGlassHeaderMode;
   includeTopSafeArea?: boolean;
+  pointerEvents?: ViewProps['pointerEvents'];
   style?: StyleProp<ViewStyle>;
   onLayout?: (event: { nativeEvent: { layout: { height: number } } }) => void;
 };

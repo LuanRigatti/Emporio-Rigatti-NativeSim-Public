@@ -50,6 +50,8 @@ export { PremiumScreen } from './PremiumScreen';
 export type { PremiumScreenProps } from './PremiumScreen';
 export { PremiumSection } from './PremiumSection';
 export type { PremiumSectionProps } from './PremiumSection';
+export { SummaryCard } from './SummaryCard';
+export type { SummaryCardProps, SummaryCardRow } from './SummaryCard';
 
 // Existing public primitives remain available from the premium namespace so
 // consumers can import the whole visual API from one module.

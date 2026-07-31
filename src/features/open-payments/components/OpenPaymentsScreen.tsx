@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -9,9 +9,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { NativeGlassBackButton } from '@/components/native';
+import { NativeGlassBackButton, NativeGlassIconButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
+import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 import { OpenPaymentRow } from './OpenPaymentRow';
 import { openPaymentPreview, openPaymentsTotal } from '../data/openPaymentPreview';
@@ -20,6 +21,35 @@ export function OpenPaymentsScreen() {
   const router = useRouter();
   const { reduceMotionEnabled, theme } = useAppTheme();
   const entrance = useSharedValue(0);
+  const [paymentItems, setPaymentItems] = useState(() => [...openPaymentPreview]);
+  const [isSelectionMode, setSelectionMode] = useState(false);
+  const [selectedClients, setSelectedClients] = useState<ReadonlySet<string>>(() => new Set());
+
+  const handleCheckPress = useCallback(() => {
+    triggerLightImpactHaptic();
+
+    if (!isSelectionMode) {
+      setSelectedClients(new Set());
+      setSelectionMode(true);
+      return;
+    }
+
+    setPaymentItems((current) => current.filter((item) => !selectedClients.has(item.client)));
+    setSelectedClients(new Set());
+    setSelectionMode(false);
+  }, [isSelectionMode, selectedClients]);
+
+  const toggleClientSelection = useCallback((client: string) => {
+    setSelectedClients((current) => {
+      const next = new Set(current);
+      if (next.has(client)) {
+        next.delete(client);
+      } else {
+        next.add(client);
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     entrance.value = withTiming(1, {
@@ -56,40 +86,48 @@ export function OpenPaymentsScreen() {
               Recebimentos em aberto
             </Text>
           </View>
+          <NativeGlassIconButton
+            accessibilityLabel={
+              isSelectionMode ? 'Confirmar recebimentos pagos' : 'Selecionar recebimentos'
+            }
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            fallbackIcon="checkmark"
+            interactiveGlass
+            onPress={handleCheckPress}
+            size={theme.sizes.iconMedium}
+            systemImage="checkmark"
+          />
         </View>
 
-        <GlassCard
-          style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-        >
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCopy}>
-              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+        <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
+          {paymentItems.length > 0 ? (
+            <GlassCard
+              style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+            >
+              {paymentItems.map((item) => (
+                <View key={item.client}>
+                  <OpenPaymentRow
+                    item={item}
+                    onPress={isSelectionMode ? () => toggleClientSelection(item.client) : undefined}
+                    selected={selectedClients.has(item.client)}
+                    selectionMode={isSelectionMode}
+                  />
+                </View>
+              ))}
+            </GlassCard>
+          ) : null}
+          <GlassCard
+            style={[styles.totalCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          >
+            <View style={styles.totalRow}>
+              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
                 TOTAL EM ABERTO
               </Text>
+              <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+                {openPaymentsTotal}
+              </Text>
             </View>
-            <Text
-              style={[
-                theme.typography.metricMedium,
-                { color: theme.colors.textPrimary, fontSize: 22, lineHeight: 28 },
-              ]}
-            >
-              {openPaymentsTotal}
-            </Text>
-          </View>
-        </GlassCard>
-
-        <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
-          <GlassCard
-            style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-          >
-            {openPaymentPreview.map((item, index) => (
-              <View key={item.client}>
-                <OpenPaymentRow item={item} />
-                {index < openPaymentPreview.length - 1 ? (
-                  <View style={[styles.divider, { backgroundColor: theme.colors.separator }]} />
-                ) : null}
-              </View>
-            ))}
           </GlassCard>
         </View>
       </Animated.View>
@@ -100,12 +138,16 @@ export function OpenPaymentsScreen() {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
-  header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, position: 'relative' },
+  header: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
   headerCopy: { alignItems: 'center', gap: 4, left: 0, position: 'absolute', right: 0 },
-  summaryCard: { padding: 16 },
-  summaryRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-  summaryCopy: { flex: 1 },
   clientList: { width: '100%' },
   clientCard: { padding: 16 },
-  divider: { height: StyleSheet.hairlineWidth },
+  totalCard: { padding: 16 },
+  totalRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

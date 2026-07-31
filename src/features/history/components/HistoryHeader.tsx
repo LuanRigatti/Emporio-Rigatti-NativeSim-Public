@@ -1,12 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { NativeGlassIconButton } from '@/components/native';
+import { NativeGlassIconButton, NativeGlassMenu } from '@/components/native';
+import type { NativeMenuAction } from '@/components/native';
 import { useAppTheme } from '@/theme';
 
+import type { HistoryFilter } from './FilterChips';
 import { PeriodSelector } from './PeriodSelector';
 
 export type HistoryHeaderProps = {
   onFilterPress: () => void;
+  onFilterSelect: (filter: HistoryFilter) => void;
   selectedMonth: number;
   selectedYear: number;
   onMonthChange: (month: number) => void;
@@ -15,12 +18,33 @@ export type HistoryHeaderProps = {
 
 export function HistoryHeader({
   onFilterPress,
+  onFilterSelect,
   onMonthChange,
   onYearChange,
   selectedMonth,
   selectedYear,
 }: HistoryHeaderProps) {
   const { theme } = useAppTheme();
+  const filterActions: readonly NativeMenuAction[] = [
+    {
+      id: 'completed',
+      onPress: () => onFilterSelect('Concluídas'),
+      systemImage: 'checkmark.circle',
+      title: 'Concluídas',
+    },
+    {
+      id: 'pending',
+      onPress: () => onFilterSelect('Pendentes'),
+      systemImage: 'clock',
+      title: 'Pendentes',
+    },
+    {
+      id: 'today',
+      onPress: () => onFilterSelect('Hoje'),
+      systemImage: 'calendar',
+      title: 'Hoje',
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -35,16 +59,28 @@ export function HistoryHeader({
           year={selectedYear}
         />
       </View>
-      <NativeGlassIconButton
-        accessibilityLabel="Filtrar histórico"
+      <NativeGlassMenu
+        accessibilityLabel="Filtros do histórico"
+        actions={filterActions}
         color={theme.colors.textPrimary}
         containerSize={theme.sizes.touchTargetMinimum}
         fallbackIcon="filter-outline"
-        interactiveGlass
-        onPress={onFilterPress}
         size={theme.sizes.iconMedium}
         style={styles.filterSurface}
         systemImage="line.3.horizontal.decrease.circle"
+        trigger={
+          <NativeGlassIconButton
+            accessibilityLabel="Filtros do histórico"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            fallbackIcon="filter-outline"
+            interactiveGlass
+            onPress={onFilterPress}
+            size={theme.sizes.iconMedium}
+            style={styles.filterSurface}
+            systemImage="line.3.horizontal.decrease.circle"
+          />
+        }
       />
     </View>
   );

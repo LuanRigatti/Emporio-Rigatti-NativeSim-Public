@@ -170,6 +170,7 @@ export function HistoryScreen() {
       >
         <HistoryHeader
           onFilterPress={handleFilterPress}
+          onFilterSelect={handleSelectFilter}
           onMonthChange={handleMonthChange}
           onYearChange={handleYearChange}
           selectedMonth={selectedMonth}

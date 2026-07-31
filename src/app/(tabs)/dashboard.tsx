@@ -14,6 +14,8 @@ import {
 } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassMenu, NativeSearchField, type NativeMenuAction } from '@/components/native';
+// Temporarily disabled while native ProgressiveBlur integration is being tested.
+// import { ProgressiveBlur } from '@/components/ui/progressive-blur';
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
@@ -164,6 +166,8 @@ export default function Home() {
       <TabHapticListener />
       <PremiumScreen
         contentContainerStyle={{ gap: theme.spacing.lg, marginTop: -theme.spacing.xs }}
+        // Temporarily disabled to prevent loading/calling the native blur library.
+        overlayBackground={undefined}
         overlayHeader={useNativeHeaderOverlay ? homeHeader : undefined}
       >
         {!useNativeHeaderOverlay ? <View style={styles.header}>{homeHeader}</View> : null}
@@ -177,7 +181,7 @@ export default function Home() {
           />
         </View>
 
-        <PremiumCard
+        {/* <PremiumCard
           style={{
             borderRadius: theme.radius.xl + theme.spacing.sm,
             gap: theme.spacing.sm,
@@ -203,9 +207,9 @@ export default function Home() {
           <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
             R$ 12.540,00
           </Text>
-        </PremiumCard>
+        </PremiumCard> */}
 
-        <PremiumCard
+        {/* <PremiumCard
           style={{
             borderRadius: theme.radius.xl + theme.spacing.sm,
             gap: theme.spacing.sm,
@@ -231,7 +235,7 @@ export default function Home() {
           <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
             R$ 9.840,00
           </Text>
-        </PremiumCard>
+        </PremiumCard> */}
 
         <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
           <PremiumCard

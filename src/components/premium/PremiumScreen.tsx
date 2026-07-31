@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
+  ScrollView,
   StyleSheet,
   View,
   type ScrollViewProps,
@@ -7,13 +8,13 @@ import {
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme';
 
 export type PremiumScreenProps = ViewProps & {
   children: ReactNode;
+  overlayBackground?: ReactNode;
   overlayHeader?: ReactNode;
   scrollable?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -22,6 +23,7 @@ export type PremiumScreenProps = ViewProps & {
 
 export function PremiumScreen({
   children,
+  overlayBackground,
   overlayHeader,
   scrollable = true,
   contentContainerStyle,
@@ -46,17 +48,8 @@ export function PremiumScreen({
       edges={overlayHeader ? [] : ['top']}
       style={[styles.safeArea, { backgroundColor: theme.colors.background }, style]}
     >
-      {overlayHeader ? (
-        <View
-          onLayout={(event) => setOverlayHeaderHeight(event.nativeEvent.layout.height)}
-          pointerEvents="box-none"
-          style={styles.overlayHeader}
-        >
-          {overlayHeader}
-        </View>
-      ) : null}
       {scrollable ? (
-        <Animated.ScrollView
+        <ScrollView
           {...scrollViewProps}
           automaticallyAdjustContentInsets={false}
           contentInsetAdjustmentBehavior="never"
@@ -69,7 +62,7 @@ export function PremiumScreen({
           style={{ overflow: 'visible' }}
         >
           {children}
-        </Animated.ScrollView>
+        </ScrollView>
       ) : (
         <View
           style={[contentStyle, overlayHeader ? { paddingTop: overlayHeaderHeight } : undefined]}
@@ -77,6 +70,16 @@ export function PremiumScreen({
           {children}
         </View>
       )}
+      {overlayBackground}
+      {overlayHeader ? (
+        <View
+          onLayout={(event) => setOverlayHeaderHeight(event.nativeEvent.layout.height)}
+          pointerEvents="box-none"
+          style={styles.overlayHeader}
+        >
+          {overlayHeader}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

@@ -29,6 +29,10 @@ function selectedIcon(
 }
 
 export default function PrototypeTabsLayout() {
+  return <TabsNavigator />;
+}
+
+function TabsNavigator() {
   const colorScheme = useColorScheme();
   const iconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
 

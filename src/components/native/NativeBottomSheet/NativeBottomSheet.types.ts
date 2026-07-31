@@ -9,10 +9,12 @@ export type NativeBottomSheetConfirmation = {
   client: NativeBottomSheetItem;
   date: Date;
   quantity: number;
+  bucketPrice: number;
 };
 
 export type NativeBottomSheetProps = {
   visible: boolean;
+  bucketPrice?: number;
   title: string;
   titleSystemImage?: string;
   subtitle?: string;

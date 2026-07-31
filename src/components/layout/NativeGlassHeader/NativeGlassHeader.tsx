@@ -13,6 +13,7 @@ export function NativeGlassHeader({
   leftActions,
   mode = 'translucent',
   onLayout,
+  pointerEvents,
   rightActions,
   search,
   segmentedControl,
@@ -27,6 +28,7 @@ export function NativeGlassHeader({
   return (
     <View
       onLayout={onLayout}
+      pointerEvents={pointerEvents}
       style={[
         styles.container,
         {

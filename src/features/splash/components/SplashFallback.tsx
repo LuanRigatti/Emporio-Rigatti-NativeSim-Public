@@ -44,7 +44,7 @@ export function SplashFallback({ phase }: SplashVisualProps) {
       style={[
         styles.root,
         {
-          backgroundColor: resolvedMode === 'dark' ? '#000000' : '#FFFFFF',
+          backgroundColor: resolvedMode === 'dark' ? '#000000' : theme.colors.background,
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
           paddingTop: Math.max(insets.top, theme.spacing.lg),
         },

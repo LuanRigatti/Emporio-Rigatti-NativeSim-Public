@@ -1,18 +1,17 @@
-import { useCallback } from 'react';
+import type { ComponentType } from 'react';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
-import { useLazyNativeImplementation } from '@/platform/useLazyNativeImplementation';
 
 import NativeGlassActionGroupFallback from './NativeGlassActionGroupFallback';
 import type { NativeGlassActionGroupProps } from './NativeGlassActionGroup.types';
 
 export default function NativeGlassActionGroupNative(props: NativeGlassActionGroupProps) {
   const canUseExpoUI = getNativeCapabilities().canUseExpoUI;
-  const loadImplementation = useCallback(
-    () => import('./NativeGlassActionGroupSwiftUI.ios').then((module) => module.default),
-    [],
-  );
-  const NativeImplementation = useLazyNativeImplementation(canUseExpoUI, loadImplementation);
+  const NativeImplementation = canUseExpoUI
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('./NativeGlassActionGroupSwiftUI.ios')
+        .default as ComponentType<NativeGlassActionGroupProps>)
+    : null;
 
   return NativeImplementation ? (
     <NativeImplementation {...props} />

@@ -5,7 +5,7 @@ import { GlassSurface } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
 export type SettingsSectionProps = {
-  title: string;
+  title?: string;
   children: ReactNode;
 };
 
@@ -14,9 +14,13 @@ export function SettingsSection({ children, title }: SettingsSectionProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={[theme.typography.caption, styles.title, { color: theme.colors.textSecondary }]}>
-        {title.toUpperCase()}
-      </Text>
+      {title ? (
+        <Text
+          style={[theme.typography.caption, styles.title, { color: theme.colors.textSecondary }]}
+        >
+          {title.toUpperCase()}
+        </Text>
+      ) : null}
       <GlassSurface
         glassEffectStyle="none"
         style={[

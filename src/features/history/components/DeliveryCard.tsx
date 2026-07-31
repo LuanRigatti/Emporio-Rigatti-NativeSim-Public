@@ -6,7 +6,6 @@ import { useAppTheme } from '@/theme';
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryLocationActions } from './DeliveryLocationActions';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
-import { DeliveryStatusIndicator } from './DeliveryStatusIndicator';
 
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
@@ -41,15 +40,14 @@ export function DeliveryCard({
       ]}
     >
       <View style={styles.cardRow}>
-        <DeliveryStatusIndicator status={delivery.status} />
         <View style={styles.cardContent}>
           <View style={styles.cardHeader}>
             <View style={styles.clientCopy}>
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                 {delivery.cliente}
               </Text>
-              <DeliveryStatusBadge onPress={onToggleStatus} status={delivery.status} />
             </View>
+            <DeliveryStatusBadge onPress={onToggleStatus} status={delivery.status} />
             <DeliveryLocationActions
               customerName={delivery.cliente}
               onOpenAppleMaps={onOpenAppleMaps}
@@ -57,7 +55,7 @@ export function DeliveryCard({
             />
           </View>
 
-          <View style={[styles.primaryInfo, { gap: theme.spacing.sm }]}>
+          <View style={[styles.primaryInfo, { gap: theme.spacing.sm, marginTop: 4 }]}>
             <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
               {delivery.quantidadeBaldes} baldes
             </Text>
@@ -83,8 +81,8 @@ const styles = StyleSheet.create({
   card: { padding: 14 },
   cardRow: { alignItems: 'stretch', flexDirection: 'row', gap: 10 },
   cardContent: { flex: 1, gap: 8 },
-  cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 6 },
-  clientCopy: { flex: 1, gap: 2 },
+  cardHeader: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+  clientCopy: { flex: 1 },
   primaryInfo: { flexDirection: 'row', justifyContent: 'space-between' },
   secondaryInfo: { flexDirection: 'row', flexWrap: 'wrap' },
   secondaryItem: { alignItems: 'center', flexDirection: 'row', gap: 4 },

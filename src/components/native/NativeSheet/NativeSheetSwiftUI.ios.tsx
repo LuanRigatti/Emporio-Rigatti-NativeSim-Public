@@ -9,7 +9,7 @@ export default function NativeSheetSwiftUI({
 }: NativeSheetProps) {
   return (
     <Host style={{ flex: 1 }}>
-      <BottomSheet isOpened={visible} onIsOpenedChange={onVisibleChange}>
+      <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         {children}
       </BottomSheet>
     </Host>

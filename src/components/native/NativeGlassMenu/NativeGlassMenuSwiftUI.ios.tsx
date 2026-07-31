@@ -1,7 +1,8 @@
-import { Button, ContextMenu, Host, Image } from '@expo/ui/swift-ui';
+import { Button, Host, Image, Menu } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
+  disabled as disabledModifier,
   frame,
   glassEffect,
   padding,
@@ -22,21 +23,8 @@ export default function NativeGlassMenuSwiftUI({
 }: NativeGlassMenuProps) {
   return (
     <Host matchContents style={style}>
-      <ContextMenu activationMethod="singlePress" modifiers={[buttonStyle('plain')]}>
-        <ContextMenu.Items>
-          {actions.map((action) => (
-            <Button
-              disabled={action.disabled}
-              key={action.id}
-              onPress={action.onPress}
-              role={action.destructive ? 'destructive' : 'default'}
-              systemImage={action.systemImage as SFSymbol | undefined}
-            >
-              {action.title}
-            </Button>
-          ))}
-        </ContextMenu.Items>
-        <ContextMenu.Trigger>
+      <Menu
+        label={
           <Image
             modifiers={[
               padding({ all: 0 }),
@@ -52,8 +40,20 @@ export default function NativeGlassMenuSwiftUI({
             size={size}
             systemName={systemImage as SFSymbol}
           />
-        </ContextMenu.Trigger>
-      </ContextMenu>
+        }
+        modifiers={[buttonStyle('plain')]}
+      >
+        {actions.map((action) => (
+          <Button
+            key={action.id}
+            label={action.title}
+            modifiers={action.disabled ? [disabledModifier(true)] : undefined}
+            onPress={action.onPress}
+            role={action.destructive ? 'destructive' : 'default'}
+            systemImage={action.systemImage as SFSymbol | undefined}
+          />
+        ))}
+      </Menu>
     </Host>
   );
 }

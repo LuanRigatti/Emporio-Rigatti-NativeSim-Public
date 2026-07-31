@@ -4,8 +4,12 @@ import {
   accessibilityValue,
   background,
   buttonStyle,
+  controlSize as controlSizeModifier,
   cornerRadius,
+  disabled as disabledModifier,
   frame,
+  font,
+  foregroundColor,
   padding,
   foregroundStyle,
 } from '@expo/ui/swift-ui/modifiers';
@@ -38,10 +42,20 @@ export default function NativeButtonSwiftUI({
   const buttonContent =
     content?.type === 'stacked' ? (
       <VStack alignment="center" modifiers={[frame({ width: minWidth, height: minHeight })]}>
-        <Text color={content.foregroundColor ?? color} size={11}>
+        <Text
+          modifiers={[
+            font({ size: 11 }),
+            foregroundColor(content.foregroundColor ?? color ?? '#000000'),
+          ]}
+        >
           {content.title}
         </Text>
-        <Text color={content.foregroundColor ?? color} size={16} weight="semibold">
+        <Text
+          modifiers={[
+            font({ size: 16, weight: 'semibold' }),
+            foregroundColor(content.foregroundColor ?? color ?? '#000000'),
+          ]}
+        >
           {content.subtitle}
         </Text>
         {content.indicator ? (
@@ -61,7 +75,7 @@ export default function NativeButtonSwiftUI({
         spacing={6}
       >
         <Image color={color ?? '#000000'} size={18} systemName={systemImage as SFSymbol} />
-        <Text color={color ?? '#000000'}>{label}</Text>
+        <Text modifiers={[foregroundColor(color ?? '#000000')]}>{label}</Text>
       </HStack>
     ) : (
       <HStack modifiers={contentWidth !== undefined ? [frame({ width: contentWidth })] : undefined}>
@@ -72,18 +86,19 @@ export default function NativeButtonSwiftUI({
   return (
     <Host matchContents>
       <Button
-        controlSize={controlSize ?? 'regular'}
-        color={color}
-        disabled={disabled}
         onPress={() => {
           triggerNativeButtonHaptic(haptic);
           onPress();
         }}
         role={destructive ? 'destructive' : 'default'}
         modifiers={[
+          buttonStyle(
+            isFilledVariant ? 'plain' : variant === 'primary' ? 'glassProminent' : 'glass',
+          ),
+          controlSizeModifier(controlSize ?? 'regular'),
+          ...(disabled ? [disabledModifier(true)] : []),
           ...(isFilledVariant
             ? [
-                buttonStyle('plain'),
                 foregroundStyle(color ?? '#000000'),
                 padding({
                   horizontal: horizontalPadding ?? 16,
@@ -99,7 +114,6 @@ export default function NativeButtonSwiftUI({
           ...(hint ? [accessibilityHint(hint)] : []),
           ...(value ? [accessibilityValue(value)] : []),
         ]}
-        variant={isFilledVariant ? 'plain' : variant === 'primary' ? 'glassProminent' : 'glass'}
       >
         {buttonContent}
       </Button>

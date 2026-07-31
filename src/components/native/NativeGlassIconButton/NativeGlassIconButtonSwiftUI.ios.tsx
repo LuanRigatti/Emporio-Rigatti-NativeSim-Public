@@ -2,6 +2,8 @@ import { Button, Host, Image } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
+  controlSize,
+  disabled as disabledModifier,
   frame,
   glassEffect,
   padding,
@@ -25,11 +27,11 @@ export default function NativeGlassIconButtonSwiftUI({
   return (
     <Host matchContents style={style}>
       <Button
-        controlSize="regular"
-        disabled={disabled}
         modifiers={[
           padding({ all: 0 }),
           buttonStyle(interactiveGlass ? 'plain' : 'glass'),
+          controlSize('regular'),
+          ...(disabled ? [disabledModifier(true)] : []),
           frame({ width: containerSize, height: containerSize }),
           ...(interactiveGlass
             ? [

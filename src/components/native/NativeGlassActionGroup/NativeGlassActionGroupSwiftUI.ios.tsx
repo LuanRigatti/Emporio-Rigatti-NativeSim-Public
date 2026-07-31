@@ -2,6 +2,7 @@ import { Button, HStack, Host, Image } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
+  disabled as disabledModifier,
   frame,
   glassEffect,
   padding,
@@ -26,6 +27,7 @@ export default function NativeGlassActionGroupSwiftUI({
     padding({ all: 0 }),
     buttonStyle('plain'),
     frame({ width: 44, height: 44 }),
+    ...(disabled ? [disabledModifier(true)] : []),
     ...(color ? [tint(color)] : []),
   ];
 
@@ -42,14 +44,12 @@ export default function NativeGlassActionGroupSwiftUI({
         ]}
       >
         <Button
-          disabled={disabled}
           modifiers={[...buttonModifiers, accessibilityLabel(leadingAccessibilityLabel)]}
           onPress={onLeadingPress}
         >
           <Image color={color} size={size} systemName={leadingSystemImage as SFSymbol} />
         </Button>
         <Button
-          disabled={disabled}
           modifiers={[...buttonModifiers, accessibilityLabel(trailingAccessibilityLabel)]}
           onPress={onTrailingPress}
         >

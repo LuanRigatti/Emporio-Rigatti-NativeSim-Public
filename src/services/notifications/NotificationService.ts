@@ -16,6 +16,12 @@ import { NOTIFICATION_BACKGROUND_TASK } from './NotificationBackgroundTask';
 type NotificationUrlListener = (url: string) => void;
 type NotificationEventListener = (event: AppNotificationEvent) => void;
 
+type PermissionResponseShape = {
+  canAskAgain?: boolean;
+  granted?: boolean;
+  status?: string;
+};
+
 export interface NotificationSubscription {
   remove: () => void;
 }
@@ -64,6 +70,7 @@ function eventFromNotification(notification: Notifications.Notification): AppNot
 function permissionState(
   status: Notifications.NotificationPermissionsStatus,
 ): NotificationPermissionState {
+  const response = status as Notifications.NotificationPermissionsStatus & PermissionResponseShape;
   if (Platform.OS === 'web') return 'unsupported';
   if (
     Platform.OS === 'ios' &&
@@ -71,8 +78,8 @@ function permissionState(
   ) {
     return 'provisional';
   }
-  if (status.granted || status.status === 'granted') return 'granted';
-  if (status.status === 'denied') return 'denied';
+  if (response.granted || response.status === 'granted') return 'granted';
+  if (response.status === 'denied') return 'denied';
   return 'undetermined';
 }
 
@@ -109,8 +116,10 @@ export class NotificationService {
     }
 
     const permissions = await Notifications.getPermissionsAsync();
+    const response = permissions as Notifications.NotificationPermissionsStatus &
+      PermissionResponseShape;
     return {
-      canAskAgain: permissions.canAskAgain,
+      canAskAgain: response.canAskAgain ?? false,
       permission: permissionState(permissions),
       platform: platform(),
       tokenRegistered,
@@ -128,8 +137,10 @@ export class NotificationService {
       });
     }
     const current = await Notifications.getPermissionsAsync();
+    const currentResponse = current as Notifications.NotificationPermissionsStatus &
+      PermissionResponseShape;
     const permissions =
-      current.status === 'granted'
+      currentResponse.status === 'granted'
         ? current
         : await Notifications.requestPermissionsAsync({
             ios: { allowAlert: true, allowBadge: true, allowSound: true },

@@ -25,11 +25,10 @@ export default function NativeSearchFieldSwiftUI({
       >
         <Image color="#8B8B93" size={18} systemName="magnifyingglass" />
         <TextField
-          allowNewlines={false}
-          autocorrection={false}
+          axis="horizontal"
           defaultValue={value}
           modifiers={[frame({ maxWidth: 1000 })]}
-          onChangeText={onChangeText}
+          onValueChange={onChangeText}
           placeholder={placeholder}
         />
       </HStack>

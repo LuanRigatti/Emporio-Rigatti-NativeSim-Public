@@ -1,9 +1,12 @@
-import { Button, ContextMenu, HStack, Host, Image, Text } from '@expo/ui/swift-ui';
+import { Button, HStack, Host, Image, Menu, Text } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
+  disabled as disabledModifier,
   frame,
   fixedSize,
+  font,
+  foregroundColor,
   glassEffect,
   padding,
 } from '@expo/ui/swift-ui/modifiers';
@@ -41,10 +44,11 @@ export default function NativeDropdownSwiftUI<T extends string | number>({
       ]}
     >
       <Text
-        color={color}
-        modifiers={[fixedSize({ horizontal: true, vertical: false })]}
-        size={15}
-        weight="medium"
+        modifiers={[
+          fixedSize({ horizontal: true, vertical: false }),
+          font({ size: 15, weight: 'medium' }),
+          ...(color ? [foregroundColor(color)] : []),
+        ]}
       >
         {displayValue}
       </Text>
@@ -57,20 +61,16 @@ export default function NativeDropdownSwiftUI<T extends string | number>({
       {disabled ? (
         trigger
       ) : (
-        <ContextMenu activationMethod="singlePress" modifiers={[buttonStyle('plain')]}>
-          <ContextMenu.Items>
-            {items.map((item) => (
-              <Button
-                disabled={item.disabled}
-                key={String(item.value)}
-                onPress={() => onValueChange(item.value)}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </ContextMenu.Items>
-          <ContextMenu.Trigger>{trigger}</ContextMenu.Trigger>
-        </ContextMenu>
+        <Menu label={trigger} modifiers={[buttonStyle('plain')]}>
+          {items.map((item) => (
+            <Button
+              key={String(item.value)}
+              label={item.label}
+              modifiers={item.disabled ? [disabledModifier(true)] : undefined}
+              onPress={() => onValueChange(item.value)}
+            />
+          ))}
+        </Menu>
       )}
     </Host>
   );

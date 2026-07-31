@@ -1,4 +1,8 @@
 import { Host, TextField } from '@expo/ui/swift-ui';
+import {
+  autocorrectionDisabled,
+  keyboardType as keyboardTypeModifier,
+} from '@expo/ui/swift-ui/modifiers';
 
 import type { NativeTextFieldProps } from '@/types/native-ui';
 
@@ -13,10 +17,10 @@ export default function NativeTextFieldSwiftUI({
   return (
     <Host matchContents>
       <TextField
-        autocorrection={false}
+        axis="horizontal"
         defaultValue={value}
-        keyboardType={swiftKeyboardType}
-        onChangeText={onChangeText}
+        modifiers={[autocorrectionDisabled(true), keyboardTypeModifier(swiftKeyboardType)]}
+        onValueChange={onChangeText}
         placeholder={placeholder}
       />
     </Host>

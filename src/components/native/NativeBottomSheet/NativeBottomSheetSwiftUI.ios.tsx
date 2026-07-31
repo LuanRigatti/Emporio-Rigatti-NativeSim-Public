@@ -1,8 +1,9 @@
 import {
   BottomSheet,
   Button,
-  DateTimePicker,
+  DatePicker,
   Divider,
+  Group,
   HStack,
   Host,
   Image,
@@ -18,11 +19,21 @@ import {
   Animation,
   background,
   buttonStyle,
-  disabled,
+  contentShape,
+  controlSize,
+  disabled as disabledModifier,
   frame,
+  font,
+  foregroundColor,
   glassEffect,
+  listStyle,
   offset,
+  onTapGesture,
   padding,
+  presentationDetents,
+  presentationDragIndicator,
+  scrollDisabled,
+  shapes,
   zIndex,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
@@ -66,7 +77,7 @@ export default function NativeBottomSheetSwiftUI({
       spacing={6}
       modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
     >
-      <Text size={17} weight="bold" modifiers={[offset({ y: isFormVisible ? 20 : 6 })]}>
+      <Text modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: isFormVisible ? 20 : 6 })]}>
         {title}
       </Text>
     </HStack>
@@ -74,9 +85,11 @@ export default function NativeBottomSheetSwiftUI({
 
   const detailView = selectedItem ? (
     <List
-      listStyle="insetGrouped"
-      scrollEnabled={false}
-      modifiers={[padding({ horizontal: 0, top: -8, bottom: 8 })]}
+      modifiers={[
+        listStyle('insetGrouped'),
+        scrollDisabled(true),
+        padding({ horizontal: 0, top: -8, bottom: 8 }),
+      ]}
     >
       <VStack
         alignment="leading"
@@ -94,9 +107,7 @@ export default function NativeBottomSheetSwiftUI({
               size={32}
               systemName={(selectedItem.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
             />
-            <Text size={18} weight="semibold">
-              {selectedItem.title}
-            </Text>
+            <Text modifiers={[font({ size: 18, weight: 'semibold' })]}>{selectedItem.title}</Text>
           </HStack>
           <Divider />
         </VStack>
@@ -106,26 +117,23 @@ export default function NativeBottomSheetSwiftUI({
           modifiers={[padding({ top: 22 }), offset({ y: -10 })]}
         >
           <HStack alignment="center" spacing={10} modifiers={[padding({ bottom: 18 })]}>
-            <Text size={16} weight="bold">
-              Data da entrega
-            </Text>
+            <Text modifiers={[font({ size: 16, weight: 'bold' })]}>Data da entrega</Text>
             <Spacer />
-            <DateTimePicker
-              displayedComponents="date"
-              initialDate={selectedDate.toISOString()}
-              onDateSelected={setSelectedDate}
-              variant="compact"
+            <DatePicker
+              displayedComponents={['date']}
+              onDateChange={setSelectedDate}
+              selection={selectedDate}
             />
           </HStack>
           <HStack alignment="center" spacing={16}>
-            <Text size={17} weight="semibold">
+            <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>
               {`${bucketQuantity} ${bucketQuantity === 1 ? 'balde' : 'baldes'}`}
             </Text>
             <Spacer />
             <Button
-              controlSize="regular"
               modifiers={[
                 buttonStyle('plain'),
+                controlSize('regular'),
                 frame({ width: 44, height: 44 }),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
@@ -138,9 +146,9 @@ export default function NativeBottomSheetSwiftUI({
               <Image size={17} systemName="minus" />
             </Button>
             <Button
-              controlSize="regular"
               modifiers={[
                 buttonStyle('plain'),
+                controlSize('regular'),
                 frame({ width: 44, height: 44 }),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
@@ -154,11 +162,9 @@ export default function NativeBottomSheetSwiftUI({
             </Button>
           </HStack>
           <HStack alignment="center" modifiers={[padding({ top: 24 })]}>
-            <Text size={16} weight="bold">
-              Valor total
-            </Text>
+            <Text modifiers={[font({ size: 16, weight: 'bold' })]}>Valor total</Text>
             <Spacer />
-            <Text size={17} weight="semibold">
+            <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>
               {new Intl.NumberFormat('pt-BR', {
                 currency: 'BRL',
                 style: 'currency',
@@ -170,8 +176,8 @@ export default function NativeBottomSheetSwiftUI({
         <HStack alignment="center" modifiers={[offset({ y: -18 })]}>
           <Spacer />
           <Button
-            controlSize="large"
-            modifiers={[buttonStyle('glassProminent'), padding({ top: 4 })]}
+            label="Confirmar"
+            modifiers={[buttonStyle('glassProminent'), controlSize('large'), padding({ top: 4 })]}
             onPress={() => {
               if (selectedItem) {
                 onConfirm?.({
@@ -183,9 +189,7 @@ export default function NativeBottomSheetSwiftUI({
               }
               onVisibleChange(false);
             }}
-          >
-            Confirmar
-          </Button>
+          />
         </HStack>
       </VStack>
     </List>
@@ -194,28 +198,35 @@ export default function NativeBottomSheetSwiftUI({
   const listView = (
     <VStack alignment="leading" spacing={0} modifiers={[padding({ top: -6 })]}>
       <Text
-        color="#8B8B93"
-        size={15}
-        weight="semibold"
-        modifiers={[padding({ horizontal: 28 }), offset({ y: 26 }), zIndex(1)]}
+        modifiers={[
+          foregroundColor('#8B8B93'),
+          font({ size: 15, weight: 'semibold' }),
+          padding({ horizontal: 28 }),
+          offset({ y: 26 }),
+          zIndex(1),
+        ]}
       >
         {subtitle ?? 'Escolha o cliente'}
       </Text>
       <List
-        listStyle="insetGrouped"
-        scrollEnabled
-        modifiers={[background('systemGray5'), padding({ horizontal: 0, bottom: 8 })]}
+        modifiers={[
+          listStyle('insetGrouped'),
+          scrollDisabled(false),
+          background('systemGray5'),
+          padding({ horizontal: 0, bottom: 8 }),
+        ]}
       >
         {items.map((item) => (
           <HStack
             key={item.id}
-            {...({
-              onPress: () => handleSelect(item),
-              useTapGesture: true,
-            } as { onPress: () => void; useTapGesture: boolean })}
             alignment="center"
             spacing={14}
-            modifiers={[frame({ height: 36, maxWidth: 1000 }), accessibilityLabel(item.title)]}
+            modifiers={[
+              frame({ height: 36, maxWidth: 1000 }),
+              contentShape(shapes.rectangle()),
+              onTapGesture(() => handleSelect(item)),
+              accessibilityLabel(item.title),
+            ]}
           >
             <Image
               color="#8B8B93"
@@ -223,10 +234,8 @@ export default function NativeBottomSheetSwiftUI({
               systemName={(item.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
             />
             <VStack alignment="leading" spacing={0}>
-              <Text size={17} weight="regular">
-                {item.title}
-              </Text>
-              <Text color="#8B8B93" size={14}>
+              <Text modifiers={[font({ size: 17, weight: 'regular' })]}>{item.title}</Text>
+              <Text modifiers={[foregroundColor('#8B8B93'), font({ size: 14 })]}>
                 {item.subtitle ?? 'Selecionar'}
               </Text>
             </VStack>
@@ -246,10 +255,11 @@ export default function NativeBottomSheetSwiftUI({
           modifiers={[frame({ maxWidth: 1000, alignment: 'leading' }), padding({ horizontal: 16 })]}
         >
           <Button
-            color="#8B8B93"
-            controlSize="regular"
+            label="Cancelar"
             modifiers={[
               buttonStyle('plain'),
+              controlSize('regular'),
+              foregroundColor('#8B8B93'),
               padding({ horizontal: 12, vertical: 12 }),
               glassEffect({
                 glass: { interactive: true, variant: 'regular' },
@@ -258,9 +268,7 @@ export default function NativeBottomSheetSwiftUI({
               accessibilityLabel('Cancelar'),
             ]}
             onPress={() => onVisibleChange(false)}
-          >
-            Cancelar
-          </Button>
+          />
           <Spacer />
         </HStack>
       ) : null}
@@ -283,7 +291,7 @@ export default function NativeBottomSheetSwiftUI({
           modifiers={[
             offset({ y: isFormVisible ? 1000 : 0 }),
             animation(Animation.easeInOut({ duration: 0.4 }), isFormVisible),
-            disabled(isFormVisible),
+            disabledModifier(isFormVisible),
           ]}
         >
           {listView}
@@ -292,7 +300,7 @@ export default function NativeBottomSheetSwiftUI({
           modifiers={[
             offset({ y: isFormVisible ? 0 : 1000 }),
             animation(Animation.easeInOut({ duration: 0.4 }), isFormVisible),
-            disabled(!isFormVisible),
+            disabledModifier(!isFormVisible),
           ]}
         >
           {detailView}
@@ -304,18 +312,23 @@ export default function NativeBottomSheetSwiftUI({
   return (
     <Host matchContents>
       <BottomSheet
-        isOpened={visible}
-        onIsOpenedChange={(isOpened) => {
-          if (!isOpened) {
+        isPresented={visible}
+        onIsPresentedChange={(isPresented) => {
+          if (!isPresented) {
             setSelectedItemId(null);
             setIsFormVisible(false);
           }
-          onVisibleChange(isOpened);
+          onVisibleChange(isPresented);
         }}
-        presentationDetents={[0.54, 'large']}
-        presentationDragIndicator="visible"
       >
-        {sheetContent}
+        <Group
+          modifiers={[
+            presentationDetents([{ fraction: 0.54 }, 'large']),
+            presentationDragIndicator('visible'),
+          ]}
+        >
+          {sheetContent}
+        </Group>
       </BottomSheet>
     </Host>
   );

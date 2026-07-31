@@ -1,4 +1,5 @@
-import { Host, TextField } from '@expo/ui/swift-ui';
+import { Host, TextField, useNativeState } from '@expo/ui/swift-ui';
+import { useEffect } from 'react';
 import {
   autocorrectionDisabled,
   keyboardType as keyboardTypeModifier,
@@ -13,15 +14,20 @@ export default function NativeTextFieldSwiftUI({
   value,
 }: NativeTextFieldProps) {
   const swiftKeyboardType = keyboardType === 'email-address' ? 'email-address' : 'default';
+  const text = useNativeState(value);
+
+  useEffect(() => {
+    text.set(value);
+  }, [text, value]);
 
   return (
     <Host matchContents>
       <TextField
         axis="horizontal"
-        defaultValue={value}
         modifiers={[autocorrectionDisabled(true), keyboardTypeModifier(swiftKeyboardType)]}
-        onValueChange={onChangeText}
+        onTextChange={onChangeText}
         placeholder={placeholder}
+        text={text}
       />
     </Host>
   );

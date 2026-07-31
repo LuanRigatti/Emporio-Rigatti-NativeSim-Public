@@ -43,7 +43,8 @@ module.exports = {
       'expo-router',
       'expo-font',
       'expo-web-browser',
-      '@react-native-community/datetimepicker',
+      'expo-sharing',
+      'expo-status-bar',
       [
         'expo-notifications',
         {

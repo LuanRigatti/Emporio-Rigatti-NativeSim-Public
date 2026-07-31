@@ -1,5 +1,6 @@
-import { HStack, Host, Image, TextField } from '@expo/ui/swift-ui';
+import { HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
 import { accessibilityLabel, frame, glassEffect, padding } from '@expo/ui/swift-ui/modifiers';
+import { useEffect } from 'react';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
@@ -9,6 +10,12 @@ export default function NativeSearchFieldSwiftUI({
   placeholder = 'Pesquisar',
   value,
 }: NativeSearchFieldProps) {
+  const text = useNativeState(value);
+
+  useEffect(() => {
+    text.set(value);
+  }, [text, value]);
+
   return (
     <Host style={{ minHeight: 36, width: '100%' }}>
       <HStack
@@ -26,10 +33,10 @@ export default function NativeSearchFieldSwiftUI({
         <Image color="#8B8B93" size={18} systemName="magnifyingglass" />
         <TextField
           axis="horizontal"
-          defaultValue={value}
           modifiers={[frame({ maxWidth: 1000 })]}
-          onValueChange={onChangeText}
+          onTextChange={onChangeText}
           placeholder={placeholder}
+          text={text}
         />
       </HStack>
     </Host>

@@ -12,5 +12,5 @@ export default function NativeGlassHeaderBackgroundFallback({
 }
 
 const styles = StyleSheet.create({
-  background: { ...StyleSheet.absoluteFillObject },
+  background: StyleSheet.absoluteFill,
 });

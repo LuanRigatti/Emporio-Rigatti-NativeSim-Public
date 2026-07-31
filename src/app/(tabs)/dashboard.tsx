@@ -48,9 +48,11 @@ export default function Home() {
   }));
 
   const animateMoreButton = (toValue: number) => {
-    moreButtonScale.value = withSpring(
-      reduceMotionEnabled ? 1 : toValue,
-      reduceMotionEnabled ? undefined : theme.animations.spring.responsive,
+    moreButtonScale.set(
+      withSpring(
+        reduceMotionEnabled ? 1 : toValue,
+        reduceMotionEnabled ? undefined : theme.animations.spring.responsive,
+      ),
     );
   };
   const optionsExpansion = useSharedValue(0);

@@ -43,31 +43,38 @@ import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 export default function NativeBottomSheetSwiftUI({
   items,
   bucketPrice = 49.8,
+  onDismiss,
   onSelect,
   onVisibleChange,
   subtitle,
   title,
   visible,
   onConfirm,
+  presentationStep,
+  selectedItem: controlledSelectedItem,
 }: NativeBottomSheetProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
-  const [isFormVisible, setIsFormVisible] = useState(false);
-  const selectedItem = items.find((item) => item.id === selectedItemId);
+  const [internalFormVisible, setInternalFormVisible] = useState(false);
+  const selectedItem = controlledSelectedItem ?? items.find((item) => item.id === selectedItemId);
+  const isFormVisible =
+    presentationStep === 'form' ? true : presentationStep === 'list' ? false : internalFormVisible;
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!visible) {
       setSelectedItemId(null);
-      setIsFormVisible(false);
+      setInternalFormVisible(false);
       setBucketQuantity(1);
       setSelectedDate(new Date());
     }
   }, [visible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSelect = (item: (typeof items)[number]) => {
     setSelectedItemId(item.id);
-    setIsFormVisible(true);
+    setInternalFormVisible(true);
     onSelect?.(item);
   };
 
@@ -316,10 +323,11 @@ export default function NativeBottomSheetSwiftUI({
         onIsPresentedChange={(isPresented) => {
           if (!isPresented) {
             setSelectedItemId(null);
-            setIsFormVisible(false);
+            setInternalFormVisible(false);
           }
           onVisibleChange(isPresented);
         }}
+        onDismiss={onDismiss}
       >
         <Group
           modifiers={[

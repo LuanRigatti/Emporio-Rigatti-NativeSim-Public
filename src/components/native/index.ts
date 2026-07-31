@@ -5,7 +5,10 @@ export type {
   NativeBottomSheetConfirmation,
   NativeBottomSheetItem,
   NativeBottomSheetProps,
+  NativeBottomSheetStep,
 } from './NativeBottomSheet';
+export { default as NativeSequentialBottomSheet } from './NativeSequentialBottomSheet';
+export type { NativeSequentialBottomSheetProps } from './NativeSequentialBottomSheet';
 export { default as NativeGlassActionGroup } from './NativeGlassActionGroup';
 export type { NativeGlassActionGroupProps } from './NativeGlassActionGroup';
 export { default as NativeDropdown } from './NativeDropdown';

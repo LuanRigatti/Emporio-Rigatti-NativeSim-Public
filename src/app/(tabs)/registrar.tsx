@@ -14,8 +14,10 @@ import {
   NativeBottomSheet,
   NativeGlassActionGroup,
   NativeGlassIconButton,
+  NativeSequentialBottomSheet,
 } from '@/components/native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
+import { ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET } from '@/config/featureFlags';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import {
@@ -26,6 +28,19 @@ import {
 } from '@/features/history/data/historyDeliveryStore';
 
 const BUCKET_PRICE = 49.8;
+
+const REGISTRO_CLIENT_ITEMS = [
+  { id: 'joao', title: 'João Silva', systemImage: 'person.crop.circle.fill' },
+  { id: 'maria', title: 'Maria Oliveira', systemImage: 'person.crop.circle.fill' },
+  { id: 'pedro', title: 'Pedro Santos', systemImage: 'person.crop.circle.fill' },
+  { id: 'ana', title: 'Ana Costa', systemImage: 'person.crop.circle.fill' },
+  { id: 'lucas', title: 'Lucas Ferreira', systemImage: 'person.crop.circle.fill' },
+  { id: 'beatriz', title: 'Beatriz Martins', systemImage: 'person.crop.circle.fill' },
+  { id: 'carlos', title: 'Carlos Souza', systemImage: 'person.crop.circle.fill' },
+  { id: 'juliana', title: 'Juliana Alves', systemImage: 'person.crop.circle.fill' },
+  { id: 'rafael', title: 'Rafael Lima', systemImage: 'person.crop.circle.fill' },
+  { id: 'sofia', title: 'Sofia Rocha', systemImage: 'person.crop.circle.fill' },
+] as const;
 
 export default function PrototypeRegistrar() {
   const colorScheme = useColorScheme();
@@ -211,37 +226,29 @@ export default function PrototypeRegistrar() {
           ) : null}
         </View>
       </PremiumScreen>
-      <NativeBottomSheet
-        items={[
-          { id: 'joao', title: 'João Silva', systemImage: 'person.crop.circle.fill' },
-          { id: 'maria', title: 'Maria Oliveira', systemImage: 'person.crop.circle.fill' },
-          { id: 'pedro', title: 'Pedro Santos', systemImage: 'person.crop.circle.fill' },
-          { id: 'ana', title: 'Ana Costa', systemImage: 'person.crop.circle.fill' },
-          { id: 'lucas', title: 'Lucas Ferreira', systemImage: 'person.crop.circle.fill' },
-          { id: 'beatriz', title: 'Beatriz Martins', systemImage: 'person.crop.circle.fill' },
-          { id: 'carlos', title: 'Carlos Souza', systemImage: 'person.crop.circle.fill' },
-          { id: 'juliana', title: 'Juliana Alves', systemImage: 'person.crop.circle.fill' },
-          { id: 'rafael', title: 'Rafael Lima', systemImage: 'person.crop.circle.fill' },
-          { id: 'sofia', title: 'Sofia Rocha', systemImage: 'person.crop.circle.fill' },
-        ]}
-        bucketPrice={BUCKET_PRICE}
-        onVisibleChange={setSheetVisible}
-        onConfirm={handleConfirm}
-        title={sheetMode === 'remove' ? 'Remover entrega' : 'Adicionar entrega'}
-        titleSystemImage={sheetMode === 'remove' ? 'trash' : 'plus'}
-        subtitle="Escolha o cliente"
-        visible={sheetVisible}
-      />
-      {/*
-        Future Development Build flow (do not enable in Expo Go yet):
-        import { GorhomBottomSheetFlow } from '@/components/native/GorhomBottomSheetFlow';
-        <GorhomBottomSheetFlow
-          items={...}
+      {ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET ? (
+        <NativeSequentialBottomSheet
+          bucketPrice={BUCKET_PRICE}
+          items={REGISTRO_CLIENT_ITEMS}
           onConfirm={handleConfirm}
           onVisibleChange={setSheetVisible}
+          title={sheetMode === 'remove' ? 'Remover entrega' : 'Adicionar entrega'}
+          titleSystemImage={sheetMode === 'remove' ? 'trash' : 'plus'}
+          subtitle="Escolha o cliente"
           visible={sheetVisible}
         />
-      */}
+      ) : (
+        <NativeBottomSheet
+          bucketPrice={BUCKET_PRICE}
+          items={REGISTRO_CLIENT_ITEMS}
+          onConfirm={handleConfirm}
+          onVisibleChange={setSheetVisible}
+          title={sheetMode === 'remove' ? 'Remover entrega' : 'Adicionar entrega'}
+          titleSystemImage={sheetMode === 'remove' ? 'trash' : 'plus'}
+          subtitle="Escolha o cliente"
+          visible={sheetVisible}
+        />
+      )}
     </View>
   );
 }

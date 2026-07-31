@@ -12,6 +12,8 @@ export type NativeBottomSheetConfirmation = {
   bucketPrice: number;
 };
 
+export type NativeBottomSheetStep = 'list' | 'form';
+
 export type NativeBottomSheetProps = {
   visible: boolean;
   bucketPrice?: number;
@@ -20,6 +22,9 @@ export type NativeBottomSheetProps = {
   subtitle?: string;
   items: readonly NativeBottomSheetItem[];
   onVisibleChange: (visible: boolean) => void;
+  onDismiss?: () => void;
   onSelect?: (item: NativeBottomSheetItem) => void;
   onConfirm?: (confirmation: NativeBottomSheetConfirmation) => void;
+  presentationStep?: NativeBottomSheetStep;
+  selectedItem?: NativeBottomSheetItem | null;
 };

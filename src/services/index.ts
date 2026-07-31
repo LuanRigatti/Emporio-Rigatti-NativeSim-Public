@@ -12,3 +12,4 @@ export * from './notifications';
 export * from './storage';
 export * from './backup';
 export * from './routes';
+export * from './biometrics';

@@ -53,6 +53,12 @@ module.exports = {
         },
       ],
       'expo-maps',
+      [
+        'expo-local-authentication',
+        {
+          faceIDPermission: 'O Face ID será usado para desbloquear o aplicativo com segurança.',
+        },
+      ],
     ],
   },
 };

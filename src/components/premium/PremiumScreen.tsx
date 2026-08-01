@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -8,14 +9,21 @@ import {
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ProgressiveBlur } from '@/components/ui/progressive-blur';
+import { ENABLE_PROGRESSIVE_BLUR } from '@/config/featureFlags';
 import { useAppTheme } from '@/theme';
 
 export type PremiumScreenProps = ViewProps & {
   children: ReactNode;
   overlayBackground?: ReactNode;
   overlayHeader?: ReactNode;
+  overlayHeaderContentOffset?: number;
+  overlayHeaderSafeArea?: boolean;
+  overlayHeaderSpacing?: number;
+  overlayHeaderTopSpacing?: number;
+  progressiveBlur?: boolean;
   scrollable?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
   scrollViewProps?: Omit<ScrollViewProps, 'contentContainerStyle'>;
@@ -25,6 +33,11 @@ export function PremiumScreen({
   children,
   overlayBackground,
   overlayHeader,
+  overlayHeaderContentOffset = 0,
+  overlayHeaderSafeArea = false,
+  overlayHeaderSpacing = 0,
+  overlayHeaderTopSpacing = 0,
+  progressiveBlur = false,
   scrollable = true,
   contentContainerStyle,
   scrollViewProps,
@@ -32,7 +45,19 @@ export function PremiumScreen({
   ...props
 }: PremiumScreenProps) {
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
+  const overlayHeaderTopOffset = overlayHeaderSafeArea ? insets.top + overlayHeaderTopSpacing : 0;
+  const overlayHeaderTotalHeight = overlayHeaderHeight + overlayHeaderTopOffset;
+  const shouldRenderProgressiveBlur =
+    progressiveBlur && ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
+  const progressiveBlurHeight = overlayHeader
+    ? overlayHeaderTotalHeight
+    : insets.top + theme.sizes.touchTargetMinimum;
+  const overlayContentPaddingTop = Math.max(
+    0,
+    overlayHeaderTotalHeight + overlayHeaderSpacing - overlayHeaderContentOffset,
+  );
   const contentStyle = [
     styles.content,
     {
@@ -55,7 +80,7 @@ export function PremiumScreen({
           contentInsetAdjustmentBehavior="never"
           contentContainerStyle={[
             contentStyle,
-            overlayHeader ? { paddingTop: overlayHeaderHeight } : undefined,
+            overlayHeader ? { paddingTop: overlayContentPaddingTop } : undefined,
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -65,17 +90,31 @@ export function PremiumScreen({
         </ScrollView>
       ) : (
         <View
-          style={[contentStyle, overlayHeader ? { paddingTop: overlayHeaderHeight } : undefined]}
+          style={[
+            contentStyle,
+            overlayHeader ? { paddingTop: overlayContentPaddingTop } : undefined,
+          ]}
         >
           {children}
         </View>
       )}
       {overlayBackground}
+      {shouldRenderProgressiveBlur ? (
+        <ProgressiveBlur
+          edge="top"
+          fadeStart={insets.top}
+          height={progressiveBlurHeight}
+          intensity={35}
+          layers={4}
+          style={{ top: 0, zIndex: 1 }}
+          tint="systemUltraThinMaterial"
+        />
+      ) : null}
       {overlayHeader ? (
         <View
           onLayout={(event) => setOverlayHeaderHeight(event.nativeEvent.layout.height)}
           pointerEvents="box-none"
-          style={styles.overlayHeader}
+          style={[styles.overlayHeader, { top: overlayHeaderTopOffset }]}
         >
           {overlayHeader}
         </View>
@@ -87,5 +126,12 @@ export function PremiumScreen({
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: { flexGrow: 1 },
-  overlayHeader: { left: 0, position: 'absolute', right: 0, top: 0, zIndex: 2 },
+  overlayHeader: {
+    left: 0,
+    overflow: 'visible',
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 2,
+  },
 });

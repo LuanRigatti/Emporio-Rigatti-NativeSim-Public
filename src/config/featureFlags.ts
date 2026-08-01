@@ -5,13 +5,12 @@
 export const ENABLE_BIOMETRIC_UNLOCK = false;
 
 /**
- * ProgressiveBlur remains unmounted until its Home integration is explicitly
- * enabled and validated in the SDK 57 Development Build.
+ * Enables the prepared ProgressiveBlur layer on the Home screen.
  */
-export const ENABLE_PROGRESSIVE_BLUR = false;
+export const ENABLE_PROGRESSIVE_BLUR = true;
 
 /**
- * The two-sheet native Registro flow is prepared but remains disabled while
- * the current production flow is kept as the default.
+ * Enables the two-sheet native Registro flow using the official SDK 57
+ * BottomSheet presentation callbacks.
  */
-export const ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET = false;
+export const ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET = true;

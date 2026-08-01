@@ -26,12 +26,14 @@ import {
   font,
   foregroundColor,
   glassEffect,
+  listRowBackground,
   listStyle,
   offset,
   onTapGesture,
   padding,
   presentationDetents,
   presentationDragIndicator,
+  scrollContentBackground,
   scrollDisabled,
   shapes,
   zIndex,
@@ -52,6 +54,7 @@ export default function NativeBottomSheetSwiftUI({
   onConfirm,
   presentationStep,
   selectedItem: controlledSelectedItem,
+  initialQuantity,
 }: NativeBottomSheetProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -70,6 +73,14 @@ export default function NativeBottomSheetSwiftUI({
       setSelectedDate(new Date());
     }
   }, [visible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (visible && presentationStep === 'form' && initialQuantity != null) {
+      setBucketQuantity(Math.max(1, Math.round(initialQuantity)));
+    }
+  }, [initialQuantity, presentationStep, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSelect = (item: (typeof items)[number]) => {
@@ -95,13 +106,19 @@ export default function NativeBottomSheetSwiftUI({
       modifiers={[
         listStyle('insetGrouped'),
         scrollDisabled(true),
+        scrollContentBackground('hidden'),
+        background('systemGray5'),
         padding({ horizontal: 0, top: -8, bottom: 8 }),
       ]}
     >
       <VStack
         alignment="leading"
         spacing={16}
-        modifiers={[frame({ minHeight: 300, alignment: 'top' }), padding({ top: 20, bottom: 22 })]}
+        modifiers={[
+          frame({ minHeight: 300, alignment: 'top' }),
+          listRowBackground('clear'),
+          padding({ top: 20, bottom: 22 }),
+        ]}
       >
         <VStack alignment="leading" spacing={16} modifiers={[offset({ y: -10 })]}>
           <HStack
@@ -219,6 +236,7 @@ export default function NativeBottomSheetSwiftUI({
         modifiers={[
           listStyle('insetGrouped'),
           scrollDisabled(false),
+          scrollContentBackground('hidden'),
           background('systemGray5'),
           padding({ horizontal: 0, bottom: 8 }),
         ]}
@@ -230,6 +248,7 @@ export default function NativeBottomSheetSwiftUI({
             spacing={14}
             modifiers={[
               frame({ height: 36, maxWidth: 1000 }),
+              listRowBackground('clear'),
               contentShape(shapes.rectangle()),
               onTapGesture(() => handleSelect(item)),
               accessibilityLabel(item.title),

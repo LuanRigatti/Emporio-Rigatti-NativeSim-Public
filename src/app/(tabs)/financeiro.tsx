@@ -3,9 +3,14 @@ import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { NativeGlassHeader } from '@/components/layout';
+import { NativePeriodActionGroup } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
-import { PeriodSelector } from '@/features/history/components/PeriodSelector';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
+import {
+  getHistoryYearItems,
+  HISTORY_MONTH_ITEMS,
+} from '@/features/history/components/periodOptions';
 import { useAppTheme } from '@/theme';
 
 function PreviewIcon({
@@ -23,25 +28,37 @@ export default function PrototypeFinanceiro() {
   const { resolvedMode, theme } = useAppTheme();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
-
-  return (
-    <PremiumScreen contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text
-          style={[
-            theme.typography.headline,
-            { alignSelf: 'center', color: theme.colors.textPrimary },
-          ]}
-        >
-          Finanças
-        </Text>
-        <PeriodSelector
-          month={selectedMonth}
+  const header = (
+    <NativeGlassHeader
+      leftActions={
+        <NativePeriodActionGroup
+          color={theme.colors.textPrimary}
+          monthItems={HISTORY_MONTH_ITEMS}
           onMonthChange={setSelectedMonth}
           onYearChange={setSelectedYear}
-          year={selectedYear}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          yearItems={getHistoryYearItems()}
         />
-      </View>
+      }
+      mode="transparent"
+      titleStyle={{ transform: [{ translateX: -(theme.spacing.lg + theme.spacing.xs) }] }}
+      title="Finanças"
+    />
+  );
+
+  return (
+    <PremiumScreen
+      contentContainerStyle={styles.content}
+      overlayHeader={header}
+      overlayHeaderContentOffset={
+        theme.typography.headline.lineHeight +
+        theme.spacing.xl -
+        theme.sizes.touchTargetMinimum +
+        theme.spacing.xxs * 8
+      }
+      progressiveBlur
+    >
       <PremiumCard
         style={{
           borderRadius: theme.radius.xl + theme.spacing.sm,
@@ -130,7 +147,6 @@ export default function PrototypeFinanceiro() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 24, paddingTop: 12 },
-  header: { gap: 24 },
+  content: { gap: 24 },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

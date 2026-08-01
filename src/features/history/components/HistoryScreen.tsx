@@ -3,6 +3,13 @@ import { StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NativeGlassHeader } from '@/components/layout';
+import {
+  NativeGlassIconButton,
+  NativeGlassMenu,
+  NativePeriodActionGroup,
+  type NativeMenuAction,
+} from '@/components/native';
 import { PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
@@ -23,8 +30,8 @@ import { BottomFadeOverlay, HISTORY_BOTTOM_FADE_HEIGHT } from './BottomFadeOverl
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
 import { FilterChips, type HistoryFilter } from './FilterChips';
-import { HistoryHeader } from './HistoryHeader';
 import { HorizontalCalendar } from './HorizontalCalendar';
+import { getHistoryYearItems, HISTORY_MONTH_ITEMS } from './periodOptions';
 
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
@@ -149,6 +156,67 @@ export function HistoryScreen() {
   const handleOpenAppleMaps = useCallback(() => {
     openInAppleMapsMock();
   }, []);
+  const filterActions: readonly NativeMenuAction[] = [
+    {
+      id: 'completed',
+      onPress: () => handleSelectFilter('Concluídas'),
+      systemImage: 'checkmark.circle',
+      title: 'Concluídas',
+    },
+    {
+      id: 'pending',
+      onPress: () => handleSelectFilter('Pendentes'),
+      systemImage: 'clock',
+      title: 'Pendentes',
+    },
+    {
+      id: 'today',
+      onPress: () => handleSelectFilter('Hoje'),
+      systemImage: 'calendar',
+      title: 'Hoje',
+    },
+  ];
+  const header = (
+    <NativeGlassHeader
+      mode="transparent"
+      titleStyle={{ transform: [{ translateX: -(theme.spacing.lg + theme.spacing.xs) }] }}
+      leftActions={
+        <NativePeriodActionGroup
+          color={theme.colors.textPrimary}
+          monthItems={HISTORY_MONTH_ITEMS}
+          onMonthChange={handleMonthChange}
+          onYearChange={handleYearChange}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          yearItems={getHistoryYearItems()}
+        />
+      }
+      rightActions={
+        <NativeGlassMenu
+          accessibilityLabel="Filtros do histórico"
+          actions={filterActions}
+          color={theme.colors.textPrimary}
+          containerSize={theme.sizes.touchTargetMinimum}
+          fallbackIcon="filter-outline"
+          size={theme.sizes.iconMedium}
+          systemImage="line.3.horizontal.decrease.circle"
+          trigger={
+            <NativeGlassIconButton
+              accessibilityLabel="Filtros do histórico"
+              color={theme.colors.textPrimary}
+              containerSize={theme.sizes.touchTargetMinimum}
+              fallbackIcon="filter-outline"
+              interactiveGlass
+              onPress={handleFilterPress}
+              size={theme.sizes.iconMedium}
+              systemImage="line.3.horizontal.decrease.circle"
+            />
+          }
+        />
+      }
+      title="Histórico"
+    />
+  );
 
   return (
     <Animated.View style={styles.root}>
@@ -167,15 +235,10 @@ export function HistoryScreen() {
               insets.bottom,
           },
         ]}
+        overlayHeader={header}
+        overlayHeaderContentOffset={theme.spacing.sm + theme.spacing.xxs * 7}
+        progressiveBlur
       >
-        <HistoryHeader
-          onFilterPress={handleFilterPress}
-          onFilterSelect={handleSelectFilter}
-          onMonthChange={handleMonthChange}
-          onYearChange={handleYearChange}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-        />
         <HorizontalCalendar
           days={calendarDays}
           datesWithDeliveries={datesWithDeliveries}
@@ -188,7 +251,13 @@ export function HistoryScreen() {
 
         <Animated.View
           entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
-          style={[styles.list, { gap: theme.spacing.sm, marginTop: theme.spacing.sm }]}
+          style={[
+            styles.list,
+            {
+              gap: theme.spacing.sm,
+              marginTop: theme.spacing.sm - theme.spacing.xxs * 2,
+            },
+          ]}
         >
           {filteredDeliveries.length > 0 ? (
             filteredDeliveries.map((delivery, index) => (

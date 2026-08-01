@@ -14,8 +14,6 @@ import {
 } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassMenu, NativeSearchField, type NativeMenuAction } from '@/components/native';
-// Temporarily disabled while native ProgressiveBlur integration is being tested.
-// import { ProgressiveBlur } from '@/components/ui/progressive-blur';
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
@@ -168,9 +166,8 @@ export default function Home() {
       <TabHapticListener />
       <PremiumScreen
         contentContainerStyle={{ gap: theme.spacing.lg, marginTop: -theme.spacing.xs }}
-        // Temporarily disabled to prevent loading/calling the native blur library.
-        overlayBackground={undefined}
         overlayHeader={useNativeHeaderOverlay ? homeHeader : undefined}
+        progressiveBlur
       >
         {!useNativeHeaderOverlay ? <View style={styles.header}>{homeHeader}</View> : null}
 

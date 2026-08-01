@@ -3,7 +3,7 @@ import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
-  FadeIn,
+  FadeInLeft,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -13,9 +13,9 @@ import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
   NativeGlassActionGroup,
-  NativeGlassIconButton,
   NativeSequentialBottomSheet,
 } from '@/components/native';
+import type { NativeBottomSheetItem } from '@/components/native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET } from '@/config/featureFlags';
 import { useAppTheme } from '@/theme';
@@ -25,6 +25,7 @@ import {
   getAddedHistoryDeliveries,
   subscribeToAddedHistoryDeliveries,
   removeAddedHistoryDeliveries,
+  updateAddedHistoryDeliveryQuantity,
 } from '@/features/history/data/historyDeliveryStore';
 
 const BUCKET_PRICE = 49.8;
@@ -49,7 +50,10 @@ export default function PrototypeRegistrar() {
   const [isSelectionMode, setSelectionMode] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
   const dark = colorScheme === 'dark';
-  const [sheetMode, setSheetMode] = useState<'add' | 'remove'>('add');
+  const [sheetMode, setSheetMode] = useState<'add' | 'edit'>('add');
+  const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<NativeBottomSheetItem | null>(null);
+  const [editingQuantity, setEditingQuantity] = useState<number | undefined>(undefined);
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -79,27 +83,72 @@ export default function PrototypeRegistrar() {
       [setSelectionMode],
     ),
   );
-  const openSheet = (mode: 'add' | 'remove') => {
+  const openSheet = () => {
     triggerLightImpactHaptic();
-    setSheetMode(mode);
+    setSheetMode('add');
+    setEditingDeliveryId(null);
+    setEditingItem(null);
+    setEditingQuantity(undefined);
     setSheetVisible(true);
   };
   const handleConfirm = (confirmation: Parameters<typeof addHistoryDelivery>[0]) => {
-    addHistoryDelivery(confirmation);
+    if (editingDeliveryId) {
+      updateAddedHistoryDeliveryQuantity(
+        editingDeliveryId,
+        confirmation.quantity,
+        confirmation.bucketPrice,
+      );
+    } else {
+      addHistoryDelivery(confirmation);
+    }
+    setEditingDeliveryId(null);
+    setEditingItem(null);
+    setEditingQuantity(undefined);
     setSheetVisible(false);
   };
-  const handleTopTrashPress = useCallback(() => {
+  const handleTopMenuPress = useCallback(() => {
     triggerLightImpactHaptic();
-    if (isSelectionMode) {
-      removeAddedHistoryDeliveries(selectedDeliveryIds);
-      setSelectedDeliveryIds(new Set());
-      setSelectionMode(false);
-      return;
-    }
-
     setSelectedDeliveryIds(new Set());
-    setSelectionMode(true);
-  }, [isSelectionMode, selectedDeliveryIds]);
+    setSelectionMode((current) => !current);
+  }, []);
+  const handleDeleteSelected = useCallback(() => {
+    triggerLightImpactHaptic();
+    removeAddedHistoryDeliveries(selectedDeliveryIds);
+    setSelectedDeliveryIds(new Set());
+    setSelectionMode(false);
+  }, [selectedDeliveryIds]);
+  const handleEditSelected = useCallback(() => {
+    if (selectedDeliveryIds.size !== 1) return;
+
+    const deliveryId = [...selectedDeliveryIds][0];
+    const delivery = deliveries.find((item) => item.id === deliveryId);
+    if (!delivery) return;
+
+    triggerLightImpactHaptic();
+    const item = REGISTRO_CLIENT_ITEMS.find(
+      (candidate) => candidate.title === delivery.cliente,
+    ) ?? {
+      id: delivery.id,
+      title: delivery.cliente,
+      systemImage: 'person.crop.circle.fill',
+    };
+    setEditingDeliveryId(delivery.id);
+    setEditingItem(item);
+    setEditingQuantity(delivery.quantidadeBaldes);
+    setSheetMode('edit');
+    setSelectedDeliveryIds(new Set());
+    setSelectionMode(false);
+    setSheetVisible(true);
+  }, [deliveries, selectedDeliveryIds]);
+  const handleSheetVisibleChange = useCallback((visible: boolean) => {
+    setSheetVisible(visible);
+    if (!visible) {
+      setEditingDeliveryId(null);
+      setEditingItem(null);
+      setEditingQuantity(undefined);
+      setSheetMode('add');
+    }
+  }, []);
   const toggleDeliverySelection = useCallback((deliveryId: string) => {
     setSelectedDeliveryIds((current) => {
       const next = new Set(current);
@@ -117,20 +166,24 @@ export default function PrototypeRegistrar() {
       includeTopSafeArea
       leftActions={
         isSelectionMode ? (
-          <View style={styles.headerLeadingActions}>
-            <Animated.View entering={FadeIn.duration(360)}>
-              <NativeGlassIconButton
-                accessibilityLabel="Editar"
-                color={dark ? '#FFFFFF' : '#000000'}
-                containerSize={theme.sizes.touchTargetMinimum}
-                fallbackIcon="create-outline"
-                interactiveGlass
-                onPress={() => undefined}
-                size={theme.sizes.iconMedium}
-                systemImage="pencil"
-              />
-            </Animated.View>
-          </View>
+          <Animated.View
+            entering={FadeInLeft.duration(theme.animations.duration.slow).easing(
+              theme.animations.easing.entrance,
+            )}
+            style={styles.headerLeadingActions}
+          >
+            <NativeGlassActionGroup
+              color={dark ? '#FFFFFF' : '#000000'}
+              leadingAccessibilityLabel="Editar quantidade"
+              leadingFallbackIcon="create-outline"
+              leadingSystemImage="pencil"
+              onLeadingPress={handleEditSelected}
+              onTrailingPress={handleDeleteSelected}
+              trailingAccessibilityLabel="Excluir selecionados"
+              trailingFallbackIcon="trash-outline"
+              trailingSystemImage="trash"
+            />
+          </Animated.View>
         ) : (
           <View style={styles.headerActionSpacer} />
         )
@@ -143,11 +196,11 @@ export default function PrototypeRegistrar() {
           leadingAccessibilityLabel="Adicionar"
           leadingFallbackIcon="add"
           leadingSystemImage="plus"
-          onLeadingPress={() => openSheet('add')}
-          onTrailingPress={handleTopTrashPress}
-          trailingAccessibilityLabel="Excluir"
-          trailingFallbackIcon="trash-outline"
-          trailingSystemImage="trash"
+          onLeadingPress={openSheet}
+          onTrailingPress={handleTopMenuPress}
+          trailingAccessibilityLabel="Selecionar entregas"
+          trailingFallbackIcon="ellipsis-horizontal"
+          trailingSystemImage="ellipsis"
         />
       }
       title="Registrar"
@@ -162,6 +215,7 @@ export default function PrototypeRegistrar() {
           paddingHorizontal: 0,
         }}
         overlayHeader={header}
+        progressiveBlur
       >
         <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
           {deliveries.length > 0 ? (
@@ -231,9 +285,12 @@ export default function PrototypeRegistrar() {
           bucketPrice={BUCKET_PRICE}
           items={REGISTRO_CLIENT_ITEMS}
           onConfirm={handleConfirm}
-          onVisibleChange={setSheetVisible}
-          title={sheetMode === 'remove' ? 'Remover entrega' : 'Adicionar entrega'}
-          titleSystemImage={sheetMode === 'remove' ? 'trash' : 'plus'}
+          onVisibleChange={handleSheetVisibleChange}
+          initialQuantity={editingQuantity}
+          initialSelectedItem={editingItem}
+          initialStep={editingItem ? 'form' : 'list'}
+          title={sheetMode === 'edit' ? 'Editar entrega' : 'Adicionar entrega'}
+          titleSystemImage={sheetMode === 'edit' ? 'pencil' : 'plus'}
           subtitle="Escolha o cliente"
           visible={sheetVisible}
         />
@@ -242,9 +299,12 @@ export default function PrototypeRegistrar() {
           bucketPrice={BUCKET_PRICE}
           items={REGISTRO_CLIENT_ITEMS}
           onConfirm={handleConfirm}
-          onVisibleChange={setSheetVisible}
-          title={sheetMode === 'remove' ? 'Remover entrega' : 'Adicionar entrega'}
-          titleSystemImage={sheetMode === 'remove' ? 'trash' : 'plus'}
+          onVisibleChange={handleSheetVisibleChange}
+          initialQuantity={editingQuantity}
+          presentationStep={editingItem ? 'form' : undefined}
+          selectedItem={editingItem}
+          title={sheetMode === 'edit' ? 'Editar entrega' : 'Adicionar entrega'}
+          titleSystemImage={sheetMode === 'edit' ? 'pencil' : 'plus'}
           subtitle="Escolha o cliente"
           visible={sheetVisible}
         />

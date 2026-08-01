@@ -20,10 +20,11 @@ export function NativeGlassHeader({
   style,
   subtitle,
   title,
+  titleStyle: customTitleStyle,
 }: NativeGlassHeaderProps) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
-  const titleStyle = largeTitle ? theme.typography.largeTitle : theme.typography.headline;
+  const resolvedTitleStyle = largeTitle ? theme.typography.largeTitle : theme.typography.headline;
 
   return (
     <View
@@ -48,7 +49,8 @@ export function NativeGlassHeader({
           <Text
             numberOfLines={1}
             style={[
-              titleStyle,
+              resolvedTitleStyle,
+              customTitleStyle,
               { color: theme.colors.textPrimary },
               largeTitle && styles.largeTitle,
             ]}

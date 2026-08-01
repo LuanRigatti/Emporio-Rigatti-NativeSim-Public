@@ -13,8 +13,8 @@ import { triggerSelectionHaptic } from '@/utils/haptics';
 import { NativeDateSelectorScroll } from './NativeDateSelectorScroll';
 import type { NativeDateSelectorDay, NativeDateSelectorProps } from './NativeDateSelector.types';
 
-const DAY_WIDTH = 44;
-const DAY_HEIGHT = 58;
+const DAY_WIDTH = 42;
+const DAY_HEIGHT = 56;
 
 function DateCell({
   day,
@@ -71,7 +71,7 @@ function DateCell({
         styles.surface,
         {
           backgroundColor: theme.colors.glassSurface,
-          borderRadius: theme.radius.card,
+          borderRadius: theme.radius.xl,
         },
       ]}
     >

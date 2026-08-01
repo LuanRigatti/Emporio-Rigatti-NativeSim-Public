@@ -30,10 +30,10 @@ export function NativeDateSelectorScroll({
     days.findIndex((day) => day.date === selectedDate),
   );
   const positionSelectedDay = useCallback(() => {
-    const stride = 44 + theme.spacing.sm;
+    const stride = 42 + theme.spacing.sm;
     const edgeInset = theme.spacing.xs;
     const selectedStart = edgeInset + selectedIndex * stride;
-    const selectedEnd = selectedStart + 44;
+    const selectedEnd = selectedStart + 42;
     const isInitialPosition = !initialPositionedRef.current;
     const viewportWidth = viewportWidthRef.current;
     const currentOffset = scrollOffsetRef.current;

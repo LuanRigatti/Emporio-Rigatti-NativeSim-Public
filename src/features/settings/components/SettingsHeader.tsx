@@ -17,5 +17,5 @@ export function SettingsHeader({ title }: SettingsHeaderProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center' },
+  container: { alignItems: 'center', position: 'relative', zIndex: 2 },
 });

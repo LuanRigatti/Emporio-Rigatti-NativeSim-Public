@@ -27,4 +27,5 @@ export type NativeBottomSheetProps = {
   onConfirm?: (confirmation: NativeBottomSheetConfirmation) => void;
   presentationStep?: NativeBottomSheetStep;
   selectedItem?: NativeBottomSheetItem | null;
+  initialQuantity?: number;
 };

@@ -93,6 +93,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     position: 'relative',
     width: '100%',
+    zIndex: 2,
   },
   title: { position: 'absolute', textAlign: 'center', top: 8, width: '100%' },
   copy: { alignItems: 'flex-start', left: 0, position: 'absolute', top: 56 },

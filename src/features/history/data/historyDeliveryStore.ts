@@ -101,6 +101,29 @@ export function removeAddedHistoryDeliveries(ids: ReadonlySet<string>): void {
   notifyListeners();
 }
 
+export function updateAddedHistoryDeliveryQuantity(
+  deliveryId: string,
+  quantity: number,
+  bucketPrice: number,
+): void {
+  const nextQuantity = Math.max(1, Math.round(quantity));
+  const current = addedDeliveries.find((delivery) => delivery.id === deliveryId);
+  if (!current) return;
+
+  addedDeliveries = addedDeliveries.map((delivery) =>
+    delivery.id === deliveryId
+      ? {
+          ...delivery,
+          quantidadeBaldes: nextQuantity,
+          valor: formatCurrency(bucketPrice * nextQuantity),
+        }
+      : delivery,
+  );
+  hasLocalMutation = true;
+  persistDeliveries();
+  notifyListeners();
+}
+
 export function subscribeToAddedHistoryDeliveries(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

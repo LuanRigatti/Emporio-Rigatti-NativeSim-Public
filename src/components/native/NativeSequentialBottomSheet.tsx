@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import NativeBottomSheet from './NativeBottomSheet';
-import type { NativeBottomSheetConfirmation, NativeBottomSheetItem } from './NativeBottomSheet';
+import type {
+  NativeBottomSheetConfirmation,
+  NativeBottomSheetItem,
+  NativeBottomSheetStep,
+} from './NativeBottomSheet';
 
 export type NativeSequentialBottomSheetProps = {
   bucketPrice?: number;
@@ -13,6 +17,9 @@ export type NativeSequentialBottomSheetProps = {
   onConfirm?: (confirmation: NativeBottomSheetConfirmation) => void;
   onSelect?: (item: NativeBottomSheetItem) => void;
   onVisibleChange: (visible: boolean) => void;
+  initialStep?: NativeBottomSheetStep;
+  initialSelectedItem?: NativeBottomSheetItem | null;
+  initialQuantity?: number;
 };
 
 type FlowPhase = 'idle' | 'awaiting-first-dismiss' | 'presenting-form';
@@ -32,6 +39,9 @@ export default function NativeSequentialBottomSheet({
   title,
   titleSystemImage,
   visible,
+  initialQuantity,
+  initialSelectedItem,
+  initialStep = 'list',
 }: NativeSequentialBottomSheetProps) {
   const [isFirstOpen, setIsFirstOpen] = useState(visible);
   const [isSecondOpen, setIsSecondOpen] = useState(false);
@@ -48,15 +58,16 @@ export default function NativeSequentialBottomSheet({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (visible) {
-      phase.current = 'idle';
-      setSelectedClient(null);
-      setIsSecondOpen(false);
-      setIsFirstOpen(true);
+      const startsInForm = initialStep === 'form' && Boolean(initialSelectedItem);
+      phase.current = startsInForm ? 'presenting-form' : 'idle';
+      setSelectedClient(initialSelectedItem ?? null);
+      setIsSecondOpen(startsInForm);
+      setIsFirstOpen(!startsInForm);
       return;
     }
 
     resetFlow();
-  }, [resetFlow, visible]);
+  }, [initialSelectedItem, initialStep, resetFlow, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSelect = useCallback(
@@ -125,6 +136,7 @@ export default function NativeSequentialBottomSheet({
         onDismiss={handleSecondDismiss}
         onVisibleChange={handleSecondVisibilityChange}
         presentationStep="form"
+        initialQuantity={initialQuantity}
         selectedItem={selectedClient}
         subtitle={subtitle}
         title={title}

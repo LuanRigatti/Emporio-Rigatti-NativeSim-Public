@@ -17,6 +17,8 @@ export type {
   NativeDropdownProps,
   NativeDropdownVariant,
 } from './NativeDropdown';
+export { default as NativePeriodActionGroup } from './NativePeriodActionGroup';
+export type { NativePeriodActionGroupProps } from './NativePeriodActionGroup';
 export { default as NativeChip } from './NativeChip';
 export type { NativeChipProps, NativeChipVariant } from './NativeChip';
 export { default as NativeDateSelector } from './NativeDateSelector';

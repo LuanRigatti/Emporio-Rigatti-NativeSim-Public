@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -179,19 +179,8 @@ export function HistoryScreen() {
   const header = (
     <NativeGlassHeader
       mode="transparent"
-      titleStyle={{ transform: [{ translateX: -(theme.spacing.lg + theme.spacing.xs) }] }}
+      titleStyle={{ transform: [{ translateX: theme.spacing.lg + theme.spacing.xs }] }}
       leftActions={
-        <NativePeriodActionGroup
-          color={theme.colors.textPrimary}
-          monthItems={HISTORY_MONTH_ITEMS}
-          onMonthChange={handleMonthChange}
-          onYearChange={handleYearChange}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-          yearItems={getHistoryYearItems()}
-        />
-      }
-      rightActions={
         <NativeGlassMenu
           accessibilityLabel="Filtros do histórico"
           actions={filterActions}
@@ -199,7 +188,7 @@ export function HistoryScreen() {
           containerSize={theme.sizes.touchTargetMinimum}
           fallbackIcon="filter-outline"
           size={theme.sizes.iconMedium}
-          systemImage="line.3.horizontal.decrease.circle"
+          systemImage="line.3.horizontal.decrease"
           trigger={
             <NativeGlassIconButton
               accessibilityLabel="Filtros do histórico"
@@ -209,9 +198,20 @@ export function HistoryScreen() {
               interactiveGlass
               onPress={handleFilterPress}
               size={theme.sizes.iconMedium}
-              systemImage="line.3.horizontal.decrease.circle"
+              systemImage="line.3.horizontal.decrease"
             />
           }
+        />
+      }
+      rightActions={
+        <NativePeriodActionGroup
+          color={theme.colors.textPrimary}
+          monthItems={HISTORY_MONTH_ITEMS}
+          onMonthChange={handleMonthChange}
+          onYearChange={handleYearChange}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          yearItems={getHistoryYearItems()}
         />
       }
       title="Histórico"
@@ -239,12 +239,14 @@ export function HistoryScreen() {
         overlayHeaderContentOffset={theme.spacing.sm + theme.spacing.xxs * 7}
         progressiveBlur
       >
-        <HorizontalCalendar
-          days={calendarDays}
-          datesWithDeliveries={datesWithDeliveries}
-          onSelectDate={handleSelectDate}
-          selectedDate={selectedDate}
-        />
+        <View style={{ marginTop: theme.spacing.xs }}>
+          <HorizontalCalendar
+            days={calendarDays}
+            datesWithDeliveries={datesWithDeliveries}
+            onSelectDate={handleSelectDate}
+            selectedDate={selectedDate}
+          />
+        </View>
         {isFilterPreviewVisible ? (
           <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
         ) : null}
@@ -255,7 +257,7 @@ export function HistoryScreen() {
             styles.list,
             {
               gap: theme.spacing.sm,
-              marginTop: theme.spacing.sm - theme.spacing.xxs * 2,
+              marginTop: 0,
             },
           ]}
         >

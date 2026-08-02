@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassBackButton, NativeGlassIconButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
@@ -43,14 +44,9 @@ export function InvoicesScreen() {
     });
   }, []);
 
-  return (
-    <PremiumScreen
-      contentContainerStyle={[
-        styles.screenContent,
-        { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
-      ]}
-    >
-      <View style={styles.header}>
+  const header = (
+    <NativeGlassHeader
+      leftActions={
         <NativeGlassBackButton
           accessibilityLabel="Voltar para Home"
           color={theme.colors.textPrimary}
@@ -58,24 +54,35 @@ export function InvoicesScreen() {
           onPress={() => router.back()}
           size={theme.sizes.iconMedium}
         />
-        <View pointerEvents="none" style={styles.headerCopy}>
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-            Notas fiscais/boletos
-          </Text>
-        </View>
+      }
+      mode="transparent"
+      rightActions={
         <NativeGlassIconButton
           accessibilityLabel={isSelectionMode ? 'Confirmar notas emitidas' : 'Selecionar notas'}
           color={theme.colors.textPrimary}
           containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon="checkmark"
+          fallbackIcon={isSelectionMode ? 'checkmark' : 'ellipsis-horizontal'}
           interactiveGlass
           onPress={handleCheckPress}
           size={theme.sizes.iconMedium}
-          systemImage="checkmark"
+          systemImage={isSelectionMode ? 'checkmark' : 'ellipsis'}
         />
-      </View>
+      }
+      title="Notas fiscais/boletos"
+    />
+  );
+
+  return (
+    <PremiumScreen
+      contentContainerStyle={[
+        styles.screenContent,
+        { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
+      ]}
+      overlayHeader={header}
+      progressiveBlur
+    >
       {invoiceItems.length > 0 ? (
-        <View style={styles.clientList}>
+        <View style={[styles.clientList, { marginTop: theme.spacing.xxl }]}>
           <GlassCard
             style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
           >
@@ -99,13 +106,6 @@ export function InvoicesScreen() {
 
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
-  header: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    position: 'relative',
-  },
-  headerCopy: { alignItems: 'center', left: 0, position: 'absolute', right: 0 },
   clientList: { width: '100%' },
   clientCard: { padding: 16 },
 });

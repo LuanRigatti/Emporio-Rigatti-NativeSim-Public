@@ -1,5 +1,5 @@
 import { HStack, Host } from '@expo/ui/swift-ui';
-import { glassEffect, padding } from '@expo/ui/swift-ui/modifiers';
+import { frame, glassEffect, padding } from '@expo/ui/swift-ui/modifiers';
 
 import { triggerSelectionHaptic } from '@/utils/haptics';
 
@@ -24,6 +24,7 @@ export default function NativePeriodActionGroupSwiftUI({
         spacing={4}
         modifiers={[
           padding({ horizontal: 6, vertical: 0 }),
+          frame({ width: 104, height: 44, alignment: 'center' }),
           glassEffect({
             glass: { interactive: true, variant: 'regular' },
             shape: 'capsule',

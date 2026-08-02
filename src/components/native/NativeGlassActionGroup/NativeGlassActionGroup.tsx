@@ -1,2 +1,5 @@
 export { default } from './NativeGlassActionGroup.native';
-export type { NativeGlassActionGroupProps } from './NativeGlassActionGroup.types';
+export type {
+  NativeGlassAction,
+  NativeGlassActionGroupProps,
+} from './NativeGlassActionGroup.types';

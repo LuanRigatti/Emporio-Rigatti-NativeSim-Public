@@ -30,7 +30,7 @@ export default function PrototypeFinanceiro() {
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
   const header = (
     <NativeGlassHeader
-      leftActions={
+      rightActions={
         <NativePeriodActionGroup
           color={theme.colors.textPrimary}
           monthItems={HISTORY_MONTH_ITEMS}
@@ -42,7 +42,7 @@ export default function PrototypeFinanceiro() {
         />
       }
       mode="transparent"
-      titleStyle={{ transform: [{ translateX: -(theme.spacing.lg + theme.spacing.xs) }] }}
+      titleStyle={{ transform: [{ translateX: theme.spacing.lg + theme.spacing.xs }] }}
       title="Finanças"
     />
   );

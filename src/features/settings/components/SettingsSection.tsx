@@ -10,7 +10,7 @@ export type SettingsSectionProps = {
 };
 
 export function SettingsSection({ children, title }: SettingsSectionProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
 
   return (
     <View style={styles.container}>
@@ -26,7 +26,7 @@ export function SettingsSection({ children, title }: SettingsSectionProps) {
         style={[
           styles.surface,
           {
-            backgroundColor: theme.colors.glassSurface,
+            backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
             borderWidth: 0,
             borderRadius: theme.radius.xl + theme.spacing.xs,
             paddingHorizontal: theme.spacing.md,

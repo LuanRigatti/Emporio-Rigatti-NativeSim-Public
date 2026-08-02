@@ -44,16 +44,14 @@ export function PremiumScreen({
   style,
   ...props
 }: PremiumScreenProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
   const overlayHeaderTopOffset = overlayHeaderSafeArea ? insets.top + overlayHeaderTopSpacing : 0;
   const overlayHeaderTotalHeight = overlayHeaderHeight + overlayHeaderTopOffset;
   const shouldRenderProgressiveBlur =
     progressiveBlur && ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
-  const progressiveBlurHeight = overlayHeader
-    ? overlayHeaderTotalHeight
-    : insets.top + theme.sizes.touchTargetMinimum;
+  const progressiveBlurHeight = insets.top + theme.spacing.xxxl + theme.spacing.xs * 2;
   const overlayContentPaddingTop = Math.max(
     0,
     overlayHeaderTotalHeight + overlayHeaderSpacing - overlayHeaderContentOffset,
@@ -102,12 +100,17 @@ export function PremiumScreen({
       {shouldRenderProgressiveBlur ? (
         <ProgressiveBlur
           edge="top"
-          fadeStart={insets.top}
+          fadeStart={Math.max(0, insets.top - (theme.spacing.xxxl + theme.spacing.xs * 2))}
           height={progressiveBlurHeight}
-          intensity={35}
+          intensity={30}
           layers={4}
+          overlayColors={
+            resolvedMode === 'dark'
+              ? [theme.colors.background, theme.colors.background, 'transparent']
+              : null
+          }
           style={{ top: 0, zIndex: 1 }}
-          tint="systemUltraThinMaterial"
+          tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterial'}
         />
       ) : null}
       {overlayHeader ? (

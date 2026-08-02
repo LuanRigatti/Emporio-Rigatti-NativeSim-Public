@@ -6,6 +6,8 @@ import { useAppTheme } from '@/theme';
 
 import type { NativeDateSelectorDay, NativeDateSelectorProps } from './NativeDateSelector.types';
 
+const DAY_WIDTH = 40;
+
 type NativeDateSelectorScrollProps = NativeDateSelectorProps & {
   renderDay: (
     day: NativeDateSelectorDay,
@@ -30,10 +32,10 @@ export function NativeDateSelectorScroll({
     days.findIndex((day) => day.date === selectedDate),
   );
   const positionSelectedDay = useCallback(() => {
-    const stride = 42 + theme.spacing.sm;
+    const stride = DAY_WIDTH + theme.spacing.sm;
     const edgeInset = theme.spacing.xs;
     const selectedStart = edgeInset + selectedIndex * stride;
-    const selectedEnd = selectedStart + 42;
+    const selectedEnd = selectedStart + DAY_WIDTH;
     const isInitialPosition = !initialPositionedRef.current;
     const viewportWidth = viewportWidthRef.current;
     const currentOffset = scrollOffsetRef.current;

@@ -4,6 +4,16 @@ export {
   summarizeClient,
 } from './ClientCatalogService';
 export type { ClientCatalogQuery } from './ClientCatalogService';
+export {
+  MOCK_CLIENT_ITEMS,
+  MockClientDataSource,
+  mockClientDataSource,
+} from './MockClientDataSource';
+export {
+  MOCK_CLIENTS_STORAGE_KEY,
+  MockClientStorage,
+  mockClientStorage,
+} from './MockClientStorage';
 export { calculateClientImpact } from './ClientImpactService';
 export type { ClientImpact } from './ClientImpactService';
 export { clientBackupService, ClientBackupService } from './ClientBackupService';

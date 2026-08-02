@@ -85,10 +85,10 @@ export const lightColors: ThemeColors = {
 };
 
 export const darkColors: ThemeColors = {
-  background: '#000000',
+  background: '#0b0f14',
   backgroundSecondary: '#0F0F0F',
-  surface: '#1F1F1F',
-  surfaceElevated: '#1F1F1F',
+  surface: '#131417',
+  surfaceElevated: '#131417',
   surfaceMuted: '#1F1F1F',
   textPrimary: '#F5F7FA',
   textSecondary: '#B8C0CC',

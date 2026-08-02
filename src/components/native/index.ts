@@ -1,4 +1,6 @@
 export { NativeButton } from './NativeButton';
+export { NativeClientFormSheet } from './NativeClientFormSheet';
+export type { NativeClientFormSheetProps, NativeClientFormValues } from './NativeClientFormSheet';
 export type { NativeButtonContent, NativeButtonHaptic, NativeButtonProps } from './NativeButton';
 export { default as NativeBottomSheet } from './NativeBottomSheet';
 export type {
@@ -10,7 +12,7 @@ export type {
 export { default as NativeSequentialBottomSheet } from './NativeSequentialBottomSheet';
 export type { NativeSequentialBottomSheetProps } from './NativeSequentialBottomSheet';
 export { default as NativeGlassActionGroup } from './NativeGlassActionGroup';
-export type { NativeGlassActionGroupProps } from './NativeGlassActionGroup';
+export type { NativeGlassAction, NativeGlassActionGroupProps } from './NativeGlassActionGroup';
 export { default as NativeDropdown } from './NativeDropdown';
 export type {
   NativeDropdownItem,

@@ -24,7 +24,7 @@ export type LoginScreenProps = {
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
   const { signInWithGoogleMock } = useSession();
-  const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const { reduceMotionEnabled, theme } = useAppTheme();
   const [isLoading, setIsLoading] = useState(false);
   const isMounted = useRef(true);
   const hasSubmittedRef = useRef(false);
@@ -71,7 +71,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       style={[
         styles.root,
         {
-          backgroundColor: resolvedMode === 'dark' ? '#000000' : theme.colors.background,
+          backgroundColor: theme.colors.background,
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
           paddingTop: Math.max(insets.top, theme.spacing.lg),
         },

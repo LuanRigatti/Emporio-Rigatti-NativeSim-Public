@@ -16,7 +16,7 @@ import type { SplashVisualProps } from './SplashVisual.types';
 
 export function SplashFallback({ phase }: SplashVisualProps) {
   const insets = useSafeAreaInsets();
-  const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const { reduceMotionEnabled, theme } = useAppTheme();
   const entrance = useSharedValue(phase === 'visible' ? 1 : 0);
 
   const isVisible = phase === 'visible';
@@ -44,7 +44,7 @@ export function SplashFallback({ phase }: SplashVisualProps) {
       style={[
         styles.root,
         {
-          backgroundColor: resolvedMode === 'dark' ? '#000000' : theme.colors.background,
+          backgroundColor: theme.colors.background,
           paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
           paddingTop: Math.max(insets.top, theme.spacing.lg),
         },

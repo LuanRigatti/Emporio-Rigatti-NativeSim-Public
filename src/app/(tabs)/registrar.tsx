@@ -1,25 +1,23 @@
-import { useCallback, useEffect, useSyncExternalStore, useState } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  FadeInLeft,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
   NativeGlassActionGroup,
+  NativeGlassIconButton,
   NativeSequentialBottomSheet,
 } from '@/components/native';
 import type { NativeBottomSheetItem } from '@/components/native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET } from '@/config/featureFlags';
+import { useClients } from '@/hooks/useClients';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { todayIso } from '@/utils/data';
 import {
   addHistoryDelivery,
   getAddedHistoryDeliveries,
@@ -30,19 +28,6 @@ import {
 
 const BUCKET_PRICE = 49.8;
 
-const REGISTRO_CLIENT_ITEMS = [
-  { id: 'joao', title: 'João Silva', systemImage: 'person.crop.circle.fill' },
-  { id: 'maria', title: 'Maria Oliveira', systemImage: 'person.crop.circle.fill' },
-  { id: 'pedro', title: 'Pedro Santos', systemImage: 'person.crop.circle.fill' },
-  { id: 'ana', title: 'Ana Costa', systemImage: 'person.crop.circle.fill' },
-  { id: 'lucas', title: 'Lucas Ferreira', systemImage: 'person.crop.circle.fill' },
-  { id: 'beatriz', title: 'Beatriz Martins', systemImage: 'person.crop.circle.fill' },
-  { id: 'carlos', title: 'Carlos Souza', systemImage: 'person.crop.circle.fill' },
-  { id: 'juliana', title: 'Juliana Alves', systemImage: 'person.crop.circle.fill' },
-  { id: 'rafael', title: 'Rafael Lima', systemImage: 'person.crop.circle.fill' },
-  { id: 'sofia', title: 'Sofia Rocha', systemImage: 'person.crop.circle.fill' },
-] as const;
-
 export default function PrototypeRegistrar() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
@@ -50,6 +35,17 @@ export default function PrototypeRegistrar() {
   const [isSelectionMode, setSelectionMode] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
   const dark = colorScheme === 'dark';
+  const { clients } = useClients();
+  const clientItems = useMemo<NativeBottomSheetItem[]>(
+    () =>
+      clients.map((client) => ({
+        bucketPrice: client.currentPrice,
+        id: client.clientId,
+        title: client.canonicalName,
+        systemImage: 'person.crop.circle.fill',
+      })),
+    [clients],
+  );
   const [sheetMode, setSheetMode] = useState<'add' | 'edit'>('add');
   const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<NativeBottomSheetItem | null>(null);
@@ -57,6 +53,7 @@ export default function PrototypeRegistrar() {
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [currentDate, setCurrentDate] = useState(() => todayIso());
   const selectionProgress = useSharedValue(0);
   useEffect(() => {
     selectionProgress.value = withSpring(
@@ -75,13 +72,18 @@ export default function PrototypeRegistrar() {
     getAddedHistoryDeliveries,
   );
   useFocusEffect(
-    useCallback(
-      () => () => {
-        setSelectionMode(false);
-        setSelectedDeliveryIds(new Set());
-      },
-      [setSelectionMode],
-    ),
+    useCallback(() => {
+      setCurrentDate(todayIso());
+      setSelectionMode(false);
+      setSelectedDeliveryIds(new Set());
+
+      const refreshDate = setInterval(() => setCurrentDate(todayIso()), 60_000);
+      return () => clearInterval(refreshDate);
+    }, []),
+  );
+  const todayDeliveries = useMemo(
+    () => deliveries.filter((delivery) => delivery.data === currentDate),
+    [currentDate, deliveries],
   );
   const openSheet = () => {
     triggerLightImpactHaptic();
@@ -121,13 +123,11 @@ export default function PrototypeRegistrar() {
     if (selectedDeliveryIds.size !== 1) return;
 
     const deliveryId = [...selectedDeliveryIds][0];
-    const delivery = deliveries.find((item) => item.id === deliveryId);
+    const delivery = todayDeliveries.find((item) => item.id === deliveryId);
     if (!delivery) return;
 
     triggerLightImpactHaptic();
-    const item = REGISTRO_CLIENT_ITEMS.find(
-      (candidate) => candidate.title === delivery.cliente,
-    ) ?? {
+    const item = clientItems.find((candidate) => candidate.title === delivery.cliente) ?? {
       id: delivery.id,
       title: delivery.cliente,
       systemImage: 'person.crop.circle.fill',
@@ -139,7 +139,7 @@ export default function PrototypeRegistrar() {
     setSelectedDeliveryIds(new Set());
     setSelectionMode(false);
     setSheetVisible(true);
-  }, [deliveries, selectedDeliveryIds]);
+  }, [clientItems, selectedDeliveryIds, todayDeliveries]);
   const handleSheetVisibleChange = useCallback((visible: boolean) => {
     setSheetVisible(visible);
     if (!visible) {
@@ -166,24 +166,18 @@ export default function PrototypeRegistrar() {
       includeTopSafeArea
       leftActions={
         isSelectionMode ? (
-          <Animated.View
-            entering={FadeInLeft.duration(theme.animations.duration.slow).easing(
-              theme.animations.easing.entrance,
-            )}
-            style={styles.headerLeadingActions}
-          >
-            <NativeGlassActionGroup
+          <View style={styles.headerLeadingActions}>
+            <NativeGlassIconButton
+              accessibilityLabel="Editar quantidade"
               color={dark ? '#FFFFFF' : '#000000'}
-              leadingAccessibilityLabel="Editar quantidade"
-              leadingFallbackIcon="create-outline"
-              leadingSystemImage="pencil"
-              onLeadingPress={handleEditSelected}
-              onTrailingPress={handleDeleteSelected}
-              trailingAccessibilityLabel="Excluir selecionados"
-              trailingFallbackIcon="trash-outline"
-              trailingSystemImage="trash"
+              fallbackIcon="create-outline"
+              onPress={handleEditSelected}
+              size={20}
+              systemImage="pencil"
+              containerSize={44}
+              interactiveGlass
             />
-          </Animated.View>
+          </View>
         ) : (
           <View style={styles.headerActionSpacer} />
         )
@@ -198,6 +192,13 @@ export default function PrototypeRegistrar() {
           leadingSystemImage="plus"
           onLeadingPress={openSheet}
           onTrailingPress={handleTopMenuPress}
+          selectionAction={{
+            accessibilityLabel: 'Excluir selecionados',
+            fallbackIcon: 'trash-outline',
+            onPress: handleDeleteSelected,
+            systemImage: 'trash',
+          }}
+          selectionMode={isSelectionMode}
           trailingAccessibilityLabel="Selecionar entregas"
           trailingFallbackIcon="ellipsis-horizontal"
           trailingSystemImage="ellipsis"
@@ -208,7 +209,7 @@ export default function PrototypeRegistrar() {
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: dark ? '#000000' : theme.colors.background }]}>
+    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
         contentContainerStyle={{
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,
@@ -218,11 +219,11 @@ export default function PrototypeRegistrar() {
         progressiveBlur
       >
         <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
-          {deliveries.length > 0 ? (
+          {todayDeliveries.length > 0 ? (
             <PremiumCard
               style={[styles.deliveryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
-              {[...deliveries].reverse().map((delivery) => (
+              {[...todayDeliveries].reverse().map((delivery) => (
                 <AnimatedPressable
                   key={delivery.id}
                   onPress={isSelectionMode ? () => toggleDeliverySelection(delivery.id) : undefined}
@@ -283,7 +284,7 @@ export default function PrototypeRegistrar() {
       {ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET ? (
         <NativeSequentialBottomSheet
           bucketPrice={BUCKET_PRICE}
-          items={REGISTRO_CLIENT_ITEMS}
+          items={clientItems}
           onConfirm={handleConfirm}
           onVisibleChange={handleSheetVisibleChange}
           initialQuantity={editingQuantity}
@@ -297,7 +298,7 @@ export default function PrototypeRegistrar() {
       ) : (
         <NativeBottomSheet
           bucketPrice={BUCKET_PRICE}
-          items={REGISTRO_CLIENT_ITEMS}
+          items={clientItems}
           onConfirm={handleConfirm}
           onVisibleChange={handleSheetVisibleChange}
           initialQuantity={editingQuantity}
@@ -322,7 +323,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   headerActionSpacer: { width: 112 },
   headerLeadingActions: { alignItems: 'flex-start', width: 112 },
-  deliveryList: { paddingHorizontal: 16, paddingTop: 24 },
+  deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8 },
   deliveryRow: { gap: 8, paddingVertical: 8 },
   deliverySummary: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

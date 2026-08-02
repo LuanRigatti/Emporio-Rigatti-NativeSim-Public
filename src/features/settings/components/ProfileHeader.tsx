@@ -6,7 +6,7 @@ import { useAppTheme } from '@/theme';
 import SettingsIcon from './SettingsIcon';
 
 export function ProfileHeader() {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
 
   return (
     <View style={styles.section}>
@@ -25,7 +25,7 @@ export function ProfileHeader() {
         style={[
           styles.container,
           {
-            backgroundColor: theme.colors.glassSurface,
+            backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
             borderWidth: 0,
             borderRadius: theme.radius.xl + theme.spacing.xs,
             padding: theme.spacing.md,

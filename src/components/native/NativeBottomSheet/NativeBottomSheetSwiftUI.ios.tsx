@@ -36,7 +36,6 @@ import {
   scrollContentBackground,
   scrollDisabled,
   shapes,
-  zIndex,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -48,7 +47,6 @@ export default function NativeBottomSheetSwiftUI({
   onDismiss,
   onSelect,
   onVisibleChange,
-  subtitle,
   title,
   visible,
   onConfirm,
@@ -61,6 +59,7 @@ export default function NativeBottomSheetSwiftUI({
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [internalFormVisible, setInternalFormVisible] = useState(false);
   const selectedItem = controlledSelectedItem ?? items.find((item) => item.id === selectedItemId);
+  const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
   const isFormVisible =
     presentationStep === 'form' ? true : presentationStep === 'list' ? false : internalFormVisible;
 
@@ -95,7 +94,9 @@ export default function NativeBottomSheetSwiftUI({
       spacing={6}
       modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
     >
-      <Text modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: isFormVisible ? 20 : 6 })]}>
+      <Text
+        modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: isFormVisible ? 20 : -6 })]}
+      >
         {title}
       </Text>
     </HStack>
@@ -192,7 +193,7 @@ export default function NativeBottomSheetSwiftUI({
               {new Intl.NumberFormat('pt-BR', {
                 currency: 'BRL',
                 style: 'currency',
-              }).format(bucketPrice * bucketQuantity)}
+              }).format(effectiveBucketPrice * bucketQuantity)}
             </Text>
           </HStack>
         </VStack>
@@ -205,7 +206,7 @@ export default function NativeBottomSheetSwiftUI({
             onPress={() => {
               if (selectedItem) {
                 onConfirm?.({
-                  bucketPrice,
+                  bucketPrice: effectiveBucketPrice,
                   client: selectedItem,
                   date: selectedDate,
                   quantity: bucketQuantity,
@@ -220,18 +221,7 @@ export default function NativeBottomSheetSwiftUI({
   ) : null;
 
   const listView = (
-    <VStack alignment="leading" spacing={0} modifiers={[padding({ top: -6 })]}>
-      <Text
-        modifiers={[
-          foregroundColor('#8B8B93'),
-          font({ size: 15, weight: 'semibold' }),
-          padding({ horizontal: 28 }),
-          offset({ y: 26 }),
-          zIndex(1),
-        ]}
-      >
-        {subtitle ?? 'Escolha o cliente'}
-      </Text>
+    <VStack alignment="leading" spacing={0} modifiers={[padding({ top: -22 })]}>
       <List
         modifiers={[
           listStyle('insetGrouped'),
@@ -273,31 +263,8 @@ export default function NativeBottomSheetSwiftUI({
     </VStack>
   );
 
-  const headerView = (showCancel: boolean) => (
+  const headerView = () => (
     <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
-      {showCancel ? (
-        <HStack
-          alignment="center"
-          modifiers={[frame({ maxWidth: 1000, alignment: 'leading' }), padding({ horizontal: 16 })]}
-        >
-          <Button
-            label="Cancelar"
-            modifiers={[
-              buttonStyle('plain'),
-              controlSize('regular'),
-              foregroundColor('#8B8B93'),
-              padding({ horizontal: 12, vertical: 12 }),
-              glassEffect({
-                glass: { interactive: true, variant: 'regular' },
-                shape: 'capsule',
-              }),
-              accessibilityLabel('Cancelar'),
-            ]}
-            onPress={() => onVisibleChange(false)}
-          />
-          <Spacer />
-        </HStack>
-      ) : null}
       {titleView}
     </ZStack>
   );
@@ -308,7 +275,7 @@ export default function NativeBottomSheetSwiftUI({
       modifiers={[padding({ horizontal: 0, top: 12, bottom: 6 })]}
     >
       <Spacer minLength={isFormVisible ? 0 : 16} />
-      {headerView(!isFormVisible)}
+      {headerView()}
       <ZStack
         alignment="top"
         modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'top' })]}

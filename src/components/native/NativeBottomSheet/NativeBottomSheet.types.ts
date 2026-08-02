@@ -3,6 +3,7 @@ export type NativeBottomSheetItem = {
   title: string;
   subtitle?: string;
   systemImage?: string;
+  bucketPrice?: number;
 };
 
 export type NativeBottomSheetConfirmation = {

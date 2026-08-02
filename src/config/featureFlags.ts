@@ -14,3 +14,9 @@ export const ENABLE_PROGRESSIVE_BLUR = true;
  * BottomSheet presentation callbacks.
  */
 export const ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET = true;
+
+/**
+ * Keeps the Clientes screen on its existing fictitious development data until
+ * Firebase Auth and the definitive client database are connected.
+ */
+export const ENABLE_MOCK_CLIENT_DATA = true;

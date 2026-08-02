@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
+import { ENABLE_MOCK_CLIENT_DATA } from '@/config/featureFlags';
 import { useAuth } from '@/providers';
 import {
   clientCatalogService,
   clientIdentityRegistry,
+  mockClientDataSource,
   type ClientCatalogQuery,
 } from '@/services/clients';
 import { ClientMutationService } from '@/services/clients/ClientMutationService';
@@ -12,32 +14,54 @@ import type { UserDataSnapshot } from '@/services/data';
 import type { ClientModel } from '@/types/data';
 
 export function useClients(query: ClientCatalogQuery = {}) {
-  const { user } = useAuth();
-  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { error: authError, status: authStatus, user } = useAuth();
+  const [firebaseSnapshot, setFirebaseSnapshot] = useState<UserDataSnapshot | null>(null);
+  const [loading, setLoading] = useState(!ENABLE_MOCK_CLIENT_DATA);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const mockSnapshot = useSyncExternalStore(
+    mockClientDataSource.subscribe,
+    mockClientDataSource.getSnapshot,
+    mockClientDataSource.getSnapshot,
+  );
 
   const load = useCallback(
     async (isRefresh = false) => {
-      if (!user) return;
+      if (ENABLE_MOCK_CLIENT_DATA) {
+        setLoading(false);
+        setRefreshing(false);
+        setError(undefined);
+        return;
+      }
+      if (!user) {
+        if (authStatus === 'loading') return;
+        setLoading(false);
+        setRefreshing(false);
+        setError(authError ?? 'Sess\u00e3o autenticada indispon\u00edvel.');
+        return;
+      }
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(undefined);
       try {
         await clientIdentityRegistry.load(user.id);
         const result = await userDataService.loadWithCacheFallback(user.id);
-        setSnapshot(result.snapshot);
+        setFirebaseSnapshot(result.snapshot);
       } catch (loadError) {
+        if (__DEV__) {
+          console.error('[useClients] Falha ao carregar clientes.', loadError);
+        }
         setError(
-          loadError instanceof Error ? loadError.message : 'Não foi possível carregar clientes.',
+          loadError instanceof Error
+            ? loadError.message
+            : 'N\u00e3o foi poss\u00edvel carregar clientes.',
         );
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [user],
+    [authError, authStatus, user],
   );
 
   useEffect(() => {
@@ -45,20 +69,23 @@ export function useClients(query: ClientCatalogQuery = {}) {
     return () => clearTimeout(timer);
   }, [load]);
 
+  const snapshot = ENABLE_MOCK_CLIENT_DATA ? mockSnapshot : firebaseSnapshot;
   const clients = useMemo<ClientModel[]>(
     () =>
-      snapshot && user
-        ? clientCatalogService.list(snapshot, {
-            ...query,
-            clientIdForName: (name) => clientIdentityRegistry.get(user.id, name),
-          })
-        : [],
+      ENABLE_MOCK_CLIENT_DATA
+        ? mockClientDataSource.list(query)
+        : snapshot && user
+          ? clientCatalogService.list(snapshot, {
+              ...query,
+              clientIdForName: (name) => clientIdentityRegistry.get(user.id, name),
+            })
+          : [],
     [query, snapshot, user],
   );
 
   const mutate = useCallback(
     async (operation: (service: ClientMutationService) => Promise<void>) => {
-      if (!user) throw new Error('Sessão não disponível.');
+      if (!user) throw new Error('Sess\u00e3o n\u00e3o dispon\u00edvel.');
       const service = new ClientMutationService(user.id);
       await operation(service);
       await load(true);
@@ -74,10 +101,16 @@ export function useClients(query: ClientCatalogQuery = {}) {
     error,
     reload: () => load(true),
     rename: (client: ClientModel, newName: string) =>
-      mutate((service) => service.rename(client, newName).then(() => undefined)),
+      ENABLE_MOCK_CLIENT_DATA
+        ? mockClientDataSource.rename(client, newName)
+        : mutate((service) => service.rename(client, newName).then(() => undefined)),
     removeCustomConfiguration: (client: ClientModel) =>
-      mutate((service) => service.removeCustomConfiguration(client).then(() => undefined)),
+      ENABLE_MOCK_CLIENT_DATA
+        ? mockClientDataSource.removeCustomConfiguration(client)
+        : mutate((service) => service.removeCustomConfiguration(client).then(() => undefined)),
     saveCustomClient: (name: string, price: number, address: string) =>
-      mutate((service) => service.saveCustomClient(name, price, address)),
+      ENABLE_MOCK_CLIENT_DATA
+        ? mockClientDataSource.saveCustomClient(name, price, address)
+        : mutate((service) => service.saveCustomClient(name, price, address)),
   };
 }

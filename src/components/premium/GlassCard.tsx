@@ -24,10 +24,10 @@ export function GlassCard({
   style,
   ...props
 }: GlassCardProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const surfaceStyle = [
     {
-      backgroundColor: theme.colors.glassSurface,
+      backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
       borderRadius: theme.radius.card,
       padding: theme.spacing.lg,
     },

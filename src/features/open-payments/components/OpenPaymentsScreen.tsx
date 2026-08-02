@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassBackButton, NativeGlassIconButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
@@ -65,41 +66,46 @@ export function OpenPaymentsScreen() {
     transform: [{ translateY: interpolate(entrance.value, [0, 1], [theme.spacing.md, 0]) }],
   }));
 
+  const header = (
+    <NativeGlassHeader
+      leftActions={
+        <NativeGlassBackButton
+          accessibilityLabel="Voltar para Home"
+          color={theme.colors.textPrimary}
+          containerSize={theme.sizes.touchTargetMinimum}
+          onPress={() => router.back()}
+          size={theme.sizes.iconMedium}
+        />
+      }
+      mode="transparent"
+      rightActions={
+        <NativeGlassIconButton
+          accessibilityLabel={
+            isSelectionMode ? 'Confirmar recebimentos pagos' : 'Selecionar recebimentos'
+          }
+          color={theme.colors.textPrimary}
+          containerSize={theme.sizes.touchTargetMinimum}
+          fallbackIcon="checkmark"
+          interactiveGlass
+          onPress={handleCheckPress}
+          size={theme.sizes.iconMedium}
+          systemImage="checkmark"
+        />
+      }
+      title="Recebimentos em aberto"
+    />
+  );
+
   return (
     <PremiumScreen
       contentContainerStyle={[
         styles.screenContent,
         { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
       ]}
+      overlayHeader={header}
+      progressiveBlur
     >
-      <Animated.View style={[styles.content, contentStyle]}>
-        <View style={styles.header}>
-          <NativeGlassBackButton
-            accessibilityLabel="Voltar para Home"
-            color={theme.colors.textPrimary}
-            containerSize={theme.sizes.touchTargetMinimum}
-            onPress={() => router.back()}
-            size={theme.sizes.iconMedium}
-          />
-          <View pointerEvents="none" style={styles.headerCopy}>
-            <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-              Recebimentos em aberto
-            </Text>
-          </View>
-          <NativeGlassIconButton
-            accessibilityLabel={
-              isSelectionMode ? 'Confirmar recebimentos pagos' : 'Selecionar recebimentos'
-            }
-            color={theme.colors.textPrimary}
-            containerSize={theme.sizes.touchTargetMinimum}
-            fallbackIcon="checkmark"
-            interactiveGlass
-            onPress={handleCheckPress}
-            size={theme.sizes.iconMedium}
-            systemImage="checkmark"
-          />
-        </View>
-
+      <Animated.View style={[styles.content, contentStyle, { marginTop: theme.spacing.xxl }]}>
         <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
           {paymentItems.length > 0 ? (
             <GlassCard
@@ -138,14 +144,6 @@ export function OpenPaymentsScreen() {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
-  header: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-    position: 'relative',
-  },
-  headerCopy: { alignItems: 'center', gap: 4, left: 0, position: 'absolute', right: 0 },
   clientList: { width: '100%' },
   clientCard: { padding: 16 },
   totalCard: { padding: 16 },

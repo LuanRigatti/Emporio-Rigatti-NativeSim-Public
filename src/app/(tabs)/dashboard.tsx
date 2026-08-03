@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,13 @@ import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TabHapticListener } from '@/navigation/TabHapticListener';
+import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
+import {
+  getHistoryDeliveries,
+  subscribeToHistoryDeliveries,
+  toggleHistoryDeliveryStatus,
+} from '@/features/history/data/historyDeliveryStore';
+import { todayIso } from '@/utils/data';
 
 function PreviewIcon({
   color,
@@ -37,6 +44,12 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated, signOutMock } = useSession();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const historyDeliveries = useSyncExternalStore(
+    subscribeToHistoryDeliveries,
+    getHistoryDeliveries,
+    getHistoryDeliveries,
+  );
+  const [currentDate, setCurrentDate] = useState(() => todayIso());
   const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -54,6 +67,21 @@ export default function Home() {
     );
   };
   const optionsExpansion = useSharedValue(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const todayDeliveries = useMemo(
+    () => historyDeliveries.filter((delivery) => delivery.data === currentDate),
+    [currentDate, historyDeliveries],
+  );
+
+  const handleTodayStatusToggle = useCallback((deliveryId: string) => {
+    triggerLightImpactHaptic();
+    toggleHistoryDeliveryStatus(deliveryId);
+  }, []);
 
   useEffect(() => {
     optionsExpansion.value = isOptionsMenuVisible
@@ -179,6 +207,11 @@ export default function Home() {
             value={searchText}
           />
         </View>
+
+        <TodayDeliveriesCard
+          deliveries={todayDeliveries}
+          onToggleStatus={handleTodayStatusToggle}
+        />
 
         {/* <PremiumCard
           style={{

@@ -1,6 +1,8 @@
 export { NativeButton } from './NativeButton';
 export { NativeClientFormSheet } from './NativeClientFormSheet';
 export type { NativeClientFormSheetProps, NativeClientFormValues } from './NativeClientFormSheet';
+export { default as NativeDailyDataSheet } from './NativeDailyDataSheet';
+export type { NativeDailyDataSheetProps, NativeDailyDataValues } from './NativeDailyDataSheet';
 export type { NativeButtonContent, NativeButtonHaptic, NativeButtonProps } from './NativeButton';
 export { default as NativeBottomSheet } from './NativeBottomSheet';
 export type {
@@ -32,11 +34,22 @@ export type { NativeGlassIconButtonProps } from './NativeGlassIconButton';
 export { default as NativeGlassMenu } from './NativeGlassMenu';
 export type { NativeGlassMenuProps } from './NativeGlassMenu';
 export { NativeDatePicker } from './NativeDatePicker';
-export type { NativeDatePickerMode, NativeDatePickerProps } from './NativeDatePicker';
+export type {
+  NativeDatePickerMode,
+  NativeDatePickerProps,
+  NativeDatePickerStyle,
+} from './NativeDatePicker';
 export { NativeDialog } from './NativeDialog';
 export type { NativeDialogAction, NativeDialogProps } from './NativeDialog';
 export { NativeList } from './NativeList';
 export type { NativeListItem, NativeListProps } from './NativeList';
+export { NativeSwipeActionsList } from './NativeSwipeActionsList';
+export type {
+  NativeSwipeActionsListAction,
+  NativeSwipeActionsListColors,
+  NativeSwipeActionsListItem,
+  NativeSwipeActionsListProps,
+} from './NativeSwipeActionsList';
 export { NativeMenu } from './NativeMenu';
 export type { NativeMenuAction, NativeMenuProps } from './NativeMenu';
 export { NativePicker } from './NativePicker';

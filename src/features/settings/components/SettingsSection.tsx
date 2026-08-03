@@ -21,20 +21,27 @@ export function SettingsSection({ children, title }: SettingsSectionProps) {
           {title.toUpperCase()}
         </Text>
       ) : null}
-      <GlassSurface
-        glassEffectStyle="none"
+      <View
         style={[
-          styles.surface,
-          {
-            backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
-            borderWidth: 0,
-            borderRadius: theme.radius.xl + theme.spacing.xs,
-            paddingHorizontal: theme.spacing.md,
-          },
+          { borderRadius: theme.radius.xl + theme.spacing.xs },
+          resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
         ]}
       >
-        {children}
-      </GlassSurface>
+        <GlassSurface
+          glassEffectStyle="none"
+          style={[
+            styles.surface,
+            {
+              backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+              borderWidth: 0,
+              borderRadius: theme.radius.xl + theme.spacing.xs,
+              paddingHorizontal: theme.spacing.md,
+            },
+          ]}
+        >
+          {children}
+        </GlassSurface>
+      </View>
     </View>
   );
 }

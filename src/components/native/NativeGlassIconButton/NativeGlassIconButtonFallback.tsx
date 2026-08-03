@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { GlassSurface } from '@/components/premium';
 import { useAppTheme } from '@/theme';
@@ -9,10 +9,13 @@ export default function NativeGlassIconButtonFallback({
   accessibilityLabel,
   color,
   containerSize,
+  containerWidth,
   disabled = false,
   fallbackIcon,
+  label,
   onPress,
   size,
+  shape = 'circle',
   style,
 }: NativeGlassIconButtonProps) {
   const { theme } = useAppTheme();
@@ -29,7 +32,8 @@ export default function NativeGlassIconButtonFallback({
           borderRadius: theme.radius.pill,
           height: surfaceSize,
           opacity: disabled ? theme.opacities.disabled : 1,
-          width: surfaceSize,
+          width: containerWidth ?? surfaceSize,
+          ...(shape === 'circle' ? { borderRadius: surfaceSize / 2 } : {}),
         },
         style,
       ]}
@@ -42,7 +46,11 @@ export default function NativeGlassIconButtonFallback({
         onPress={onPress}
         style={({ pressed }) => [styles.button, { opacity: pressed ? theme.opacities.pressed : 1 }]}
       >
-        <Ionicons color={iconColor} name={fallbackIcon} size={iconSize} />
+        {label ? (
+          <Text style={[styles.label, { color: iconColor }]}>{label}</Text>
+        ) : fallbackIcon ? (
+          <Ionicons color={iconColor} name={fallbackIcon} size={iconSize} />
+        ) : null}
       </Pressable>
     </GlassSurface>
   );
@@ -51,4 +59,5 @@ export default function NativeGlassIconButtonFallback({
 const styles = StyleSheet.create({
   surface: { overflow: 'hidden' },
   button: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  label: { fontSize: 17, fontWeight: '600' },
 });

@@ -57,6 +57,7 @@ export type NativeSegmentedControlProps = {
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   accessibilityLabel?: string;
+  systemImages?: readonly string[];
 };
 
 export type NativeListItem = {
@@ -75,11 +76,13 @@ export type NativeListProps = {
 };
 
 export type NativeDatePickerMode = 'date' | 'time';
+export type NativeDatePickerStyle = 'automatic' | 'compact' | 'graphical' | 'wheel';
 
 export type NativeDatePickerProps = {
   value: Date;
   mode: NativeDatePickerMode;
   onChange: (value: Date) => void;
+  style?: NativeDatePickerStyle;
   minimumDate?: Date;
   maximumDate?: Date;
   accessibilityLabel?: string;
@@ -137,13 +140,16 @@ export type NativeDropdownProps<T extends string | number = string | number> = {
 };
 
 export type NativeGlassIconButtonProps = {
-  systemImage: string;
-  fallbackIcon: ComponentProps<typeof Ionicons>['name'];
+  systemImage?: string;
+  fallbackIcon?: ComponentProps<typeof Ionicons>['name'];
+  label?: string;
   accessibilityLabel: string;
   onPress: () => void;
   color?: string;
   size?: number;
   containerSize?: number;
+  containerWidth?: number;
+  shape?: 'circle' | 'capsule';
   interactiveGlass?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;

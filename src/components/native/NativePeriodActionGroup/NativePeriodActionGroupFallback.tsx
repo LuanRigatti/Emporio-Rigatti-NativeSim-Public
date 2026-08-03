@@ -5,18 +5,32 @@ import type { NativePeriodActionGroupProps } from './NativePeriodActionGroup.typ
 
 export default function NativePeriodActionGroupFallback({
   color,
+  dayItems,
+  monthDisplayValue,
   monthItems,
+  onDayChange,
   onMonthChange,
   onYearChange,
+  selectedDay,
   selectedMonth,
   selectedYear,
   yearItems,
 }: NativePeriodActionGroupProps) {
   return (
     <View style={styles.group}>
+      {dayItems && onDayChange && selectedDay ? (
+        <NativeDropdown
+          color={color}
+          items={dayItems}
+          onValueChange={onDayChange}
+          selectedValue={selectedDay}
+          variant="glass"
+        />
+      ) : null}
       <NativeDropdown
         color={color}
         items={monthItems}
+        label={monthDisplayValue}
         onValueChange={onMonthChange}
         selectedValue={selectedMonth}
         variant="glass"

@@ -1,4 +1,4 @@
-import { Button, Host, Image } from '@expo/ui/swift-ui';
+import { Button, Host, Image, Text } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
@@ -14,13 +14,16 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 import type { NativeGlassIconButtonProps } from '@/types/native-ui';
 
 export default function NativeGlassIconButtonSwiftUI({
-  accessibilityLabel: label,
+  accessibilityLabel: accessibilityText,
   color,
   containerSize,
+  containerWidth,
   disabled,
   interactiveGlass = false,
+  label,
   onPress,
   size,
+  shape = 'circle',
   systemImage,
   style,
 }: NativeGlassIconButtonProps) {
@@ -32,21 +35,25 @@ export default function NativeGlassIconButtonSwiftUI({
           buttonStyle(interactiveGlass ? 'plain' : 'glass'),
           controlSize('regular'),
           ...(disabled ? [disabledModifier(true)] : []),
-          frame({ width: containerSize, height: containerSize }),
+          frame({ width: containerWidth ?? containerSize, height: containerSize }),
           ...(interactiveGlass
             ? [
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
-                  shape: 'circle',
+                  shape,
                 }),
               ]
             : []),
           ...(color ? [tint(color)] : []),
-          accessibilityLabel(label),
+          accessibilityLabel(accessibilityText),
         ]}
         onPress={onPress}
       >
-        <Image color={color} size={size} systemName={systemImage as SFSymbol} />
+        {label ? (
+          <Text modifiers={color ? [tint(color)] : undefined}>{label}</Text>
+        ) : (
+          <Image color={color} size={size} systemName={(systemImage ?? 'plus') as SFSymbol} />
+        )}
       </Button>
     </Host>
   );

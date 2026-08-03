@@ -42,7 +42,7 @@ export type ThemeColors = {
 };
 
 export const lightColors: ThemeColors = {
-  background: '#F2F2F7',
+  background: '#FFFFFF',
   backgroundSecondary: '#EEF2F7',
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',

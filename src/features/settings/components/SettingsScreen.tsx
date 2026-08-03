@@ -45,10 +45,22 @@ export function SettingsScreen() {
           />
           <SettingItem
             fallbackIcon="business"
-            isLast
             onPress={() => router.push('/dados-empresa')}
             systemName="building.2"
             title="Dados da Empresa"
+          />
+          <SettingItem
+            fallbackIcon="business"
+            onPress={() => router.push('/fabrica')}
+            systemName="building.2"
+            title="Fábrica"
+          />
+          <SettingItem
+            fallbackIcon="calculator"
+            isLast
+            onPress={() => router.push('/custos')}
+            systemName="chart.bar"
+            title="Dados"
           />
         </SettingsSection>
       </View>

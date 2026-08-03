@@ -23,6 +23,10 @@ export type PremiumScreenProps = ViewProps & {
   overlayHeaderSafeArea?: boolean;
   overlayHeaderSpacing?: number;
   overlayHeaderTopSpacing?: number;
+  progressiveBlurHeight?: number;
+  progressiveBlurFadeStart?: number;
+  progressiveBlurIntensity?: number;
+  progressiveBlurTopOffset?: number;
   progressiveBlur?: boolean;
   scrollable?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -37,6 +41,10 @@ export function PremiumScreen({
   overlayHeaderSafeArea = false,
   overlayHeaderSpacing = 0,
   overlayHeaderTopSpacing = 0,
+  progressiveBlurHeight,
+  progressiveBlurFadeStart,
+  progressiveBlurIntensity,
+  progressiveBlurTopOffset = 0,
   progressiveBlur = false,
   scrollable = true,
   contentContainerStyle,
@@ -51,7 +59,8 @@ export function PremiumScreen({
   const overlayHeaderTotalHeight = overlayHeaderHeight + overlayHeaderTopOffset;
   const shouldRenderProgressiveBlur =
     progressiveBlur && ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
-  const progressiveBlurHeight = insets.top + theme.spacing.xxxl + theme.spacing.xs * 2;
+  const resolvedProgressiveBlurHeight =
+    progressiveBlurHeight ?? insets.top + theme.spacing.xxxl + theme.spacing.xs * 2;
   const overlayContentPaddingTop = Math.max(
     0,
     overlayHeaderTotalHeight + overlayHeaderSpacing - overlayHeaderContentOffset,
@@ -100,16 +109,19 @@ export function PremiumScreen({
       {shouldRenderProgressiveBlur ? (
         <ProgressiveBlur
           edge="top"
-          fadeStart={Math.max(0, insets.top - (theme.spacing.xxxl + theme.spacing.xs * 2))}
-          height={progressiveBlurHeight}
-          intensity={30}
+          fadeStart={
+            progressiveBlurFadeStart ??
+            Math.max(0, insets.top - (theme.spacing.xxxl + theme.spacing.xs * 2))
+          }
+          height={resolvedProgressiveBlurHeight}
+          intensity={progressiveBlurIntensity ?? 30}
           layers={4}
           overlayColors={
             resolvedMode === 'dark'
               ? [theme.colors.background, theme.colors.background, 'transparent']
               : null
           }
-          style={{ top: 0, zIndex: 1 }}
+          style={{ top: progressiveBlurTopOffset, zIndex: 1 }}
           tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterial'}
         />
       ) : null}

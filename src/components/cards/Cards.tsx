@@ -17,7 +17,7 @@ export type CardProps = {
 };
 
 export function Card({ children, onPress, disabled = false, elevated = false, style }: CardProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const handlePress = () => {
     triggerLightImpactHaptic();
     onPress?.();
@@ -32,7 +32,11 @@ export function Card({ children, onPress, disabled = false, elevated = false, st
       padding: theme.spacing.lg,
       opacity: disabled ? theme.opacities.disabled : 1,
     },
-    elevated ? theme.shadows.elevated : theme.shadows.card,
+    resolvedMode === 'dark'
+      ? theme.shadows.none
+      : elevated
+        ? theme.shadows.elevated
+        : theme.shadows.card,
     style,
   ];
 

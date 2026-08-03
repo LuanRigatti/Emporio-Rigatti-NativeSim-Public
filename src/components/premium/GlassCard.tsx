@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '@/theme';
 
@@ -31,7 +31,6 @@ export function GlassCard({
       borderRadius: theme.radius.card,
       padding: theme.spacing.lg,
     },
-    elevated ? theme.shadows.elevated : undefined,
     style,
   ];
 
@@ -41,7 +40,22 @@ export function GlassCard({
     </GlassSurface>
   );
 
-  if (!onPress) return surface;
+  if (!onPress) {
+    return (
+      <View
+        style={[
+          { borderRadius: theme.radius.card },
+          resolvedMode === 'dark'
+            ? theme.shadows.none
+            : elevated
+              ? theme.shadows.elevated
+              : theme.shadows.card,
+        ]}
+      >
+        {surface}
+      </View>
+    );
+  }
 
   return (
     <AnimatedPressable
@@ -49,6 +63,14 @@ export function GlassCard({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       onPress={onPress}
+      style={[
+        { borderRadius: theme.radius.card },
+        resolvedMode === 'dark'
+          ? theme.shadows.none
+          : elevated
+            ? theme.shadows.elevated
+            : theme.shadows.card,
+      ]}
     >
       {surface}
     </AnimatedPressable>

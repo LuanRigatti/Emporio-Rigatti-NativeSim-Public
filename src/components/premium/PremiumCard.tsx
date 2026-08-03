@@ -13,7 +13,7 @@ export type PremiumCardProps = {
 };
 
 export function PremiumCard({ children, onPress, style, accessibilityLabel }: PremiumCardProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const cardStyle = [
     styles.card,
     {
@@ -22,6 +22,7 @@ export function PremiumCard({ children, onPress, style, accessibilityLabel }: Pr
       borderRadius: theme.radius.card,
       padding: theme.spacing.lg,
     },
+    resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
     style,
   ];
 

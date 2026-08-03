@@ -79,7 +79,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     >
       <Animated.View style={[styles.content, contentStyle]}>
         <View style={styles.brandGroup}>
-          <AppLogo />
+          <AppLogo size={336} variant="login" />
         </View>
 
         <View style={styles.actions}>
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     alignItems: 'center',
-    marginTop: 48,
+    marginTop: 16,
     width: '100%',
   },
   buttonSurface: {

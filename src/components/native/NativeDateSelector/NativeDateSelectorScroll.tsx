@@ -88,7 +88,7 @@ export function NativeDateSelectorScroll({
       ref={scrollRef}
       scrollEventThrottle={16}
       showsHorizontalScrollIndicator={false}
-      style={{ marginHorizontal: -theme.layout.screenHorizontalPadding }}
+      style={{ marginHorizontal: 0 }}
     >
       {days.map((day) => renderDay(day, day.date === selectedDate, onSelectDate))}
     </ScrollView>

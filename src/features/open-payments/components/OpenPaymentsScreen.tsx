@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -10,12 +10,15 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeGlassIconButton } from '@/components/native';
+import {
+  NativeGlassBackButton,
+  NativeSwipeActionsList,
+  type NativeSwipeActionsListItem,
+} from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
-import { OpenPaymentRow } from './OpenPaymentRow';
 import { openPaymentPreview, openPaymentsTotal } from '../data/openPaymentPreview';
 
 export function OpenPaymentsScreen() {
@@ -23,33 +26,22 @@ export function OpenPaymentsScreen() {
   const { reduceMotionEnabled, theme } = useAppTheme();
   const entrance = useSharedValue(0);
   const [paymentItems, setPaymentItems] = useState(() => [...openPaymentPreview]);
-  const [isSelectionMode, setSelectionMode] = useState(false);
-  const [selectedClients, setSelectedClients] = useState<ReadonlySet<string>>(() => new Set());
 
-  const handleCheckPress = useCallback(() => {
+  const nativePaymentItems = useMemo<NativeSwipeActionsListItem[]>(
+    () =>
+      paymentItems.map((item) => ({
+        id: item.client,
+        overline: item.date,
+        subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
+        title: item.client,
+        trailingText: item.amount,
+      })),
+    [paymentItems],
+  );
+
+  const handlePaymentSwipe = useCallback((client: string) => {
     triggerLightImpactHaptic();
-
-    if (!isSelectionMode) {
-      setSelectedClients(new Set());
-      setSelectionMode(true);
-      return;
-    }
-
-    setPaymentItems((current) => current.filter((item) => !selectedClients.has(item.client)));
-    setSelectedClients(new Set());
-    setSelectionMode(false);
-  }, [isSelectionMode, selectedClients]);
-
-  const toggleClientSelection = useCallback((client: string) => {
-    setSelectedClients((current) => {
-      const next = new Set(current);
-      if (next.has(client)) {
-        next.delete(client);
-      } else {
-        next.add(client);
-      }
-      return next;
-    });
+    setPaymentItems((current) => current.filter((item) => item.client !== client));
   }, []);
 
   useEffect(() => {
@@ -78,20 +70,6 @@ export function OpenPaymentsScreen() {
         />
       }
       mode="transparent"
-      rightActions={
-        <NativeGlassIconButton
-          accessibilityLabel={
-            isSelectionMode ? 'Confirmar recebimentos pagos' : 'Selecionar recebimentos'
-          }
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon="checkmark"
-          interactiveGlass
-          onPress={handleCheckPress}
-          size={theme.sizes.iconMedium}
-          systemImage="checkmark"
-        />
-      }
       title="Recebimentos em aberto"
     />
   );
@@ -111,16 +89,23 @@ export function OpenPaymentsScreen() {
             <GlassCard
               style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
-              {paymentItems.map((item) => (
-                <View key={item.client}>
-                  <OpenPaymentRow
-                    item={item}
-                    onPress={isSelectionMode ? () => toggleClientSelection(item.client) : undefined}
-                    selected={selectedClients.has(item.client)}
-                    selectionMode={isSelectionMode}
-                  />
-                </View>
-              ))}
+              <NativeSwipeActionsList
+                action={{
+                  label: 'Pago',
+                  systemImage: 'checkmark.circle.fill',
+                  tint: theme.colors.success,
+                }}
+                colors={{
+                  border: theme.colors.borderStrong,
+                  selectionContent: theme.colors.selectionContent,
+                  selectionSurface: theme.colors.selectionSurface,
+                  textPrimary: theme.colors.textPrimary,
+                  textSecondary: theme.colors.textSecondary,
+                }}
+                items={nativePaymentItems}
+                onDelete={handlePaymentSwipe}
+                trailingValueAlignment="top"
+              />
             </GlassCard>
           ) : null}
           <GlassCard

@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/premium';
 import { useAppTheme } from '@/theme';
@@ -31,11 +31,13 @@ export function DeliveryStatusBadge({ onPress, status }: DeliveryStatusBadgeProp
         styles.badge,
         {
           backgroundColor: statusColors.background,
-          borderRadius: theme.radius.md,
+          borderRadius: theme.radius.pill,
           gap: theme.spacing.xxs,
+          height: theme.sizes.avatarSmall - theme.spacing.xs,
+          justifyContent: 'center',
           opacity: 1,
-          paddingHorizontal: theme.spacing.xxs + 2,
-          paddingVertical: 2,
+          padding: 0,
+          width: theme.sizes.avatarSmall - theme.spacing.xs,
         },
       ]}
     >
@@ -45,14 +47,11 @@ export function DeliveryStatusBadge({ onPress, status }: DeliveryStatusBadgeProp
           { backgroundColor: statusColors.foreground, borderRadius: theme.radius.pill },
         ]}
       />
-      <Text style={[theme.typography.caption, { color: statusColors.foreground }]}>
-        {statusLabel(status)}
-      </Text>
     </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   badge: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row' },
-  dot: { height: 6, width: 6 },
+  dot: { height: 8, width: 8 },
 });

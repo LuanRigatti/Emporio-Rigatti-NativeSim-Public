@@ -14,10 +14,12 @@ import { PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 
-import { historyMockDeliveries, type DeliveryStatus } from '../data/historyMocks';
 import {
   getAddedHistoryDeliveries,
+  getHistoryDeliveries,
   subscribeToAddedHistoryDeliveries,
+  subscribeToHistoryDeliveries,
+  toggleHistoryDeliveryStatus,
 } from '../data/historyDeliveryStore';
 import { openInAppleMapsMock, openInWazeMock } from '../utils/locationActionsMock';
 import {
@@ -33,6 +35,14 @@ import { FilterChips, type HistoryFilter } from './FilterChips';
 import { HorizontalCalendar } from './HorizontalCalendar';
 import { getHistoryYearItems, HISTORY_MONTH_ITEMS } from './periodOptions';
 
+function monthShortLabel(month: number): string {
+  return (
+    ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
+      month - 1
+    ] ?? String(month)
+  );
+}
+
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
@@ -41,9 +51,10 @@ export function HistoryScreen() {
     getAddedHistoryDeliveries,
     getAddedHistoryDeliveries,
   );
-  const allDeliveries = useMemo(
-    () => [...addedDeliveries, ...historyMockDeliveries],
-    [addedDeliveries],
+  const allDeliveries = useSyncExternalStore(
+    subscribeToHistoryDeliveries,
+    getHistoryDeliveries,
+    getHistoryDeliveries,
   );
   const initialPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(initialPeriod.month);
@@ -53,9 +64,6 @@ export function HistoryScreen() {
   );
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
-  const [deliveryStatuses, setDeliveryStatuses] = useState<Record<string, DeliveryStatus>>(() =>
-    Object.fromEntries(allDeliveries.map((delivery) => [delivery.id, delivery.status])),
-  );
   const latestAddedDelivery = addedDeliveries[0];
   const latestAddedDeliveryId = latestAddedDelivery?.id;
   const latestAddedDeliveryDate = latestAddedDelivery?.data;
@@ -78,14 +86,8 @@ export function HistoryScreen() {
   );
 
   const deliveriesForDate = useMemo(
-    () =>
-      allDeliveries
-        .filter((delivery) => delivery.data === selectedDate)
-        .map((delivery) => ({
-          ...delivery,
-          status: deliveryStatuses[delivery.id] ?? delivery.status,
-        })),
-    [allDeliveries, deliveryStatuses, selectedDate],
+    () => allDeliveries.filter((delivery) => delivery.data === selectedDate),
+    [allDeliveries, selectedDate],
   );
 
   const filteredDeliveries = useMemo(() => {
@@ -143,10 +145,7 @@ export function HistoryScreen() {
 
   const handleToggleStatus = useCallback((deliveryId: string) => {
     triggerSelectionHaptic();
-    setDeliveryStatuses((current) => ({
-      ...current,
-      [deliveryId]: current[deliveryId] === 'pendente' ? 'concluída' : 'pendente',
-    }));
+    toggleHistoryDeliveryStatus(deliveryId);
   }, []);
 
   const handleOpenWaze = useCallback(() => {
@@ -203,14 +202,27 @@ export function HistoryScreen() {
           }
         />
       }
+      accessory={
+        <View style={{ marginTop: theme.spacing.xs }}>
+          <HorizontalCalendar
+            days={calendarDays}
+            datesWithDeliveries={datesWithDeliveries}
+            onSelectDate={handleSelectDate}
+            selectedDate={selectedDate}
+          />
+        </View>
+      }
       rightActions={
         <NativePeriodActionGroup
           color={theme.colors.textPrimary}
+          monthDisplayValue={monthShortLabel(selectedMonth)}
           monthItems={HISTORY_MONTH_ITEMS}
           onMonthChange={handleMonthChange}
           onYearChange={handleYearChange}
           selectedMonth={selectedMonth}
           selectedYear={selectedYear}
+          showValues
+          valueFontSize={17}
           yearItems={getHistoryYearItems()}
         />
       }
@@ -237,16 +249,17 @@ export function HistoryScreen() {
         ]}
         overlayHeader={header}
         overlayHeaderContentOffset={theme.spacing.sm + theme.spacing.xxs * 7}
+        progressiveBlurHeight={
+          insets.top +
+          theme.sizes.touchTargetMinimum +
+          theme.spacing.xxxl +
+          theme.spacing.xs * 5
+        }
+        progressiveBlurFadeStart={insets.top + theme.sizes.touchTargetMinimum}
+        progressiveBlurIntensity={45}
+        progressiveBlurTopOffset={0}
         progressiveBlur
       >
-        <View style={{ marginTop: theme.spacing.xs }}>
-          <HorizontalCalendar
-            days={calendarDays}
-            datesWithDeliveries={datesWithDeliveries}
-            onSelectDate={handleSelectDate}
-            selectedDate={selectedDate}
-          />
-        </View>
         {isFilterPreviewVisible ? (
           <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
         ) : null}

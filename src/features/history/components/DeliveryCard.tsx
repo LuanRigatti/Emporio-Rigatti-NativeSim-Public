@@ -31,7 +31,6 @@ export function DeliveryCard({
       accessibilityLabel={`Entrega para ${delivery.cliente}, ${statusLabel(delivery.status)}`}
       style={[
         styles.card,
-        theme.shadows.card,
         {
           backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
           borderWidth: 0,

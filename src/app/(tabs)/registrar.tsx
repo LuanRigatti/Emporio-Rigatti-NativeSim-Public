@@ -1,38 +1,230 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore, useState } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useCallback, useMemo, useSyncExternalStore, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
-  NativeGlassActionGroup,
+  NativeDailyDataSheet,
+  NativeGlassBackButton,
   NativeGlassIconButton,
+  NativeSwipeActionsList,
   NativeSequentialBottomSheet,
 } from '@/components/native';
-import type { NativeBottomSheetItem } from '@/components/native';
-import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
+import type {
+  NativeBottomSheetItem,
+  NativeDailyDataValues,
+  NativeSwipeActionsListItem,
+} from '@/components/native';
+import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET } from '@/config/featureFlags';
 import { useClients } from '@/hooks/useClients';
+import { useCostSettings } from '@/hooks/useCostSettings';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { todayIso } from '@/utils/data';
+import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import {
   addHistoryDelivery,
   getAddedHistoryDeliveries,
   subscribeToAddedHistoryDeliveries,
   removeAddedHistoryDeliveries,
-  updateAddedHistoryDeliveryQuantity,
 } from '@/features/history/data/historyDeliveryStore';
 
 const BUCKET_PRICE = 49.8;
 
 export default function PrototypeRegistrar() {
+  return <RegistrarModeSelection />;
+}
+
+function RegistrarModeSelection() {
+  const { theme } = useAppTheme();
+  const router = useRouter();
+
+  const header = <NativeGlassHeader mode="transparent" title="Registrar" />;
+
+  return (
+    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+      <PremiumScreen
+        contentContainerStyle={styles.modeSelectionContent}
+        overlayHeader={header}
+        progressiveBlur
+      >
+        <View
+          style={[
+            styles.modeSelection,
+            { gap: theme.spacing.sm, marginTop: theme.spacing.md * 2 - theme.spacing.xs / 2 },
+          ]}
+        >
+          <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
+            <PremiumCard
+              accessibilityLabel="Abrir Registrar Entrega"
+              onPress={() => router.push('/registrar-entrega')}
+              style={[
+                styles.widgetCard,
+                { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+              ]}
+            >
+              <View style={styles.widgetHeader}>
+                <Ionicons
+                  color={theme.colors.textSecondary}
+                  name="cube-outline"
+                  size={theme.sizes.iconMedium}
+                />
+                <Ionicons
+                  color={theme.colors.textSecondary}
+                  name="chevron-forward"
+                  size={theme.sizes.iconMedium}
+                />
+              </View>
+              <View style={styles.widgetCopy}>
+                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                  Registrar Entrega
+                </Text>
+              </View>
+            </PremiumCard>
+            <PremiumCard
+              accessibilityLabel="Abrir Registrar Dados DiÃ¡rios"
+              onPress={() => router.push('/registrar-dados-diarios')}
+              style={[
+                styles.widgetCard,
+                { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+              ]}
+            >
+              <View style={styles.widgetHeader}>
+                <Ionicons
+                  color={theme.colors.textSecondary}
+                  name="calendar-outline"
+                  size={theme.sizes.iconMedium}
+                />
+                <Ionicons
+                  color={theme.colors.textSecondary}
+                  name="chevron-forward"
+                  size={theme.sizes.iconMedium}
+                />
+              </View>
+              <View style={styles.widgetCopy}>
+                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                  {'Registrar Dados Di\u00e1rios'}
+                </Text>
+              </View>
+            </PremiumCard>
+          </View>
+        </View>
+      </PremiumScreen>
+    </View>
+  );
+}
+
+export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
+  const insets = useSafeAreaInsets();
+  const { theme } = useAppTheme();
+  const { getValues, updateField } = useCostSettings();
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const dailyDate = todayIso();
+  const dailyValues = getValues('day', dailyDate);
+  const hasDailyData = Boolean(dailyValues.estar.trim() || dailyValues.other.trim());
+
+  const handleDailyDataSubmit = useCallback(
+    (values: NativeDailyDataValues) => {
+      const date = todayIso();
+      updateField('day', date, 'estar', values.estar);
+      updateField('day', date, 'other', values.other);
+    },
+    [updateField],
+  );
+
+  const header = (
+    <NativeGlassHeader
+      leftActions={
+        <View style={styles.headerLeadingActions}>
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Registrar"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={onBack}
+            size={theme.sizes.iconMedium}
+          />
+        </View>
+      }
+      mode="transparent"
+      rightActions={
+        <View style={styles.headerTrailingActions}>
+          <NativeGlassIconButton
+            accessibilityLabel="Mais opÃ§Ãµes de dados diÃ¡rios"
+            color={theme.colors.textPrimary}
+            containerSize={44}
+            fallbackIcon="ellipsis-horizontal"
+            interactiveGlass
+            onPress={() => undefined}
+            size={20}
+            systemImage="ellipsis"
+          />
+        </View>
+      }
+      title={'Dados Di\u00e1rios'}
+    />
+  );
+
+  return (
+    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+      <PremiumScreen
+        contentContainerStyle={styles.dailyDataContent}
+        overlayHeader={header}
+        progressiveBlur
+      >
+        {hasDailyData ? (
+          <View style={[styles.dailyDataList, { gap: theme.spacing.sm }]}>
+            <PremiumCard
+              style={[styles.dailyDataCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+            >
+              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                {formatDeliveryDate(dailyDate)}
+              </Text>
+              <View style={styles.dailyDataRows}>
+                <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
+                <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
+              </View>
+            </PremiumCard>
+          </View>
+        ) : null}
+      </PremiumScreen>
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View
+          style={[
+            styles.floatingAdd,
+            {
+              bottom: Math.max(0, insets.bottom - theme.spacing.xs),
+            },
+          ]}
+        >
+          <NativeGlassIconButton
+            accessibilityLabel="Adicionar dados diÃ¡rios"
+            color={theme.colors.textPrimary}
+            containerSize={56}
+            containerWidth={116}
+            interactiveGlass
+            label="Adicionar"
+            onPress={() => setSheetVisible(true)}
+            shape="capsule"
+          />
+        </View>
+      </View>
+      <NativeDailyDataSheet
+        initialValues={{ estar: dailyValues.estar, other: dailyValues.other }}
+        onSubmit={handleDailyDataSubmit}
+        onVisibleChange={setSheetVisible}
+        visible={sheetVisible}
+      />
+    </View>
+  );
+}
+
+export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
-  const [isSelectionMode, setSelectionMode] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
   const dark = colorScheme === 'dark';
   const { clients } = useClients();
@@ -46,26 +238,7 @@ export default function PrototypeRegistrar() {
       })),
     [clients],
   );
-  const [sheetMode, setSheetMode] = useState<'add' | 'edit'>('add');
-  const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<NativeBottomSheetItem | null>(null);
-  const [editingQuantity, setEditingQuantity] = useState<number | undefined>(undefined);
-  const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
-  const selectionProgress = useSharedValue(0);
-  useEffect(() => {
-    selectionProgress.value = withSpring(
-      isSelectionMode ? 1 : 0,
-      theme.animations.spring.responsive,
-    );
-  }, [isSelectionMode, selectionProgress, theme.animations.spring.responsive]);
-  const selectionIndicatorAnimatedStyle = useAnimatedStyle(() => ({
-    marginRight: selectionProgress.value * 12,
-    opacity: selectionProgress.value,
-    width: selectionProgress.value * 24,
-  }));
   const deliveries = useSyncExternalStore(
     subscribeToAddedHistoryDeliveries,
     getAddedHistoryDeliveries,
@@ -74,8 +247,6 @@ export default function PrototypeRegistrar() {
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());
-      setSelectionMode(false);
-      setSelectedDeliveryIds(new Set());
 
       const refreshDate = setInterval(() => setCurrentDate(todayIso()), 60_000);
       return () => clearInterval(refreshDate);
@@ -87,124 +258,48 @@ export default function PrototypeRegistrar() {
   );
   const openSheet = () => {
     triggerLightImpactHaptic();
-    setSheetMode('add');
-    setEditingDeliveryId(null);
-    setEditingItem(null);
-    setEditingQuantity(undefined);
     setSheetVisible(true);
   };
   const handleConfirm = (confirmation: Parameters<typeof addHistoryDelivery>[0]) => {
-    if (editingDeliveryId) {
-      updateAddedHistoryDeliveryQuantity(
-        editingDeliveryId,
-        confirmation.quantity,
-        confirmation.bucketPrice,
-      );
-    } else {
-      addHistoryDelivery(confirmation);
-    }
-    setEditingDeliveryId(null);
-    setEditingItem(null);
-    setEditingQuantity(undefined);
+    addHistoryDelivery(confirmation);
     setSheetVisible(false);
   };
-  const handleTopMenuPress = useCallback(() => {
+  const handleDeleteBySwipe = useCallback((deliveryId: string) => {
     triggerLightImpactHaptic();
-    setSelectedDeliveryIds(new Set());
-    setSelectionMode((current) => !current);
+    removeAddedHistoryDeliveries(new Set([deliveryId]));
   }, []);
-  const handleDeleteSelected = useCallback(() => {
-    triggerLightImpactHaptic();
-    removeAddedHistoryDeliveries(selectedDeliveryIds);
-    setSelectedDeliveryIds(new Set());
-    setSelectionMode(false);
-  }, [selectedDeliveryIds]);
-  const handleEditSelected = useCallback(() => {
-    if (selectedDeliveryIds.size !== 1) return;
-
-    const deliveryId = [...selectedDeliveryIds][0];
-    const delivery = todayDeliveries.find((item) => item.id === deliveryId);
-    if (!delivery) return;
-
-    triggerLightImpactHaptic();
-    const item = clientItems.find((candidate) => candidate.title === delivery.cliente) ?? {
-      id: delivery.id,
-      title: delivery.cliente,
-      systemImage: 'person.crop.circle.fill',
-    };
-    setEditingDeliveryId(delivery.id);
-    setEditingItem(item);
-    setEditingQuantity(delivery.quantidadeBaldes);
-    setSheetMode('edit');
-    setSelectedDeliveryIds(new Set());
-    setSelectionMode(false);
-    setSheetVisible(true);
-  }, [clientItems, selectedDeliveryIds, todayDeliveries]);
   const handleSheetVisibleChange = useCallback((visible: boolean) => {
     setSheetVisible(visible);
-    if (!visible) {
-      setEditingDeliveryId(null);
-      setEditingItem(null);
-      setEditingQuantity(undefined);
-      setSheetMode('add');
-    }
   }, []);
-  const toggleDeliverySelection = useCallback((deliveryId: string) => {
-    setSelectedDeliveryIds((current) => {
-      const next = new Set(current);
-      if (next.has(deliveryId)) {
-        next.delete(deliveryId);
-      } else {
-        next.add(deliveryId);
-      }
-      return next;
-    });
-  }, []);
+  const nativeDeliveryItems = useMemo<NativeSwipeActionsListItem[]>(
+    () =>
+      [...todayDeliveries].reverse().map((delivery) => ({
+        id: delivery.id,
+        overline: formatDeliveryDate(delivery.data),
+        subtitle: `${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`,
+        title: delivery.cliente,
+        trailingText: delivery.valor,
+      })),
+    [todayDeliveries],
+  );
 
   const header = (
     <NativeGlassHeader
       includeTopSafeArea
       leftActions={
-        isSelectionMode ? (
-          <View style={styles.headerLeadingActions}>
-            <NativeGlassIconButton
-              accessibilityLabel="Editar quantidade"
-              color={dark ? '#FFFFFF' : '#000000'}
-              fallbackIcon="create-outline"
-              onPress={handleEditSelected}
-              size={20}
-              systemImage="pencil"
-              containerSize={44}
-              interactiveGlass
-            />
-          </View>
-        ) : (
-          <View style={styles.headerActionSpacer} />
-        )
+        <View style={styles.deliveryHeaderLeadingActions}>
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Registrar"
+            color={dark ? '#FFFFFF' : '#000000'}
+            containerSize={44}
+            onPress={onBack}
+            size={20}
+          />
+        </View>
       }
       mode="transparent"
       pointerEvents="box-none"
-      rightActions={
-        <NativeGlassActionGroup
-          color={dark ? '#FFFFFF' : '#000000'}
-          leadingAccessibilityLabel="Adicionar"
-          leadingFallbackIcon="add"
-          leadingSystemImage="plus"
-          onLeadingPress={openSheet}
-          onTrailingPress={handleTopMenuPress}
-          selectionAction={{
-            accessibilityLabel: 'Excluir selecionados',
-            fallbackIcon: 'trash-outline',
-            onPress: handleDeleteSelected,
-            systemImage: 'trash',
-          }}
-          selectionMode={isSelectionMode}
-          trailingAccessibilityLabel="Selecionar entregas"
-          trailingFallbackIcon="ellipsis-horizontal"
-          trailingSystemImage="ellipsis"
-        />
-      }
-      title="Registrar"
+      title="Entregas"
     />
   );
 
@@ -223,75 +318,51 @@ export default function PrototypeRegistrar() {
             <PremiumCard
               style={[styles.deliveryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
-              {[...todayDeliveries].reverse().map((delivery) => (
-                <AnimatedPressable
-                  key={delivery.id}
-                  onPress={isSelectionMode ? () => toggleDeliverySelection(delivery.id) : undefined}
-                  style={styles.deliveryRow}
-                >
-                  <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                    {formatDeliveryDate(delivery.data)}
-                  </Text>
-                  <View style={styles.deliverySummary}>
-                    <View style={styles.deliveryLeading}>
-                      <Animated.View
-                        style={[
-                          styles.selectionIndicator,
-                          selectionIndicatorAnimatedStyle,
-                          {
-                            backgroundColor: selectedDeliveryIds.has(delivery.id)
-                              ? theme.colors.selectionSurface
-                              : 'transparent',
-                            borderColor: selectedDeliveryIds.has(delivery.id)
-                              ? theme.colors.selectionSurface
-                              : theme.colors.borderStrong,
-                          },
-                        ]}
-                      >
-                        {selectedDeliveryIds.has(delivery.id) ? (
-                          <Text
-                            style={[
-                              styles.selectionCheck,
-                              { color: theme.colors.selectionContent },
-                            ]}
-                          >
-                            ✓
-                          </Text>
-                        ) : null}
-                      </Animated.View>
-                      <View style={styles.deliveryInfo}>
-                        <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                          {delivery.cliente}
-                        </Text>
-                        <Text
-                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-                        >
-                          {delivery.quantidadeBaldes}{' '}
-                          {delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                      {delivery.valor}
-                    </Text>
-                  </View>
-                </AnimatedPressable>
-              ))}
+              <NativeSwipeActionsList
+                colors={{
+                  border: theme.colors.borderStrong,
+                  selectionContent: theme.colors.selectionContent,
+                  selectionSurface: theme.colors.selectionSurface,
+                  textPrimary: theme.colors.textPrimary,
+                  textSecondary: theme.colors.textSecondary,
+                }}
+                items={nativeDeliveryItems}
+                onDelete={handleDeleteBySwipe}
+                trailingValueAlignment="top"
+              />
             </PremiumCard>
           ) : null}
         </View>
       </PremiumScreen>
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View
+          style={[
+            styles.floatingAdd,
+            {
+              bottom: Math.max(0, insets.bottom - theme.spacing.xs),
+            },
+          ]}
+        >
+          <NativeGlassIconButton
+            accessibilityLabel="Adicionar entrega"
+            color={dark ? '#FFFFFF' : '#000000'}
+            containerSize={56}
+            containerWidth={116}
+            interactiveGlass
+            label="Adicionar"
+            onPress={openSheet}
+            shape="capsule"
+          />
+        </View>
+      </View>
       {ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET ? (
         <NativeSequentialBottomSheet
           bucketPrice={BUCKET_PRICE}
           items={clientItems}
           onConfirm={handleConfirm}
           onVisibleChange={handleSheetVisibleChange}
-          initialQuantity={editingQuantity}
-          initialSelectedItem={editingItem}
-          initialStep={editingItem ? 'form' : 'list'}
-          title={sheetMode === 'edit' ? 'Editar entrega' : 'Adicionar entrega'}
-          titleSystemImage={sheetMode === 'edit' ? 'pencil' : 'plus'}
+          title="Adicionar entrega"
+          titleSystemImage="plus"
           subtitle="Escolha o cliente"
           visible={sheetVisible}
         />
@@ -301,11 +372,8 @@ export default function PrototypeRegistrar() {
           items={clientItems}
           onConfirm={handleConfirm}
           onVisibleChange={handleSheetVisibleChange}
-          initialQuantity={editingQuantity}
-          presentationStep={editingItem ? 'form' : undefined}
-          selectedItem={editingItem}
-          title={sheetMode === 'edit' ? 'Editar entrega' : 'Adicionar entrega'}
-          titleSystemImage={sheetMode === 'edit' ? 'pencil' : 'plus'}
+          title="Adicionar entrega"
+          titleSystemImage="plus"
           subtitle="Escolha o cliente"
           visible={sheetVisible}
         />
@@ -319,24 +387,43 @@ function formatDeliveryDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
+function formatStoredCost(value: string): string {
+  return formatCurrency(normalizeMoney(value) ?? 0);
+}
+
+function DailyDataRow({ label, value }: { label: string; value: string }) {
+  const { theme } = useAppTheme();
+
+  return (
+    <View style={styles.dailyDataRow}>
+      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
+      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  headerActionSpacer: { width: 112 },
-  headerLeadingActions: { alignItems: 'flex-start', width: 112 },
+  modeSelectionContent: { flexGrow: 1 },
+  modeSelection: { flex: 1 },
+  widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
+  widgetCard: { width: 178 },
+  widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  widgetCopy: { gap: 8, marginTop: 12 },
+  dailyDataContent: { flexGrow: 1 },
+  floatingAdd: {
+    alignItems: 'center',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+  },
+  dailyDataList: { paddingHorizontal: 16, paddingTop: 28 },
+  dailyDataCard: { gap: 16 },
+  dailyDataRows: { gap: 12 },
+  dailyDataRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  headerLeadingActions: { alignItems: 'flex-start', width: 104 },
+  headerTrailingActions: { alignItems: 'flex-end', width: 104 },
+  deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8 },
-  deliveryRow: { gap: 8, paddingVertical: 8 },
-  deliverySummary: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  deliveryLeading: { alignItems: 'center', flexDirection: 'row' },
-  deliveryInfo: { gap: 2 },
-  selectionIndicator: {
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    height: 24,
-    justifyContent: 'center',
-    marginRight: 12,
-    width: 24,
-  },
-  selectionCheck: { fontSize: 15, fontWeight: '700', lineHeight: 18 },
 });

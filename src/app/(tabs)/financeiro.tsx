@@ -24,6 +24,14 @@ function PreviewIcon({
   return <Ionicons color={color} name={name} size={theme.sizes.iconMedium} />;
 }
 
+function monthShortLabel(month: number): string {
+  return (
+    ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
+      month - 1
+    ] ?? String(month)
+  );
+}
+
 export default function PrototypeFinanceiro() {
   const { resolvedMode, theme } = useAppTheme();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
@@ -33,11 +41,14 @@ export default function PrototypeFinanceiro() {
       rightActions={
         <NativePeriodActionGroup
           color={theme.colors.textPrimary}
+          monthDisplayValue={monthShortLabel(selectedMonth)}
           monthItems={HISTORY_MONTH_ITEMS}
           onMonthChange={setSelectedMonth}
           onYearChange={setSelectedYear}
           selectedMonth={selectedMonth}
           selectedYear={selectedYear}
+          showValues
+          valueFontSize={17}
           yearItems={getHistoryYearItems()}
         />
       }

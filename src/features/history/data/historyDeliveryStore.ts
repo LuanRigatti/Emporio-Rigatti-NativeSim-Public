@@ -3,11 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NativeBottomSheetConfirmation } from '@/components/native';
 import { formatCurrency, normalizeClientKey, normalizeMoney } from '@/utils/data';
 
-import type { HistoryDelivery } from './historyMocks';
+import { historyMockDeliveries, type DeliveryStatus, type HistoryDelivery } from './historyMocks';
 
 let addedDeliveries: readonly HistoryDelivery[] = [];
+let statusOverrides: Readonly<Record<string, DeliveryStatus>> = {};
+let historyDeliveriesSnapshot: readonly HistoryDelivery[] = historyMockDeliveries;
 const listeners = new Set<() => void>();
 const STORAGE_KEY = '@pareact/history-added-deliveries';
+const STATUS_STORAGE_KEY = '@pareact/history-delivery-statuses';
 let hasLocalMutation = false;
 let storageWriteQueue = Promise.resolve();
 
@@ -22,15 +25,43 @@ function persistDeliveries() {
     .catch(() => undefined);
 }
 
+function persistStatusOverrides() {
+  const serialized = JSON.stringify(statusOverrides);
+  storageWriteQueue = storageWriteQueue
+    .then(() => AsyncStorage.setItem(STATUS_STORAGE_KEY, serialized))
+    .catch(() => undefined);
+}
+
+function rebuildHistorySnapshot() {
+  historyDeliveriesSnapshot = [...addedDeliveries, ...historyMockDeliveries].map((delivery) => ({
+    ...delivery,
+    status: statusOverrides[delivery.id] ?? delivery.status,
+  }));
+}
+
 async function restoreAddedDeliveries() {
   try {
-    const serialized = await AsyncStorage.getItem(STORAGE_KEY);
+    const [serialized, serializedStatuses] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEY),
+      AsyncStorage.getItem(STATUS_STORAGE_KEY),
+    ]);
     if (serialized && !hasLocalMutation) {
       const restored = JSON.parse(serialized) as unknown;
       if (Array.isArray(restored)) {
         addedDeliveries = restored as HistoryDelivery[];
       }
     }
+    if (serializedStatuses) {
+      const restoredStatuses = JSON.parse(serializedStatuses) as unknown;
+      if (
+        restoredStatuses &&
+        typeof restoredStatuses === 'object' &&
+        !Array.isArray(restoredStatuses)
+      ) {
+        statusOverrides = restoredStatuses as Record<string, DeliveryStatus>;
+      }
+    }
+    rebuildHistorySnapshot();
   } catch {
     // In-memory state remains the safe fallback when persistence is unavailable.
   } finally {
@@ -59,7 +90,7 @@ export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation):
 
   const clientKey = normalizeClientKey(delivery.cliente);
   const matchingDeliveries = addedDeliveries.filter(
-    (item) => normalizeClientKey(item.cliente) === clientKey,
+    (item) => normalizeClientKey(item.cliente) === clientKey && item.data === delivery.data,
   );
 
   if (matchingDeliveries.length > 0) {
@@ -76,7 +107,7 @@ export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation):
     };
 
     addedDeliveries = addedDeliveries.reduce<HistoryDelivery[]>((result, item) => {
-      if (normalizeClientKey(item.cliente) !== clientKey) {
+      if (normalizeClientKey(item.cliente) !== clientKey || item.data !== delivery.data) {
         result.push(item);
       } else if (item.id === firstMatch.id) {
         result.push(mergedDelivery);
@@ -88,6 +119,7 @@ export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation):
   }
   hasLocalMutation = true;
   persistDeliveries();
+  rebuildHistorySnapshot();
   notifyListeners();
   return delivery;
 }
@@ -98,6 +130,7 @@ export function removeAddedHistoryDeliveries(ids: ReadonlySet<string>): void {
   addedDeliveries = addedDeliveries.filter((delivery) => !ids.has(delivery.id));
   hasLocalMutation = true;
   persistDeliveries();
+  rebuildHistorySnapshot();
   notifyListeners();
 }
 
@@ -121,6 +154,7 @@ export function updateAddedHistoryDeliveryQuantity(
   );
   hasLocalMutation = true;
   persistDeliveries();
+  rebuildHistorySnapshot();
   notifyListeners();
 }
 
@@ -129,8 +163,39 @@ export function subscribeToAddedHistoryDeliveries(listener: () => void): () => v
   return () => listeners.delete(listener);
 }
 
+export function subscribeToHistoryDeliveries(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function getAddedHistoryDeliveries(): readonly HistoryDelivery[] {
   return addedDeliveries;
+}
+
+export function getHistoryDeliveries(): readonly HistoryDelivery[] {
+  return historyDeliveriesSnapshot;
+}
+
+export function toggleHistoryDeliveryStatus(deliveryId: string): void {
+  const current = historyDeliveriesSnapshot.find((delivery) => delivery.id === deliveryId);
+  if (!current) return;
+
+  const nextStatus: DeliveryStatus = current.status === 'pendente' ? 'concluída' : 'pendente';
+  const isAddedDelivery = addedDeliveries.some((delivery) => delivery.id === deliveryId);
+
+  if (isAddedDelivery) {
+    addedDeliveries = addedDeliveries.map((delivery) =>
+      delivery.id === deliveryId ? { ...delivery, status: nextStatus } : delivery,
+    );
+    hasLocalMutation = true;
+    persistDeliveries();
+  } else {
+    statusOverrides = { ...statusOverrides, [deliveryId]: nextStatus };
+    persistStatusOverrides();
+  }
+
+  rebuildHistorySnapshot();
+  notifyListeners();
 }
 
 void restoreAddedDeliveries();

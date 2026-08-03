@@ -51,7 +51,7 @@ export function SplashFallback({ phase }: SplashVisualProps) {
       ]}
     >
       <Animated.View style={[styles.content, contentStyle]}>
-        <AppLogo />
+        <AppLogo size={540} variant="splash" />
       </Animated.View>
     </View>
   );

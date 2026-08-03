@@ -1,47 +1,41 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeGlassIconButton } from '@/components/native';
+import {
+  NativeGlassBackButton,
+  NativeSwipeActionsList,
+  type NativeSwipeActionsListItem,
+} from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
-import { OpenPaymentRow } from '@/features/open-payments/components/OpenPaymentRow';
 import { openPaymentPreview } from '@/features/open-payments/data/openPaymentPreview';
 
 export function InvoicesScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const [invoiceItems, setInvoiceItems] = useState(() => [...openPaymentPreview]);
-  const [isSelectionMode, setSelectionMode] = useState(false);
-  const [selectedClients, setSelectedClients] = useState<ReadonlySet<string>>(() => new Set());
 
-  const handleCheckPress = useCallback(() => {
+  const nativeInvoiceItems = useMemo<NativeSwipeActionsListItem[]>(
+    () =>
+      invoiceItems.map((item) => ({
+        id: item.client,
+        overline: item.date,
+        subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
+        title: item.client,
+        trailingSystemImage: 'exclamationmark.circle',
+        trailingSystemImageColor: theme.colors.warning,
+        trailingText: item.amount,
+      })),
+    [invoiceItems, theme.colors.warning],
+  );
+
+  const handleInvoiceSwipe = useCallback((client: string) => {
     triggerLightImpactHaptic();
-
-    if (!isSelectionMode) {
-      setSelectedClients(new Set());
-      setSelectionMode(true);
-      return;
-    }
-
-    setInvoiceItems((current) => current.filter((item) => !selectedClients.has(item.client)));
-    setSelectedClients(new Set());
-    setSelectionMode(false);
-  }, [isSelectionMode, selectedClients]);
-
-  const toggleClientSelection = useCallback((client: string) => {
-    setSelectedClients((current) => {
-      const next = new Set(current);
-      if (next.has(client)) {
-        next.delete(client);
-      } else {
-        next.add(client);
-      }
-      return next;
-    });
+    setInvoiceItems((current) => current.filter((item) => item.client !== client));
   }, []);
 
   const header = (
@@ -56,18 +50,6 @@ export function InvoicesScreen() {
         />
       }
       mode="transparent"
-      rightActions={
-        <NativeGlassIconButton
-          accessibilityLabel={isSelectionMode ? 'Confirmar notas emitidas' : 'Selecionar notas'}
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon={isSelectionMode ? 'checkmark' : 'ellipsis-horizontal'}
-          interactiveGlass
-          onPress={handleCheckPress}
-          size={theme.sizes.iconMedium}
-          systemImage={isSelectionMode ? 'checkmark' : 'ellipsis'}
-        />
-      }
       title="Notas fiscais/boletos"
     />
   );
@@ -86,17 +68,23 @@ export function InvoicesScreen() {
           <GlassCard
             style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
           >
-            {invoiceItems.map((item) => (
-              <View key={item.client}>
-                <OpenPaymentRow
-                  item={item}
-                  onPress={isSelectionMode ? () => toggleClientSelection(item.client) : undefined}
-                  selected={selectedClients.has(item.client)}
-                  selectionMode={isSelectionMode}
-                  showInvoiceStatusIcon
-                />
-              </View>
-            ))}
+            <NativeSwipeActionsList
+              action={{
+                label: 'Emitido',
+                systemImage: 'checkmark.seal.fill',
+                tint: theme.colors.success,
+              }}
+              colors={{
+                border: theme.colors.borderStrong,
+                selectionContent: theme.colors.selectionContent,
+                selectionSurface: theme.colors.selectionSurface,
+                textPrimary: theme.colors.textPrimary,
+                textSecondary: theme.colors.textSecondary,
+              }}
+              items={nativeInvoiceItems}
+              onDelete={handleInvoiceSwipe}
+              trailingValueAlignment="top"
+            />
           </GlassCard>
         </View>
       ) : null}

@@ -1,1 +1,5 @@
-export type { NativeDatePickerMode, NativeDatePickerProps } from '@/types/native-ui';
+export type {
+  NativeDatePickerMode,
+  NativeDatePickerProps,
+  NativeDatePickerStyle,
+} from '@/types/native-ui';

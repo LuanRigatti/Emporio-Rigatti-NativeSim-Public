@@ -18,9 +18,12 @@ import type { NativeDropdownItem, NativeDropdownVariant } from './NativeDropdown
 export type NativeDropdownMenuSwiftUIProps<T extends string | number> = {
   accessibilityLabel?: string;
   color?: string;
+  compact?: boolean;
   disabled?: boolean;
   displayValue: string;
+  fontSize?: number;
   hapticOnOpen?: () => void;
+  hideChevron?: boolean;
   iconOnly?: boolean;
   items: readonly NativeDropdownItem<T>[];
   leadingSystemImage?: string;
@@ -32,9 +35,12 @@ export type NativeDropdownMenuSwiftUIProps<T extends string | number> = {
 export function NativeDropdownMenuSwiftUI<T extends string | number>({
   accessibilityLabel: label,
   color,
+  compact = false,
   disabled = false,
   displayValue,
+  fontSize = 15,
   hapticOnOpen,
+  hideChevron = false,
   iconOnly = false,
   items,
   leadingSystemImage,
@@ -42,7 +48,7 @@ export function NativeDropdownMenuSwiftUI<T extends string | number>({
   variant,
 }: NativeDropdownMenuSwiftUIProps<T>) {
   const triggerModifiers = [
-    padding({ horizontal: 12, vertical: 10 }),
+    padding({ horizontal: compact ? 6 : 12, vertical: 10 }),
     frame({ minHeight: 44, minWidth: iconOnly ? 44 : undefined }),
     ...(variant === 'glass'
       ? [
@@ -68,14 +74,16 @@ export function NativeDropdownMenuSwiftUI<T extends string | number>({
         <Text
           modifiers={[
             fixedSize({ horizontal: true, vertical: false }),
-            font({ size: 15, weight: 'medium' }),
+            font({ size: fontSize, weight: 'medium' }),
             ...(color ? [foregroundColor(color)] : []),
           ]}
         >
           {displayValue}
         </Text>
       )}
-      {iconOnly ? null : <Image color={color} size={14} systemName={'chevron.down' as SFSymbol} />}
+      {iconOnly || hideChevron ? null : (
+        <Image color={color} size={14} systemName={'chevron.down' as SFSymbol} />
+      )}
     </HStack>
   );
 

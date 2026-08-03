@@ -68,37 +68,51 @@ function DateCell({
     <View
       key={day.date}
       style={[
-        styles.surface,
+        styles.shadow,
         {
-          backgroundColor: theme.colors.glassSurface,
           borderRadius: theme.radius.pill,
+          elevation: 1,
+          shadowColor: theme.colors.textPrimary,
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.12,
+          shadowRadius: 3,
         },
       ]}
     >
-      <Pressable
-        accessibilityLabel={`${day.weekday}, dia ${day.dayNumber}`}
-        accessibilityRole="button"
-        accessibilityState={{ selected }}
-        onPress={() => {
-          if (!selected) {
-            triggerSelectionHaptic();
-          }
-          onSelectDate(day.date);
-        }}
-        style={styles.button}
+      <View
+        style={[
+          styles.surface,
+          {
+            backgroundColor: theme.colors.surface,
+            borderRadius: theme.radius.pill,
+          },
+        ]}
       >
-        <Animated.View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, selectionBackgroundStyle]}
-        />
-        <Animated.Text style={[styles.weekday, weekdayStyle]}>{day.weekday}</Animated.Text>
-        <Animated.Text style={[styles.dayNumber, dayNumberStyle]}>{day.dayNumber}</Animated.Text>
-        {day.hasDeliveries ? (
+        <Pressable
+          accessibilityLabel={`${day.weekday}, dia ${day.dayNumber}`}
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          onPress={() => {
+            if (!selected) {
+              triggerSelectionHaptic();
+            }
+            onSelectDate(day.date);
+          }}
+          style={styles.button}
+        >
           <Animated.View
-            style={[styles.dot, { backgroundColor: theme.colors.success }, deliveryDotStyle]}
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, selectionBackgroundStyle]}
           />
-        ) : null}
-      </Pressable>
+          <Animated.Text style={[styles.weekday, weekdayStyle]}>{day.weekday}</Animated.Text>
+          <Animated.Text style={[styles.dayNumber, dayNumberStyle]}>{day.dayNumber}</Animated.Text>
+          {day.hasDeliveries ? (
+            <Animated.View
+              style={[styles.dot, { backgroundColor: theme.colors.success }, deliveryDotStyle]}
+            />
+          ) : null}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -115,6 +129,7 @@ export default function NativeDateSelectorFallback(props: NativeDateSelectorProp
 }
 
 const styles = StyleSheet.create({
+  shadow: { alignSelf: 'flex-start' },
   surface: { alignSelf: 'flex-start', height: DAY_HEIGHT, overflow: 'hidden', width: DAY_WIDTH },
   button: {
     alignItems: 'center',

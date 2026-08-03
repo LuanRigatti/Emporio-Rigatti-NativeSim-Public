@@ -19,52 +19,59 @@ export function ProfileHeader() {
       >
         PERFIL
       </Text>
-      <GlassSurface
-        glassEffectStyle="none"
-        accessibilityLabel="Perfil de João Silva, joao@email.com"
+      <View
         style={[
-          styles.container,
-          {
-            backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
-            borderWidth: 0,
-            borderRadius: theme.radius.xl + theme.spacing.xs,
-            padding: theme.spacing.md,
-          },
+          { borderRadius: theme.radius.xl + theme.spacing.xs },
+          resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
         ]}
       >
-        <View
+        <GlassSurface
+          glassEffectStyle="none"
+          accessibilityLabel="Perfil de João Silva, joao@email.com"
           style={[
-            styles.avatar,
+            styles.container,
             {
-              backgroundColor: theme.colors.brand,
-              borderRadius: theme.radius.pill,
-              height: 56,
-              width: 56,
+              backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+              borderWidth: 0,
+              borderRadius: theme.radius.xl + theme.spacing.xs,
+              padding: theme.spacing.md,
             },
           ]}
         >
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: theme.colors.brand,
+                borderRadius: theme.radius.pill,
+                height: 56,
+                width: 56,
+              },
+            ]}
+          >
+            <SettingsIcon
+              color={theme.colors.brandStrong}
+              fallbackIcon="person-circle-outline"
+              size={34}
+              systemName="person.crop.circle.fill"
+            />
+          </View>
+          <View style={styles.content}>
+            <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+              João Silva
+            </Text>
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              joao@email.com
+            </Text>
+          </View>
           <SettingsIcon
-            color={theme.colors.brandStrong}
-            fallbackIcon="person-circle-outline"
-            size={34}
-            systemName="person.crop.circle.fill"
+            color={theme.colors.textTertiary}
+            fallbackIcon="chevron-forward"
+            size={theme.sizes.iconSmall}
+            systemName="chevron.right"
           />
-        </View>
-        <View style={styles.content}>
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-            João Silva
-          </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            joao@email.com
-          </Text>
-        </View>
-        <SettingsIcon
-          color={theme.colors.textTertiary}
-          fallbackIcon="chevron-forward"
-          size={theme.sizes.iconSmall}
-          systemName="chevron.right"
-        />
-      </GlassSurface>
+        </GlassSurface>
+      </View>
     </View>
   );
 }

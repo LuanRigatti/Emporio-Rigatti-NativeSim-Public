@@ -7,3 +7,12 @@ export { getAvailableRouteDates } from './routeDates';
 export { getKnownClientAddress } from './knownAddresses';
 export { getWebRouteMapState } from './RouteMapService';
 export type { WebRouteMapState, WebRouteMapStateInput } from './RouteMapService';
+export {
+  LocationTrackingService,
+  RouteTrackingError,
+  locationTrackingService,
+  routeLocationTaskOptions,
+} from './LocationTrackingService';
+export { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
+export { RouteTrackingRepository, routeTrackingRepository } from './RouteTrackingRepository';
+export { appendValidLocationSamples, calculateDistanceMeters } from './routeTrackingMath';

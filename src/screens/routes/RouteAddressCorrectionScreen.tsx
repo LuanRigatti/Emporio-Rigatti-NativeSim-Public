@@ -15,6 +15,7 @@ import {
 } from '@/components';
 import { useRoute } from '@/hooks/useRoute';
 import type { DeliveriesStackParamList } from '@/navigation/types';
+import { locationTrackingService } from '@/services/routes';
 import {
   ROUTE_MAP_DEFAULT_CENTER,
   type RouteAddressResolution,
@@ -70,6 +71,7 @@ export function RouteAddressCorrectionScreen({ navigation, route }: Props) {
         });
         return;
       }
+      await locationTrackingService.startRouteTracking(nextSession.id);
       navigation.replace('RouteMap', { sessionId: nextSession.id });
     } catch (correctionError) {
       setActionError(

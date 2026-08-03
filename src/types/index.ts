@@ -7,4 +7,5 @@ export type {
   NotificationStatus,
 } from './notifications';
 export * from './route';
+export * from './routeTracking';
 export * from './native-ui';

@@ -25,6 +25,7 @@ import {
   createRouteLocation,
   createRoutePlanFromPreset,
   getAvailableRouteDates,
+  locationTrackingService,
 } from '@/services/routes';
 import {
   ROUTE_BASE_ADDRESS,
@@ -119,6 +120,7 @@ export function RouteDayScreen({ navigation, route }: Props) {
           returnTo: 'route',
         });
       } else {
+        await locationTrackingService.startRouteTracking(session.id);
         navigation.navigate('RouteMap', { sessionId: session.id });
       }
     } catch (error) {

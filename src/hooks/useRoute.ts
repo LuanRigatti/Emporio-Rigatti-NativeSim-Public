@@ -1,7 +1,11 @@
 import { useCallback, useState } from 'react';
 
 import { useAuth } from '@/providers';
-import { routeOptimizationService, routeSessionStore } from '@/services/routes';
+import {
+  locationTrackingService,
+  routeOptimizationService,
+  routeSessionStore,
+} from '@/services/routes';
 import { createExpenseMutationService } from '@/services/expenses';
 import { DeliveryMutationService } from '@/services/deliveries/DeliveryMutationService';
 import type { UserDataSnapshot } from '@/services/data';
@@ -95,7 +99,7 @@ export function useRoute(initialSessionId?: string) {
     [session, user],
   );
 
-  const advance = useCallback(() => {
+  const advance = useCallback(async () => {
     if (!session) return undefined;
     const nextIndex = Math.min(session.currentStopIndex + 1, Math.max(session.stops.length - 1, 0));
     const nextSession: RouteSession = {
@@ -105,6 +109,9 @@ export function useRoute(initialSessionId?: string) {
     };
     routeSessionStore.update(nextSession);
     setSession(nextSession);
+    if (nextSession.status === 'completed') {
+      await locationTrackingService.stopRouteTracking(nextSession.id);
+    }
     return nextSession;
   }, [session]);
 

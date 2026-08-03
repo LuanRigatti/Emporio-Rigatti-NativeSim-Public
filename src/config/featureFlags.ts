@@ -10,12 +10,6 @@ export const ENABLE_BIOMETRIC_UNLOCK = false;
 export const ENABLE_PROGRESSIVE_BLUR = true;
 
 /**
- * Enables the two-sheet native Registro flow using the official SDK 57
- * BottomSheet presentation callbacks.
- */
-export const ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET = true;
-
-/**
  * Keeps the Clientes screen on its existing fictitious development data until
  * Firebase Auth and the definitive client database are connected.
  */

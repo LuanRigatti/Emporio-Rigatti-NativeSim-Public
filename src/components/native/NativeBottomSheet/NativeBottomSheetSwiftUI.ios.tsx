@@ -15,8 +15,6 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
-  animation,
-  Animation,
   background,
   buttonStyle,
   contentShape,
@@ -39,53 +37,58 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
+
+import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 
 export default function NativeBottomSheetSwiftUI({
   items,
   bucketPrice = 49.8,
-  onDismiss,
   onSelect,
+  onPageSettled,
   onVisibleChange,
   title,
   visible,
   onConfirm,
-  presentationStep,
   selectedItem: controlledSelectedItem,
   initialQuantity,
 }: NativeBottomSheetProps) {
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
-  const [internalFormVisible, setInternalFormVisible] = useState(false);
-  const selectedItem = controlledSelectedItem ?? items.find((item) => item.id === selectedItemId);
+  const [pageRequestID, setPageRequestID] = useState(0);
+  const selectedItem = controlledSelectedItem ?? null;
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
-  const isFormVisible =
-    presentationStep === 'form' ? true : presentationStep === 'list' ? false : internalFormVisible;
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!visible) {
-      setSelectedItemId(null);
-      setInternalFormVisible(false);
       setBucketQuantity(1);
       setSelectedDate(new Date());
+      setPageRequestID(0);
     }
   }, [visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (visible && presentationStep === 'form' && initialQuantity != null) {
+    if (visible && initialQuantity != null) {
       setBucketQuantity(Math.max(1, Math.round(initialQuantity)));
     }
-  }, [initialQuantity, presentationStep, visible]);
+  }, [initialQuantity, visible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!visible) return;
+    setPageRequestID((requestID) => requestID + 1);
+  }, [controlledSelectedItem?.id, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSelect = (item: (typeof items)[number]) => {
-    setSelectedItemId(item.id);
-    setInternalFormVisible(true);
     onSelect?.(item);
+    if (selectedItem?.id === item.id) {
+      setPageRequestID((requestID) => requestID + 1);
+    }
   };
 
   const titleView = (
@@ -94,15 +97,11 @@ export default function NativeBottomSheetSwiftUI({
       spacing={6}
       modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
     >
-      <Text
-        modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: isFormVisible ? 20 : -6 })]}
-      >
-        {title}
-      </Text>
+      <Text modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: -6 })]}>{title}</Text>
     </HStack>
   );
 
-  const detailView = selectedItem ? (
+  const detailView = (
     <List
       modifiers={[
         listStyle('insetGrouped'),
@@ -130,9 +129,11 @@ export default function NativeBottomSheetSwiftUI({
             <Image
               color="#8B8B93"
               size={32}
-              systemName={(selectedItem.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
+              systemName={(selectedItem?.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
             />
-            <Text modifiers={[font({ size: 18, weight: 'semibold' })]}>{selectedItem.title}</Text>
+            <Text modifiers={[font({ size: 18, weight: 'semibold' })]}>
+              {selectedItem?.title ?? 'Selecione um cliente'}
+            </Text>
           </HStack>
           <Divider />
         </VStack>
@@ -165,6 +166,7 @@ export default function NativeBottomSheetSwiftUI({
                   shape: 'circle',
                 }),
                 accessibilityLabel('Diminuir quantidade'),
+                disabledModifier(!selectedItem),
               ]}
               onPress={() => setBucketQuantity((value) => Math.max(1, value - 1))}
             >
@@ -180,6 +182,7 @@ export default function NativeBottomSheetSwiftUI({
                   shape: 'circle',
                 }),
                 accessibilityLabel('Aumentar quantidade'),
+                disabledModifier(!selectedItem),
               ]}
               onPress={() => setBucketQuantity((value) => value + 1)}
             >
@@ -202,23 +205,28 @@ export default function NativeBottomSheetSwiftUI({
           <Spacer />
           <Button
             label="Confirmar"
-            modifiers={[buttonStyle('glassProminent'), controlSize('large'), padding({ top: 4 })]}
+            modifiers={[
+              buttonStyle('glassProminent'),
+              controlSize('large'),
+              padding({ top: 4 }),
+              disabledModifier(!selectedItem),
+            ]}
             onPress={() => {
-              if (selectedItem) {
-                onConfirm?.({
-                  bucketPrice: effectiveBucketPrice,
-                  client: selectedItem,
-                  date: selectedDate,
-                  quantity: bucketQuantity,
-                });
-              }
+              if (!selectedItem) return;
+
+              onConfirm?.({
+                bucketPrice: effectiveBucketPrice,
+                client: selectedItem,
+                date: selectedDate,
+                quantity: bucketQuantity,
+              });
               onVisibleChange(false);
             }}
           />
         </HStack>
       </VStack>
     </List>
-  ) : null;
+  );
 
   const listView = (
     <VStack alignment="leading" spacing={0} modifiers={[padding({ top: -22 })]}>
@@ -268,53 +276,30 @@ export default function NativeBottomSheetSwiftUI({
       {titleView}
     </ZStack>
   );
+
   const sheetContent = (
     <VStack
       alignment="leading"
-      spacing={isFormVisible ? -4 : 0}
+      spacing={0}
       modifiers={[padding({ horizontal: 0, top: 12, bottom: 6 })]}
     >
-      <Spacer minLength={isFormVisible ? 0 : 16} />
+      <Spacer minLength={16} />
       {headerView()}
-      <ZStack
-        alignment="top"
-        modifiers={[frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'top' })]}
+      <NativeInteractivePager
+        initialPage={0}
+        onPageSettled={({ nativeEvent: { page } }) => onPageSettled?.(page)}
+        requestID={pageRequestID}
+        requestedPage={selectedItem ? 1 : 0}
       >
-        <VStack
-          modifiers={[
-            offset({ y: isFormVisible ? 1000 : 0 }),
-            animation(Animation.easeInOut({ duration: 0.4 }), isFormVisible),
-            disabledModifier(isFormVisible),
-          ]}
-        >
-          {listView}
-        </VStack>
-        <VStack
-          modifiers={[
-            offset({ y: isFormVisible ? 0 : 1000 }),
-            animation(Animation.easeInOut({ duration: 0.4 }), isFormVisible),
-            disabledModifier(!isFormVisible),
-          ]}
-        >
-          {detailView}
-        </VStack>
-      </ZStack>
+        <NativeInteractivePagerPage page={0}>{listView}</NativeInteractivePagerPage>
+        <NativeInteractivePagerPage page={1}>{detailView}</NativeInteractivePagerPage>
+      </NativeInteractivePager>
     </VStack>
   );
 
   return (
     <Host matchContents>
-      <BottomSheet
-        isPresented={visible}
-        onIsPresentedChange={(isPresented) => {
-          if (!isPresented) {
-            setSelectedItemId(null);
-            setInternalFormVisible(false);
-          }
-          onVisibleChange(isPresented);
-        }}
-        onDismiss={onDismiss}
-      >
+      <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
             presentationDetents([{ fraction: 0.54 }, 'large']),

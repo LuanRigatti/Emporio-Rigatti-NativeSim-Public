@@ -11,7 +11,6 @@ import {
   NativeGlassBackButton,
   NativeGlassIconButton,
   NativeSwipeActionsList,
-  NativeSequentialBottomSheet,
 } from '@/components/native';
 import type {
   NativeBottomSheetItem,
@@ -19,7 +18,6 @@ import type {
   NativeSwipeActionsListItem,
 } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
-import { ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET } from '@/config/featureFlags';
 import { useClients } from '@/hooks/useClients';
 import { useCostSettings } from '@/hooks/useCostSettings';
 import { useAppTheme } from '@/theme';
@@ -226,6 +224,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<NativeBottomSheetItem | null>(null);
   const dark = colorScheme === 'dark';
   const { clients } = useClients();
   const clientItems = useMemo<NativeBottomSheetItem[]>(
@@ -258,6 +257,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   );
   const openSheet = () => {
     triggerLightImpactHaptic();
+    setSelectedClient(null);
     setSheetVisible(true);
   };
   const handleConfirm = (confirmation: Parameters<typeof addHistoryDelivery>[0]) => {
@@ -268,8 +268,12 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     triggerLightImpactHaptic();
     removeAddedHistoryDeliveries(new Set([deliveryId]));
   }, []);
+  const handleSelectClient = useCallback((item: NativeBottomSheetItem) => {
+    setSelectedClient(item);
+  }, []);
   const handleSheetVisibleChange = useCallback((visible: boolean) => {
     setSheetVisible(visible);
+    if (!visible) setSelectedClient(null);
   }, []);
   const nativeDeliveryItems = useMemo<NativeSwipeActionsListItem[]>(
     () =>
@@ -355,29 +359,18 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
           />
         </View>
       </View>
-      {ENABLE_NATIVE_SEQUENTIAL_REGISTRO_SHEET ? (
-        <NativeSequentialBottomSheet
-          bucketPrice={BUCKET_PRICE}
-          items={clientItems}
-          onConfirm={handleConfirm}
-          onVisibleChange={handleSheetVisibleChange}
-          title="Adicionar entrega"
-          titleSystemImage="plus"
-          subtitle="Escolha o cliente"
-          visible={sheetVisible}
-        />
-      ) : (
-        <NativeBottomSheet
-          bucketPrice={BUCKET_PRICE}
-          items={clientItems}
-          onConfirm={handleConfirm}
-          onVisibleChange={handleSheetVisibleChange}
-          title="Adicionar entrega"
-          titleSystemImage="plus"
-          subtitle="Escolha o cliente"
-          visible={sheetVisible}
-        />
-      )}
+      <NativeBottomSheet
+        bucketPrice={BUCKET_PRICE}
+        items={clientItems}
+        onConfirm={handleConfirm}
+        onSelect={handleSelectClient}
+        onVisibleChange={handleSheetVisibleChange}
+        selectedItem={selectedClient}
+        title="Adicionar entrega"
+        titleSystemImage="plus"
+        subtitle="Escolha o cliente"
+        visible={sheetVisible}
+      />
     </View>
   );
 }

@@ -9,10 +9,13 @@ export type {
   NativeBottomSheetConfirmation,
   NativeBottomSheetItem,
   NativeBottomSheetProps,
-  NativeBottomSheetStep,
 } from './NativeBottomSheet';
-export { default as NativeSequentialBottomSheet } from './NativeSequentialBottomSheet';
-export type { NativeSequentialBottomSheetProps } from './NativeSequentialBottomSheet';
+export { NativeInteractivePager, NativeInteractivePagerPage } from './NativeInteractivePager';
+export type {
+  NativeInteractivePagerPageProps,
+  NativeInteractivePagerProps,
+  NativeInteractivePagerSettledEvent,
+} from './NativeInteractivePager';
 export { default as NativeDropdown } from './NativeDropdown';
 export type {
   NativeDropdownItem,

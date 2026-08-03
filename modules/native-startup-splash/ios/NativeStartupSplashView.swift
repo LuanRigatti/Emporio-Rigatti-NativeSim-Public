@@ -17,6 +17,8 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
   @State private var revealStarted = false
   @State private var readySent = false
   @State private var completionSent = false
+  @State private var displayImage: UIImage?
+  @State private var maskImage: UIImage?
 
   public init(props: NativeStartupSplashViewProps) {
     self.props = props
@@ -35,6 +37,7 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
           )
         )
         .onAppear {
+          loadMaskImageIfNeeded()
           sendReadyIfNeeded()
           startRevealIfNeeded(in: geometry.size)
         }
@@ -51,7 +54,14 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
     guard !readySent else { return }
 
     readySent = true
-    props.onReady(["ready": splashImage(for: props.colorScheme) != nil])
+    props.onReady(["ready": maskImage != nil])
+  }
+
+  private func loadMaskImageIfNeeded() {
+    guard displayImage == nil, maskImage == nil else { return }
+    guard let image = splashImage(for: props.colorScheme) else { return }
+    displayImage = image
+    maskImage = alphaCroppedImage(image)
   }
 
   @ViewBuilder
@@ -60,20 +70,37 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
       ? Color(red: 11.0 / 255.0, green: 15.0 / 255.0, blue: 20.0 / 255.0)
       : Color.white
 
-    background
-      .overlay {
-        if let image = splashImage(for: props.colorScheme) {
-          Image(uiImage: image)
-            .resizable()
-            .scaledToFill()
-            .frame(width: size.width, height: size.height)
-            .clipped()
-        }
+    ZStack {
+      background.mask(alphaSilhouetteMask(size: size))
+
+      if let displayImage {
+        Image(uiImage: displayImage)
+          .resizable()
+          .scaledToFill()
+          .frame(width: size.width, height: size.height)
+          .clipped()
       }
-      .mask(
-        RevealMask(radius: revealRadius)
-          .fill(style: FillStyle(eoFill: true))
-      )
+    }
+  }
+
+  @ViewBuilder
+  private func alphaSilhouetteMask(size: CGSize) -> some View {
+    ZStack {
+      Color.white
+
+      if let maskImage {
+        Image(uiImage: maskImage)
+          .resizable()
+          .scaledToFit()
+          .frame(
+            width: max(1, revealRadius * 2),
+            height: max(1, revealRadius * 2),
+          )
+          .blendMode(.destinationOut)
+      }
+    }
+    .frame(width: size.width, height: size.height)
+    .compositingGroup()
   }
 
   private func startRevealIfNeeded(in size: CGSize) {
@@ -116,7 +143,69 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
       ?? Bundle.main.url(forResource: fileName, withExtension: nil)
 
     guard let imageURL else { return nil }
-    return UIImage(contentsOfFile: imageURL.path)
+    guard let image = UIImage(contentsOfFile: imageURL.path) else { return nil }
+    return image
+  }
+
+  private func alphaCroppedImage(_ image: UIImage) -> UIImage? {
+    guard let cgImage = image.cgImage else { return image }
+
+    switch cgImage.alphaInfo {
+    case .none, .noneSkipFirst, .noneSkipLast:
+      return image
+    default:
+      break
+    }
+
+    let width = cgImage.width
+    let height = cgImage.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let rendered = pixels.withUnsafeMutableBytes { buffer -> Bool in
+      guard let baseAddress = buffer.baseAddress,
+            let context = CGContext(
+              data: baseAddress,
+              width: width,
+              height: height,
+              bitsPerComponent: 8,
+              bytesPerRow: width * 4,
+              space: CGColorSpaceCreateDeviceRGB(),
+              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+      else {
+        return false
+      }
+
+      context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return true
+    }
+
+    guard rendered else { return image }
+
+    var minX = width
+    var minY = height
+    var maxX = -1
+    var maxY = -1
+
+    for y in 0..<height {
+      for x in 0..<width {
+        if pixels[(y * width + x) * 4 + 3] == 0 { continue }
+        minX = min(minX, x)
+        minY = min(minY, y)
+        maxX = max(maxX, x)
+        maxY = max(maxY, y)
+      }
+    }
+
+    guard maxX >= minX, maxY >= minY else { return nil }
+
+    let cropRect = CGRect(
+      x: minX,
+      y: minY,
+      width: maxX - minX + 1,
+      height: maxY - minY + 1,
+    )
+    guard let cropped = cgImage.cropping(to: cropRect) else { return image }
+    return UIImage(cgImage: cropped, scale: image.scale, orientation: image.imageOrientation)
   }
 }
 
@@ -137,30 +226,5 @@ private struct RevealCompletionModifier: ViewModifier, Animatable {
 
   func body(content: Content) -> some View {
     content
-  }
-}
-
-private struct RevealMask: Shape {
-  var radius: CGFloat
-
-  var animatableData: CGFloat {
-    get { radius }
-    set { radius = newValue }
-  }
-
-  func path(in rect: CGRect) -> Path {
-    var path = Path()
-    path.addRect(rect)
-
-    let center = CGPoint(x: rect.midX, y: rect.midY)
-    let hole = CGRect(
-      x: center.x - radius,
-      y: center.y - radius,
-      width: radius * 2,
-      height: radius * 2,
-    )
-    path.addEllipse(in: hole)
-
-    return path
   }
 }

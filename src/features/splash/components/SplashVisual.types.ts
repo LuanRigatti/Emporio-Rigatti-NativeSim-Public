@@ -1,5 +1,7 @@
-export type SplashPhase = 'entering' | 'visible' | 'exiting';
-
 export type SplashVisualProps = {
-  phase: SplashPhase;
+  colorScheme: 'light' | 'dark';
+  startReveal: boolean;
+  reduceMotion: boolean;
+  onOverlayReady: () => void;
+  onAnimationComplete: () => void;
 };

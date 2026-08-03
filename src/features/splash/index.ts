@@ -1,2 +1,2 @@
 export { SplashGate } from './SplashGate';
-export type { AuthenticationCheck, SplashGateProps } from './SplashGate';
+export type { SplashGateProps } from './SplashGate';

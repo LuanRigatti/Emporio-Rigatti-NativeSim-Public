@@ -1,0 +1,8 @@
+{
+  "name": "native-startup-splash",
+  "version": "0.1.0",
+  "description": "Native SwiftUI startup splash reveal for Expo.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

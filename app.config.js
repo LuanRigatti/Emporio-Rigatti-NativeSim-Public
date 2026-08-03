@@ -42,6 +42,19 @@ module.exports = {
     plugins: [
       'expo-router',
       'expo-font',
+      [
+        'expo-splash-screen',
+        {
+          backgroundColor: '#FFFFFF',
+          dark: {
+            backgroundColor: '#0B0F14',
+            image: './assets/branding/splash-dark.png',
+          },
+          enableFullScreenImage_legacy: true,
+          image: './assets/branding/splash-light.png',
+          resizeMode: 'cover',
+        },
+      ],
       'expo-web-browser',
       'expo-sharing',
       'expo-status-bar',

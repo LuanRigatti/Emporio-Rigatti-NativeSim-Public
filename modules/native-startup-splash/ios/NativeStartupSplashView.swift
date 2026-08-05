@@ -37,8 +37,8 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
           )
         )
         .onAppear {
-          loadMaskImageIfNeeded()
-          sendReadyIfNeeded()
+          let nativeReady = loadMaskImageIfNeeded()
+          sendReadyIfNeeded(ready: nativeReady)
           startRevealIfNeeded(in: geometry.size)
         }
         .onChange(of: props.startReveal) { _ in
@@ -50,18 +50,20 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
     .accessibilityLabel("Empório Rigatti")
   }
 
-  private func sendReadyIfNeeded() {
+  private func sendReadyIfNeeded(ready: Bool? = nil) {
     guard !readySent else { return }
 
     readySent = true
-    props.onReady(["ready": maskImage != nil])
+    props.onReady(["ready": ready ?? (maskImage != nil)])
   }
 
-  private func loadMaskImageIfNeeded() {
-    guard displayImage == nil, maskImage == nil else { return }
-    guard let image = splashImage(for: props.colorScheme) else { return }
+  private func loadMaskImageIfNeeded() -> Bool {
+    guard displayImage == nil, maskImage == nil else { return maskImage != nil }
+    guard let image = splashImage(for: props.colorScheme) else { return false }
+    let croppedMask = alphaCroppedImage(image)
     displayImage = image
-    maskImage = alphaCroppedImage(image)
+    maskImage = croppedMask
+    return croppedMask != nil
   }
 
   @ViewBuilder

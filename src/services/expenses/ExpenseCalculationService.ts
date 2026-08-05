@@ -17,7 +17,6 @@ export const EXPENSE_CUTOFFS = {
 export const EXPENSE_DEFAULTS = {
   bucketCostBeforeCutoff: 32,
   bucketCostFromCutoff: 35,
-  light: 100,
   ethanolKmPerLiter: 5.6,
   gasolineKmPerLiter: 7.4,
 } as const;
@@ -163,9 +162,7 @@ export class ExpenseCalculationService {
     const month = this.normalizeMonth(monthValue, today);
     const record = monthlyExpenses[month];
     const saved = typeof record === 'number' ? record : record?.luz;
-    if (saved === undefined || saved === null) {
-      return month > today.toISOString().slice(0, 7) ? 0 : EXPENSE_DEFAULTS.light;
-    }
+    if (saved === undefined || saved === null) return 0;
     return Math.max(0, safeNumber(saved));
   }
 
@@ -208,6 +205,38 @@ export class ExpenseCalculationService {
     }, 0);
   }
 
+  public calculateLightForDeliveryDays(
+    deliveries: Delivery[],
+    monthlyExpenses: MonthlyExpenses,
+    today = new Date(),
+  ): number {
+    const deliveryDatesByMonth = new Map<string, Set<string>>();
+
+    deliveries.forEach((delivery) => {
+      const date = normalizeLegacyDate(delivery.data);
+      if (!date) return;
+
+      const parsed = parseLocalDate(date);
+      if (!parsed || ![1, 3, 5].includes(parsed.getDay())) return;
+
+      const month = date.slice(0, 7);
+      const dates = deliveryDatesByMonth.get(month) ?? new Set<string>();
+      dates.add(date);
+      deliveryDatesByMonth.set(month, dates);
+    });
+
+    return Array.from(deliveryDatesByMonth.entries()).reduce((total, [month, dates]) => {
+      const [year, monthNumber] = month.split('-').map(Number);
+      const workingDays = this.countWorkingDays(year, monthNumber - 1);
+      if (workingDays === 0) return total;
+
+      return (
+        total +
+        (this.calculateMonthlyLight(month, monthlyExpenses, today) * dates.size) / workingDays
+      );
+    }, 0);
+  }
+
   public calculateLightForPeriod(
     deliveries: Delivery[],
     monthlyExpenses: MonthlyExpenses,
@@ -247,6 +276,7 @@ export class ExpenseCalculationService {
   ): ExpenseSummary {
     const dates = dailyExpenseDates(expenses, startDate, endDate);
     const estar = dates.reduce((total, date) => total + safeNumber(expenses[date]?.estar), 0);
+    const outros = dates.reduce((total, date) => total + safeNumber(expenses[date]?.outros), 0);
     const combustivel = dates.reduce(
       (total, date) => total + this.calculateFuelCost(date, expenses[date]),
       0,
@@ -267,8 +297,9 @@ export class ExpenseCalculationService {
     return {
       estar,
       combustivel,
+      outros,
       luz,
-      total: estar + combustivel + luz,
+      total: estar + combustivel + outros + luz,
       custoMedioCombustivelPorEntrega: this.calculateFuelCostPerPeriod(periodDeliveries, expenses),
     };
   }

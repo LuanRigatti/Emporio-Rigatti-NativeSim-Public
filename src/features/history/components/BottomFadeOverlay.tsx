@@ -5,7 +5,7 @@ import { useAppTheme } from '@/theme';
 
 const FADE_STOPS = [1, 0.94, 0.86, 0.76, 0.65, 0.54, 0.43, 0.33, 0.24, 0.16, 0.08, 0];
 
-export const HISTORY_BOTTOM_FADE_HEIGHT = 104;
+export const HISTORY_BOTTOM_FADE_HEIGHT = 64;
 
 /**
  * Uses layered theme-colored views as a dependency-free gradient fallback.

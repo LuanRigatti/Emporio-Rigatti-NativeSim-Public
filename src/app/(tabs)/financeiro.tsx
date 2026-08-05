@@ -1,16 +1,19 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useFocusEffect } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativePeriodActionGroup } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
-import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import {
-  getHistoryYearItems,
   HISTORY_MONTH_ITEMS,
+  getHistoryYearItems,
 } from '@/features/history/components/periodOptions';
+import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
+import { useAppData } from '@/hooks/useAppData';
+import { financialCalculationService } from '@/services/finance';
 import { useAppTheme } from '@/theme';
 
 function PreviewIcon({
@@ -33,9 +36,31 @@ function monthShortLabel(month: number): string {
 }
 
 export default function PrototypeFinanceiro() {
-  const { resolvedMode, theme } = useAppTheme();
+  const { theme } = useAppTheme();
+  const { refresh, snapshot } = useAppData();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
+
+  const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const summary = useMemo(
+    () =>
+      snapshot
+        ? financialCalculationService.calculateResumo({
+            deliveries: snapshot.entregas,
+            dailyExpenses: snapshot.gastosDiarios,
+            filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
+            monthlyExpenses: snapshot.gastosMensais,
+          })
+        : undefined,
+    [selectedPeriod, snapshot],
+  );
+
   const header = (
     <NativeGlassHeader
       rightActions={
@@ -70,86 +95,64 @@ export default function PrototypeFinanceiro() {
       }
       progressiveBlur
     >
-      <PremiumCard
-        style={{
-          borderRadius: theme.radius.xl + theme.spacing.sm,
-          gap: theme.spacing.sm,
-          padding: theme.spacing.xl,
-        }}
-      >
+      <PremiumCard style={styles.heroCard}>
         <View style={styles.heroHeader}>
-          <Text
-            style={[
-              theme.typography.caption,
-              {
-                color:
-                  resolvedMode === 'dark' ? theme.colors.textPrimary : theme.colors.contrastSurface,
-              },
-            ]}
-          >
+          <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
             FATURAMENTO MENSAL
           </Text>
           <PreviewIcon color={theme.colors.revenue} name="trending-up" />
         </View>
         <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-          R$ 0,00
+          {formatCurrency(summary?.faturamento ?? 0)}
         </Text>
       </PremiumCard>
-      <PremiumCard
-        style={{
-          borderRadius: theme.radius.xl + theme.spacing.sm,
-          gap: theme.spacing.sm,
-          padding: theme.spacing.xl,
-        }}
-      >
+      <PremiumCard style={styles.heroCard}>
         <View style={styles.heroHeader}>
-          <Text
-            style={[
-              theme.typography.caption,
-              {
-                color:
-                  resolvedMode === 'dark' ? theme.colors.textPrimary : theme.colors.contrastSurface,
-              },
-            ]}
-          >
+          <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
             LUCRO LÍQUIDO MENSAL
           </Text>
           <PreviewIcon color={theme.colors.profit} name="trending-up" />
         </View>
         <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-          R$ 0,00
+          {formatCurrency(summary?.lucroLiquido ?? 0)}
         </Text>
       </PremiumCard>
       <SummaryCard
         rows={[
-          { label: 'Baldes vendidos', value: '0' },
-          { label: 'Lucro bruto', value: 'R$ 0,00' },
+          { label: 'Baldes vendidos', value: String(summary?.quantidadeBaldes ?? 0) },
+          { label: 'Lucro bruto', value: formatCurrency(summary?.lucroBruto ?? 0) },
+          { label: 'Recebido', value: formatCurrency(summary?.valoresPagos ?? 0) },
+          { label: 'A receber', value: formatCurrency(summary?.valoresPendentes ?? 0) },
         ]}
         title="OPERAÇÃO"
       />
       <SummaryCard
         rows={[
-          { label: 'Custo dos baldes', value: 'R$ 0,00' },
-          { label: 'Custo combustível', value: 'R$ 0,00' },
-          { label: 'Luz do período', value: 'R$ 0,00' },
-          { label: 'Custo médio de entrega', value: 'R$ 0,00' },
+          { label: 'Custo dos baldes', value: formatCurrency(summary?.custoTotalBaldes ?? 0) },
+          { label: 'Custo combustível', value: formatCurrency(summary?.custoCombustivel ?? 0) },
+          { label: 'Outros', value: formatCurrency(summary?.custoOutros ?? 0) },
+          { label: 'Luz do período', value: formatCurrency(summary?.custoLuz ?? 0) },
+          {
+            label: 'Custo médio de entrega',
+            value: formatCurrency(summary?.custoMedioCombustivelPorEntrega ?? 0),
+          },
         ]}
         title="CUSTOS"
       />
       <SummaryCard
         rows={[
-          { label: 'Recebido', value: 'R$ 0,00' },
-          { label: 'A receber', value: 'R$ 0,00' },
-          { label: 'Margem bruta', value: '0%' },
-          { label: 'Margem líquida', value: '0%' },
+          { label: 'Recebido', value: formatCurrency(summary?.valoresPagos ?? 0) },
+          { label: 'A receber', value: formatCurrency(summary?.valoresPendentes ?? 0) },
+          { label: 'Margem bruta', value: `${(summary?.margemBruta ?? 0).toFixed(1)}%` },
+          { label: 'Margem líquida', value: `${(summary?.margemLiquida ?? 0).toFixed(1)}%` },
         ]}
         title="RECEBIDO/MARGENS"
       />
       <SummaryCard
         rows={[
-          { label: 'Venda p/ balde', value: 'R$ 0,00' },
-          { label: 'Lucro p/ balde', value: 'R$ 0,00' },
-          { label: 'Custo p/ balde', value: 'R$ 0,00' },
+          { label: 'Venda p/ balde', value: formatCurrency(summary?.precoMedioBalde ?? 0) },
+          { label: 'Lucro p/ balde', value: formatCurrency(summary?.lucroLiquidoPorBalde ?? 0) },
+          { label: 'Custo p/ balde', value: formatCurrency(summary?.custoMedioBalde ?? 0) },
         ]}
         title="POR BALDE"
       />
@@ -157,7 +160,16 @@ export default function PrototypeFinanceiro() {
   );
 }
 
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    style: 'currency',
+  }).format(value);
+}
+
 const styles = StyleSheet.create({
   content: { gap: 24 },
+  heroCard: { gap: 8, padding: 24 },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

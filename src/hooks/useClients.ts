@@ -13,7 +13,9 @@ import { userDataService } from '@/services/data';
 import type { UserDataSnapshot } from '@/services/data';
 import type { ClientModel } from '@/types/data';
 
-export function useClients(query: ClientCatalogQuery = {}) {
+const EMPTY_CLIENT_QUERY: ClientCatalogQuery = {};
+
+export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
   const { error: authError, status: authStatus, user } = useAuth();
   const [firebaseSnapshot, setFirebaseSnapshot] = useState<UserDataSnapshot | null>(null);
   const [loading, setLoading] = useState(!ENABLE_MOCK_CLIENT_DATA);
@@ -112,5 +114,9 @@ export function useClients(query: ClientCatalogQuery = {}) {
       ENABLE_MOCK_CLIENT_DATA
         ? mockClientDataSource.saveCustomClient(name, price, address)
         : mutate((service) => service.saveCustomClient(name, price, address)),
+    updatePrice: (client: ClientModel, price: number) =>
+      ENABLE_MOCK_CLIENT_DATA
+        ? mockClientDataSource.updatePrice(client, price)
+        : mutate((service) => service.updatePrice(client, price)),
   };
 }

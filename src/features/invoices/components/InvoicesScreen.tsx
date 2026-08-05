@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -9,20 +9,41 @@ import {
   type NativeSwipeActionsListItem,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
+import { useAppData } from '@/hooks/useAppData';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
-import { openPaymentPreview } from '@/features/open-payments/data/openPaymentPreview';
+import type { OpenPaymentPreview } from '@/features/open-payments/data/openPaymentPreview';
 
 export function InvoicesScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
-  const [invoiceItems, setInvoiceItems] = useState(() => [...openPaymentPreview]);
+  const { refresh, snapshot } = useAppData();
+  const [hiddenInvoiceIds, setHiddenInvoiceIds] = useState<ReadonlySet<string>>(new Set());
+  const invoiceItems = useMemo<OpenPaymentPreview[]>(
+    () =>
+      (snapshot?.entregas ?? [])
+        .filter((delivery) => delivery.invoiceStatus && !hiddenInvoiceIds.has(delivery.id))
+        .map((delivery) => ({
+          amount: formatCurrency(delivery.valor),
+          client: delivery.cliente,
+          date: delivery.data,
+          id: delivery.id,
+          quantity: delivery.quantidade,
+        })),
+    [hiddenInvoiceIds, snapshot],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const nativeInvoiceItems = useMemo<NativeSwipeActionsListItem[]>(
     () =>
       invoiceItems.map((item) => ({
-        id: item.client,
+        id: item.id,
         overline: item.date,
         subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
         title: item.client,
@@ -33,9 +54,9 @@ export function InvoicesScreen() {
     [invoiceItems, theme.colors.warning],
   );
 
-  const handleInvoiceSwipe = useCallback((client: string) => {
+  const handleInvoiceSwipe = useCallback((deliveryId: string) => {
     triggerLightImpactHaptic();
-    setInvoiceItems((current) => current.filter((item) => item.client !== client));
+    setHiddenInvoiceIds((current) => new Set(current).add(deliveryId));
   }, []);
 
   const header = (
@@ -90,6 +111,14 @@ export function InvoicesScreen() {
       ) : null}
     </PremiumScreen>
   );
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    style: 'currency',
+  }).format(value);
 }
 
 const styles = StyleSheet.create({

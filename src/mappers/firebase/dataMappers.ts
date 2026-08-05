@@ -120,7 +120,7 @@ export function mapDailyExpenses(value: unknown): DailyExpenses {
 export function toFirebaseDailyExpenses(expenses: DailyExpenses): UnknownRecord {
   return Object.fromEntries(
     Object.entries(expenses).map(([date, expense]) => {
-      const { legacyFields = {}, data: _data, ...knownFields } = expense;
+      const { legacyFields = {}, data: _data, outros: _outros, ...knownFields } = expense;
       return [date, compactRecord({ ...legacyFields, ...knownFields })];
     }),
   );

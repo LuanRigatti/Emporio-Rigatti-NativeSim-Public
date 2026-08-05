@@ -78,6 +78,30 @@ export class ClientMutationService {
     });
   }
 
+  public async updatePrice(client: ClientModel, price: number): Promise<void> {
+    const snapshot = await this.readSnapshot();
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error('Informe um preço maior que zero.');
+    }
+
+    const customKey = findCustomKey(snapshot.clientesCustom, client.normalizedName);
+    const currentConfig = customKey ? snapshot.clientesCustom[customKey] : client.customConfig;
+    const nextCustomClients = { ...snapshot.clientesCustom };
+    nextCustomClients[customKey ?? client.canonicalName] = {
+      ...(currentConfig ?? {}),
+      ...(currentConfig || !client.address ? {} : { endereco: client.address }),
+      nome: client.canonicalName,
+      preco: price,
+    };
+
+    await clientBackupService.create(this.uid, snapshot);
+    await new CustomClientRepository(this.uid).replace(nextCustomClients);
+    await asyncStorageCacheService.write(this.uid, {
+      ...snapshot,
+      clientesCustom: nextCustomClients,
+    });
+  }
+
   public async rename(client: ClientModel, newName: string): Promise<ClientMutationResult> {
     const snapshot = await this.readSnapshot();
     const customKey = findCustomKey(snapshot.clientesCustom, client.normalizedName);

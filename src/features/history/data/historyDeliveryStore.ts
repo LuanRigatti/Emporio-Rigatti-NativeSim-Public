@@ -9,8 +9,8 @@ let addedDeliveries: readonly HistoryDelivery[] = [];
 let statusOverrides: Readonly<Record<string, DeliveryStatus>> = {};
 let historyDeliveriesSnapshot: readonly HistoryDelivery[] = historyMockDeliveries;
 const listeners = new Set<() => void>();
-const STORAGE_KEY = '@pareact/history-added-deliveries';
-const STATUS_STORAGE_KEY = '@pareact/history-delivery-statuses';
+const STORAGE_KEY = '@pareact/history-added-deliveries-empty-v1';
+const STATUS_STORAGE_KEY = '@pareact/history-delivery-statuses-empty-v1';
 let hasLocalMutation = false;
 let storageWriteQueue = Promise.resolve();
 

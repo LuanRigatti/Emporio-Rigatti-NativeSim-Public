@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/providers';
-import { loadAppData } from '@/services/data';
+import {
+  loadAppData,
+  subscribeToAppData,
+  toggleAppDelivery,
+  type AppDataMode,
+  APP_DATA_MODE,
+} from '@/services/data/AppDataSource';
 import type { UserDataSnapshot } from '@/services/data';
 
-export function useFinancialData() {
+export function useAppData() {
   const { user } = useAuth();
   const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -13,8 +19,9 @@ export function useFinancialData() {
 
   const load = useCallback(
     async (isRefresh = false) => {
-      if (!user) {
+      if (APP_DATA_MODE === 'firebase' && !user) {
         setLoading(false);
+        setError('SessÃ£o nÃ£o disponÃ­vel.');
         return;
       }
 
@@ -23,12 +30,10 @@ export function useFinancialData() {
       setError(undefined);
 
       try {
-        setSnapshot(await loadAppData(user.id));
+        setSnapshot(await loadAppData(user?.id));
       } catch (loadError) {
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Não foi possível carregar os dados financeiros.',
+          loadError instanceof Error ? loadError.message : 'NÃ£o foi possÃ­vel carregar os dados.',
         );
       } finally {
         setLoading(false);
@@ -43,13 +48,28 @@ export function useFinancialData() {
     return () => clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToAppData(() => void load(true));
+    return unsubscribe;
+  }, [load]);
+
+  const toggleDelivery = useCallback(
+    async (deliveryId: string) => {
+      await toggleAppDelivery(user?.id, deliveryId);
+      await load(true);
+    },
+    [load, user?.id],
+  );
+
+  const refresh = useCallback(() => load(true), [load]);
+
   return {
-    snapshot,
-    loading,
-    refreshing,
     error,
-    reload: () => load(true),
+    loading,
+    mode: APP_DATA_MODE as AppDataMode,
+    refresh,
+    refreshing,
+    snapshot,
+    toggleDelivery,
   };
 }
-
-export type UseFinancialDataResult = ReturnType<typeof useFinancialData>;

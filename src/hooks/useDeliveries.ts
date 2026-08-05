@@ -4,7 +4,7 @@ import { useAuth } from '@/providers';
 import { asyncStorageCacheService } from '@/services/cache';
 import { deliveryNormalizationService, deliveryQueryService } from '@/services/deliveries';
 import { DeliveryMutationService } from '@/services/deliveries/DeliveryMutationService';
-import { userDataService } from '@/services/data';
+import { APP_DATA_MODE, loadAppData } from '@/services/data';
 import type { UserDataSnapshot } from '@/services/data';
 import type {
   Delivery,
@@ -31,18 +31,18 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
       else setLoading(true);
       setError(undefined);
       try {
-        const result = await userDataService.loadWithCacheFallback(user.id);
+        const snapshotResult = await loadAppData(user.id);
         const normalized = deliveryNormalizationService.normalize(
-          result.snapshot.entregas,
+          snapshotResult.entregas,
           todayIso(),
         );
-        if (normalized.changed) {
+        if (normalized.changed && APP_DATA_MODE === 'firebase') {
           await new DeliveryRepository(user.id).replace(normalized.deliveries);
-          const nextSnapshot = { ...result.snapshot, entregas: normalized.deliveries };
+          const nextSnapshot = { ...snapshotResult, entregas: normalized.deliveries };
           await asyncStorageCacheService.write(user.id, nextSnapshot);
           setSnapshot(nextSnapshot);
         } else {
-          setSnapshot(result.snapshot);
+          setSnapshot({ ...snapshotResult, entregas: normalized.deliveries });
         }
       } catch (loadError) {
         setError(

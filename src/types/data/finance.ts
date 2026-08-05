@@ -6,6 +6,7 @@ export interface FinancialSummary {
   custoTotalBaldes: number;
   custoCombustivel: number;
   custoEstar: number;
+  custoOutros: number;
   custoLuz: number;
   custoTotal: number;
   lucroBruto: number;

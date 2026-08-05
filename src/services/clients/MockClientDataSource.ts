@@ -110,6 +110,23 @@ export class MockClientDataSource {
     await this.persistAndPublish();
   }
 
+  public async updatePrice(client: ClientModel, price: number): Promise<void> {
+    await this.hydrationPromise;
+    const key = findClientKey(this.clients, client.normalizedName);
+    if (!key) throw new Error('Cliente mock não encontrado.');
+
+    const normalizedPrice = normalizeMoney(price);
+    if (normalizedPrice === undefined || normalizedPrice <= 0) {
+      throw new Error('Informe um preço maior que zero.');
+    }
+
+    this.clients = {
+      ...this.clients,
+      [key]: { ...this.clients[key], preco: normalizedPrice },
+    };
+    await this.persistAndPublish();
+  }
+
   public async rename(client: ClientModel, newName: string): Promise<void> {
     await this.hydrationPromise;
     const oldKey = findClientKey(this.clients, client.normalizedName);

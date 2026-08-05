@@ -1,12 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Animated, {
-  Easing,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '@/components/premium';
@@ -24,34 +17,16 @@ export type LoginScreenProps = {
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
   const { signInWithGoogleMock } = useSession();
-  const { reduceMotionEnabled, theme } = useAppTheme();
+  const { theme } = useAppTheme();
   const [isLoading, setIsLoading] = useState(false);
   const isMounted = useRef(true);
   const hasSubmittedRef = useRef(false);
-  const entrance = useSharedValue(0);
-
-  useEffect(() => {
-    entrance.value = withTiming(1, {
-      duration: reduceMotionEnabled
-        ? theme.animations.duration.instant
-        : theme.animations.duration.standard,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [entrance, reduceMotionEnabled, theme]);
 
   useEffect(() => {
     return () => {
       isMounted.current = false;
     };
   }, []);
-
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: entrance.value,
-    transform: [
-      { translateY: interpolate(entrance.value, [0, 1], [theme.spacing.lg, 0]) },
-      { scale: interpolate(entrance.value, [0, 1], [0.98, 1]) },
-    ],
-  }));
 
   const handleGooglePress = useCallback(async () => {
     if (isLoading || hasSubmittedRef.current) return;
@@ -77,7 +52,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         },
       ]}
     >
-      <Animated.View style={[styles.content, contentStyle]}>
+      <View style={styles.content}>
         <View style={styles.brandGroup}>
           <AppLogo size={336} variant="login" />
         </View>
@@ -111,7 +86,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </Pressable>
           </GlassSurface>
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 }

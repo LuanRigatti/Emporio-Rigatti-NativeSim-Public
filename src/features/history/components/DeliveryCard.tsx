@@ -4,13 +4,10 @@ import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
 import type { HistoryDelivery } from '../data/historyMocks';
-import { DeliveryLocationActions } from './DeliveryLocationActions';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
 
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
-  onOpenAppleMaps: () => void;
-  onOpenWaze: () => void;
   onToggleStatus: () => void;
 };
 
@@ -18,12 +15,7 @@ function statusLabel(status: HistoryDelivery['status']): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-export function DeliveryCard({
-  delivery,
-  onOpenAppleMaps,
-  onOpenWaze,
-  onToggleStatus,
-}: DeliveryCardProps) {
+export function DeliveryCard({ delivery, onToggleStatus }: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
 
   return (
@@ -47,14 +39,9 @@ export function DeliveryCard({
               </Text>
             </View>
             <DeliveryStatusBadge onPress={onToggleStatus} status={delivery.status} />
-            <DeliveryLocationActions
-              customerName={delivery.cliente}
-              onOpenAppleMaps={onOpenAppleMaps}
-              onOpenWaze={onOpenWaze}
-            />
           </View>
 
-          <View style={[styles.primaryInfo, { gap: theme.spacing.sm, marginTop: 4 }]}>
+          <View style={[styles.primaryInfo, { gap: theme.spacing.sm, marginTop: 8 }]}>
             <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
               {delivery.quantidadeBaldes} baldes
             </Text>

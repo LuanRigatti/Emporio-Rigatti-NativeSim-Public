@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { SplashGate } from '@/features/splash';
 import { AuthProvider, SessionProvider } from '@/providers';
 import { locationTrackingService } from '@/services/routes';
 import { ThemeProvider } from '@/theme';
@@ -19,13 +18,18 @@ function AppShell() {
   }, []);
 
   return (
-    <SplashGate>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="login" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
-      </Stack>
-    </SplashGate>
+    <Stack screenOptions={{ animation: 'default', headerShown: false }}>
+      <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
+      <Stack.Screen
+        name="login"
+        options={{
+          animation: 'default',
+          animationTypeForReplace: 'push',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+    </Stack>
   );
 }
 

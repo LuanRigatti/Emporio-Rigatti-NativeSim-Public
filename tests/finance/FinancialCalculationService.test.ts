@@ -117,6 +117,45 @@ describe('FinancialCalculationService', () => {
     });
     expect(result.custoEstar).toBe(20);
     expect(result.custoLuz).toBe(0);
+
+    const monthlyResult = service.calculateResumo({
+      deliveries: [],
+      dailyExpenses: {},
+      monthlyExpenses,
+      filters: { periodo: 'mes', mesSelecionado: '2026-07' },
+      today,
+    });
+    expect(monthlyResult.custoLuz).toBe(0);
+
+    const twoDeliveryDays = service.calculateResumo({
+      deliveries: [
+        delivery({ id: 'light-day-1', data: '2026-07-01' }),
+        delivery({ id: 'light-day-2', data: '2026-07-03' }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses,
+      filters: { periodo: 'mes', mesSelecionado: '2026-07' },
+      today,
+    });
+    expect(twoDeliveryDays.custoLuz).toBeCloseTo((100 / 14) * 2, 8);
+  });
+
+  it('subtracts monthly Outros costs from net profit', () => {
+    const result = service.calculateResumo({
+      deliveries: [delivery({ data: '2026-07-01', valor: 100, quantidade: 1 })],
+      dailyExpenses: {
+        '2026-07-01': { data: '2026-07-01', outros: 12 },
+      },
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-07' },
+      today,
+    });
+
+    expect(result.custoOutros).toBe(12);
+    expect(result.lucroLiquido).toBeCloseTo(
+      result.lucroBruto - result.custoEstar - result.custoCombustivel - result.custoLuz - 12,
+      8,
+    );
   });
 
   it('calculates light for a working day and keeps it independent from client allocation', () => {

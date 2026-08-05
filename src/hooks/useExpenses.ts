@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/providers';
-import { userDataService } from '@/services/data';
+import { loadAppData } from '@/services/data';
 import type { UserDataSnapshot } from '@/services/data';
 import { createExpenseMutationService, expenseQueryService } from '@/services/expenses';
 import type { DailyExpenseDraft, ExpenseFilters, MonthlyLightDraft } from '@/types/data';
@@ -20,8 +20,7 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
       else setLoading(true);
       setError(undefined);
       try {
-        const result = await userDataService.loadWithCacheFallback(user.id);
-        setSnapshot(result.snapshot);
+        setSnapshot(await loadAppData(user.id));
       } catch (loadError) {
         setError(
           loadError instanceof Error ? loadError.message : 'Não foi possível carregar os gastos.',

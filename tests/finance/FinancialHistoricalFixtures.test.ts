@@ -36,12 +36,14 @@ describe('Ionic historical financial fixtures', () => {
     expect(result.quantidadeBaldes).toBe(5);
     expect(result.custoTotalBaldes).toBe(169);
     expect(result.lucroBruto).toBe(11);
-    expect(result.lucroLiquido).toBe(-89);
+    expect(result.lucroLiquido).toBe(11);
   });
 
   it('keeps general light allocation at zero for an empty period', () => {
     const service = new FinancialCalculationService();
-    expect(service.calculateLuzDoPeriodo([], ionicWorkingDayMonthlyExpenses, false, ionicToday)).toBe(0);
+    expect(
+      service.calculateLuzDoPeriodo([], ionicWorkingDayMonthlyExpenses, false, ionicToday),
+    ).toBe(0);
   });
 
   it('keeps general and client light allocations separate on Monday, Wednesday and Friday rules', () => {
@@ -79,9 +81,15 @@ describe('Ionic historical financial fixtures', () => {
 
   it('matches legacy fuel, gasoline and ethanol fixtures', () => {
     const service = new ExpenseCalculationService();
-    expect(service.calculateFuelCost('2026-04-30', ionicWorkingDayExpenses['2026-04-30'])).toBe(180);
-    expect(service.calculateFuelCost('2026-05-01', ionicWorkingDayExpenses['2026-05-01'])).toBeCloseTo(60, 8);
-    expect(service.calculateFuelCost('2026-06-30', ionicWorkingDayExpenses['2026-06-30'])).toBeCloseTo((74 / 5.6) * 6, 8);
+    expect(service.calculateFuelCost('2026-04-30', ionicWorkingDayExpenses['2026-04-30'])).toBe(
+      180,
+    );
+    expect(
+      service.calculateFuelCost('2026-05-01', ionicWorkingDayExpenses['2026-05-01']),
+    ).toBeCloseTo(60, 8);
+    expect(
+      service.calculateFuelCost('2026-06-30', ionicWorkingDayExpenses['2026-06-30']),
+    ).toBeCloseTo((74 / 5.6) * 6, 8);
   });
 
   it('matches the monthly comparison based on working days', () => {
@@ -92,8 +100,8 @@ describe('Ionic historical financial fixtures', () => {
     expect(comparison.faturamento.atual).toBe(120);
     expect(comparison.faturamento.anterior).toBe(100);
     expect(comparison.faturamento.percentual).toBe(20);
-    expect(comparison.lucroLiquido.atual).toBeCloseTo(85 - 100 / 14 * 11, 8);
-    expect(comparison.lucroLiquido.anterior).toBeCloseTo(65 - 100 / 13 * 11, 8);
+    expect(comparison.lucroLiquido.atual).toBeCloseTo(85, 8);
+    expect(comparison.lucroLiquido.anterior).toBeCloseTo(65, 8);
   });
 
   it('keeps zero quantity and invalid values financially safe', () => {

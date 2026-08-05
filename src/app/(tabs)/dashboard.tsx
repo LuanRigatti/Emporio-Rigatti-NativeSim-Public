@@ -44,13 +44,13 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated, signOutMock } = useSession();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
   const historyDeliveries = useSyncExternalStore(
     subscribeToHistoryDeliveries,
     getHistoryDeliveries,
     getHistoryDeliveries,
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
-  const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
   const [isOptionsMenuVisible, setIsOptionsMenuVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const moreButtonScale = useSharedValue(1);
@@ -76,6 +76,10 @@ export default function Home() {
   const todayDeliveries = useMemo(
     () => historyDeliveries.filter((delivery) => delivery.data === currentDate),
     [currentDate, historyDeliveries],
+  );
+  const openPaymentsCount = useMemo(
+    () => historyDeliveries.filter((delivery) => delivery.status === 'pendente').length,
+    [historyDeliveries],
   );
 
   const handleTodayStatusToggle = useCallback((deliveryId: string) => {
@@ -284,7 +288,7 @@ export default function Home() {
             </View>
             <View style={styles.widgetCopy}>
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                4 recebimentos em aberto
+                {openPaymentsCount} recebimentos em aberto
               </Text>
             </View>
           </PremiumCard>
@@ -293,7 +297,10 @@ export default function Home() {
             onPress={() => router.push('/notas-fiscais-boletos')}
             style={[
               styles.widgetCard,
-              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+              {
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                padding: theme.spacing.lg,
+              },
             ]}
           >
             <View style={styles.widgetHeader}>

@@ -147,20 +147,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
         </View>
       }
       mode="transparent"
-      rightActions={
-        <View style={styles.headerTrailingActions}>
-          <NativeGlassIconButton
-            accessibilityLabel="Mais opÃ§Ãµes de dados diÃ¡rios"
-            color={theme.colors.textPrimary}
-            containerSize={44}
-            fallbackIcon="ellipsis-horizontal"
-            interactiveGlass
-            onPress={() => undefined}
-            size={20}
-            systemImage="ellipsis"
-          />
-        </View>
-      }
+      rightActions={<View style={styles.headerTrailingActions} />}
       title={'Dados Di\u00e1rios'}
     />
   );
@@ -261,16 +248,27 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     setSheetVisible(true);
   };
   const handleConfirm = (confirmation: Parameters<typeof addHistoryDelivery>[0]) => {
-    addHistoryDelivery(confirmation);
+    const currentClient = clients.find((client) => client.clientId === confirmation.client.id);
+    addHistoryDelivery({
+      ...confirmation,
+      bucketPrice: currentClient?.currentPrice ?? confirmation.bucketPrice,
+    });
     setSheetVisible(false);
   };
   const handleDeleteBySwipe = useCallback((deliveryId: string) => {
     triggerLightImpactHaptic();
     removeAddedHistoryDeliveries(new Set([deliveryId]));
   }, []);
-  const handleSelectClient = useCallback((item: NativeBottomSheetItem) => {
-    setSelectedClient(item);
-  }, []);
+  const handleSelectClient = useCallback(
+    (item: NativeBottomSheetItem) => {
+      const currentClient = clients.find((client) => client.clientId === item.id);
+      setSelectedClient({
+        ...item,
+        bucketPrice: currentClient?.currentPrice ?? item.bucketPrice,
+      });
+    },
+    [clients],
+  );
   const handleSheetVisibleChange = useCallback((visible: boolean) => {
     setSheetVisible(visible);
     if (!visible) setSelectedClient(null);
@@ -415,7 +413,7 @@ const styles = StyleSheet.create({
   dailyDataRows: { gap: 12 },
   dailyDataRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   headerLeadingActions: { alignItems: 'flex-start', width: 104 },
-  headerTrailingActions: { alignItems: 'flex-end', width: 104 },
+  headerTrailingActions: { width: 104 },
   deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8 },

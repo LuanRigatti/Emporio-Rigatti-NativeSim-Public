@@ -163,6 +163,16 @@ export class FinancialCalculationService {
       .reduce((total, date) => total + safeNumber(dailyExpenses[date]?.estar), 0);
   }
 
+  public calculateOutros(
+    dailyExpenses: DailyExpenses,
+    filters: FinancialCalculationFilters,
+    today = new Date(),
+  ): number {
+    return Object.keys(dailyExpenses)
+      .filter((date) => matchesPeriod(date, filters, today))
+      .reduce((total, date) => total + safeNumber(dailyExpenses[date]?.outros), 0);
+  }
+
   public calculateLucroBruto(faturamento: number, custoTotalBaldes: number): number {
     return faturamento - custoTotalBaldes;
   }
@@ -172,8 +182,9 @@ export class FinancialCalculationService {
     custoEstar: number,
     custoCombustivel: number,
     custoLuz: number,
+    custoOutros = 0,
   ): number {
-    return lucroBruto - custoEstar - custoCombustivel - custoLuz;
+    return lucroBruto - custoEstar - custoCombustivel - custoLuz - custoOutros;
   }
 
   public calculateMargemBruta(lucroBruto: number, faturamento: number): number {
@@ -190,8 +201,9 @@ export class FinancialCalculationService {
     custoCombustivel: number,
     custoLuz: number,
     quantidadeBaldes: number,
+    custoOutros = 0,
   ): number {
-    const custoCompleto = custoTotalBaldes + custoEstar + custoCombustivel + custoLuz;
+    const custoCompleto = custoTotalBaldes + custoEstar + custoCombustivel + custoLuz + custoOutros;
     return quantidadeBaldes > 0 ? custoCompleto / quantidadeBaldes : 0;
   }
 
@@ -250,29 +262,38 @@ export class FinancialCalculationService {
       matchesPeriod(date, input.filters, today),
     );
     let custoEstar = this.calculateEstar(input.dailyExpenses, input.filters, today);
+    const custoOutros = this.calculateOutros(input.dailyExpenses, input.filters, today);
     let custoCombustivel = dailyDates.reduce(
       (total, date) =>
         total + expenseCalculationService.calculateFuelCost(date, input.dailyExpenses[date]),
       0,
     );
     let custoLuz =
-      input.fullLightInterval && input.filters.periodo === 'range'
-        ? periodDeliveries.length > 0 &&
-          input.filters.dataInicioSelecionada &&
-          input.filters.dataFimSelecionada
-          ? expenseCalculationService.calculateLightForInterval(
-              input.filters.dataInicioSelecionada,
-              input.filters.dataFimSelecionada,
+      input.filters.periodo === 'mes'
+        ? (() => {
+            return expenseCalculationService.calculateLightForDeliveryDays(
+              periodDeliveries,
               input.monthlyExpenses,
               today,
-            )
-          : 0
-        : this.calculateLuzDoPeriodo(
-            periodDeliveries,
-            input.monthlyExpenses,
-            input.filters.periodo === 'todos',
-            today,
-          );
+            );
+          })()
+        : input.fullLightInterval && input.filters.periodo === 'range'
+          ? periodDeliveries.length > 0 &&
+            input.filters.dataInicioSelecionada &&
+            input.filters.dataFimSelecionada
+            ? expenseCalculationService.calculateLightForInterval(
+                input.filters.dataInicioSelecionada,
+                input.filters.dataFimSelecionada,
+                input.monthlyExpenses,
+                today,
+              )
+            : 0
+          : this.calculateLuzDoPeriodo(
+              periodDeliveries,
+              input.monthlyExpenses,
+              input.filters.periodo === 'todos',
+              today,
+            );
 
     if (input.filters.buscaCliente?.trim()) {
       const allocation = expenseCalculationService.calculateClientAllocation(
@@ -305,8 +326,9 @@ export class FinancialCalculationService {
       custoEstar,
       custoCombustivel,
       custoLuz,
+      custoOutros,
     );
-    const custoTotal = custoTotalBaldes + custoEstar + custoCombustivel + custoLuz;
+    const custoTotal = custoTotalBaldes + custoEstar + custoCombustivel + custoLuz + custoOutros;
     return {
       faturamento,
       valoresPagos,
@@ -315,6 +337,7 @@ export class FinancialCalculationService {
       custoTotalBaldes,
       custoCombustivel,
       custoEstar,
+      custoOutros,
       custoLuz,
       custoTotal,
       lucroBruto,
@@ -327,6 +350,7 @@ export class FinancialCalculationService {
         custoCombustivel,
         custoLuz,
         quantidadeBaldes,
+        custoOutros,
       ),
       precoMedioBalde: this.calculatePrecoMedioBalde(faturamento, quantidadeBaldes),
       lucroLiquidoPorBalde: this.calculateLucroLiquidoPorBalde(lucroLiquido, quantidadeBaldes),

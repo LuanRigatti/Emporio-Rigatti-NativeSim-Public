@@ -14,3 +14,9 @@ export const ENABLE_PROGRESSIVE_BLUR = true;
  * Firebase Auth and the definitive client database are connected.
  */
 export const ENABLE_MOCK_CLIENT_DATA = true;
+
+/**
+ * Keeps the shared app data source on deterministic local fixtures until the
+ * Firebase data migration is explicitly enabled.
+ */
+export const ENABLE_FIREBASE_APP_DATA = false;

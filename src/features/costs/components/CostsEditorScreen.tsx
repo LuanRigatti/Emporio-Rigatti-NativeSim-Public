@@ -11,8 +11,9 @@ import {
 import type { NativeDropdownItem } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useCostSettings } from '@/hooks/useCostSettings';
+import { expenseCalculationService } from '@/services/expenses';
 import { useAppTheme } from '@/theme';
-import { todayIso } from '@/utils/data';
+import { normalizeMoney, todayIso } from '@/utils/data';
 
 import { CostField } from './CostField';
 
@@ -41,6 +42,12 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const values = getValues(period, periodKey);
   const monthlyEstar = getMonthlySum(selectedYear, selectedMonth, 'estar');
   const monthlyOther = getMonthlySum(selectedYear, selectedMonth, 'other');
+  const dailyFuelCost = expenseCalculationService.calculateFuelCost(selectedDate, {
+    data: selectedDate,
+    gasolina: 0,
+    km: normalizeMoney(values.kilometers) ?? 0,
+    precoGasolina: normalizeMoney(values.fuelPrice) ?? 0,
+  });
 
   const header = (
     <NativeGlassHeader
@@ -121,11 +128,19 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
             />
             <CostField
               keyboardType="decimal-pad"
-              label="Combustível"
-              onChangeText={(value) => updateField('day', selectedDate, 'fuel', value)}
-              placeholder="R$ 0,00"
-              value={values.fuel}
+              label="Km"
+              onChangeText={(value) => updateField('day', selectedDate, 'kilometers', value)}
+              placeholder="0,0 km"
+              value={values.kilometers}
             />
+            <CostField
+              keyboardType="decimal-pad"
+              label="Preço da gasolina"
+              onChangeText={(value) => updateField('day', selectedDate, 'fuelPrice', value)}
+              placeholder="R$ 0,00 por litro"
+              value={values.fuelPrice}
+            />
+            <ReadOnlyCostField label="Custo do combustível" value={formatCurrency(dailyFuelCost)} />
           </>
         )}
       </GlassCard>

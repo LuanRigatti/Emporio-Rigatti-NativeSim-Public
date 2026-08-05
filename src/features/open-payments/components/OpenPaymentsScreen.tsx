@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -16,21 +16,54 @@ import {
   type NativeSwipeActionsListItem,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
+import { useAppData } from '@/hooks/useAppData';
 import { useAppTheme } from '@/theme';
+import type { Delivery } from '@/types/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
-import { openPaymentPreview, openPaymentsTotal } from '../data/openPaymentPreview';
+import type { OpenPaymentPreview } from '../data/openPaymentPreview';
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    style: 'currency',
+  }).format(value);
+}
+
+function toOpenPaymentItem(delivery: Delivery): OpenPaymentPreview {
+  return {
+    amount: formatCurrency(delivery.valor),
+    client: delivery.cliente,
+    date: delivery.data,
+    id: delivery.id,
+    quantity: delivery.quantidade,
+  };
+}
 
 export function OpenPaymentsScreen() {
   const router = useRouter();
   const { reduceMotionEnabled, theme } = useAppTheme();
+  const { refresh, snapshot, toggleDelivery } = useAppData();
   const entrance = useSharedValue(0);
-  const [paymentItems, setPaymentItems] = useState(() => [...openPaymentPreview]);
+  const paymentItems = useMemo(
+    () =>
+      (snapshot?.entregas ?? [])
+        .filter((delivery) => delivery.status !== 'Pago')
+        .map(toOpenPaymentItem),
+    [snapshot],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const nativePaymentItems = useMemo<NativeSwipeActionsListItem[]>(
     () =>
       paymentItems.map((item) => ({
-        id: item.client,
+        id: item.id,
         overline: item.date,
         subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
         title: item.client,
@@ -39,10 +72,13 @@ export function OpenPaymentsScreen() {
     [paymentItems],
   );
 
-  const handlePaymentSwipe = useCallback((client: string) => {
-    triggerLightImpactHaptic();
-    setPaymentItems((current) => current.filter((item) => item.client !== client));
-  }, []);
+  const handlePaymentSwipe = useCallback(
+    (deliveryId: string) => {
+      triggerLightImpactHaptic();
+      void toggleDelivery(deliveryId);
+    },
+    [toggleDelivery],
+  );
 
   useEffect(() => {
     entrance.value = withTiming(1, {
@@ -91,7 +127,7 @@ export function OpenPaymentsScreen() {
             >
               <NativeSwipeActionsList
                 action={{
-                  label: 'Pago',
+                  label: 'Concluído',
                   systemImage: 'checkmark.circle.fill',
                   tint: theme.colors.success,
                 }}
@@ -116,7 +152,9 @@ export function OpenPaymentsScreen() {
                 TOTAL EM ABERTO
               </Text>
               <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                {openPaymentsTotal}
+                {formatCurrency(
+                  paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
+                )}
               </Text>
             </View>
           </GlassCard>
@@ -124,6 +162,15 @@ export function OpenPaymentsScreen() {
       </Animated.View>
     </PremiumScreen>
   );
+}
+
+function parseCurrency(value: string): number {
+  const normalized = value
+    .replace(/R\$\s?/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 const styles = StyleSheet.create({

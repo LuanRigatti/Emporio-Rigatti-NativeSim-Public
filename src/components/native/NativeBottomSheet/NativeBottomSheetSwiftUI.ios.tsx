@@ -97,30 +97,22 @@ export default function NativeBottomSheetSwiftUI({
       spacing={6}
       modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
     >
-      <Text modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: -6 })]}>{title}</Text>
+      <Text modifiers={[font({ size: 15, weight: 'bold' }), offset({ y: -6 })]}>{title}</Text>
     </HStack>
   );
 
   const detailView = (
-    <List
+    <VStack
+      alignment="leading"
+      spacing={12}
       modifiers={[
-        listStyle('insetGrouped'),
-        scrollDisabled(true),
-        scrollContentBackground('hidden'),
         background('systemGray5'),
-        padding({ horizontal: 0, top: -8, bottom: 8 }),
+        frame({ maxWidth: 1000, alignment: 'top' }),
+        padding({ horizontal: 20, top: 14, bottom: 16 }),
       ]}
     >
-      <VStack
-        alignment="leading"
-        spacing={16}
-        modifiers={[
-          frame({ minHeight: 300, alignment: 'top' }),
-          listRowBackground('clear'),
-          padding({ top: 20, bottom: 22 }),
-        ]}
-      >
-        <VStack alignment="leading" spacing={16} modifiers={[offset({ y: -10 })]}>
+      <VStack alignment="leading" spacing={12}>
+        <VStack alignment="leading" spacing={12}>
           <HStack
             alignment="center"
             spacing={10}
@@ -137,11 +129,7 @@ export default function NativeBottomSheetSwiftUI({
           </HStack>
           <Divider />
         </VStack>
-        <VStack
-          alignment="leading"
-          spacing={0}
-          modifiers={[padding({ top: 22 }), offset({ y: -10 })]}
-        >
+        <VStack alignment="leading" spacing={0} modifiers={[padding({ top: 8 })]}>
           <HStack alignment="center" spacing={10} modifiers={[padding({ bottom: 18 })]}>
             <Text modifiers={[font({ size: 16, weight: 'bold' })]}>Data da entrega</Text>
             <Spacer />
@@ -200,8 +188,7 @@ export default function NativeBottomSheetSwiftUI({
             </Text>
           </HStack>
         </VStack>
-        <Spacer minLength={0} />
-        <HStack alignment="center" modifiers={[offset({ y: -18 })]}>
+        <HStack alignment="center" modifiers={[padding({ top: 4 })]}>
           <Spacer />
           <Button
             label="Confirmar"
@@ -225,11 +212,11 @@ export default function NativeBottomSheetSwiftUI({
           />
         </HStack>
       </VStack>
-    </List>
+    </VStack>
   );
 
   const listView = (
-    <VStack alignment="leading" spacing={0} modifiers={[padding({ top: -22 })]}>
+    <VStack alignment="leading" spacing={0} modifiers={[padding({ top: -38 })]}>
       <List
         modifiers={[
           listStyle('insetGrouped'),
@@ -302,7 +289,7 @@ export default function NativeBottomSheetSwiftUI({
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
-            presentationDetents([{ fraction: 0.54 }, 'large']),
+            presentationDetents([{ fraction: 0.48 }, 'large']),
             presentationDragIndicator('visible'),
           ]}
         >

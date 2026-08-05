@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const COST_SETTINGS_STORAGE_KEY = '@pareact/cost-settings-v1';
 
 export type CostPeriod = 'day' | 'month' | 'year';
-export type CostField = 'light' | 'estar' | 'kilometers' | 'fuel' | 'other';
+export type CostField = 'light' | 'estar' | 'kilometers' | 'fuel' | 'fuelPrice' | 'other';
 
 export type CostValues = Record<CostField, string>;
 export type CostSettings = {
@@ -13,6 +13,7 @@ export type CostSettings = {
 export const EMPTY_COST_VALUES: CostValues = {
   estar: '',
   fuel: '',
+  fuelPrice: '',
   kilometers: '',
   light: '',
   other: '',
@@ -31,6 +32,7 @@ function parseValues(value: unknown): CostValues {
   return {
     estar: typeof record.estar === 'string' ? record.estar : '',
     fuel: typeof record.fuel === 'string' ? record.fuel : '',
+    fuelPrice: typeof record.fuelPrice === 'string' ? record.fuelPrice : '',
     kilometers: typeof record.kilometers === 'string' ? record.kilometers : '',
     light: typeof record.light === 'string' ? record.light : '',
     other: typeof record.other === 'string' ? record.other : '',

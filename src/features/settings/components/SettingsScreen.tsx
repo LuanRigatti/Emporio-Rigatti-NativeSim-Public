@@ -57,10 +57,16 @@ export function SettingsScreen() {
           />
           <SettingItem
             fallbackIcon="calculator"
-            isLast
             onPress={() => router.push('/custos')}
             systemName="chart.bar"
             title="Dados"
+          />
+          <SettingItem
+            fallbackIcon="cube-outline"
+            isLast
+            onPress={() => router.push('/estoque')}
+            systemName="shippingbox"
+            title="Estoque"
           />
         </SettingsSection>
       </View>

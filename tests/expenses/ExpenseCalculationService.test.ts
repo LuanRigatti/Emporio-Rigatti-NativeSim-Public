@@ -71,9 +71,9 @@ describe('ExpenseCalculationService historical rules', () => {
     ).toBeCloseTo(60, 8);
   });
 
-  it('preserves the historical light fallback and monthly formats', () => {
+  it('uses only saved monthly light values', () => {
     const today = new Date('2026-07-24T12:00:00');
-    expect(service.calculateMonthlyLight('2026-07', {}, today)).toBe(100);
+    expect(service.calculateMonthlyLight('2026-07', {}, today)).toBe(0);
     expect(service.calculateMonthlyLight('2026-08', {}, today)).toBe(0);
     expect(service.calculateMonthlyLight('2026-07', { '2026-07': 80 }, today)).toBe(80);
     expect(service.calculateMonthlyLight('2026-07', { '2026-07': { luz: -10 } }, today)).toBe(0);

@@ -5,6 +5,7 @@ export interface DailyExpense {
   estar?: number;
   gasolina?: number;
   km?: number;
+  outros?: number;
   precoGasolina?: number;
   tipoCombustivel?: string;
   legacyFields?: UnknownRecord;
@@ -33,6 +34,7 @@ export interface ExpenseFilters {
 export interface ExpenseSummary {
   estar: number;
   combustivel: number;
+  outros: number;
   luz: number;
   total: number;
   custoMedioCombustivelPorEntrega: number;

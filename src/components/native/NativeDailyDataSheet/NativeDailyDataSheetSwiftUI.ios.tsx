@@ -182,7 +182,7 @@ export default function NativeDailyDataSheetSwiftUI({
         <Divider />
         {field('Km', kilometersState, 'kilometers')}
         <Divider />
-        {field('CombustÃ­vel', fuelPriceState, 'fuelPrice', true)}
+        {field('Combust\u00edvel', fuelPriceState, 'fuelPrice', true)}
       </VStack>
 
       <HStack

@@ -1,9 +1,13 @@
 import type { ComponentType } from 'react';
+import { View } from 'react-native';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 
 import NativePeriodActionGroupFallback from './NativePeriodActionGroupFallback';
-import type { NativePeriodActionGroupProps } from './NativePeriodActionGroup.types';
+import {
+  getNativePeriodActionGroupWidth,
+  type NativePeriodActionGroupProps,
+} from './NativePeriodActionGroup.types';
 
 export default function NativePeriodActionGroupNative(props: NativePeriodActionGroupProps) {
   const canUseExpoUI = getNativeCapabilities().canUseExpoUI;
@@ -13,9 +17,17 @@ export default function NativePeriodActionGroupNative(props: NativePeriodActionG
         .default as ComponentType<NativePeriodActionGroupProps>)
     : null;
 
-  return NativeImplementation ? (
-    <NativeImplementation {...props} />
-  ) : (
-    <NativePeriodActionGroupFallback {...props} />
+  if (!NativeImplementation) {
+    return <NativePeriodActionGroupFallback {...props} />;
+  }
+
+  return (
+    <View
+      style={{
+        width: getNativePeriodActionGroupWidth(props),
+      }}
+    >
+      <NativeImplementation {...props} />
+    </View>
   );
 }

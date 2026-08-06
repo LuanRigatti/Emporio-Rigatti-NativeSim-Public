@@ -16,3 +16,14 @@ export type NativePeriodActionGroupProps = {
   showValues?: boolean;
   yearItems: readonly NativeDropdownItem<number>[];
 };
+
+export function getNativePeriodActionGroupWidth({
+  dayItems,
+  onDayChange,
+  selectedDay,
+  showValues,
+}: Pick<NativePeriodActionGroupProps, 'dayItems' | 'onDayChange' | 'selectedDay' | 'showValues'>):
+  104 | 112 | 152 {
+  const includesDay = Boolean(dayItems?.length && onDayChange && selectedDay);
+  return showValues ? 112 : includesDay ? 152 : 104;
+}

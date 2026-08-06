@@ -338,6 +338,10 @@ export function HistoryScreen() {
           fallbackIcon="filter-outline"
           size={theme.sizes.iconMedium}
           systemImage="line.3.horizontal.decrease"
+          style={{
+            height: theme.sizes.touchTargetMinimum,
+            width: theme.sizes.touchTargetMinimum,
+          }}
           trigger={
             <NativeGlassIconButton
               accessibilityLabel="Filtros do histórico"

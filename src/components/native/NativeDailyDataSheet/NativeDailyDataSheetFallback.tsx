@@ -46,7 +46,7 @@ export default function NativeDailyDataSheetFallback({
             { currency: true, key: 'estar', label: 'Estar' },
             { currency: true, key: 'other', label: 'Outros' },
             { currency: false, key: 'kilometers', label: 'Km' },
-            { currency: true, key: 'fuelPrice', label: 'PreÃ§o do combustÃ­vel' },
+            { currency: true, key: 'fuelPrice', label: 'Combust\u00edvel' },
           ] as const
         ).map(({ currency, key, label }) => (
           <View key={key} style={styles.row}>

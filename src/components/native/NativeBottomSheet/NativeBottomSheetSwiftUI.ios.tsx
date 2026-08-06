@@ -22,6 +22,7 @@ import {
   frame,
   font,
   foregroundColor,
+  hidden,
   glassEffect,
   listRowBackground,
   listStyle,
@@ -113,18 +114,20 @@ export default function NativeBottomSheetSwiftUI({
       ]}
     >
       <VStack alignment="leading" spacing={12}>
-        <VStack alignment="leading" spacing={12}>
-          <HStack
-            alignment="center"
-            spacing={10}
-            modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
-          >
-            <Text modifiers={[font({ size: 18, weight: 'semibold' }), offset({ y: -20 })]}>
-              {selectedItem?.title ?? 'Selecione um cliente'}
-            </Text>
-          </HStack>
-          <Divider />
-        </VStack>
+        {selectedItem ? (
+          <VStack alignment="leading" spacing={12}>
+            <HStack
+              alignment="center"
+              spacing={10}
+              modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
+            >
+              <Text modifiers={[font({ size: 18, weight: 'semibold' }), offset({ y: -12 })]}>
+                {selectedItem.title}
+              </Text>
+            </HStack>
+            <Divider />
+          </VStack>
+        ) : null}
         <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 12, top: 8 })]}>
           <HStack alignment="center" spacing={10} modifiers={[padding({ bottom: 18 })]}>
             <Text modifiers={[font({ size: 16, weight: 'bold' }), padding({ leading: 20 })]}>
@@ -258,12 +261,14 @@ export default function NativeBottomSheetSwiftUI({
     </VStack>
   );
 
-  const headerView = () =>
-    selectedItem ? null : (
-      <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
-        {titleView}
-      </ZStack>
-    );
+  const headerView = (
+    <ZStack
+      alignment="center"
+      modifiers={[frame({ maxWidth: 1000 }), hidden(Boolean(selectedItem))]}
+    >
+      {titleView}
+    </ZStack>
+  );
 
   const registroSheetContent = (
     <VStack
@@ -272,7 +277,7 @@ export default function NativeBottomSheetSwiftUI({
       modifiers={[padding({ horizontal: 0, top: 12, bottom: 6 })]}
     >
       <Spacer minLength={16} />
-      {headerView()}
+      {headerView}
       <NativeInteractivePager
         initialPage={0}
         onPageSettled={({ nativeEvent: { page } }) => onPageSettled?.(page)}

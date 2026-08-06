@@ -14,7 +14,10 @@ import {
 import { triggerSelectionHaptic } from '@/utils/haptics';
 
 import { NativeDropdownMenuSwiftUI } from '../NativeDropdown/NativeDropdownMenuSwiftUI';
-import type { NativePeriodActionGroupProps } from './NativePeriodActionGroup.types';
+import {
+  getNativePeriodActionGroupWidth,
+  type NativePeriodActionGroupProps,
+} from './NativePeriodActionGroup.types';
 
 export default function NativePeriodActionGroupSwiftUI({
   color,
@@ -47,7 +50,12 @@ export default function NativePeriodActionGroupSwiftUI({
         modifiers={[
           padding({ horizontal: 6, vertical: 0 }),
           frame({
-            width: showValues ? 112 : includesDay ? 152 : 104,
+            width: getNativePeriodActionGroupWidth({
+              dayItems,
+              onDayChange,
+              selectedDay,
+              showValues,
+            }),
             height: 44,
             alignment: 'center',
           }),

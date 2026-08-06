@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef } from 'react';
 
 import { useAppTheme } from '@/theme';
 import type { NativeTextFieldProps } from '@/types/native-ui';
@@ -10,12 +11,19 @@ export default function NativeTextFieldExpo({
   label,
   multiline,
   onChangeText,
+  onBlurReady,
   placeholder,
   secureTextEntry,
   style,
   value,
 }: NativeTextFieldProps) {
   const { theme } = useAppTheme();
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (!onBlurReady) return;
+    onBlurReady(() => inputRef.current?.blur());
+  }, [onBlurReady]);
 
   return (
     <View style={styles.wrapper}>
@@ -25,6 +33,7 @@ export default function NativeTextFieldExpo({
         </Text>
       ) : null}
       <TextInput
+        ref={inputRef}
         accessibilityLabel={accessibilityLabel ?? label}
         editable={!disabled}
         keyboardType={keyboardType}

@@ -190,6 +190,7 @@ export type NativeToggleProps = {
 export type NativeTextFieldProps = {
   value: string;
   onChangeText: (value: string) => void;
+  onBlurReady?: (blur: () => void) => void;
   label?: string;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;

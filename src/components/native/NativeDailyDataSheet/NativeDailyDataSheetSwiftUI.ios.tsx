@@ -24,6 +24,8 @@ import {
   font,
   glassEffect,
   keyboardType,
+  layoutPriority,
+  offset,
   padding,
   presentationBackground,
   presentationDetents,
@@ -31,6 +33,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 
+import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '@/components/native/nativeSheetBackground';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 
 import type {
@@ -40,7 +43,12 @@ import type {
 
 type NativeTextState = NonNullable<Parameters<typeof TextField>[0]['text']>;
 
-const EMPTY_VALUES: NativeDailyDataValues = { estar: '', other: '' };
+const EMPTY_VALUES: NativeDailyDataValues = {
+  estar: '',
+  fuelPrice: '',
+  kilometers: '',
+  other: '',
+};
 
 export default function NativeDailyDataSheetSwiftUI({
   initialValues = EMPTY_VALUES,
@@ -51,6 +59,8 @@ export default function NativeDailyDataSheetSwiftUI({
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
   const estarState = useNativeState(initialValues.estar);
+  const fuelPriceState = useNativeState(initialValues.fuelPrice);
+  const kilometersState = useNativeState(initialValues.kilometers);
   const otherState = useNativeState(initialValues.other);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -67,6 +77,14 @@ export default function NativeDailyDataSheetSwiftUI({
     otherState.set(values.other);
   }, [otherState, values.other]);
 
+  useEffect(() => {
+    fuelPriceState.set(values.fuelPrice);
+  }, [fuelPriceState, values.fuelPrice]);
+
+  useEffect(() => {
+    kilometersState.set(values.kilometers);
+  }, [kilometersState, values.kilometers]);
+
   const update = (field: keyof NativeDailyDataValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
   };
@@ -81,44 +99,59 @@ export default function NativeDailyDataSheetSwiftUI({
     }
   };
 
-  const field = (label: string, text: NativeTextState, fieldName: keyof NativeDailyDataValues) => (
-    <HStack alignment="center" spacing={12} modifiers={[padding({ vertical: 10 })]}>
-      <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>{label}</Text>
+  const field = (
+    label: string,
+    text: NativeTextState,
+    fieldName: keyof NativeDailyDataValues,
+    currency = false,
+  ) => (
+    <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 4 })]}>
+      <Text modifiers={[font({ size: 17, weight: 'semibold' }), layoutPriority(1)]}>{label}</Text>
       <Spacer />
-      <TextField
-        axis="horizontal"
+      <HStack
         modifiers={[
-          autocorrectionDisabled(true),
           background('systemGray6'),
           cornerRadius(12),
           frame({ width: 132, height: 42 }),
-          keyboardType('decimal-pad'),
           padding({ horizontal: 10 }),
+          offset({ x: 4 }),
         ]}
-        onTextChange={(value) => update(fieldName, value)}
-        placeholder="R$ 0,00"
-        text={text}
-      />
+      >
+        {currency ? <Text>R$</Text> : null}
+        <TextField
+          axis="horizontal"
+          modifiers={[
+            autocorrectionDisabled(true),
+            frame({ maxWidth: 1000 }),
+            keyboardType('decimal-pad'),
+          ]}
+          onTextChange={(value) => update(fieldName, value)}
+          placeholder={currency ? '0,00' : '0,0'}
+          text={text}
+        />
+      </HStack>
     </HStack>
   );
 
   const content = (
     <VStack
       alignment="leading"
-      spacing={16}
+      spacing={6}
       modifiers={[
-        background('systemBackground'),
         frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'topLeading' }),
-        padding({ horizontal: 20, top: 12, bottom: 22 }),
+        padding({ horizontal: 12, top: 14, bottom: 8 }),
+        offset({ y: 8 }),
       ]}
     >
       <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
-        <HStack modifiers={[frame({ maxWidth: 1000, alignment: 'trailing' })]}>
+        <HStack
+          modifiers={[frame({ maxWidth: 1000, alignment: 'trailing' }), padding({ trailing: 8 })]}
+        >
           <Button
             modifiers={[
               buttonStyle('plain'),
               controlSize('regular'),
-              frame({ width: 44, height: 44 }),
+              frame({ width: 48, height: 48 }),
               glassEffect({
                 glass: { interactive: true, variant: 'regular' },
                 shape: 'circle',
@@ -130,28 +163,34 @@ export default function NativeDailyDataSheetSwiftUI({
               onVisibleChange(false);
             }}
           >
-            <Image size={18} systemName="xmark" />
+            <Image size={20} systemName="xmark" />
           </Button>
         </HStack>
-        <Text modifiers={[font({ size: 17, weight: 'bold' })]}>Adicionar dados diários</Text>
+        <Text modifiers={[font({ size: 16, weight: 'bold' }), offset({ y: -8 })]}>
+          {'Dados Di\u00e1rios'}
+        </Text>
       </ZStack>
 
       <VStack
         alignment="leading"
         spacing={0}
-        modifiers={[
-          background('systemGray6'),
-          cornerRadius(24),
-          frame({ maxWidth: 1000, alignment: 'leading' }),
-          padding({ horizontal: 16, vertical: 8 }),
-        ]}
+        modifiers={[padding({ leading: 32, trailing: 0, vertical: 4 }), offset({ x: 16 })]}
       >
-        {field('Estar', estarState, 'estar')}
+        {field('Estar', estarState, 'estar', true)}
         <Divider />
-        {field('Outros', otherState, 'other')}
+        {field('Outros', otherState, 'other', true)}
+        <Divider />
+        {field('Km', kilometersState, 'kilometers')}
+        <Divider />
+        {field('CombustÃ­vel', fuelPriceState, 'fuelPrice', true)}
       </VStack>
 
-      <HStack modifiers={[frame({ maxWidth: 1000, alignment: 'trailing' })]}>
+      <HStack
+        modifiers={[
+          frame({ maxWidth: 1000, alignment: 'trailing' }),
+          padding({ top: 12, trailing: 8 }),
+        ]}
+      >
         <Spacer />
         <Button
           label="Adicionar"
@@ -171,8 +210,8 @@ export default function NativeDailyDataSheetSwiftUI({
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
-            presentationBackground('systemBackground'),
-            presentationDetents([{ fraction: 0.4 }]),
+            presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
+            presentationDetents([{ fraction: 0.45 }]),
             presentationDragIndicator('visible'),
           ]}
         >

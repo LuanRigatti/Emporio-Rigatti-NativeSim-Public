@@ -1,4 +1,4 @@
-import type { Delivery, FactoryReceipt } from '@/types/data';
+import type { Delivery } from '@/types/data';
 import { normalizeLegacyDate } from '@/utils/data';
 
 function periodPrefix(year: number, month: number): string {
@@ -24,24 +24,12 @@ export class StockCalculationService {
     );
   }
 
-  public calculateFactoryPurchasedBuckets(
-    receipts: readonly FactoryReceipt[],
-    year: number,
-    month: number,
-  ): number {
-    return receipts.reduce(
-      (total, receipt) =>
-        matchesPeriod(receipt.data, year, month) ? total + Math.max(0, receipt.quantidade) : total,
-      0,
-    );
+  public calculateCurrentBuckets(stockBuckets: number, soldBuckets: number): number {
+    return stockBuckets - soldBuckets;
   }
 
-  public calculateCurrentBuckets(
-    initialBuckets: number,
-    purchasedBuckets: number,
-    soldBuckets: number,
-  ): number {
-    return initialBuckets + purchasedBuckets - soldBuckets;
+  public calculateStockValue(currentBuckets: number, bucketCost: number): number {
+    return currentBuckets * bucketCost;
   }
 }
 

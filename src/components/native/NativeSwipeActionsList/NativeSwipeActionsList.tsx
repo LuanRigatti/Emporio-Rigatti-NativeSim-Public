@@ -14,7 +14,7 @@ export default function NativeSwipeActionsList({
       {items.map((item) => (
         <Pressable
           key={item.id}
-          disabled={!isSelectionMode}
+          disabled={!isSelectionMode && !onItemPress}
           onPress={() => onItemPress?.(item.id)}
           style={styles.row}
         >

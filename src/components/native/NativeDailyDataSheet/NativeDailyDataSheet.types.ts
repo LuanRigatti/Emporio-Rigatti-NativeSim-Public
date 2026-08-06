@@ -1,5 +1,7 @@
 export type NativeDailyDataValues = {
   estar: string;
+  fuelPrice: string;
+  kilometers: string;
   other: string;
 };
 

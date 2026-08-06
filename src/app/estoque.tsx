@@ -14,10 +14,12 @@ import {
   getHistoryYearItems,
 } from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
+import { useFactorySettings } from '@/hooks/useFactorySettings';
 import { useStockSettings } from '@/hooks/useStockSettings';
 import { useAppData } from '@/hooks/useAppData';
 import { createStockPeriodKey, stockCalculationService } from '@/services/stock';
 import { useAppTheme } from '@/theme';
+import { formatCurrency, normalizeMoney } from '@/utils/data';
 
 function parseBucketQuantity(value: string): number {
   const parsed = Number.parseInt(value, 10);
@@ -45,6 +47,7 @@ function monthShortLabel(month: number): string {
 export default function StockRoute() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { settings: factorySettings } = useFactorySettings();
   const { getValues, updateField } = useStockSettings();
   const { refresh, snapshot } = useAppData();
   const currentPeriod = getCurrentHistoryPeriod();
@@ -63,22 +66,12 @@ export default function StockRoute() {
     [deliveries, selectedMonth, selectedYear],
   );
   const initialBuckets = parseBucketQuantity(periodSettings.initialBuckets);
-  const factoryPurchasedBuckets = useMemo(
-    () =>
-      stockCalculationService.calculateFactoryPurchasedBuckets(
-        snapshot?.recebimentoBaldes ?? [],
-        selectedYear,
-        selectedMonth,
-      ),
-    [selectedMonth, selectedYear, snapshot?.recebimentoBaldes],
-  );
-  const purchasedBuckets =
-    parseBucketQuantity(periodSettings.purchasedBuckets) + factoryPurchasedBuckets;
+  const bucketCost = normalizeMoney(factorySettings.bucketCost) ?? 0;
   const currentBuckets = stockCalculationService.calculateCurrentBuckets(
     initialBuckets,
-    purchasedBuckets,
     soldBuckets,
   );
+  const stockValue = stockCalculationService.calculateStockValue(currentBuckets, bucketCost);
 
   const header = (
     <NativeGlassHeader
@@ -114,22 +107,17 @@ export default function StockRoute() {
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
       <GlassCard style={[styles.card, { marginTop: theme.spacing.md }]}>
         <StockField
-          label="Estoque Inicial"
+          label="Estoque"
           onChangeText={(value) => updateField(periodKey, 'initialBuckets', value)}
           placeholder="Quantidade de baldes"
           value={periodSettings.initialBuckets}
-        />
-        <StockField
-          label="Baldes Comprados"
-          onChangeText={(value) => updateField(periodKey, 'purchasedBuckets', value)}
-          placeholder="Quantidade de baldes"
-          value={periodSettings.purchasedBuckets}
         />
       </GlassCard>
 
       <GlassCard style={styles.card}>
         <StockSummaryRow label="Baldes Vendidos" value={soldBuckets} />
         <StockSummaryRow label="Estoque Atual" value={currentBuckets} />
+        <StockValueRow label="Valor do estoque" value={stockValue} />
       </GlassCard>
     </PremiumScreen>
   );
@@ -172,6 +160,19 @@ function StockSummaryRow({ label, value }: { label: string; value: number }) {
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
         {value} {value === 1 ? 'balde' : 'baldes'}
+      </Text>
+    </View>
+  );
+}
+
+function StockValueRow({ label, value }: { label: string; value: number }) {
+  const { theme } = useAppTheme();
+
+  return (
+    <View style={styles.summaryRow}>
+      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
+      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+        {formatCurrency(value)}
       </Text>
     </View>
   );

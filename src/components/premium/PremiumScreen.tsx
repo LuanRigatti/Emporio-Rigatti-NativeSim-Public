@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  type ColorValue,
   type ScrollViewProps,
   type StyleProp,
   type ViewProps,
@@ -23,9 +24,12 @@ export type PremiumScreenProps = ViewProps & {
   overlayHeaderSafeArea?: boolean;
   overlayHeaderSpacing?: number;
   overlayHeaderTopSpacing?: number;
+  overlayHeaderUnderlay?: boolean;
+  onOverlayHeaderLayout?: (height: number) => void;
   progressiveBlurHeight?: number;
   progressiveBlurFadeStart?: number;
   progressiveBlurIntensity?: number;
+  progressiveBlurOverlayColors?: readonly [ColorValue, ColorValue, ColorValue] | null;
   progressiveBlurTopOffset?: number;
   progressiveBlur?: boolean;
   scrollable?: boolean;
@@ -41,9 +45,12 @@ export function PremiumScreen({
   overlayHeaderSafeArea = false,
   overlayHeaderSpacing = 0,
   overlayHeaderTopSpacing = 0,
+  overlayHeaderUnderlay = false,
+  onOverlayHeaderLayout,
   progressiveBlurHeight,
   progressiveBlurFadeStart,
   progressiveBlurIntensity,
+  progressiveBlurOverlayColors,
   progressiveBlurTopOffset = 0,
   progressiveBlur = false,
   scrollable = true,
@@ -63,7 +70,9 @@ export function PremiumScreen({
     progressiveBlurHeight ?? insets.top + theme.spacing.xxxl + theme.spacing.xs * 2;
   const overlayContentPaddingTop = Math.max(
     0,
-    overlayHeaderTotalHeight + overlayHeaderSpacing - overlayHeaderContentOffset,
+    overlayHeaderUnderlay
+      ? 0
+      : overlayHeaderTotalHeight + overlayHeaderSpacing - overlayHeaderContentOffset,
   );
   const contentStyle = [
     styles.content,
@@ -117,9 +126,11 @@ export function PremiumScreen({
           intensity={progressiveBlurIntensity ?? 30}
           layers={4}
           overlayColors={
-            resolvedMode === 'dark'
-              ? [theme.colors.background, theme.colors.background, 'transparent']
-              : null
+            progressiveBlurOverlayColors === undefined
+              ? resolvedMode === 'dark'
+                ? [theme.colors.background, theme.colors.background, 'transparent']
+                : null
+              : progressiveBlurOverlayColors
           }
           style={{ top: progressiveBlurTopOffset, zIndex: 1 }}
           tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterial'}
@@ -127,7 +138,11 @@ export function PremiumScreen({
       ) : null}
       {overlayHeader ? (
         <View
-          onLayout={(event) => setOverlayHeaderHeight(event.nativeEvent.layout.height)}
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            setOverlayHeaderHeight(height);
+            onOverlayHeaderLayout?.(height);
+          }}
           pointerEvents="box-none"
           style={[styles.overlayHeader, { top: overlayHeaderTopOffset }]}
         >

@@ -92,7 +92,7 @@ function DeliveryRow({
     >
       <Button
         modifiers={[buttonStyle('plain')]}
-        onPress={isSelectionMode ? () => onItemPress?.(item.id) : undefined}
+        onPress={onItemPress ? () => onItemPress(item.id) : undefined}
       >
         <VStack
           alignment="leading"

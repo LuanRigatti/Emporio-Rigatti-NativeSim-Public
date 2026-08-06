@@ -16,12 +16,13 @@ export default function NativeDailyDataSheetFallback({
 }: NativeDailyDataSheetProps) {
   const { theme } = useAppTheme();
   const [values, setValues] = useState<NativeDailyDataValues>(
-    initialValues ?? { estar: '', other: '' },
+    initialValues ?? { estar: '', fuelPrice: '', kilometers: '', other: '' },
   );
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (visible) setValues(initialValues ?? { estar: '', other: '' });
+    if (visible)
+      setValues(initialValues ?? { estar: '', fuelPrice: '', kilometers: '', other: '' });
   }, [initialValues, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -30,37 +31,41 @@ export default function NativeDailyDataSheetFallback({
   };
 
   return (
-    <NativeSheet
-      onVisibleChange={onVisibleChange}
-      title="Adicionar dados diários"
-      visible={visible}
-    >
+    <NativeSheet onVisibleChange={onVisibleChange} title={'Dados Di\u00e1rios'} visible={visible}>
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-            Adicionar dados diários
+            {'Dados Di\u00e1rios'}
           </Text>
           <Pressable accessibilityLabel="Fechar" onPress={() => onVisibleChange(false)}>
-            <Text style={[theme.typography.title2, { color: theme.colors.textPrimary }]}>×</Text>
+            <Text style={[theme.typography.title2, { color: theme.colors.textPrimary }]}>Ã—</Text>
           </Pressable>
         </View>
-        {(['estar', 'other'] as const).map((field) => (
-          <View key={field} style={styles.row}>
+        {(
+          [
+            { currency: true, key: 'estar', label: 'Estar' },
+            { currency: true, key: 'other', label: 'Outros' },
+            { currency: false, key: 'kilometers', label: 'Km' },
+            { currency: true, key: 'fuelPrice', label: 'PreÃ§o do combustÃ­vel' },
+          ] as const
+        ).map(({ currency, key, label }) => (
+          <View key={key} style={styles.row}>
             <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-              {field === 'estar' ? 'Estar' : 'Outros'}
+              {label}
             </Text>
-            <TextInput
-              keyboardType="decimal-pad"
-              onChangeText={(value) => update(field, value)}
-              placeholder="R$ 0,00"
-              placeholderTextColor={theme.colors.textTertiary}
-              style={[
-                styles.input,
-                theme.typography.body,
-                { backgroundColor: theme.colors.surface, color: theme.colors.textPrimary },
-              ]}
-              value={values[field]}
-            />
+            <View style={[styles.inputShell, { backgroundColor: theme.colors.surface }]}>
+              {currency ? (
+                <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>R$</Text>
+              ) : null}
+              <TextInput
+                keyboardType="decimal-pad"
+                onChangeText={(value) => update(key, value)}
+                placeholder={currency ? '0,00' : '0,0'}
+                placeholderTextColor={theme.colors.textTertiary}
+                style={[styles.input, theme.typography.body, { color: theme.colors.textPrimary }]}
+                value={values[key]}
+              />
+            </View>
           </View>
         ))}
         <Pressable
@@ -83,10 +88,16 @@ const styles = StyleSheet.create({
   content: { gap: 16 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  input: {
+  inputShell: {
+    alignItems: 'center',
     borderRadius: 12,
+    flexDirection: 'row',
+    gap: 4,
     minWidth: 132,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
+  },
+  input: {
+    flex: 1,
     paddingVertical: 10,
     textAlign: 'right',
   },

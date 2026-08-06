@@ -122,13 +122,20 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const [sheetVisible, setSheetVisible] = useState(false);
   const dailyDate = todayIso();
   const dailyValues = getValues('day', dailyDate);
-  const hasDailyData = Boolean(dailyValues.estar.trim() || dailyValues.other.trim());
+  const hasDailyData = Boolean(
+    dailyValues.estar.trim() ||
+    dailyValues.other.trim() ||
+    dailyValues.kilometers.trim() ||
+    dailyValues.fuelPrice.trim(),
+  );
 
   const handleDailyDataSubmit = useCallback(
     (values: NativeDailyDataValues) => {
       const date = todayIso();
       updateField('day', date, 'estar', values.estar);
       updateField('day', date, 'other', values.other);
+      updateField('day', date, 'kilometers', values.kilometers);
+      updateField('day', date, 'fuelPrice', values.fuelPrice);
     },
     [updateField],
   );
@@ -170,6 +177,14 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
               <View style={styles.dailyDataRows}>
                 <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
                 <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
+                <DailyDataRow
+                  label="Km"
+                  value={`${formatStoredNumber(dailyValues.kilometers)} km`}
+                />
+                <DailyDataRow
+                  label="Preço do combustível"
+                  value={formatStoredCost(dailyValues.fuelPrice)}
+                />
               </View>
             </PremiumCard>
           </View>
@@ -197,7 +212,12 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
         </View>
       </View>
       <NativeDailyDataSheet
-        initialValues={{ estar: dailyValues.estar, other: dailyValues.other }}
+        initialValues={{
+          estar: dailyValues.estar,
+          fuelPrice: dailyValues.fuelPrice,
+          kilometers: dailyValues.kilometers,
+          other: dailyValues.other,
+        }}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
         visible={sheetVisible}
@@ -380,6 +400,12 @@ function formatDeliveryDate(value: string) {
 
 function formatStoredCost(value: string): string {
   return formatCurrency(normalizeMoney(value) ?? 0);
+}
+
+function formatStoredNumber(value: string): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(
+    normalizeMoney(value) ?? 0,
+  );
 }
 
 function DailyDataRow({ label, value }: { label: string; value: string }) {

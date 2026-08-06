@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export type NativeBottomSheetItem = {
   id: string;
   title: string;
@@ -14,6 +16,7 @@ export type NativeBottomSheetConfirmation = {
 };
 
 export type NativeBottomSheetProps = {
+  content?: ReactNode;
   visible: boolean;
   bucketPrice?: number;
   title: string;

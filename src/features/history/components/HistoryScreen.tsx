@@ -69,6 +69,7 @@ export function HistoryScreen() {
   );
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
+  const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
   const [pagerRequestID, setPagerRequestID] = useState(0);
   const [pagerWidth, setPagerWidth] = useState(0);
   const [pagerHeight, setPagerHeight] = useState(0);
@@ -99,15 +100,6 @@ export function HistoryScreen() {
   const datesWithDeliveries = useMemo(
     () => new Set(allDeliveries.map((delivery) => delivery.data)),
     [allDeliveries],
-  );
-
-  const deliveriesForDate = useMemo(
-    () => allDeliveries.filter((delivery) => delivery.data === selectedDate),
-    [allDeliveries, selectedDate],
-  );
-  const bucketCountForDate = useMemo(
-    () => deliveriesForDate.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0),
-    [deliveriesForDate],
   );
 
   const requestDatePage = useCallback((date: string, resetFilter = true) => {
@@ -211,40 +203,57 @@ export function HistoryScreen() {
     (date: string) => {
       const dayDeliveries = allDeliveries.filter((delivery) => delivery.data === date);
       const visibleDeliveries = filterDayDeliveries(dayDeliveries, selectedFilter);
+      const dayBucketCount = dayDeliveries.reduce(
+        (total, delivery) => total + delivery.quantidadeBaldes,
+        0,
+      );
 
       return (
-        <Animated.View
-          entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
-          style={[
-            styles.list,
-            { gap: theme.spacing.sm, marginTop: 0, paddingBottom: theme.spacing.lg },
-          ]}
-        >
-          {visibleDeliveries.length > 0 ? (
-            visibleDeliveries.map((delivery, index) => (
+        <>
+          <View style={styles.bucketSummary}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+              {dayBucketCount > 0
+                ? `${dayBucketCount} ${dayBucketCount === 1 ? 'balde' : 'baldes'}`
+                : '0 entregas'}
+            </Text>
+          </View>
+          <Animated.View
+            entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
+            style={[
+              styles.list,
+              {
+                gap: theme.spacing.sm,
+                marginTop: theme.spacing.sm,
+                paddingBottom: theme.spacing.lg,
+              },
+            ]}
+          >
+            {visibleDeliveries.length > 0 ? (
+              visibleDeliveries.map((delivery, index) => (
+                <Animated.View
+                  entering={FadeIn.delay(reduceMotionEnabled ? 0 : index * 40).duration(
+                    reduceMotionEnabled ? 0 : theme.animations.duration.standard,
+                  )}
+                  key={delivery.id}
+                >
+                  <DeliveryCard
+                    delivery={delivery}
+                    onToggleStatus={() => handleToggleStatus(delivery.id)}
+                  />
+                </Animated.View>
+              ))
+            ) : (
               <Animated.View
-                entering={FadeIn.delay(reduceMotionEnabled ? 0 : index * 40).duration(
+                entering={FadeInDown.duration(
                   reduceMotionEnabled ? 0 : theme.animations.duration.standard,
                 )}
-                key={delivery.id}
+                style={styles.emptyState}
               >
-                <DeliveryCard
-                  delivery={delivery}
-                  onToggleStatus={() => handleToggleStatus(delivery.id)}
-                />
+                <EmptyState />
               </Animated.View>
-            ))
-          ) : (
-            <Animated.View
-              entering={FadeInDown.duration(
-                reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-              )}
-              style={styles.emptyState}
-            >
-              <EmptyState />
-            </Animated.View>
-          )}
-        </Animated.View>
+            )}
+          </Animated.View>
+        </>
       );
     },
     [allDeliveries, handleToggleStatus, reduceMotionEnabled, selectedFilter, theme],
@@ -283,6 +292,7 @@ export function HistoryScreen() {
             contentContainerStyle={{
               paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
               paddingHorizontal: theme.spacing.md,
+              paddingTop: overlayHeaderHeight + theme.spacing.lg,
             }}
             nestedScrollEnabled
             showsVerticalScrollIndicator={false}
@@ -385,6 +395,8 @@ export function HistoryScreen() {
         overlayHeader={header}
         overlayHeaderContentOffset={0}
         overlayHeaderSpacing={theme.spacing.lg}
+        overlayHeaderUnderlay
+        onOverlayHeaderLayout={setOverlayHeaderHeight}
         progressiveBlurHeight={
           insets.top + theme.sizes.touchTargetMinimum + theme.spacing.xxxl + theme.spacing.xs * 5
         }
@@ -397,15 +409,7 @@ export function HistoryScreen() {
           <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
         ) : null}
 
-        <View style={styles.bucketSummary}>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            {bucketCountForDate > 0
-              ? `${bucketCountForDate} ${bucketCountForDate === 1 ? 'balde' : 'baldes'}`
-              : '0 entregas'}
-          </Text>
-        </View>
-
-        {dayContent}
+        <View style={styles.dayContentContainer}>{dayContent}</View>
       </PremiumScreen>
     </Animated.View>
   );
@@ -414,6 +418,7 @@ export function HistoryScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   screenContent: { flex: 1 },
+  dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
   bucketSummary: { alignItems: 'center', width: '100%' },
   emptyState: { alignSelf: 'stretch', width: '100%' },
   list: { width: '100%' },

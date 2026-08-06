@@ -15,7 +15,6 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
-  background,
   buttonStyle,
   contentShape,
   controlSize,
@@ -30,6 +29,7 @@ import {
   onTapGesture,
   padding,
   presentationDetents,
+  presentationBackground,
   presentationDragIndicator,
   scrollContentBackground,
   scrollDisabled,
@@ -39,11 +39,13 @@ import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
+import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 
 export default function NativeBottomSheetSwiftUI({
   items,
   bucketPrice = 49.8,
+  content,
   onSelect,
   onPageSettled,
   onVisibleChange,
@@ -106,9 +108,8 @@ export default function NativeBottomSheetSwiftUI({
       alignment="leading"
       spacing={12}
       modifiers={[
-        background('systemGray5'),
-        frame({ maxWidth: 1000, alignment: 'top' }),
         padding({ horizontal: 20, top: 14, bottom: 16 }),
+        frame({ maxWidth: 1000, alignment: 'top' }),
       ]}
     >
       <VStack alignment="leading" spacing={12}>
@@ -118,20 +119,17 @@ export default function NativeBottomSheetSwiftUI({
             spacing={10}
             modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
           >
-            <Image
-              color="#8B8B93"
-              size={32}
-              systemName={(selectedItem?.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
-            />
-            <Text modifiers={[font({ size: 18, weight: 'semibold' })]}>
+            <Text modifiers={[font({ size: 18, weight: 'semibold' }), offset({ y: -20 })]}>
               {selectedItem?.title ?? 'Selecione um cliente'}
             </Text>
           </HStack>
           <Divider />
         </VStack>
-        <VStack alignment="leading" spacing={0} modifiers={[padding({ top: 8 })]}>
+        <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 12, top: 8 })]}>
           <HStack alignment="center" spacing={10} modifiers={[padding({ bottom: 18 })]}>
-            <Text modifiers={[font({ size: 16, weight: 'bold' })]}>Data da entrega</Text>
+            <Text modifiers={[font({ size: 16, weight: 'bold' }), padding({ leading: 20 })]}>
+              Data
+            </Text>
             <Spacer />
             <DatePicker
               displayedComponents={['date']}
@@ -139,9 +137,9 @@ export default function NativeBottomSheetSwiftUI({
               selection={selectedDate}
             />
           </HStack>
-          <HStack alignment="center" spacing={16}>
-            <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>
-              {`${bucketQuantity} ${bucketQuantity === 1 ? 'balde' : 'baldes'}`}
+          <HStack alignment="center" spacing={12}>
+            <Text modifiers={[font({ size: 17, weight: 'semibold' }), padding({ leading: 20 })]}>
+              Baldes
             </Text>
             <Spacer />
             <Button
@@ -160,6 +158,7 @@ export default function NativeBottomSheetSwiftUI({
             >
               <Image size={17} systemName="minus" />
             </Button>
+            <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>{bucketQuantity}</Text>
             <Button
               modifiers={[
                 buttonStyle('plain'),
@@ -178,7 +177,9 @@ export default function NativeBottomSheetSwiftUI({
             </Button>
           </HStack>
           <HStack alignment="center" modifiers={[padding({ top: 24 })]}>
-            <Text modifiers={[font({ size: 16, weight: 'bold' })]}>Valor total</Text>
+            <Text modifiers={[font({ size: 16, weight: 'bold' }), padding({ leading: 20 })]}>
+              Valor total
+            </Text>
             <Spacer />
             <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>
               {new Intl.NumberFormat('pt-BR', {
@@ -188,7 +189,7 @@ export default function NativeBottomSheetSwiftUI({
             </Text>
           </HStack>
         </VStack>
-        <HStack alignment="center" modifiers={[padding({ top: 4 })]}>
+        <HStack alignment="center" modifiers={[padding({ top: 24, trailing: 8 })]}>
           <Spacer />
           <Button
             label="Confirmar"
@@ -222,7 +223,6 @@ export default function NativeBottomSheetSwiftUI({
           listStyle('insetGrouped'),
           scrollDisabled(false),
           scrollContentBackground('hidden'),
-          background('systemGray5'),
           padding({ horizontal: 0, bottom: 8 }),
         ]}
       >
@@ -258,13 +258,14 @@ export default function NativeBottomSheetSwiftUI({
     </VStack>
   );
 
-  const headerView = () => (
-    <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
-      {titleView}
-    </ZStack>
-  );
+  const headerView = () =>
+    selectedItem ? null : (
+      <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
+        {titleView}
+      </ZStack>
+    );
 
-  const sheetContent = (
+  const registroSheetContent = (
     <VStack
       alignment="leading"
       spacing={0}
@@ -284,11 +285,14 @@ export default function NativeBottomSheetSwiftUI({
     </VStack>
   );
 
+  const sheetContent = content ?? registroSheetContent;
+
   return (
     <Host matchContents>
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
+            presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
             presentationDetents([{ fraction: 0.48 }, 'large']),
             presentationDragIndicator('visible'),
           ]}

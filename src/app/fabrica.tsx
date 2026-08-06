@@ -1,16 +1,16 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeTextField } from '@/components/native';
-import { GlassCard, PremiumScreen } from '@/components/premium';
-import { useFactorySettings } from '@/hooks/useFactorySettings';
+import { NativeGlassBackButton } from '@/components/native';
+import { PremiumScreen } from '@/components/premium';
+import { SettingItem } from '@/features/settings/components/SettingItem';
+import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useAppTheme } from '@/theme';
 
 export default function FactoryRoute() {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { settings, updateField } = useFactorySettings();
 
   const header = (
     <NativeGlassHeader
@@ -30,26 +30,28 @@ export default function FactoryRoute() {
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
-      <GlassCard style={[styles.card, { marginTop: theme.spacing.md }]}>
-        <View style={styles.field}>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            Custo por balde
-          </Text>
-          <NativeTextField
-            accessibilityLabel="Custo por balde"
-            keyboardType="decimal-pad"
-            onChangeText={(value) => updateField('bucketCost', value)}
-            placeholder="R$ 0,00"
-            value={settings.bucketCost}
+      <View style={[styles.section, { marginTop: theme.spacing.md }]}>
+        <SettingsSection>
+          <SettingItem
+            fallbackIcon="cash-outline"
+            onPress={() => router.push('/fabrica-valor-balde')}
+            systemName="dollarsign.circle"
+            title="Valor do balde"
           />
-        </View>
-      </GlassCard>
+          <SettingItem
+            fallbackIcon="cart-outline"
+            isLast
+            onPress={() => router.push('/fabrica-compras')}
+            systemName="cart"
+            title="Compras"
+          />
+        </SettingsSection>
+      </View>
     </PremiumScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, gap: 16 },
-  card: { gap: 20 },
-  field: { gap: 8 },
+  content: { flexGrow: 1 },
+  section: { gap: 8 },
 });

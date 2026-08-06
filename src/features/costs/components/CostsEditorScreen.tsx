@@ -135,7 +135,7 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
             />
             <CostField
               keyboardType="decimal-pad"
-              label="Preço da gasolina"
+              label="Preço do combustível"
               onChangeText={(value) => updateField('day', selectedDate, 'fuelPrice', value)}
               placeholder="R$ 0,00 por litro"
               value={values.fuelPrice}

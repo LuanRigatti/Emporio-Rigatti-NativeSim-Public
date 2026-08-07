@@ -2,7 +2,12 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
-import type { RouteTrackingRecord, RouteTrackingResult } from '@/types/routeTracking';
+import type {
+  RouteTrackingRecord,
+  RouteTrackingResult,
+  RouteTrackingSession,
+} from '@/types/routeTracking';
+import type { RouteDistanceSummary } from './routeTrackingDistance';
 import { isExpoGoRuntime } from '@/platform/runtimeEnvironment';
 
 import { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
@@ -36,9 +41,10 @@ export class RouteTrackingError extends Error {
   }
 }
 
-function isAlwaysPermissionGranted(permission: Location.LocationPermissionResponse): boolean {
-  return permission.granted && permission.ios?.scope === 'always';
-}
+export type LocationPermissionStatus = {
+  foreground: Awaited<ReturnType<typeof Location.getForegroundPermissionsAsync>>;
+  background: Awaited<ReturnType<typeof Location.getBackgroundPermissionsAsync>>;
+};
 
 export class LocationTrackingService {
   private stopQueue = Promise.resolve();
@@ -83,6 +89,44 @@ export class LocationTrackingService {
 
   public getActiveRoute(): Promise<RouteTrackingRecord | null> {
     return routeTrackingRepository.getActiveRoute();
+  }
+
+  public getRoute(): Promise<RouteTrackingRecord | null> {
+    return routeTrackingRepository.getRoute();
+  }
+
+  public getRouteHistory(date?: string): Promise<RouteTrackingSession[]> {
+    return routeTrackingRepository.getRouteHistory(date);
+  }
+
+  public getRouteDistanceForDate(date: string): Promise<RouteDistanceSummary> {
+    return routeTrackingRepository.getRouteDistanceForDate(date);
+  }
+
+  public getTotalDistanceForDate(date: string): Promise<number> {
+    return routeTrackingRepository.getTotalDistanceForDate(date);
+  }
+
+  public async getPermissionStatus(): Promise<LocationPermissionStatus> {
+    const foreground = await Location.getForegroundPermissionsAsync();
+    const background = await Location.getBackgroundPermissionsAsync();
+
+    if (__DEV__) {
+      console.log('[LocationTracking] permission status', {
+        background: {
+          canAskAgain: background.canAskAgain,
+          granted: background.granted,
+          status: background.status,
+        },
+        foreground: {
+          canAskAgain: foreground.canAskAgain,
+          granted: foreground.granted,
+          status: foreground.status,
+        },
+      });
+    }
+
+    return { background, foreground };
   }
 
   public async getTrackedDistance(routeId: string): Promise<number | null> {
@@ -204,13 +248,11 @@ export class LocationTrackingService {
       );
     }
 
-    let background =
-      (await Location.getBackgroundPermissionsAsync()) as Location.LocationPermissionResponse;
-    if (!isAlwaysPermissionGranted(background) && requestPermissions) {
-      background =
-        (await Location.requestBackgroundPermissionsAsync()) as Location.LocationPermissionResponse;
+    let background = await Location.getBackgroundPermissionsAsync();
+    if (!background.granted && requestPermissions) {
+      background = await Location.requestBackgroundPermissionsAsync();
     }
-    if (!isAlwaysPermissionGranted(background)) {
+    if (!background.granted) {
       throw new RouteTrackingError(
         'permission-denied',
         'Permita o acesso à localização Sempre para acompanhar a rota em segundo plano.',

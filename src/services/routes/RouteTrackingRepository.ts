@@ -1,14 +1,45 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type * as Location from 'expo-location';
 
-import type { RouteTrackingRecord } from '@/types/routeTracking';
+import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTracking';
 
 import { appendValidLocationSamples } from './routeTrackingMath';
+import { getRouteDateKey } from './routeTrackingDates';
+import { summarizeRouteDistance, type RouteDistanceSummary } from './routeTrackingDistance';
 
 export const ROUTE_TRACKING_STORAGE_KEY = '@pareact/route-tracking-v1';
+export const ROUTE_TRACKING_HISTORY_STORAGE_KEY = '@pareact/route-tracking-history-v1';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseSample(value: unknown): RouteTrackingRecord['samples'][number] | null {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.latitude !== 'number' ||
+    typeof value.longitude !== 'number' ||
+    typeof value.accuracy !== 'number' ||
+    typeof value.timestamp !== 'number'
+  ) {
+    return null;
+  }
+
+  return {
+    accuracy: value.accuracy,
+    latitude: value.latitude,
+    longitude: value.longitude,
+    timestamp: value.timestamp,
+  };
+}
+
+function parseSamples(value: unknown): RouteTrackingRecord['samples'] {
+  return Array.isArray(value)
+    ? value.flatMap((sample) => {
+        const parsed = parseSample(sample);
+        return parsed ? [parsed] : [];
+      })
+    : [];
 }
 
 function parseStoredRecord(value: string | null): RouteTrackingRecord | null {
@@ -18,17 +49,7 @@ function parseStoredRecord(value: string | null): RouteTrackingRecord | null {
     const parsed: unknown = JSON.parse(value);
     if (!isRecord(parsed)) return null;
 
-    const samples = Array.isArray(parsed.samples)
-      ? parsed.samples.filter((sample): sample is RouteTrackingRecord['samples'][number] => {
-          if (!isRecord(sample)) return false;
-          return (
-            typeof sample.latitude === 'number' &&
-            typeof sample.longitude === 'number' &&
-            typeof sample.accuracy === 'number' &&
-            typeof sample.timestamp === 'number'
-          );
-        })
-      : [];
+    const samples = parseSamples(parsed.samples);
 
     if (
       typeof parsed.routeId !== 'string' ||
@@ -59,6 +80,55 @@ function parseStoredRecord(value: string | null): RouteTrackingRecord | null {
   }
 }
 
+function parseStoredHistory(value: string | null): RouteTrackingSession[] {
+  if (!value) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.flatMap((item) => {
+      if (!isRecord(item)) return [];
+      const samples = parseSamples(item.samples);
+      if (
+        typeof item.id !== 'string' ||
+        typeof item.date !== 'string' ||
+        typeof item.startTimestamp !== 'number' ||
+        typeof item.endTimestamp !== 'number' ||
+        typeof item.durationSeconds !== 'number' ||
+        typeof item.distanceMeters !== 'number' ||
+        typeof item.pointsCount !== 'number' ||
+        item.status !== 'finalized' ||
+        !Number.isFinite(item.startTimestamp) ||
+        !Number.isFinite(item.endTimestamp) ||
+        !Number.isFinite(item.durationSeconds) ||
+        !Number.isFinite(item.distanceMeters) ||
+        !Number.isFinite(item.pointsCount) ||
+        item.distanceMeters < 0 ||
+        item.pointsCount < 0
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          date: item.date,
+          distanceMeters: item.distanceMeters,
+          durationSeconds: item.durationSeconds,
+          endTimestamp: item.endTimestamp,
+          id: item.id,
+          pointsCount: item.pointsCount,
+          samples,
+          startTimestamp: item.startTimestamp,
+          status: 'finalized' as const,
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export class RouteTrackingRepository {
   private writeQueue = Promise.resolve();
 
@@ -69,6 +139,25 @@ export class RouteTrackingRepository {
   public async getActiveRoute(): Promise<RouteTrackingRecord | null> {
     const route = await this.getRoute();
     return route?.active ? route : null;
+  }
+
+  public async getRouteHistory(date?: string): Promise<RouteTrackingSession[]> {
+    const history = parseStoredHistory(
+      await AsyncStorage.getItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY),
+    )
+      .filter((session) => !date || session.date === date)
+      .sort((left, right) => left.startTimestamp - right.startTimestamp);
+
+    return history;
+  }
+
+  public async getRouteDistanceForDate(date: string): Promise<RouteDistanceSummary> {
+    return summarizeRouteDistance(await this.getRouteHistory(date));
+  }
+
+  public async getTotalDistanceForDate(date: string): Promise<number> {
+    const summary = await this.getRouteDistanceForDate(date);
+    return summary.totalKilometers;
   }
 
   public async createActiveRoute(routeId: string): Promise<RouteTrackingRecord> {
@@ -128,8 +217,31 @@ export class RouteTrackingRepository {
         throw new Error('A rota precisa ter a parada nativa confirmada antes da finalizacao.');
       }
 
-      const finished = { ...current, active: false, endTimestamp };
-      await this.write(finished);
+      const finished = current.active ? { ...current, active: false, endTimestamp } : current;
+      if (current.active) await this.write(finished);
+
+      const history = await this.getRouteHistory();
+      const session: RouteTrackingSession = {
+        date: getRouteDateKey(finished.startTimestamp),
+        distanceMeters: finished.accumulatedDistanceMeters,
+        durationSeconds: Math.max(
+          0,
+          ((finished.endTimestamp ?? endTimestamp) - finished.startTimestamp) / 1000,
+        ),
+        endTimestamp: finished.endTimestamp ?? endTimestamp,
+        id: finished.routeId,
+        pointsCount: finished.samples.length,
+        samples: finished.samples,
+        startTimestamp: finished.startTimestamp,
+        status: 'finalized',
+      };
+
+      if (!history.some((item) => item.id === session.id)) {
+        await AsyncStorage.setItem(
+          ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+          JSON.stringify([...history, session]),
+        );
+      }
       return finished;
     });
   }

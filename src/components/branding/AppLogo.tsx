@@ -9,8 +9,8 @@ export type AppLogoProps = {
 
 const logoAssets = {
   login: {
-    dark: require('../../../assets/branding/logo-dark.png'),
-    light: require('../../../assets/branding/logo-light.png'),
+    dark: require('../../../assets/branding/login-logo-dark.png'),
+    light: require('../../../assets/branding/login-logo-light.png'),
   },
   splash: {
     dark: require('../../../assets/branding/splash-dark.png'),

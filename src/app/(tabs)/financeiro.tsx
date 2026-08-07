@@ -95,7 +95,7 @@ export default function PrototypeFinanceiro() {
       }
       progressiveBlur
     >
-      <PremiumCard style={styles.heroCard}>
+      <PremiumCard style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         <View style={styles.heroHeader}>
           <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
             FATURAMENTO MENSAL
@@ -106,7 +106,7 @@ export default function PrototypeFinanceiro() {
           {formatCurrency(summary?.faturamento ?? 0)}
         </Text>
       </PremiumCard>
-      <PremiumCard style={styles.heroCard}>
+      <PremiumCard style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         <View style={styles.heroHeader}>
           <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
             LUCRO LÍQUIDO MENSAL

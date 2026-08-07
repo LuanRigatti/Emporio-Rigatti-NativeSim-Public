@@ -61,7 +61,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           <GlassSurface interactive style={styles.buttonSurface}>
             <Pressable
               accessibilityHint="Simula a entrada com uma conta Google"
-              accessibilityLabel={isLoading ? 'Entrando' : 'Continuar com Google'}
+              accessibilityLabel={isLoading ? 'Entrando' : 'Login com Google'}
               accessibilityRole="button"
               accessibilityState={{ busy: isLoading, disabled: isLoading }}
               disabled={isLoading}
@@ -78,7 +78,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             >
               <GoogleMark size={20} />
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {isLoading ? 'Entrando...' : 'Continuar com Google'}
+                {isLoading ? 'Entrando...' : 'Login com Google'}
               </Text>
               {isLoading ? (
                 <ActivityIndicator color={theme.colors.textSecondary} size="small" />
@@ -115,7 +115,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   buttonSurface: {
-    width: '100%',
+    alignSelf: 'center',
+    width: '60%',
   },
   googleButton: {
     alignItems: 'center',

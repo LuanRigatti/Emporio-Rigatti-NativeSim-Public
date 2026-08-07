@@ -9,3 +9,4 @@ export {
   type CostSettings,
   type CostValues,
 } from './CostSettingsStorage';
+export { addDailyValue } from './dailyDataAggregation';

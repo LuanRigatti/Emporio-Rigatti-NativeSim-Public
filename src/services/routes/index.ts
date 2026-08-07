@@ -16,3 +16,6 @@ export {
 export { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
 export { RouteTrackingRepository, routeTrackingRepository } from './RouteTrackingRepository';
 export { appendValidLocationSamples, calculateDistanceMeters } from './routeTrackingMath';
+export { formatRouteDateKey, getRouteDateKey } from './routeTrackingDates';
+export { summarizeRouteDistance } from './routeTrackingDistance';
+export type { RouteDistanceSummary } from './routeTrackingDistance';

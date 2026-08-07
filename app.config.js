@@ -12,6 +12,10 @@ module.exports = {
     ios: {
       bundleIdentifier: 'com.pareact.mobile',
       buildNumber: '1',
+      icon: {
+        dark: './assets/app-icon-dark.png',
+        light: './assets/app-icon-light.png',
+      },
       supportsTablet: true,
       infoPlist: {
         LSApplicationQueriesSchemes: ['comgooglemaps'],
@@ -58,11 +62,7 @@ module.exports = {
           backgroundColor: '#FFFFFF',
           dark: {
             backgroundColor: '#0B0F14',
-            image: './assets/branding/splash-dark.png',
           },
-          enableFullScreenImage_legacy: true,
-          image: './assets/branding/splash-light.png',
-          resizeMode: 'cover',
         },
       ],
       'expo-web-browser',

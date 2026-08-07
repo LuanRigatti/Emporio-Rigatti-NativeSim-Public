@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -12,6 +12,8 @@ import type { NativeDropdownItem } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useCostSettings } from '@/hooks/useCostSettings';
 import { expenseCalculationService } from '@/services/expenses';
+import { locationTrackingService } from '@/services/routes';
+import type { RouteDistanceSummary } from '@/services/routes';
 import { useAppTheme } from '@/theme';
 import { normalizeMoney, todayIso } from '@/utils/data';
 
@@ -33,6 +35,10 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const [selectedDate, setSelectedDate] = useState(() => todayIso(initialDate));
   const [selectedMonth, setSelectedMonth] = useState(() => initialDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(() => initialDate.getFullYear());
+  const [routeDistance, setRouteDistance] = useState<{
+    date: string;
+    summary: RouteDistanceSummary;
+  } | null>(null);
   const monthItems = useMemo(() => createMonthItems(), []);
   const yearItems = useMemo(() => createYearItems(), []);
   const date = parseIsoDate(selectedDate);
@@ -48,6 +54,34 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
     km: normalizeMoney(values.kilometers) ?? 0,
     precoGasolina: normalizeMoney(values.fuelPrice) ?? 0,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      if (mode !== 'daily') {
+        setRouteDistance(null);
+        return () => {
+          cancelled = true;
+        };
+      }
+
+      setRouteDistance(null);
+      void locationTrackingService.getRouteDistanceForDate(selectedDate).then((summary) => {
+        if (!cancelled) setRouteDistance({ date: selectedDate, summary });
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [mode, selectedDate]),
+  );
+
+  const routeSummary = routeDistance?.date === selectedDate ? routeDistance.summary : undefined;
+  const totalKilometers =
+    (normalizeMoney(values.kilometers) ?? 0) + (routeSummary?.totalKilometers ?? 0);
+  const automaticKilometers =
+    mode === 'daily' && routeSummary?.routeCount ? formatKilometers(totalKilometers) : undefined;
 
   const header = (
     <NativeGlassHeader
@@ -127,11 +161,12 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
               value={values.other}
             />
             <CostField
+              disabled={automaticKilometers !== undefined}
               keyboardType="decimal-pad"
               label="Km"
               onChangeText={(value) => updateField('day', selectedDate, 'kilometers', value)}
               placeholder="0,0 km"
-              value={values.kilometers}
+              value={automaticKilometers ?? values.kilometers}
             />
             <CostField
               keyboardType="decimal-pad"
@@ -202,6 +237,13 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
     style: 'currency',
   }).format(value);
+}
+
+function formatKilometers(value: number): string {
+  return `${value.toLocaleString('pt-BR', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 1,
+  })} km`;
 }
 
 const styles = StyleSheet.create({

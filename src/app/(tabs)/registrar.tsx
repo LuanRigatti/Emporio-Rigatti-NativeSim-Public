@@ -20,6 +20,9 @@ import type {
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useCostSettings } from '@/hooks/useCostSettings';
+import { addDailyValue } from '@/services/costs';
+import { locationTrackingService } from '@/services/routes';
+import type { RouteDistanceSummary } from '@/services/routes';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
@@ -31,6 +34,13 @@ import {
 } from '@/features/history/data/historyDeliveryStore';
 
 const BUCKET_PRICE = 49.8;
+
+const EMPTY_DAILY_DATA_VALUES: NativeDailyDataValues = {
+  estar: '',
+  fuelPrice: '',
+  kilometers: '',
+  other: '',
+};
 
 export default function PrototypeRegistrar() {
   return <RegistrarModeSelection />;
@@ -120,24 +130,58 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const { theme } = useAppTheme();
   const { getValues, updateField } = useCostSettings();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [routeDistance, setRouteDistance] = useState<RouteDistanceSummary | null>(null);
   const dailyDate = todayIso();
   const dailyValues = getValues('day', dailyDate);
+  const manualKilometers = normalizeMoney(dailyValues.kilometers) ?? 0;
+  const totalKilometers = manualKilometers + (routeDistance?.totalKilometers ?? 0);
   const hasDailyData = Boolean(
     dailyValues.estar.trim() ||
     dailyValues.other.trim() ||
     dailyValues.kilometers.trim() ||
-    dailyValues.fuelPrice.trim(),
+    dailyValues.fuelPrice.trim() ||
+    routeDistance?.routeCount,
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      void locationTrackingService.getRouteDistanceForDate(dailyDate).then((summary) => {
+        if (!cancelled) setRouteDistance(summary);
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [dailyDate]),
   );
 
   const handleDailyDataSubmit = useCallback(
     (values: NativeDailyDataValues) => {
-      const date = todayIso();
-      updateField('day', date, 'estar', values.estar);
-      updateField('day', date, 'other', values.other);
-      updateField('day', date, 'kilometers', values.kilometers);
-      updateField('day', date, 'fuelPrice', values.fuelPrice);
+      updateField('day', dailyDate, 'estar', addDailyValue(dailyValues.estar, values.estar));
+      updateField('day', dailyDate, 'other', addDailyValue(dailyValues.other, values.other));
+      updateField(
+        'day',
+        dailyDate,
+        'kilometers',
+        addDailyValue(dailyValues.kilometers, values.kilometers),
+      );
+      updateField(
+        'day',
+        dailyDate,
+        'fuelPrice',
+        addDailyValue(dailyValues.fuelPrice, values.fuelPrice),
+      );
     },
-    [updateField],
+    [
+      dailyDate,
+      dailyValues.estar,
+      dailyValues.fuelPrice,
+      dailyValues.kilometers,
+      dailyValues.other,
+      updateField,
+    ],
   );
 
   const header = (
@@ -179,7 +223,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
                 <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
                 <DailyDataRow
                   label="Km"
-                  value={`${formatStoredNumber(dailyValues.kilometers)} km`}
+                  value={`${formatStoredNumber(String(totalKilometers))} km`}
                 />
                 <DailyDataRow
                   label="Preço do combustível"
@@ -212,12 +256,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
         </View>
       </View>
       <NativeDailyDataSheet
-        initialValues={{
-          estar: dailyValues.estar,
-          fuelPrice: dailyValues.fuelPrice,
-          kilometers: dailyValues.kilometers,
-          other: dailyValues.other,
-        }}
+        initialValues={EMPTY_DAILY_DATA_VALUES}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
         visible={sheetVisible}

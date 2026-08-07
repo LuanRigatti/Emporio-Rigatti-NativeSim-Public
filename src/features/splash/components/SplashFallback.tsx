@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { AppLogo } from '@/components/branding/AppLogo';
+import { useAppTheme } from '@/theme';
 
 import type { SplashVisualProps } from './SplashVisual.types';
 
@@ -17,11 +18,11 @@ const SPLASH_SYMBOL_CENTER_OFFSET = 37;
 const SPLASH_REVEAL_TRAVEL = 26;
 
 export function SplashFallback({
-  colorScheme,
   onOverlayReady,
   onAnimationComplete,
   startReveal,
 }: SplashVisualProps) {
+  const { theme } = useAppTheme();
   const entrance = useSharedValue(0);
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export function SplashFallback({
       style={[
         styles.root,
         {
-          backgroundColor: colorScheme === 'dark' ? '#0B0F14' : '#FFFFFF',
+          backgroundColor: theme.colors.background,
         },
       ]}
     >

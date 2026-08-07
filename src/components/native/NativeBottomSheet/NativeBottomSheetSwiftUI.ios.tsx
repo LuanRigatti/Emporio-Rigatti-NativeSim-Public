@@ -15,6 +15,7 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
+  background,
   buttonStyle,
   contentShape,
   controlSize,
@@ -40,7 +41,10 @@ import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
-import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
+import {
+  NATIVE_SHEET_CARD_BACKGROUND,
+  NATIVE_SHEET_PRESENTATION_BACKGROUND,
+} from '../nativeSheetBackground';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 
 export default function NativeBottomSheetSwiftUI({
@@ -107,13 +111,24 @@ export default function NativeBottomSheetSwiftUI({
   const detailView = (
     <VStack
       alignment="leading"
-      spacing={12}
+      spacing={16}
       modifiers={[
-        padding({ horizontal: 20, top: 14, bottom: 16 }),
+        padding({ horizontal: 16, top: 14, bottom: 16 }),
         frame({ maxWidth: 1000, alignment: 'top' }),
       ]}
     >
-      <VStack alignment="leading" spacing={12}>
+      <VStack
+        alignment="leading"
+        spacing={12}
+        modifiers={[
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ horizontal: 8, vertical: 8 }),
+          background(
+            NATIVE_SHEET_CARD_BACKGROUND,
+            shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
+          ),
+        ]}
+      >
         {selectedItem ? (
           <VStack alignment="leading" spacing={12}>
             <HStack
@@ -121,9 +136,7 @@ export default function NativeBottomSheetSwiftUI({
               spacing={10}
               modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
             >
-              <Text modifiers={[font({ size: 18, weight: 'semibold' }), offset({ y: -12 })]}>
-                {selectedItem.title}
-              </Text>
+              <Text modifiers={[font({ size: 18, weight: 'semibold' })]}>{selectedItem.title}</Text>
             </HStack>
             <Divider />
           </VStack>
@@ -192,30 +205,40 @@ export default function NativeBottomSheetSwiftUI({
             </Text>
           </HStack>
         </VStack>
-        <HStack alignment="center" modifiers={[padding({ top: 24, trailing: 8 })]}>
-          <Spacer />
-          <Button
-            label="Confirmar"
-            modifiers={[
-              buttonStyle('glassProminent'),
-              controlSize('large'),
-              padding({ top: 4 }),
-              disabledModifier(!selectedItem),
-            ]}
-            onPress={() => {
-              if (!selectedItem) return;
-
-              onConfirm?.({
-                bucketPrice: effectiveBucketPrice,
-                client: selectedItem,
-                date: selectedDate,
-                quantity: bucketQuantity,
-              });
-              onVisibleChange(false);
-            }}
-          />
-        </HStack>
       </VStack>
+      <HStack
+        alignment="center"
+        modifiers={[
+          frame({ maxWidth: Infinity, alignment: 'trailing' }),
+          padding({ top: 8, trailing: 12, bottom: 12 }),
+          background(
+            NATIVE_SHEET_CARD_BACKGROUND,
+            shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
+          ),
+        ]}
+      >
+        <Spacer />
+        <Button
+          label="Confirmar"
+          modifiers={[
+            buttonStyle('glassProminent'),
+            controlSize('large'),
+            padding({ top: 4 }),
+            disabledModifier(!selectedItem),
+          ]}
+          onPress={() => {
+            if (!selectedItem) return;
+
+            onConfirm?.({
+              bucketPrice: effectiveBucketPrice,
+              client: selectedItem,
+              date: selectedDate,
+              quantity: bucketQuantity,
+            });
+            onVisibleChange(false);
+          }}
+        />
+      </HStack>
     </VStack>
   );
 
@@ -276,8 +299,9 @@ export default function NativeBottomSheetSwiftUI({
       spacing={0}
       modifiers={[padding({ horizontal: 0, top: 12, bottom: 6 })]}
     >
-      <Spacer minLength={16} />
+      <Spacer minLength={8} />
       {headerView}
+      <Spacer minLength={8} />
       <NativeInteractivePager
         initialPage={0}
         onPageSettled={({ nativeEvent: { page } }) => onPageSettled?.(page)}
@@ -293,7 +317,7 @@ export default function NativeBottomSheetSwiftUI({
   const sheetContent = content ?? registroSheetContent;
 
   return (
-    <Host matchContents>
+    <Host matchContents={{ horizontal: true }}>
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[

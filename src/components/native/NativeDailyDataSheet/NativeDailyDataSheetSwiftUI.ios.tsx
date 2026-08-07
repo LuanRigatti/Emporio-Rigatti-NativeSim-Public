@@ -30,10 +30,15 @@ import {
   presentationBackground,
   presentationDetents,
   presentationDragIndicator,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
+import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '@/components/native/nativeSheetBackground';
+import {
+  NATIVE_SHEET_CARD_BACKGROUND,
+  NATIVE_SHEET_PRESENTATION_BACKGROUND,
+} from '@/components/native/nativeSheetBackground';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 
 import type {
@@ -101,12 +106,16 @@ export default function NativeDailyDataSheetSwiftUI({
 
   const field = (
     label: string,
+    systemImage: SFSymbol,
     text: NativeTextState,
     fieldName: keyof NativeDailyDataValues,
     currency = false,
   ) => (
     <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 4 })]}>
-      <Text modifiers={[font({ size: 17, weight: 'semibold' }), layoutPriority(1)]}>{label}</Text>
+      <HStack spacing={6} modifiers={[layoutPriority(1)]}>
+        <Image size={16} systemName={systemImage} />
+        <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>{label}</Text>
+      </HStack>
       <Spacer />
       <HStack
         modifiers={[
@@ -114,19 +123,18 @@ export default function NativeDailyDataSheetSwiftUI({
           cornerRadius(12),
           frame({ width: 132, height: 42 }),
           padding({ horizontal: 10 }),
-          offset({ x: 4 }),
         ]}
       >
-        {currency ? <Text>R$</Text> : null}
         <TextField
           axis="horizontal"
           modifiers={[
             autocorrectionDisabled(true),
             frame({ maxWidth: 1000 }),
             keyboardType('decimal-pad'),
+            padding({ leading: 44 }),
           ]}
           onTextChange={(value) => update(fieldName, value)}
-          placeholder={currency ? '0,00' : '0,0'}
+          placeholder={currency ? 'R$ 0,00' : 'Km 0,0'}
           text={text}
         />
       </HStack>
@@ -136,7 +144,7 @@ export default function NativeDailyDataSheetSwiftUI({
   const content = (
     <VStack
       alignment="leading"
-      spacing={6}
+      spacing={8}
       modifiers={[
         frame({ maxWidth: 1000, maxHeight: 1000, alignment: 'topLeading' }),
         padding({ horizontal: 12, top: 14, bottom: 8 }),
@@ -166,42 +174,63 @@ export default function NativeDailyDataSheetSwiftUI({
             <Image size={20} systemName="xmark" />
           </Button>
         </HStack>
-        <Text modifiers={[font({ size: 16, weight: 'bold' }), offset({ y: -8 })]}>
+        <Text modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: 0 })]}>
           {'Dados Di\u00e1rios'}
         </Text>
       </ZStack>
 
       <VStack
         alignment="leading"
-        spacing={0}
-        modifiers={[padding({ leading: 32, trailing: 0, vertical: 4 }), offset({ x: 16 })]}
-      >
-        {field('Estar', estarState, 'estar', true)}
-        <Divider />
-        {field('Outros', otherState, 'other', true)}
-        <Divider />
-        {field('Km', kilometersState, 'kilometers')}
-        <Divider />
-        {field('Combust\u00edvel', fuelPriceState, 'fuelPrice', true)}
-      </VStack>
-
-      <HStack
+        spacing={16}
         modifiers={[
-          frame({ maxWidth: 1000, alignment: 'trailing' }),
-          padding({ top: 12, trailing: 8 }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ horizontal: 2 }),
         ]}
       >
-        <Spacer />
-        <Button
-          label="Adicionar"
-          modifiers={[buttonStyle('glassProminent'), controlSize('large')]}
-          onPress={() => {
-            if (submitting) return;
-            triggerNativeButtonHaptic('light');
-            void handleSubmit();
-          }}
-        />
-      </HStack>
+        <VStack
+          alignment="leading"
+          spacing={0}
+          modifiers={[
+            padding({ leading: 24, trailing: 0, vertical: 4 }),
+            frame({ maxWidth: Infinity, alignment: 'leading' }),
+            background(
+              NATIVE_SHEET_CARD_BACKGROUND,
+              shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
+            ),
+            padding({ top: 4 }),
+          ]}
+        >
+          {field('Estar', 'briefcase', estarState, 'estar', true)}
+          <Divider />
+          {field('Outros', 'ellipsis.circle', otherState, 'other', true)}
+          <Divider />
+          {field('Km', 'speedometer', kilometersState, 'kilometers')}
+          <Divider />
+          {field('Combust\u00edvel', 'fuelpump', fuelPriceState, 'fuelPrice', true)}
+        </VStack>
+
+        <HStack
+          modifiers={[
+            frame({ maxWidth: Infinity, alignment: 'trailing' }),
+            padding({ top: 8, trailing: 8, bottom: 8 }),
+            background(
+              NATIVE_SHEET_CARD_BACKGROUND,
+              shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
+            ),
+          ]}
+        >
+          <Spacer />
+          <Button
+            label="Adicionar"
+            modifiers={[buttonStyle('glassProminent'), controlSize('large')]}
+            onPress={() => {
+              if (submitting) return;
+              triggerNativeButtonHaptic('light');
+              void handleSubmit();
+            }}
+          />
+        </HStack>
+      </VStack>
     </VStack>
   );
 

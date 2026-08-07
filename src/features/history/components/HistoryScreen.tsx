@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
+  NativeDatePicker,
   NativeGlassIconButton,
   NativeGlassMenu,
-  NativePeriodActionGroup,
   type NativeMenuAction,
 } from '@/components/native';
 import { PremiumScreen } from '@/components/premium';
@@ -16,26 +16,11 @@ import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 import { toHistoryDelivery } from '@/services/data';
 import { useAppData } from '@/hooks/useAppData';
+import { parseIsoCalendarDate, todayIso } from '@/utils/data';
 
-import {
-  createHistoryDate,
-  generateHistoryCalendarDays,
-  getCurrentHistoryPeriod,
-  getInitialHistoryDate,
-} from '../utils/historyDateUtils';
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
 import { FilterChips, type HistoryFilter } from './FilterChips';
-import { HorizontalCalendar } from './HorizontalCalendar';
-import { getHistoryYearItems, HISTORY_MONTH_ITEMS } from './periodOptions';
-
-function monthShortLabel(month: number): string {
-  return (
-    ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
-      month - 1
-    ] ?? String(month)
-  );
-}
 
 function filterDayDeliveries<T extends { status: string }>(
   deliveries: readonly T[],
@@ -55,83 +40,30 @@ function filterDayDeliveries<T extends { status: string }>(
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
-  const { width: windowWidth } = useWindowDimensions();
   const { refresh, snapshot, toggleDelivery } = useAppData();
   const allDeliveries = useMemo(
     () => (snapshot?.entregas ?? []).map(toHistoryDelivery),
     [snapshot],
   );
-  const initialPeriod = getCurrentHistoryPeriod();
-  const [selectedMonth, setSelectedMonth] = useState(initialPeriod.month);
-  const [selectedYear, setSelectedYear] = useState(initialPeriod.year);
-  const [selectedDate, setSelectedDate] = useState(() =>
-    getInitialHistoryDate(initialPeriod.year, initialPeriod.month, allDeliveries),
-  );
+  const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
-  const [pagerRequestID, setPagerRequestID] = useState(0);
-  const [pagerWidth, setPagerWidth] = useState(0);
-  const [pagerHeight, setPagerHeight] = useState(0);
-  const pagerRef = useRef<ScrollView>(null);
-  const lastPagerRequestIDRef = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
       void refresh();
     }, [refresh]),
   );
-  const calendarDays = useMemo(
-    () => generateHistoryCalendarDays(selectedYear, selectedMonth),
-    [selectedMonth, selectedYear],
-  );
-  const selectedPageIndex = useMemo(
-    () =>
-      Math.max(
-        0,
-        calendarDays.findIndex((day) => day.date === selectedDate),
-      ),
-    [calendarDays, selectedDate],
-  );
-  const selectedPageIndexRef = useRef(selectedPageIndex);
-  useEffect(() => {
-    selectedPageIndexRef.current = selectedPageIndex;
-  }, [selectedPageIndex]);
-  const datesWithDeliveries = useMemo(
-    () => new Set(allDeliveries.map((delivery) => delivery.data)),
-    [allDeliveries],
-  );
+  const handleSelectDate = useCallback((date: Date) => {
+    setSelectedDate(todayIso(date));
+    setSelectedFilter('Todos');
+  }, []);
 
   const requestDatePage = useCallback((date: string, resetFilter = true) => {
     setSelectedDate(date);
     if (resetFilter) setSelectedFilter('Todos');
-    setPagerRequestID((requestID) => requestID + 1);
   }, []);
-
-  const handleSelectDate = useCallback(
-    (date: string) => {
-      requestDatePage(date);
-    },
-    [requestDatePage],
-  );
-
-  const handleMonthChange = useCallback(
-    (month: number) => {
-      const nextDate = getInitialHistoryDate(selectedYear, month, allDeliveries);
-      setSelectedMonth(month);
-      requestDatePage(nextDate);
-    },
-    [allDeliveries, requestDatePage, selectedYear],
-  );
-
-  const handleYearChange = useCallback(
-    (year: number) => {
-      const nextDate = getInitialHistoryDate(year, selectedMonth, allDeliveries);
-      setSelectedYear(year);
-      requestDatePage(nextDate);
-    },
-    [allDeliveries, requestDatePage, selectedMonth],
-  );
 
   const handleFilterPress = useCallback(() => {
     triggerSelectionHaptic();
@@ -143,13 +75,7 @@ export function HistoryScreen() {
       setSelectedFilter(filter);
 
       if (filter === 'Hoje') {
-        const currentPeriod = getCurrentHistoryPeriod();
-        setSelectedMonth(currentPeriod.month);
-        setSelectedYear(currentPeriod.year);
-        requestDatePage(
-          createHistoryDate(currentPeriod.year, currentPeriod.month, new Date().getDate()),
-          false,
-        );
+        requestDatePage(todayIso(), false);
       }
     },
     [requestDatePage],
@@ -163,42 +89,6 @@ export function HistoryScreen() {
     [toggleDelivery],
   );
 
-  useEffect(() => {
-    if (pagerWidth <= 0) return;
-
-    const animated = lastPagerRequestIDRef.current !== pagerRequestID;
-    pagerRef.current?.scrollTo({
-      animated,
-      x: selectedPageIndexRef.current * pagerWidth,
-      y: 0,
-    });
-    lastPagerRequestIDRef.current = pagerRequestID;
-  }, [pagerRequestID, pagerWidth]);
-
-  const handlePagerScroll = useCallback(
-    (event: { nativeEvent: { contentOffset: { x: number } } }) => {
-      if (pagerWidth <= 0) return;
-      const page = Math.round(event.nativeEvent.contentOffset.x / pagerWidth);
-      const nextDate = calendarDays[page]?.date;
-      if (!nextDate || nextDate === selectedDate) return;
-      setSelectedDate(nextDate);
-      setSelectedFilter('Todos');
-    },
-    [calendarDays, pagerWidth, selectedDate],
-  );
-
-  const handlePagerMomentumEnd = useCallback(
-    (event: { nativeEvent: { contentOffset: { x: number } } }) => {
-      if (pagerWidth <= 0) return;
-      const page = Math.round(event.nativeEvent.contentOffset.x / pagerWidth);
-      const nextDate = calendarDays[page]?.date;
-      if (!nextDate || nextDate === selectedDate) return;
-      setSelectedDate(nextDate);
-      setSelectedFilter('Todos');
-    },
-    [calendarDays, pagerWidth, selectedDate],
-  );
-
   const renderDayContent = useCallback(
     (date: string) => {
       const dayDeliveries = allDeliveries.filter((delivery) => delivery.data === date);
@@ -210,20 +100,13 @@ export function HistoryScreen() {
 
       return (
         <>
-          <View style={styles.bucketSummary}>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              {dayBucketCount > 0
-                ? `${dayBucketCount} ${dayBucketCount === 1 ? 'balde' : 'baldes'}`
-                : '0 entregas'}
-            </Text>
-          </View>
           <Animated.View
             entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
             style={[
               styles.list,
               {
                 gap: theme.spacing.sm,
-                marginTop: theme.spacing.sm,
+                marginTop: -(theme.spacing.xxl * 2 + theme.spacing.md),
                 paddingBottom: theme.spacing.lg,
               },
             ]}
@@ -253,6 +136,11 @@ export function HistoryScreen() {
               </Animated.View>
             )}
           </Animated.View>
+          <View style={styles.bottomBucketSummary}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+              {dayBucketCount} {dayBucketCount === 1 ? 'balde' : 'baldes'}
+            </Text>
+          </View>
         </>
       );
     },
@@ -261,47 +149,15 @@ export function HistoryScreen() {
 
   const dayContent = (
     <ScrollView
-      decelerationRate="fast"
-      directionalLockEnabled
-      horizontal
-      onLayout={(event) => {
-        setPagerWidth(event.nativeEvent.layout.width);
-        setPagerHeight(event.nativeEvent.layout.height);
+      contentContainerStyle={{
+        paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
+        paddingHorizontal: theme.spacing.md,
+        paddingTop: overlayHeaderHeight - theme.spacing.md,
       }}
-      onScroll={handlePagerScroll}
-      onMomentumScrollEnd={handlePagerMomentumEnd}
-      pagingEnabled
-      contentContainerStyle={{ alignItems: 'stretch', flexGrow: 0 }}
-      ref={pagerRef}
-      scrollEventThrottle={16}
-      showsHorizontalScrollIndicator={false}
-      style={styles.pager}
+      showsVerticalScrollIndicator={false}
+      style={styles.dayScroll}
     >
-      {calendarDays.map((day) => (
-        <View
-          key={day.date}
-          style={[
-            styles.pagerPage,
-            {
-              height: pagerHeight || undefined,
-              width: pagerWidth || Math.max(1, windowWidth),
-            },
-          ]}
-        >
-          <ScrollView
-            contentContainerStyle={{
-              paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
-              paddingHorizontal: theme.spacing.md,
-              paddingTop: overlayHeaderHeight + theme.spacing.lg,
-            }}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={false}
-            style={styles.dayScroll}
-          >
-            {renderDayContent(day.date)}
-          </ScrollView>
-        </View>
-      ))}
+      {renderDayContent(selectedDate)}
     </ScrollView>
   );
 
@@ -357,27 +213,22 @@ export function HistoryScreen() {
         />
       }
       accessory={
-        <View style={{ marginTop: theme.spacing.xs }}>
-          <HorizontalCalendar
-            days={calendarDays}
-            datesWithDeliveries={datesWithDeliveries}
-            onSelectDate={handleSelectDate}
-            selectedDate={selectedDate}
-          />
-        </View>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={{
+            height: theme.sizes.touchTargetMinimum + theme.spacing.sm,
+            marginTop: theme.spacing.xs,
+          }}
+        />
       }
       rightActions={
-        <NativePeriodActionGroup
-          color={theme.colors.textPrimary}
-          monthDisplayValue={monthShortLabel(selectedMonth)}
-          monthItems={HISTORY_MONTH_ITEMS}
-          onMonthChange={handleMonthChange}
-          onYearChange={handleYearChange}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-          showValues
-          valueFontSize={17}
-          yearItems={getHistoryYearItems()}
+        <NativeDatePicker
+          accessibilityLabel="Selecionar dia do histórico"
+          mode="date"
+          onChange={handleSelectDate}
+          style="compact"
+          value={parseIsoCalendarDate(selectedDate) ?? new Date()}
         />
       }
       title="Histórico"
@@ -401,12 +252,6 @@ export function HistoryScreen() {
         overlayHeaderSpacing={theme.spacing.lg}
         overlayHeaderUnderlay
         onOverlayHeaderLayout={setOverlayHeaderHeight}
-        progressiveBlurHeight={
-          insets.top + theme.sizes.touchTargetMinimum + theme.spacing.xxxl + theme.spacing.xs * 5
-        }
-        progressiveBlurFadeStart={insets.top + theme.sizes.touchTargetMinimum}
-        progressiveBlurIntensity={45}
-        progressiveBlurTopOffset={0}
         progressiveBlur
       >
         {isFilterPreviewVisible ? (
@@ -423,10 +268,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   screenContent: { flex: 1 },
   dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
-  bucketSummary: { alignItems: 'center', width: '100%' },
   emptyState: { alignSelf: 'stretch', width: '100%' },
   list: { width: '100%' },
   dayScroll: { flex: 1 },
-  pager: { flex: 1, flexShrink: 0, width: '100%' },
-  pagerPage: { flexGrow: 1, flexShrink: 0 },
+  bottomBucketSummary: { alignItems: 'center', width: '100%' },
 });

@@ -6,8 +6,11 @@ import {
   calculateDistanceMeters,
 } from '@/services/routes/routeTrackingMath';
 import { LocationTrackingService } from '@/services/routes/LocationTrackingService';
-import { routeTrackingRepository } from '@/services/routes/RouteTrackingRepository';
-import type { RouteTrackingRecord } from '@/types/routeTracking';
+import {
+  ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+  routeTrackingRepository,
+} from '@/services/routes/RouteTrackingRepository';
+import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTracking';
 
 const mockStorage = new Map<string, string>();
 
@@ -174,5 +177,78 @@ describe('route tracking stop lifecycle', () => {
     expect(restored?.active).toBe(false);
     expect(startLocationUpdatesAsync).not.toHaveBeenCalled();
     expect(await routeTrackingRepository.getActiveRoute()).toBeNull();
+  });
+});
+
+describe('route distance by day', () => {
+  const sessions: RouteTrackingSession[] = [
+    {
+      date: '2026-08-06',
+      distanceMeters: 12_400,
+      durationSeconds: 120,
+      endTimestamp: 2_000,
+      id: 'route-1',
+      pointsCount: 2,
+      samples: [],
+      startTimestamp: 1_000,
+      status: 'finalized',
+    },
+    {
+      date: '2026-08-06',
+      distanceMeters: 8_600,
+      durationSeconds: 120,
+      endTimestamp: 4_000,
+      id: 'route-2',
+      pointsCount: 2,
+      samples: [],
+      startTimestamp: 3_000,
+      status: 'finalized',
+    },
+    {
+      date: '2026-08-07',
+      distanceMeters: 99_000,
+      durationSeconds: 120,
+      endTimestamp: 6_000,
+      id: 'route-3',
+      pointsCount: 2,
+      samples: [],
+      startTimestamp: 5_000,
+      status: 'finalized',
+    },
+  ];
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
+
+  it('returns zero when the day has no finalized routes', async () => {
+    expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-05')).toBe(0);
+  });
+
+  it('returns the distance of one route', async () => {
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify([sessions[0]]));
+
+    expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(12.4);
+  });
+
+  it('sums multiple routes from the same day', async () => {
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(sessions));
+
+    expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(21);
+  });
+
+  it('does not mix routes from other days', async () => {
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(sessions));
+
+    expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-07')).toBe(99);
+  });
+
+  it('does not include active or non-finalized records', async () => {
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([sessions[0], { ...sessions[1], status: 'active' }]),
+    );
+
+    expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(12.4);
   });
 });

@@ -4,6 +4,7 @@ import { NativeTextField } from '@/components/native';
 import { useAppTheme } from '@/theme';
 
 export type CostFieldProps = {
+  disabled?: boolean;
   keyboardType?: React.ComponentProps<typeof NativeTextField>['keyboardType'];
   label: string;
   onChangeText: (value: string) => void;
@@ -11,7 +12,7 @@ export type CostFieldProps = {
   value: string;
 };
 
-export function CostField({ label, ...props }: CostFieldProps) {
+export function CostField({ disabled, label, ...props }: CostFieldProps) {
   const { theme } = useAppTheme();
 
   return (
@@ -19,7 +20,7 @@ export function CostField({ label, ...props }: CostFieldProps) {
       <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
         {label}
       </Text>
-      <NativeTextField accessibilityLabel={label} {...props} />
+      <NativeTextField accessibilityLabel={label} disabled={disabled} {...props} />
     </View>
   );
 }

@@ -7,6 +7,7 @@ export type HistoryDelivery = {
   status: DeliveryStatus;
   quantidadeBaldes: number;
   valor: string;
+  precoUnitarioHistorico?: number;
   formaPagamento: string;
   bairro: string;
   observacoes: string;

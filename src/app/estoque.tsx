@@ -2,11 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import {
-  NativeGlassBackButton,
-  NativePeriodActionGroup,
-  NativeTextField,
-} from '@/components/native';
+import { NativeGlassBackButton, NativePeriodActionGroup } from '@/components/native';
 import { NativeGlassHeader } from '@/components/layout';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import {
@@ -14,17 +10,12 @@ import {
   getHistoryYearItems,
 } from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
-import { useFactorySettings } from '@/hooks/useFactorySettings';
-import { useStockSettings } from '@/hooks/useStockSettings';
 import { useAppData } from '@/hooks/useAppData';
-import { createStockPeriodKey, stockCalculationService } from '@/services/stock';
+import { useFactorySettings } from '@/hooks/useFactorySettings';
+import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
+import { stockCalculationService } from '@/services/stock';
 import { useAppTheme } from '@/theme';
 import { formatCurrency, normalizeMoney } from '@/utils/data';
-
-function parseBucketQuantity(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-}
 
 function monthShortLabel(month: number): string {
   const labels = [
@@ -48,7 +39,7 @@ export default function StockRoute() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const { settings: factorySettings } = useFactorySettings();
-  const { getValues, updateField } = useStockSettings();
+  const { receipts, refresh: refreshPurchases } = useFactoryPurchases();
   const { refresh, snapshot } = useAppData();
   const currentPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
@@ -57,21 +48,24 @@ export default function StockRoute() {
   useFocusEffect(
     useCallback(() => {
       void refresh();
-    }, [refresh]),
+      void refreshPurchases();
+    }, [refresh, refreshPurchases]),
   );
-  const periodKey = createStockPeriodKey(selectedYear, selectedMonth);
-  const periodSettings = getValues(periodKey);
-  const soldBuckets = useMemo(
-    () => stockCalculationService.calculateSoldBuckets(deliveries, selectedYear, selectedMonth),
-    [deliveries, selectedMonth, selectedYear],
+  const stockSummary = useMemo(
+    () =>
+      stockCalculationService.calculate({
+        deliveries,
+        month: selectedMonth,
+        receipts,
+        year: selectedYear,
+      }),
+    [deliveries, receipts, selectedMonth, selectedYear],
   );
-  const initialBuckets = parseBucketQuantity(periodSettings.initialBuckets);
   const bucketCost = normalizeMoney(factorySettings.bucketCost) ?? 0;
-  const currentBuckets = stockCalculationService.calculateCurrentBuckets(
-    initialBuckets,
-    soldBuckets,
+  const stockValue = stockCalculationService.calculateStockValue(
+    stockSummary.endingBuckets,
+    bucketCost,
   );
-  const stockValue = stockCalculationService.calculateStockValue(currentBuckets, bucketCost);
 
   const header = (
     <NativeGlassHeader
@@ -106,49 +100,13 @@ export default function StockRoute() {
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
       <GlassCard style={[styles.card, { marginTop: theme.spacing.md }]}>
-        <StockField
-          label="Estoque"
-          onChangeText={(value) => updateField(periodKey, 'initialBuckets', value)}
-          placeholder="Quantidade de baldes"
-          value={periodSettings.initialBuckets}
-        />
-      </GlassCard>
-
-      <GlassCard style={styles.card}>
-        <StockSummaryRow label="Baldes Vendidos" value={soldBuckets} />
-        <StockSummaryRow label="Estoque Atual" value={currentBuckets} />
+        <StockSummaryRow label="Saldo anterior" value={stockSummary.openingBuckets} />
+        <StockSummaryRow label="Baldes Comprados" value={stockSummary.purchasedBuckets} />
+        <StockSummaryRow label="Baldes Vendidos" value={stockSummary.deliveredBuckets} />
+        <StockSummaryRow label="Estoque Atual" value={stockSummary.endingBuckets} />
         <StockValueRow label="Valor do estoque" value={stockValue} />
       </GlassCard>
     </PremiumScreen>
-  );
-}
-
-function StockField({
-  label,
-  onChangeText,
-  placeholder,
-  value,
-}: {
-  label: string;
-  onChangeText: (value: string) => void;
-  placeholder: string;
-  value: string;
-}) {
-  const { theme } = useAppTheme();
-
-  return (
-    <View style={styles.field}>
-      <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-        {label}
-      </Text>
-      <NativeTextField
-        accessibilityLabel={label}
-        keyboardType="number-pad"
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        value={value}
-      />
-    </View>
   );
 }
 
@@ -181,6 +139,5 @@ function StockValueRow({ label, value }: { label: string; value: number }) {
 const styles = StyleSheet.create({
   content: { flexGrow: 1, gap: 16 },
   card: { gap: 20 },
-  field: { gap: 8 },
   summaryRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

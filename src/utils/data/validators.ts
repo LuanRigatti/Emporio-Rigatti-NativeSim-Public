@@ -44,6 +44,9 @@ export function validateDeliveryRecord(value: unknown, path: string): void {
   requireString(record.cliente, `${path}.cliente`);
   requireNumber(record.quantidade, `${path}.quantidade`);
   requireNumber(record.valor, `${path}.valor`);
+  if (record.precoUnitarioHistorico !== undefined) {
+    requireNumber(record.precoUnitarioHistorico, `${path}.precoUnitarioHistorico`);
+  }
   requireString(record.status, `${path}.status`);
   if (!isBoolean(record.entregue)) {
     throw new DataValidationError(`${path}.entregue`, 'esperado boolean');

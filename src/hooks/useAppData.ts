@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/providers';
 import {
+  addAppDelivery,
   loadAppData,
+  removeAppDelivery,
   subscribeToAppData,
   toggleAppDelivery,
   type AppDataMode,
+  type DeliveryRegistrationInput,
   APP_DATA_MODE,
 } from '@/services/data/AppDataSource';
 import type { UserDataSnapshot } from '@/services/data';
@@ -61,14 +64,33 @@ export function useAppData() {
     [load, user?.id],
   );
 
+  const addDelivery = useCallback(
+    async (input: DeliveryRegistrationInput) => {
+      const delivery = await addAppDelivery(input);
+      await load(true);
+      return delivery;
+    },
+    [load],
+  );
+
+  const removeDelivery = useCallback(
+    async (deliveryId: string) => {
+      await removeAppDelivery(user?.id, deliveryId);
+      await load(true);
+    },
+    [load, user?.id],
+  );
+
   const refresh = useCallback(() => load(true), [load]);
 
   return {
     error,
+    addDelivery,
     loading,
     mode: APP_DATA_MODE as AppDataMode,
     refresh,
     refreshing,
+    removeDelivery,
     snapshot,
     toggleDelivery,
   };

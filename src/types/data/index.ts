@@ -64,6 +64,20 @@ export type {
   FinancialSummary,
 } from './finance';
 export type { Filters, PeriodFilter } from './filters';
+export type { StockSnapshot, StockSnapshotMap } from './stock';
+export {
+  DATA_DOMAIN_POLICY,
+  LOCAL_ONLY_DATA_POLICY,
+  LOCAL_ONLY_FIREBASE_FIELDS,
+  readinessStatusForClassification,
+  withoutLocalOnlyFields,
+} from './domainPolicy';
+export type {
+  DataDomain,
+  DataDomainClassification,
+  DataDomainDefinition,
+  DataReadinessStatus,
+} from './domainPolicy';
 export type {
   HistoryDayGroup,
   HistoryDaySummary,

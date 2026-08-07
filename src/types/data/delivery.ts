@@ -11,6 +11,7 @@ export interface Delivery {
   cliente: string;
   quantidade: number;
   valor: number;
+  precoUnitarioHistorico?: number;
   status: DeliveryStatus;
   entregue: boolean;
   data: string;
@@ -29,6 +30,7 @@ export interface DeliveryDraft {
   quantity: number;
   value: number;
   valueWasManuallyChanged: boolean;
+  historicalUnitPrice?: number;
   date: string;
   status: 'Pago' | 'Não Pago';
   delivered: boolean;

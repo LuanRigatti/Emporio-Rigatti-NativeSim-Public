@@ -37,6 +37,14 @@ describe('delivery services', () => {
     });
 
     expect(value).toBe(153.75);
+    expect(
+      service.resolveUnitPrice({
+        clientName: 'Guilherme',
+        date: '2026-07-24',
+        quantity: 3,
+        customClients: { Guilherme: { nome: 'Guilherme', preco: 51.25 } },
+      }),
+    ).toBe(51.25);
   });
 
   it('uses the historical cutoff table when there is no custom price', () => {

@@ -16,7 +16,7 @@ export type LoginScreenProps = {
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signInWithGoogleMock } = useSession();
+  const { signInWithGoogleNative } = useSession();
   const { theme } = useAppTheme();
   const [isLoading, setIsLoading] = useState(false);
   const isMounted = useRef(true);
@@ -34,12 +34,20 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     hasSubmittedRef.current = true;
     triggerLightImpactHaptic();
     setIsLoading(true);
-    await signInWithGoogleMock();
+    try {
+      await signInWithGoogleNative();
 
-    if (isMounted.current) {
-      onAuthenticated();
+      if (isMounted.current) {
+        onAuthenticated();
+      }
+    } catch {
+      hasSubmittedRef.current = false;
+    } finally {
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
     }
-  }, [isLoading, onAuthenticated, signInWithGoogleMock]);
+  }, [isLoading, onAuthenticated, signInWithGoogleNative]);
 
   return (
     <View
@@ -60,7 +68,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         <View style={styles.actions}>
           <GlassSurface interactive style={styles.buttonSurface}>
             <Pressable
-              accessibilityHint="Simula a entrada com uma conta Google"
+              accessibilityHint="Autentica com uma conta Google usando Firebase"
               accessibilityLabel={isLoading ? 'Entrando' : 'Login com Google'}
               accessibilityRole="button"
               accessibilityState={{ busy: isLoading, disabled: isLoading }}

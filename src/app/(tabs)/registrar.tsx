@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useMemo, useSyncExternalStore, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,25 +13,21 @@ import {
   NativeSwipeActionsList,
 } from '@/components/native';
 import type {
+  NativeBottomSheetConfirmation,
   NativeBottomSheetItem,
   NativeDailyDataValues,
   NativeSwipeActionsListItem,
 } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
+import { useAppData } from '@/hooks/useAppData';
 import { useCostSettings } from '@/hooks/useCostSettings';
-import { addDailyValue } from '@/services/costs';
-import { locationTrackingService } from '@/services/routes';
+import { dailyDataQueryService } from '@/services/costs';
 import type { RouteDistanceSummary } from '@/services/routes';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
-import {
-  addHistoryDelivery,
-  getAddedHistoryDeliveries,
-  subscribeToAddedHistoryDeliveries,
-  removeAddedHistoryDeliveries,
-} from '@/features/history/data/historyDeliveryStore';
+import { toHistoryDelivery } from '@/services/data';
 
 const BUCKET_PRICE = 49.8;
 
@@ -128,10 +124,11 @@ function RegistrarModeSelection() {
 export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
-  const { getValues, updateField } = useCostSettings();
+  const { addFieldValue, getLatestDailyValue, getValues, setFieldValue } = useCostSettings();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [dailySheetInitialValues, setDailySheetInitialValues] = useState(EMPTY_DAILY_DATA_VALUES);
   const [routeDistance, setRouteDistance] = useState<RouteDistanceSummary | null>(null);
-  const dailyDate = todayIso();
+  const dailyDate = useMemo(() => todayIso(), []);
   const dailyValues = getValues('day', dailyDate);
   const manualKilometers = normalizeMoney(dailyValues.kilometers) ?? 0;
   const totalKilometers = manualKilometers + (routeDistance?.totalKilometers ?? 0);
@@ -147,7 +144,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
     useCallback(() => {
       let cancelled = false;
 
-      void locationTrackingService.getRouteDistanceForDate(dailyDate).then((summary) => {
+      void dailyDataQueryService.getRouteDistanceForDate(dailyDate).then((summary) => {
         if (!cancelled) setRouteDistance(summary);
       });
 
@@ -157,32 +154,20 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
     }, [dailyDate]),
   );
 
-  const handleDailyDataSubmit = useCallback(
-    (values: NativeDailyDataValues) => {
-      updateField('day', dailyDate, 'estar', addDailyValue(dailyValues.estar, values.estar));
-      updateField('day', dailyDate, 'other', addDailyValue(dailyValues.other, values.other));
-      updateField(
-        'day',
-        dailyDate,
-        'kilometers',
-        addDailyValue(dailyValues.kilometers, values.kilometers),
-      );
-      updateField(
-        'day',
-        dailyDate,
-        'fuelPrice',
-        addDailyValue(dailyValues.fuelPrice, values.fuelPrice),
-      );
-    },
-    [
-      dailyDate,
-      dailyValues.estar,
-      dailyValues.fuelPrice,
-      dailyValues.kilometers,
-      dailyValues.other,
-      updateField,
-    ],
-  );
+  const handleDailyDataSubmit = (values: NativeDailyDataValues) => {
+    addFieldValue('day', dailyDate, 'estar', values.estar);
+    addFieldValue('day', dailyDate, 'other', values.other);
+    addFieldValue('day', dailyDate, 'kilometers', values.kilometers);
+    setFieldValue('day', dailyDate, 'fuelPrice', values.fuelPrice);
+  };
+
+  const openDailyDataSheet = useCallback(() => {
+    setDailySheetInitialValues({
+      ...EMPTY_DAILY_DATA_VALUES,
+      fuelPrice: getLatestDailyValue('fuelPrice'),
+    });
+    setSheetVisible(true);
+  }, [getLatestDailyValue]);
 
   const header = (
     <NativeGlassHeader
@@ -250,13 +235,13 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
             containerWidth={116}
             interactiveGlass
             label="Adicionar"
-            onPress={() => setSheetVisible(true)}
+            onPress={openDailyDataSheet}
             shape="capsule"
           />
         </View>
       </View>
       <NativeDailyDataSheet
-        initialValues={EMPTY_DAILY_DATA_VALUES}
+        initialValues={dailySheetInitialValues}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
         visible={sheetVisible}
@@ -284,11 +269,8 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     [clients],
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
-  const deliveries = useSyncExternalStore(
-    subscribeToAddedHistoryDeliveries,
-    getAddedHistoryDeliveries,
-    getAddedHistoryDeliveries,
-  );
+  const { addDelivery, removeDelivery, snapshot } = useAppData();
+  const deliveries = useMemo(() => (snapshot?.entregas ?? []).map(toHistoryDelivery), [snapshot]);
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());
@@ -306,18 +288,23 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     setSelectedClient(null);
     setSheetVisible(true);
   };
-  const handleConfirm = (confirmation: Parameters<typeof addHistoryDelivery>[0]) => {
+  const handleConfirm = (confirmation: NativeBottomSheetConfirmation) => {
     const currentClient = clients.find((client) => client.clientId === confirmation.client.id);
-    addHistoryDelivery({
-      ...confirmation,
+    void addDelivery({
       bucketPrice: currentClient?.currentPrice ?? confirmation.bucketPrice,
+      clientName: confirmation.client.title,
+      date: confirmation.date,
+      quantity: confirmation.quantity,
     });
     setSheetVisible(false);
   };
-  const handleDeleteBySwipe = useCallback((deliveryId: string) => {
-    triggerLightImpactHaptic();
-    removeAddedHistoryDeliveries(new Set([deliveryId]));
-  }, []);
+  const handleDeleteBySwipe = useCallback(
+    (deliveryId: string) => {
+      triggerLightImpactHaptic();
+      void removeDelivery(deliveryId);
+    },
+    [removeDelivery],
+  );
   const handleSelectClient = useCallback(
     (item: NativeBottomSheetItem) => {
       const currentClient = clients.find((client) => client.clientId === item.id);

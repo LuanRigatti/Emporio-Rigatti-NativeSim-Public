@@ -12,6 +12,7 @@ module.exports = {
     ios: {
       bundleIdentifier: 'com.pareact.mobile',
       buildNumber: '1',
+      googleServicesFile: './GoogleService-Info.plist',
       icon: {
         dark: './assets/app-icon-dark.png',
         light: './assets/app-icon-light.png',
@@ -68,6 +69,7 @@ module.exports = {
       'expo-web-browser',
       'expo-sharing',
       'expo-status-bar',
+      '@react-native-google-signin/google-signin',
       [
         'expo-notifications',
         {

@@ -10,7 +10,7 @@ import SplashVisual from './components/SplashVisual';
 
 export function SplashGate() {
   const router = useRouter();
-  const { isAuthenticated } = useSession();
+  const { isAuthenticated, isLoading: sessionLoading } = useSession();
   const { isReady: themeReady, reduceMotionEnabled, resolvedMode } = useAppTheme();
   const [overlayReady, setOverlayReady] = useState(false);
   const [startReveal, setStartReveal] = useState(false);
@@ -20,7 +20,7 @@ export function SplashGate() {
   const destinationHref = isAuthenticated ? '/(tabs)/dashboard' : '/login';
 
   useEffect(() => {
-    if (!themeReady || !overlayReady || hideStartedRef.current) return;
+    if (!themeReady || !overlayReady || sessionLoading || hideStartedRef.current) return;
 
     hideStartedRef.current = true;
 
@@ -31,7 +31,7 @@ export function SplashGate() {
       .finally(() => {
         setStartReveal(true);
       });
-  }, [overlayReady, themeReady]);
+  }, [overlayReady, sessionLoading, themeReady]);
 
   const handleOverlayReady = useCallback(() => setOverlayReady(true), []);
   const handleAnimationComplete = useCallback(() => {

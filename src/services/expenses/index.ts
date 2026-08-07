@@ -10,6 +10,12 @@ export {
   ExpenseMutationService,
 } from './ExpenseMutationService';
 export {
+  FuelCostCalculationService,
+  fuelCostCalculationService,
+  parseKmPerLiter,
+} from './FuelCostCalculationService';
+export type { FuelConsumption, FuelCostInput, FuelType } from './FuelCostCalculationService';
+export {
   expenseFiltersForSelection,
   expenseQueryService,
   ExpenseQueryService,

@@ -8,4 +8,9 @@ export {
   type StockPeriodSettings,
   type StockSettings,
 } from './StockSettingsStorage';
-export { StockCalculationService, stockCalculationService } from './StockCalculationService';
+export {
+  StockCalculationService,
+  stockCalculationService,
+  type StockCalculationInput,
+  type StockPeriodSummary,
+} from './StockCalculationService';

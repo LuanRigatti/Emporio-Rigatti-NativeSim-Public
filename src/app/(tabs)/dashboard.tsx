@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PremiumCard, PremiumScreen } from '@/components/premium';
@@ -12,11 +12,8 @@ import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TabHapticListener } from '@/navigation/TabHapticListener';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
-import {
-  getHistoryDeliveries,
-  subscribeToHistoryDeliveries,
-  toggleHistoryDeliveryStatus,
-} from '@/features/history/data/historyDeliveryStore';
+import { useAppData } from '@/hooks/useAppData';
+import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 
 function PreviewIcon({
@@ -35,10 +32,10 @@ export default function Home() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
-  const historyDeliveries = useSyncExternalStore(
-    subscribeToHistoryDeliveries,
-    getHistoryDeliveries,
-    getHistoryDeliveries,
+  const { snapshot, toggleDelivery } = useAppData();
+  const historyDeliveries = useMemo(
+    () => (snapshot?.entregas ?? []).map(toHistoryDelivery),
+    [snapshot],
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
@@ -57,10 +54,13 @@ export default function Home() {
     [historyDeliveries],
   );
 
-  const handleTodayStatusToggle = useCallback((deliveryId: string) => {
-    triggerLightImpactHaptic();
-    toggleHistoryDeliveryStatus(deliveryId);
-  }, []);
+  const handleTodayStatusToggle = useCallback(
+    (deliveryId: string) => {
+      triggerLightImpactHaptic();
+      void toggleDelivery(deliveryId);
+    },
+    [toggleDelivery],
+  );
 
   const homeHeader = (
     <NativeGlassHeader

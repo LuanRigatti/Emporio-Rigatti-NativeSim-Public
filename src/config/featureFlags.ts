@@ -20,3 +20,15 @@ export const ENABLE_MOCK_CLIENT_DATA = true;
  * Firebase data migration is explicitly enabled.
  */
 export const ENABLE_FIREBASE_APP_DATA = false;
+
+/**
+ * Keeps Firebase app-data writes disabled during the first controlled
+ * activation. Read-only Firebase can be tested without mutating the database.
+ */
+export const ENABLE_FIREBASE_WRITES = false;
+
+/**
+ * Keeps authentication on the local mock until the Firebase Auth migration is
+ * explicitly enabled.
+ */
+export const ENABLE_FIREBASE_AUTH = false;

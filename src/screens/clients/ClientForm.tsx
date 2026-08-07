@@ -22,7 +22,7 @@ type Props = NativeStackScreenProps<ClientsStackParamList, 'ClientForm'>;
 export function ClientForm({ navigation, route }: Props) {
   const { theme } = useAppTheme();
   const { hidden } = useFinancialPrivacy();
-  const { clients, loading, error, saveCustomClient } = useClients();
+  const { clients, loading, error, saveCustomClient, updatePrice } = useClients();
   const client = useMemo(
     () =>
       clients.find(
@@ -38,16 +38,20 @@ export function ClientForm({ navigation, route }: Props) {
   const [address, setAddress] = useState(client?.address ?? '');
   const [formError, setFormError] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const persistedClientId = client?.clientId;
+  const persistedClientName = client?.canonicalName;
+  const persistedClientPrice = client?.customConfig?.preco;
+  const persistedClientAddress = client?.address ?? '';
 
   useEffect(() => {
-    if (!client) return;
+    if (!persistedClientId) return;
     const timer = setTimeout(() => {
-      setName(client.canonicalName);
-      setPrice(client.customConfig?.preco?.toString().replace('.', ',') ?? '');
-      setAddress(client.address ?? '');
+      setName(persistedClientName ?? '');
+      setPrice(persistedClientPrice?.toString().replace('.', ',') ?? '');
+      setAddress(persistedClientAddress);
     }, 0);
     return () => clearTimeout(timer);
-  }, [client]);
+  }, [persistedClientAddress, persistedClientId, persistedClientName, persistedClientPrice]);
 
   const handleSave = async () => {
     Keyboard.dismiss();
@@ -60,7 +64,12 @@ export function ClientForm({ navigation, route }: Props) {
 
     setSaving(true);
     try {
-      await saveCustomClient(name, numericPrice, address);
+      if (route.params.mode === 'edit') {
+        if (!client) throw new Error('Cliente não encontrado.');
+        await updatePrice(client, numericPrice);
+      } else {
+        await saveCustomClient(name, numericPrice, address);
+      }
       navigation.goBack();
     } catch (saveError) {
       setFormError(

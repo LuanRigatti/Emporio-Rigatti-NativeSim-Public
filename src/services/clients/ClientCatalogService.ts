@@ -8,6 +8,7 @@ import { historicalClientNames, resolveClientPrice } from './priceTables';
 export interface ClientCatalogQuery {
   search?: string;
   priceDate?: string;
+  includeHistorical?: boolean;
   clientIdForName?: (name: string) => ClientModel['clientId'];
 }
 
@@ -75,7 +76,9 @@ export class ClientCatalogService {
       }
     };
 
-    historicalClientNames().forEach((name) => add(name, 'historical'));
+    if (query.includeHistorical !== false) {
+      historicalClientNames().forEach((name) => add(name, 'historical'));
+    }
     Object.keys(snapshot.clientesCustom).forEach((name) => add(name, 'custom'));
     snapshot.entregas.forEach((delivery) => add(delivery.cliente, 'delivery'));
 

@@ -75,14 +75,22 @@ function localDate(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation): HistoryDelivery {
+export type HistoryDeliveryRegistrationInput = {
+  clientName: string;
+  date: Date;
+  quantity: number;
+  bucketPrice: number;
+};
+
+export function addHistoryDeliveryRecord(input: HistoryDeliveryRegistrationInput): HistoryDelivery {
   const delivery: HistoryDelivery = {
     id: `history-local-${Date.now()}`,
-    cliente: confirmation.client.title,
-    data: localDate(confirmation.date),
+    cliente: input.clientName,
+    data: localDate(input.date),
     status: 'pendente',
-    quantidadeBaldes: confirmation.quantity,
-    valor: formatCurrency(confirmation.bucketPrice * confirmation.quantity),
+    quantidadeBaldes: input.quantity,
+    precoUnitarioHistorico: input.bucketPrice,
+    valor: formatCurrency(input.bucketPrice * input.quantity),
     formaPagamento: '',
     bairro: '',
     observacoes: '',
@@ -90,7 +98,10 @@ export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation):
 
   const clientKey = normalizeClientKey(delivery.cliente);
   const matchingDeliveries = addedDeliveries.filter(
-    (item) => normalizeClientKey(item.cliente) === clientKey && item.data === delivery.data,
+    (item) =>
+      normalizeClientKey(item.cliente) === clientKey &&
+      item.data === delivery.data &&
+      item.precoUnitarioHistorico === delivery.precoUnitarioHistorico,
   );
 
   if (matchingDeliveries.length > 0) {
@@ -102,12 +113,16 @@ export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation):
         delivery.quantidadeBaldes,
       valor: formatCurrency(
         matchingDeliveries.reduce((total, item) => total + (normalizeMoney(item.valor) ?? 0), 0) +
-          confirmation.bucketPrice * confirmation.quantity,
+          input.bucketPrice * input.quantity,
       ),
     };
 
     addedDeliveries = addedDeliveries.reduce<HistoryDelivery[]>((result, item) => {
-      if (normalizeClientKey(item.cliente) !== clientKey || item.data !== delivery.data) {
+      if (
+        normalizeClientKey(item.cliente) !== clientKey ||
+        item.data !== delivery.data ||
+        item.precoUnitarioHistorico !== delivery.precoUnitarioHistorico
+      ) {
         result.push(item);
       } else if (item.id === firstMatch.id) {
         result.push(mergedDelivery);
@@ -124,6 +139,15 @@ export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation):
   return delivery;
 }
 
+export function addHistoryDelivery(confirmation: NativeBottomSheetConfirmation): HistoryDelivery {
+  return addHistoryDeliveryRecord({
+    bucketPrice: confirmation.bucketPrice,
+    clientName: confirmation.client.title,
+    date: confirmation.date,
+    quantity: confirmation.quantity,
+  });
+}
+
 export function removeAddedHistoryDeliveries(ids: ReadonlySet<string>): void {
   if (ids.size === 0) return;
 
@@ -134,10 +158,24 @@ export function removeAddedHistoryDeliveries(ids: ReadonlySet<string>): void {
   notifyListeners();
 }
 
+export function renameAddedHistoryDeliveries(oldName: string, newName: string): void {
+  const oldKey = normalizeClientKey(oldName);
+  const nextDeliveries = addedDeliveries.map((delivery) =>
+    normalizeClientKey(delivery.cliente) === oldKey ? { ...delivery, cliente: newName } : delivery,
+  );
+  if (nextDeliveries.every((delivery, index) => delivery === addedDeliveries[index])) return;
+
+  addedDeliveries = nextDeliveries;
+  hasLocalMutation = true;
+  persistDeliveries();
+  rebuildHistorySnapshot();
+  notifyListeners();
+}
+
 export function updateAddedHistoryDeliveryQuantity(
   deliveryId: string,
   quantity: number,
-  bucketPrice: number,
+  _bucketPrice: number,
 ): void {
   const nextQuantity = Math.max(1, Math.round(quantity));
   const current = addedDeliveries.find((delivery) => delivery.id === deliveryId);
@@ -148,7 +186,10 @@ export function updateAddedHistoryDeliveryQuantity(
       ? {
           ...delivery,
           quantidadeBaldes: nextQuantity,
-          valor: formatCurrency(bucketPrice * nextQuantity),
+          valor:
+            delivery.precoUnitarioHistorico === undefined
+              ? delivery.valor
+              : formatCurrency(delivery.precoUnitarioHistorico * nextQuantity),
         }
       : delivery,
   );

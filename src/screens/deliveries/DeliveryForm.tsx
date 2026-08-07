@@ -138,14 +138,31 @@ export function DeliveryForm(props: Props) {
     setSaving(true);
     setError(undefined);
     try {
+      const normalizedQuantity = normalizeMoney(quantity) ?? 0;
+      const normalizedValue = normalizeMoney(value) ?? 0;
+      const automaticUnitPrice =
+        !manualValue && clientName && snapshot
+          ? deliveryPricingService.resolveUnitPrice({
+              clientName,
+              date,
+              quantity,
+              customClients: snapshot.clientesCustom,
+              fallbackValue: value,
+            })
+          : undefined;
       const draft: DeliveryDraft = {
         id: delivery?.id,
         clientName,
         address,
         addressConfirmed,
-        quantity: normalizeMoney(quantity) ?? 0,
-        value: normalizeMoney(value) ?? 0,
+        quantity: normalizedQuantity,
+        value: normalizedValue,
         valueWasManuallyChanged: manualValue,
+        historicalUnitPrice:
+          automaticUnitPrice ??
+          (normalizedQuantity > 0
+            ? Number((normalizedValue / normalizedQuantity).toFixed(2))
+            : undefined),
         date,
         status,
         delivered,

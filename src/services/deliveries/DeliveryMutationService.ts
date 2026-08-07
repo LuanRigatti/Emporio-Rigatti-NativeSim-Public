@@ -36,12 +36,20 @@ function validateDraft(draft: DeliveryDraft): void {
 
 function draftToDelivery(draft: DeliveryDraft, previous?: Delivery): Delivery {
   validateDraft(draft);
+  const historicalUnitPrice = previous
+    ? previous.precoUnitarioHistorico
+    : draft.historicalUnitPrice !== undefined
+      ? Number(draft.historicalUnitPrice.toFixed(2))
+      : draft.quantity > 0
+        ? Number((draft.value / draft.quantity).toFixed(2))
+        : undefined;
   const known: Delivery = {
     ...(previous ?? {}),
     id: previous?.id ?? draft.id ?? createDeliveryId(),
     cliente: formatClientName(draft.clientName),
     quantidade: Number(draft.quantity),
     valor: Number(draft.value.toFixed(2)),
+    precoUnitarioHistorico: historicalUnitPrice,
     status: draft.status,
     entregue: draft.delivered,
     data: draft.date,

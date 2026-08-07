@@ -73,6 +73,10 @@ export class AuthService implements AuthServiceContract {
     }
   }
 
+  public async signInWithGoogleNative(): Promise<AuthUser> {
+    return this.signInWithGooglePopup();
+  }
+
   public async signInWithGoogleCredential(
     idToken: string,
     accessToken?: string,

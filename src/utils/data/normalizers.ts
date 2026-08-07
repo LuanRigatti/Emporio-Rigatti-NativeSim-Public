@@ -160,6 +160,7 @@ const deliveryKeys = new Set([
   'cliente',
   'quantidade',
   'valor',
+  'precoUnitarioHistorico',
   'status',
   'entregue',
   'data',

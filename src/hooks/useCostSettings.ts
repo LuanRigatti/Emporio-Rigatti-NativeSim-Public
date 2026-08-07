@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  costSettingsStorage,
+  addDailyValue,
+  localDailyDataDataSource,
+  setDailyValue,
   EMPTY_COST_VALUES,
   type CostField,
   type CostPeriod,
@@ -18,7 +20,7 @@ export function useCostSettings() {
   useEffect(() => {
     let isMounted = true;
 
-    void costSettingsStorage.load().then((storedSettings) => {
+    void localDailyDataDataSource.load().then((storedSettings) => {
       if (!isMounted) return;
       setSettings(storedSettings);
       setIsHydrated(true);
@@ -30,12 +32,28 @@ export function useCostSettings() {
   }, []);
 
   useEffect(() => {
-    if (isHydrated) void costSettingsStorage.save(settings);
+    if (isHydrated) void localDailyDataDataSource.save(settings);
   }, [isHydrated, settings]);
 
   const getValues = useCallback(
     (period: CostPeriod, key: string): CostValues =>
       settings.periods[period][key] ?? { ...EMPTY_COST_VALUES },
+    [settings],
+  );
+
+  const getLatestDailyValue = useCallback(
+    (field: CostField): string => {
+      const entries = Object.entries(settings.periods.day).sort(([left], [right]) =>
+        right.localeCompare(left),
+      );
+
+      for (const [, values] of entries) {
+        const value = values[field];
+        if (value.trim()) return value;
+      }
+
+      return '';
+    },
     [settings],
   );
 
@@ -69,7 +87,51 @@ export function useCostSettings() {
     [],
   );
 
-  return { getMonthlySum, getValues, isHydrated, updateField };
+  const addFieldValue = useCallback(
+    (period: CostPeriod, key: string, field: CostField, value: string) => {
+      setSettings((current) => ({
+        periods: {
+          ...current.periods,
+          [period]: {
+            ...current.periods[period],
+            [key]: {
+              ...(current.periods[period][key] ?? EMPTY_COST_VALUES),
+              [field]: addDailyValue(current.periods[period][key]?.[field] ?? '', value),
+            },
+          },
+        },
+      }));
+    },
+    [],
+  );
+
+  const setFieldValue = useCallback(
+    (period: CostPeriod, key: string, field: CostField, value: string) => {
+      setSettings((current) => ({
+        periods: {
+          ...current.periods,
+          [period]: {
+            ...current.periods[period],
+            [key]: {
+              ...(current.periods[period][key] ?? EMPTY_COST_VALUES),
+              [field]: setDailyValue(current.periods[period][key]?.[field] ?? '', value),
+            },
+          },
+        },
+      }));
+    },
+    [],
+  );
+
+  return {
+    addFieldValue,
+    getMonthlySum,
+    getLatestDailyValue,
+    getValues,
+    isHydrated,
+    setFieldValue,
+    updateField,
+  };
 }
 
 function parseCostNumber(value: string): number {

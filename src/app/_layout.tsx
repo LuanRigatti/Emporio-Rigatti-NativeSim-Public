@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AuthProvider, SessionProvider } from '@/providers';
+import { SessionProvider } from '@/providers';
 import { locationTrackingService } from '@/services/routes';
 import { ThemeProvider } from '@/theme';
 
@@ -38,11 +38,9 @@ export default function PrototypeRootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SessionProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <AppShell />
-            </ThemeProvider>
-          </AuthProvider>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
         </SessionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

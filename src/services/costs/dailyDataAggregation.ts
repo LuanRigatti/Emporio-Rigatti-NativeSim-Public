@@ -7,3 +7,7 @@ export function addDailyValue(currentValue: string, addedValue: string): string 
 
   return String(current + addition);
 }
+
+export function setDailyValue(_currentValue: string, nextValue: string): string {
+  return nextValue;
+}

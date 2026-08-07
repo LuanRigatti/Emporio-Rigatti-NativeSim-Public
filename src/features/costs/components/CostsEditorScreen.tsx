@@ -5,14 +5,16 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeDatePicker,
+  NativeDropdown,
   NativeGlassBackButton,
   NativePeriodActionGroup,
 } from '@/components/native';
 import type { NativeDropdownItem } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
+import { useCarSettings } from '@/hooks/useCarSettings';
 import { useCostSettings } from '@/hooks/useCostSettings';
-import { expenseCalculationService } from '@/services/expenses';
-import { locationTrackingService } from '@/services/routes';
+import { dailyDataQueryService } from '@/services/costs';
+import { fuelCostCalculationService, type FuelType } from '@/services/expenses';
 import type { RouteDistanceSummary } from '@/services/routes';
 import { useAppTheme } from '@/theme';
 import { normalizeMoney, todayIso } from '@/utils/data';
@@ -30,7 +32,8 @@ type CostsEditorScreenProps = {
 export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { getMonthlySum, getValues, updateField } = useCostSettings();
+  const { getLatestDailyValue, getMonthlySum, getValues, updateField } = useCostSettings();
+  const { settings: carSettings } = useCarSettings();
   const initialDate = useMemo(() => new Date(), []);
   const [selectedDate, setSelectedDate] = useState(() => todayIso(initialDate));
   const [selectedMonth, setSelectedMonth] = useState(() => initialDate.getMonth() + 1);
@@ -48,13 +51,6 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const values = getValues(period, periodKey);
   const monthlyEstar = getMonthlySum(selectedYear, selectedMonth, 'estar');
   const monthlyOther = getMonthlySum(selectedYear, selectedMonth, 'other');
-  const dailyFuelCost = expenseCalculationService.calculateFuelCost(selectedDate, {
-    data: selectedDate,
-    gasolina: 0,
-    km: normalizeMoney(values.kilometers) ?? 0,
-    precoGasolina: normalizeMoney(values.fuelPrice) ?? 0,
-  });
-
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -67,7 +63,7 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
       }
 
       setRouteDistance(null);
-      void locationTrackingService.getRouteDistanceForDate(selectedDate).then((summary) => {
+      void dailyDataQueryService.getRouteDistanceForDate(selectedDate).then((summary) => {
         if (!cancelled) setRouteDistance({ date: selectedDate, summary });
       });
 
@@ -82,6 +78,14 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
     (normalizeMoney(values.kilometers) ?? 0) + (routeSummary?.totalKilometers ?? 0);
   const automaticKilometers =
     mode === 'daily' && routeSummary?.routeCount ? formatKilometers(totalKilometers) : undefined;
+  const persistedFuelType = values.fuelType || getLatestDailyValue('fuelType');
+  const fuelType: FuelType = persistedFuelType === 'etanol' ? 'etanol' : 'gasolina';
+  const dailyFuelCost = fuelCostCalculationService.calculate({
+    consumption: fuelCostCalculationService.fromCarSettings(carSettings),
+    fuelPrice: normalizeMoney(values.fuelPrice) ?? 0,
+    fuelType,
+    kilometers: totalKilometers,
+  });
 
   const header = (
     <NativeGlassHeader
@@ -173,6 +177,19 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
               label="Preço do combustível"
               onChangeText={(value) => updateField('day', selectedDate, 'fuelPrice', value)}
               placeholder="R$ 0,00 por litro"
+              trailing={
+                <NativeDropdown
+                  accessibilityLabel="Tipo de combustível"
+                  color={theme.colors.textPrimary}
+                  items={[
+                    { label: 'Gasolina', value: 'gasolina' as const },
+                    { label: 'Álcool', value: 'etanol' as const },
+                  ]}
+                  onValueChange={(value) => updateField('day', selectedDate, 'fuelType', value)}
+                  selectedValue={fuelType}
+                  variant="glass"
+                />
+              }
               value={values.fuelPrice}
             />
             <ReadOnlyCostField label="Custo do combustível" value={formatCurrency(dailyFuelCost)} />

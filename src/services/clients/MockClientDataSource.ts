@@ -1,15 +1,10 @@
-import { mapLegacyClientToModel } from '@/mappers/clients';
 import type { UserDataSnapshot } from '@/services/data';
 import type { ClientModel, CustomClient } from '@/types/data';
-import {
-  clientIdFromName,
-  formatClientName,
-  isAliasName,
-  normalizeClientKey,
-  normalizeMoney,
-} from '@/utils/data';
+import { formatClientName, isAliasName, normalizeClientKey, normalizeMoney } from '@/utils/data';
+import { mockDeliveryDataSource } from '@/services/deliveries/DeliveryDataSource';
 
 import type { ClientCatalogQuery } from './ClientCatalogService';
+import { clientCatalogService } from './ClientCatalogService';
 import { mockClientStorage } from './MockClientStorage';
 
 export const MOCK_CLIENT_ITEMS = [
@@ -50,6 +45,7 @@ function createSnapshot(clientConfig: Record<string, CustomClient>): UserDataSna
 }
 
 export class MockClientDataSource {
+  public readonly mode = 'mock' as const;
   private clients = createInitialClients();
   private snapshot = createSnapshot(this.clients);
   private readonly listeners = new Set<Listener>();
@@ -66,24 +62,20 @@ export class MockClientDataSource {
 
   public getSnapshot = (): UserDataSnapshot => this.snapshot;
 
-  public list(query: ClientCatalogQuery = {}): ClientModel[] {
-    const normalizedSearch = query.search ? normalizeClientKey(query.search) : '';
-    return Object.entries(this.clients)
-      .map(([name, customConfig]) =>
-        mapLegacyClientToModel({
-          address: customConfig.endereco,
-          clientId: clientIdFromName(name),
-          currentPrice: customConfig.preco,
-          customConfig,
-          name,
-          sources: ['custom'],
-        }),
-      )
-      .filter((client) => !normalizedSearch || client.normalizedName.includes(normalizedSearch))
-      .sort((left, right) => left.canonicalName.localeCompare(right.canonicalName, 'pt-BR'));
+  public async load(_userId?: string): Promise<void> {
+    await this.hydrationPromise;
   }
 
-  public async saveCustomClient(name: string, price: number, address: string): Promise<void> {
+  public list(query: ClientCatalogQuery = {}): ClientModel[] {
+    return clientCatalogService.list(this.snapshot, { ...query, includeHistorical: false });
+  }
+
+  public async saveCustomClient(
+    _userId: string | undefined,
+    name: string,
+    price: number,
+    address: string,
+  ): Promise<void> {
     await this.hydrationPromise;
     const canonicalName = formatClientName(name);
     if (!canonicalName) throw new Error('Informe o nome do cliente.');
@@ -110,7 +102,11 @@ export class MockClientDataSource {
     await this.persistAndPublish();
   }
 
-  public async updatePrice(client: ClientModel, price: number): Promise<void> {
+  public async updatePrice(
+    _userId: string | undefined,
+    client: ClientModel,
+    price: number,
+  ): Promise<void> {
     await this.hydrationPromise;
     const key = findClientKey(this.clients, client.normalizedName);
     if (!key) throw new Error('Cliente mock não encontrado.');
@@ -127,7 +123,11 @@ export class MockClientDataSource {
     await this.persistAndPublish();
   }
 
-  public async rename(client: ClientModel, newName: string): Promise<void> {
+  public async rename(
+    _userId: string | undefined,
+    client: ClientModel,
+    newName: string,
+  ): Promise<void> {
     await this.hydrationPromise;
     const oldKey = findClientKey(this.clients, client.normalizedName);
     const canonicalName = formatClientName(newName);
@@ -147,9 +147,13 @@ export class MockClientDataSource {
     nextClients[canonicalName] = { ...config, nome: canonicalName };
     this.clients = nextClients;
     await this.persistAndPublish();
+    mockDeliveryDataSource.renameClientReferences(client.canonicalName, canonicalName);
   }
 
-  public async removeCustomConfiguration(client: ClientModel): Promise<void> {
+  public async removeCustomConfiguration(
+    _userId: string | undefined,
+    client: ClientModel,
+  ): Promise<void> {
     await this.hydrationPromise;
     const key = findClientKey(this.clients, client.normalizedName);
     if (!key) throw new Error('Cliente mock n\u00e3o encontrado.');

@@ -2,6 +2,8 @@ import { get, ref, set } from 'firebase/database';
 
 import { getFirebaseDatabase } from '@/services/firebase';
 import { DataError, toDataError } from '@/services/data/DataError';
+import { ENABLE_FIREBASE_WRITES } from '@/config/featureFlags';
+import { userNodePath } from '@/services/data/paths';
 import { DataValidationError } from '@/utils/data';
 
 import { UserRootRepository } from './UserRootRepository';
@@ -22,7 +24,7 @@ export class RealtimeNodeRepository<T> {
 
   public async read(): Promise<T> {
     try {
-      const snapshot = await get(ref(getFirebaseDatabase(), `usuarios/${this.uid}/${this.node}`));
+      const snapshot = await get(ref(getFirebaseDatabase(), userNodePath(this.uid, this.node)));
       if (!snapshot.exists()) return this.codec.emptyValue;
 
       const rawValue: unknown = snapshot.val();
@@ -38,11 +40,18 @@ export class RealtimeNodeRepository<T> {
   }
 
   public async replace(value: T): Promise<void> {
+    if (!ENABLE_FIREBASE_WRITES) {
+      throw new DataError(
+        'permission',
+        'As escritas Firebase estao desativadas durante a primeira ativacao somente leitura.',
+      );
+    }
+
     try {
       await new UserRootRepository(this.uid).assertExists();
       const rawValue = this.codec.toFirebase(value);
       this.codec.validate(rawValue);
-      await set(ref(getFirebaseDatabase(), `usuarios/${this.uid}/${this.node}`), rawValue);
+      await set(ref(getFirebaseDatabase(), userNodePath(this.uid, this.node)), rawValue);
     } catch (error) {
       if (error instanceof DataError) throw error;
       if (error instanceof DataValidationError) {

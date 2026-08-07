@@ -25,6 +25,7 @@ import {
   validateFactoryReceiptsForWrite,
   validateMonthlyExpenses,
 } from '@/utils/data/validators';
+import { withoutLocalOnlyFields } from '@/types/data/domainPolicy';
 
 function compactRecord(record: UnknownRecord): UnknownRecord {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
@@ -67,6 +68,10 @@ export function mapDelivery(value: unknown, path = 'entregas[0]'): Delivery {
     cliente: formatClientName(requiredString(record.cliente)),
     quantidade: requiredNumber(record.quantidade),
     valor: requiredNumber(record.valor),
+    precoUnitarioHistorico:
+      record.precoUnitarioHistorico === undefined
+        ? undefined
+        : requiredNumber(record.precoUnitarioHistorico),
     status: requiredString(record.status),
     entregue: record.entregue as boolean,
     data: requiredString(record.data),
@@ -85,7 +90,7 @@ export function mapDeliveries(value: unknown): Delivery[] {
 
 export function toFirebaseDelivery(delivery: Delivery): UnknownRecord {
   const { legacyFields = {}, ...knownFields } = delivery;
-  return compactRecord({ ...legacyFields, ...knownFields });
+  return compactRecord({ ...withoutLocalOnlyFields(legacyFields), ...knownFields });
 }
 
 export function toFirebaseDeliveries(deliveries: Delivery[]): UnknownRecord[] {
@@ -121,7 +126,7 @@ export function toFirebaseDailyExpenses(expenses: DailyExpenses): UnknownRecord 
   return Object.fromEntries(
     Object.entries(expenses).map(([date, expense]) => {
       const { legacyFields = {}, data: _data, outros: _outros, ...knownFields } = expense;
-      return [date, compactRecord({ ...legacyFields, ...knownFields })];
+      return [date, compactRecord({ ...withoutLocalOnlyFields(legacyFields), ...knownFields })];
     }),
   );
 }
@@ -150,7 +155,7 @@ export function toFirebaseMonthlyExpenses(expenses: MonthlyExpenses): UnknownRec
     Object.entries(expenses).map(([month, expense]) => {
       if (typeof expense === 'number') return [month, expense];
       const { legacyFields = {}, ...knownFields } = expense;
-      return [month, compactRecord({ ...legacyFields, ...knownFields })];
+      return [month, compactRecord({ ...withoutLocalOnlyFields(legacyFields), ...knownFields })];
     }),
   );
 }
@@ -175,7 +180,11 @@ export function toFirebaseFactoryReceipt(receipt: FactoryReceipt): UnknownRecord
     return compactRecord({ ...legacyFields, ...knownFields });
   });
   const { legacyFields = {}, pagamentos: _payments, ...knownFields } = receipt;
-  return compactRecord({ ...legacyFields, ...knownFields, pagamentos: payments });
+  return compactRecord({
+    ...withoutLocalOnlyFields(legacyFields),
+    ...knownFields,
+    pagamentos: payments,
+  });
 }
 
 export function toFirebaseFactoryReceipts(receipts: FactoryReceipt[]): UnknownRecord[] {
@@ -205,7 +214,7 @@ export function toFirebaseCustomClients(clients: Record<string, CustomClient>): 
   return Object.fromEntries(
     Object.entries(clients).map(([name, client]) => {
       const { nome: _name, legacyFields = {}, ...knownFields } = client;
-      return [name, compactRecord({ ...legacyFields, ...knownFields })];
+      return [name, compactRecord({ ...withoutLocalOnlyFields(legacyFields), ...knownFields })];
     }),
   );
 }

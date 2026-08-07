@@ -1,40 +1,27 @@
+import { MockAuthDataSource } from '@/services/auth/MockAuthDataSource';
+
 export type MockSessionListener = () => void;
 
-export class MockSessionStore {
-  private isAuthenticatedState = false;
-  private readonly listeners = new Set<MockSessionListener>();
-
-  public constructor(private readonly signInDelayMs = 1000) {}
-
+/**
+ * Compatibility facade for older callers. The active provider uses
+ * MockAuthDataSource directly.
+ */
+export class MockSessionStore extends MockAuthDataSource {
   public get isAuthenticated(): boolean {
-    return this.isAuthenticatedState;
+    return Boolean(this.getCurrentUser());
   }
 
   public async checkAuthentication(): Promise<boolean> {
-    return this.isAuthenticatedState;
+    await this.restore();
+    return this.isAuthenticated;
   }
 
   public async signInWithGoogleMock(): Promise<void> {
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, this.signInDelayMs);
-    });
-    this.setAuthenticated(true);
+    await this.signInWithGooglePopup();
   }
 
   public async signOutMock(): Promise<void> {
-    this.setAuthenticated(false);
-  }
-
-  public subscribe(listener: MockSessionListener): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private setAuthenticated(nextValue: boolean): void {
-    if (this.isAuthenticatedState === nextValue) return;
-
-    this.isAuthenticatedState = nextValue;
-    this.listeners.forEach((listener) => listener());
+    await this.signOut();
   }
 }
 

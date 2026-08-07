@@ -8,6 +8,12 @@ import type {
 } from '@/types/data';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
 
+import {
+  fuelCostCalculationService,
+  type FuelConsumption,
+  type FuelType,
+} from './FuelCostCalculationService';
+
 export const EXPENSE_CUTOFFS = {
   bucketCost: '2026-03-20',
   currentFuelModel: '2026-05-01',
@@ -20,6 +26,11 @@ export const EXPENSE_DEFAULTS = {
   ethanolKmPerLiter: 5.6,
   gasolineKmPerLiter: 7.4,
 } as const;
+
+const LEGACY_FUEL_CONSUMPTION: FuelConsumption = {
+  ethanolKmL: EXPENSE_DEFAULTS.ethanolKmPerLiter,
+  gasolineKmL: EXPENSE_DEFAULTS.gasolineKmPerLiter,
+};
 
 function safeNumber(value: unknown): number {
   return normalizeMoney(value) ?? 0;
@@ -82,16 +93,18 @@ export class ExpenseCalculationService {
       const fuelPrice = safeNumber(expense.precoGasolina);
       if (kilometers <= 0 || fuelPrice <= 0) return 0;
 
-      let average: number = EXPENSE_DEFAULTS.gasolineKmPerLiter;
+      let fuelType: FuelType = 'gasolina';
       if (expense.tipoCombustivel) {
-        average =
-          expense.tipoCombustivel === 'etanol'
-            ? EXPENSE_DEFAULTS.ethanolKmPerLiter
-            : EXPENSE_DEFAULTS.gasolineKmPerLiter;
+        fuelType = expense.tipoCombustivel === 'etanol' ? 'etanol' : 'gasolina';
       } else if (normalizedDate <= EXPENSE_CUTOFFS.fuelAverageChange) {
-        average = EXPENSE_DEFAULTS.ethanolKmPerLiter;
+        fuelType = 'etanol';
       }
-      return (kilometers / average) * fuelPrice;
+      return fuelCostCalculationService.calculate({
+        consumption: LEGACY_FUEL_CONSUMPTION,
+        fuelPrice,
+        fuelType,
+        kilometers,
+      });
     }
     return safeNumber(expense.gasolina);
   }

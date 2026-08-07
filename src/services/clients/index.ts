@@ -5,6 +5,12 @@ export {
 } from './ClientCatalogService';
 export type { ClientCatalogQuery } from './ClientCatalogService';
 export {
+  FirebaseClientDataSource,
+  clientDataSource,
+  firebaseClientDataSource,
+} from './ClientDataSource';
+export type { ClientDataMode, ClientDataSource } from './ClientDataSource';
+export {
   MOCK_CLIENT_ITEMS,
   MockClientDataSource,
   mockClientDataSource,

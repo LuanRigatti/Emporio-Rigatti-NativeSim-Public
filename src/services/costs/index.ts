@@ -9,4 +9,16 @@ export {
   type CostSettings,
   type CostValues,
 } from './CostSettingsStorage';
-export { addDailyValue } from './dailyDataAggregation';
+export { addDailyValue, setDailyValue } from './dailyDataAggregation';
+export {
+  type DailyDataDataSource,
+  type DailyDataField,
+  type DailyDataRecord,
+  type FirebaseDailyDataPayload,
+} from './DailyDataDataSource';
+export {
+  FirebaseDailyDataDataSource,
+  firebaseDailyDataDataSource,
+} from './FirebaseDailyDataDataSource';
+export { LocalDailyDataDataSource, localDailyDataDataSource } from './LocalDailyDataDataSource';
+export { DailyDataQueryService, dailyDataQueryService } from './DailyDataQueryService';

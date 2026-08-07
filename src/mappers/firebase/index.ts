@@ -16,3 +16,9 @@ export {
   toFirebaseFactoryReceipts,
   toFirebaseMonthlyExpenses,
 } from './dataMappers';
+export {
+  mapStockSnapshot,
+  mapStockSnapshots,
+  toFirebaseStockSnapshot,
+  toFirebaseStockSnapshots,
+} from './stockSnapshotMappers';

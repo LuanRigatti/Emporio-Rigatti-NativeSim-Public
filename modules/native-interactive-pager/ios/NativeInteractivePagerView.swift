@@ -75,9 +75,13 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
   private static func pageContent(for page: NativeInteractivePagerPage) -> AnyView {
     AnyView(
       ForEach(page.props.children ?? [], id: \.id) { child in
-        AnyView(child.childView)
+        eraseChildView(child)
       }
     )
+  }
+
+  private static func eraseChildView<Child: ExpoSwiftUI.AnyChild>(_ child: Child) -> AnyView {
+    AnyView(child.childView)
   }
 
   private static func unwrapPage(_ child: any ExpoSwiftUI.AnyChild) -> NativeInteractivePagerPage? {

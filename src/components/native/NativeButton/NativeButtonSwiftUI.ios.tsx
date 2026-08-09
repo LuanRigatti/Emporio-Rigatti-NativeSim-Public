@@ -8,7 +8,6 @@ import {
   cornerRadius,
   disabled as disabledModifier,
   frame,
-  font,
   foregroundColor,
   padding,
   foregroundStyle,
@@ -17,6 +16,8 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeButtonProps } from '@/types/native-ui';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
+
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeButtonSwiftUI({
   disabled,
@@ -44,7 +45,7 @@ export default function NativeButtonSwiftUI({
       <VStack alignment="center" modifiers={[frame({ width: minWidth, height: minHeight })]}>
         <Text
           modifiers={[
-            font({ size: 11 }),
+            roundedFont({ size: 11 }),
             foregroundColor(content.foregroundColor ?? color ?? '#000000'),
           ]}
         >
@@ -52,7 +53,7 @@ export default function NativeButtonSwiftUI({
         </Text>
         <Text
           modifiers={[
-            font({ size: 16, weight: 'semibold' }),
+            roundedFont({ size: 16, weight: 'semibold' }),
             foregroundColor(content.foregroundColor ?? color ?? '#000000'),
           ]}
         >
@@ -75,7 +76,7 @@ export default function NativeButtonSwiftUI({
         spacing={6}
       >
         <Image color={color ?? '#000000'} size={18} systemName={systemImage as SFSymbol} />
-        <Text modifiers={[foregroundColor(color ?? '#000000')]}>{label}</Text>
+        <Text modifiers={[roundedFont({}), foregroundColor(color ?? '#000000')]}>{label}</Text>
       </HStack>
     ) : (
       <HStack modifiers={contentWidth !== undefined ? [frame({ width: contentWidth })] : undefined}>
@@ -113,6 +114,7 @@ export default function NativeButtonSwiftUI({
             : []),
           ...(hint ? [accessibilityHint(hint)] : []),
           ...(value ? [accessibilityValue(value)] : []),
+          roundedFont({}),
         ]}
       >
         {buttonContent}

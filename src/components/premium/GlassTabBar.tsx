@@ -12,7 +12,6 @@ import Animated, {
 
 import { useAppTheme } from '@/theme';
 import { useVisualCapabilities } from '@/theme/visualCapabilities';
-import { triggerSelectionHaptic } from '@/utils/haptics';
 
 import { GlassSurface } from './GlassSurface';
 import type { GlassTabBarItem, GlassTabBarProps } from './GlassTabBar.types';
@@ -78,7 +77,6 @@ function GlassTabItemButton({ item, reduceMotionEnabled, onLayout }: GlassTabIte
         accessibilityState={{ selected: item.selected }}
         onPress={item.onPress}
         onPressIn={() => {
-          triggerSelectionHaptic();
           setPressed(true);
         }}
         onPressOut={() => setPressed(false)}

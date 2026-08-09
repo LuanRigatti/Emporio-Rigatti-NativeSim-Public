@@ -3,6 +3,7 @@ import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeSegmentedControlProps } from '@/types/native-ui';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeSegmentedControlSwiftUI({
   onSelectedIndexChange,
@@ -21,12 +22,12 @@ export default function NativeSegmentedControlSwiftUI({
           systemImages?.[index] ? (
             <Label
               key={option}
-              modifiers={[tag(index)]}
+              modifiers={[roundedFont({}), tag(index)]}
               title={option}
               systemImage={systemImages[index] as SFSymbol}
             />
           ) : (
-            <Text key={option} modifiers={[tag(index)]}>
+            <Text key={option} modifiers={[roundedFont({}), tag(index)]}>
               {option}
             </Text>
           ),

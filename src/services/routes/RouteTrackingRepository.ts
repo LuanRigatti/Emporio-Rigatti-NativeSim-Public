@@ -151,6 +151,11 @@ export class RouteTrackingRepository {
     return history;
   }
 
+  public async getRouteSessionById(routeId: string): Promise<RouteTrackingSession | null> {
+    const history = await this.getRouteHistory();
+    return history.find((session) => session.id === routeId) ?? null;
+  }
+
   public async getRouteDistanceForDate(date: string): Promise<RouteDistanceSummary> {
     return summarizeRouteDistance(await this.getRouteHistory(date));
   }
@@ -158,6 +163,17 @@ export class RouteTrackingRepository {
   public async getTotalDistanceForDate(date: string): Promise<number> {
     const summary = await this.getRouteDistanceForDate(date);
     return summary.totalKilometers;
+  }
+
+  public async removeRouteSession(sessionId: string): Promise<boolean> {
+    return this.enqueue(async () => {
+      const history = await this.getRouteHistory();
+      const nextHistory = history.filter((session) => session.id !== sessionId);
+      if (nextHistory.length === history.length) return false;
+
+      await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
+      return true;
+    });
   }
 
   public async createActiveRoute(routeId: string): Promise<RouteTrackingRecord> {

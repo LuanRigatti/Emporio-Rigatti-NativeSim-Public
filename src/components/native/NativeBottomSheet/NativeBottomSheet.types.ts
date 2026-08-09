@@ -8,6 +8,8 @@ export type NativeBottomSheetItem = {
   bucketPrice?: number;
 };
 
+export type NativeBottomSheetDetent = 'medium' | 'large' | { fraction: number };
+
 export type NativeBottomSheetConfirmation = {
   client: NativeBottomSheetItem;
   date: Date;
@@ -29,4 +31,5 @@ export type NativeBottomSheetProps = {
   onConfirm?: (confirmation: NativeBottomSheetConfirmation) => void;
   selectedItem?: NativeBottomSheetItem | null;
   initialQuantity?: number;
+  initialDetent?: NativeBottomSheetDetent;
 };

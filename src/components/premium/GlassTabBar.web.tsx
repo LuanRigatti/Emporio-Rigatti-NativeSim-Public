@@ -4,7 +4,6 @@ import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } f
 
 import { useAppTheme } from '@/theme';
 import { useVisualCapabilities } from '@/theme/visualCapabilities';
-import { triggerSelectionHaptic } from '@/utils/haptics';
 
 import { GlassSurface } from './GlassSurface';
 import type { GlassTabBarItem, GlassTabBarProps } from './GlassTabBar.types';
@@ -59,7 +58,6 @@ function WebTabItem({ item, barHeight, reduceMotionEnabled, onLayout }: WebTabIt
         accessibilityState={{ selected: item.selected }}
         onPress={item.onPress}
         onPressIn={() => {
-          triggerSelectionHaptic();
           setPressed(true);
         }}
         onPressOut={() => setPressed(false)}

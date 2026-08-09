@@ -12,6 +12,7 @@ import {
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeGlassIconButtonProps } from '@/types/native-ui';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeGlassIconButtonSwiftUI({
   accessibilityLabel: accessibilityText,
@@ -50,7 +51,7 @@ export default function NativeGlassIconButtonSwiftUI({
         onPress={onPress}
       >
         {label ? (
-          <Text modifiers={color ? [tint(color)] : undefined}>{label}</Text>
+          <Text modifiers={[roundedFont({}), ...(color ? [tint(color)] : [])]}>{label}</Text>
         ) : (
           <Image color={color} size={size} systemName={(systemImage ?? 'plus') as SFSymbol} />
         )}

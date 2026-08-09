@@ -3,6 +3,7 @@ import { disabled as disabledModifier, listStyle } from '@expo/ui/swift-ui/modif
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeListProps } from '@/types/native-ui';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeListSwiftUI({ items, onItemPress }: NativeListProps) {
   return (
@@ -11,7 +12,7 @@ export default function NativeListSwiftUI({ items, onItemPress }: NativeListProp
         {items.map((item) => (
           <Button
             key={item.id}
-            modifiers={item.disabled ? [disabledModifier(true)] : undefined}
+            modifiers={[roundedFont({}), ...(item.disabled ? [disabledModifier(true)] : [])]}
             onPress={() => onItemPress?.(item)}
             systemImage={item.systemImage as SFSymbol | undefined}
             label={item.subtitle ? `${item.title}\n${item.subtitle}` : item.title}

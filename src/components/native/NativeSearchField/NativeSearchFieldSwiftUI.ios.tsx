@@ -1,16 +1,31 @@
 import { HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
-import { accessibilityLabel, frame, glassEffect, padding } from '@expo/ui/swift-ui/modifiers';
-import { useEffect } from 'react';
+import {
+  accessibilityLabel,
+  animation,
+  Animation,
+  frame,
+  glassEffect,
+  onSubmit as onSubmitModifier,
+  padding,
+  strokeBorder,
+  submitLabel,
+} from '@expo/ui/swift-ui/modifiers';
+import { PlatformColor } from 'react-native';
+import { useEffect, useState } from 'react';
+import { roundedFont } from '../nativeTypography';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
 export default function NativeSearchFieldSwiftUI({
   accessibilityLabel: label,
   onChangeText,
+  onFocusChange,
+  onSubmit,
   placeholder = 'Pesquisar',
   value,
 }: NativeSearchFieldProps) {
   const text = useNativeState(value);
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     text.set(value);
@@ -27,13 +42,28 @@ export default function NativeSearchFieldSwiftUI({
             glass: { interactive: true, variant: 'regular' },
             shape: 'capsule',
           }),
+          strokeBorder({
+            color: PlatformColor('separator') as unknown as string,
+            shape: 'capsule',
+            style: { lineWidth: focused ? 1.2 : 0.5 },
+          }),
+          animation(Animation.easeInOut({ duration: 0.6 }), focused),
           accessibilityLabel(label ?? 'Pesquisar'),
         ]}
       >
         <Image color="#8B8B93" size={18} systemName="magnifyingglass" />
         <TextField
           axis="horizontal"
-          modifiers={[frame({ maxWidth: 1000 })]}
+          modifiers={[
+            roundedFont({ textStyle: 'body' }),
+            frame({ maxWidth: 1000 }),
+            submitLabel('search'),
+            onSubmitModifier(() => onSubmit?.()),
+          ]}
+          onFocusChange={(nextFocused) => {
+            setFocused(nextFocused);
+            onFocusChange?.(nextFocused);
+          }}
           onTextChange={onChangeText}
           placeholder={placeholder}
           text={text}

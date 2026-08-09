@@ -6,6 +6,7 @@ import type {
   FinancialCalculationInput,
   FinancialComparison,
   FinancialComparisonResult,
+  FinancialDeliveryDayComparison,
   FinancialPeriod,
   FinancialSummary,
   MonthlyExpenses,
@@ -96,6 +97,29 @@ function comparison(
     percentual: comparisonPercentage(current, previous, useAbsoluteBase),
     subiu: difference >= 0,
   };
+}
+
+function previousMonthKey(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return formatLocalDate(new Date(year, monthNumber - 2, 1, 12)).slice(0, 7);
+}
+
+function deliveryDates(deliveries: readonly Delivery[]): string[] {
+  return [...new Set(deliveries.map((delivery) => isoDate(delivery.data)))].sort();
+}
+
+function deliveriesOnDates(deliveries: readonly Delivery[], dates: readonly string[]): Delivery[] {
+  const dateSet = new Set(dates);
+  return deliveries.filter((delivery) => dateSet.has(isoDate(delivery.data)));
+}
+
+function expensesOnDates(dailyExpenses: DailyExpenses, dates: readonly string[]): DailyExpenses {
+  const dateSet = new Set(dates);
+  return Object.fromEntries(
+    Object.entries(dailyExpenses).filter(
+      ([key, expense]) => dateSet.has(isoDate(key)) || dateSet.has(isoDate(expense.data)),
+    ),
+  );
 }
 
 export class FinancialCalculationService {
@@ -452,6 +476,50 @@ export class FinancialCalculationService {
       faturamento: comparison(current.faturamento, previous.faturamento),
       quantidadeEntregas: comparison(current.quantidadeEntregas, previous.quantidadeEntregas),
       lucroLiquido: comparison(current.lucroLiquido, previous.lucroLiquido, true),
+    };
+  }
+
+  public compareByDeliveryDays(input: FinancialCalculationInput): FinancialDeliveryDayComparison {
+    const today = input.today ?? new Date();
+    const currentMonth = input.filters.mesSelecionado ?? todayIso(today).slice(0, 7);
+    const previousMonth = previousMonthKey(currentMonth);
+    const currentFilters: FinancialCalculationFilters = {
+      ...input.filters,
+      periodo: 'mes',
+      mesSelecionado: currentMonth,
+    };
+    const previousFilters: FinancialCalculationFilters = {
+      ...input.filters,
+      periodo: 'mes',
+      mesSelecionado: previousMonth,
+    };
+    const currentMonthDeliveries = this.filterDeliveries(input.deliveries, currentFilters, today);
+    const previousMonthDeliveries = this.filterDeliveries(input.deliveries, previousFilters, today);
+    const currentDeliveryDates = deliveryDates(currentMonthDeliveries);
+    const previousDeliveryDates = deliveryDates(previousMonthDeliveries).slice(
+      0,
+      currentDeliveryDates.length,
+    );
+    const currentSummary = this.calculateResumo({
+      ...input,
+      deliveries: deliveriesOnDates(currentMonthDeliveries, currentDeliveryDates),
+      dailyExpenses: expensesOnDates(input.dailyExpenses, currentDeliveryDates),
+      filters: currentFilters,
+      today,
+    });
+    const previousSummary = this.calculateResumo({
+      ...input,
+      deliveries: deliveriesOnDates(previousMonthDeliveries, previousDeliveryDates),
+      dailyExpenses: expensesOnDates(input.dailyExpenses, previousDeliveryDates),
+      filters: previousFilters,
+      today,
+    });
+
+    return {
+      currentDeliveryDays: currentDeliveryDates.length,
+      previousDeliveryDays: previousDeliveryDates.length,
+      faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
+      lucroLiquido: comparison(currentSummary.lucroLiquido, previousSummary.lucroLiquido, true),
     };
   }
 

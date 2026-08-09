@@ -267,4 +267,28 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.percentual).toBe(20);
     expect(result.faturamento.subiu).toBe(true);
   });
+
+  it('compares the first delivery days of the previous month instead of calendar dates', () => {
+    const result = service.compareByDeliveryDays({
+      deliveries: [
+        delivery({ id: 'current-1', data: '2026-07-01', valor: 100 }),
+        delivery({ id: 'current-2', data: '2026-07-10', valor: 100 }),
+        delivery({ id: 'current-3', data: '2026-07-20', valor: 100 }),
+        delivery({ id: 'previous-1', data: '2026-06-01', valor: 50 }),
+        delivery({ id: 'previous-2', data: '2026-06-08', valor: 50 }),
+        delivery({ id: 'previous-3', data: '2026-06-20', valor: 50 }),
+        delivery({ id: 'previous-extra', data: '2026-06-30', valor: 1000 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-07' },
+      today: new Date('2026-07-24T12:00:00'),
+    });
+
+    expect(result.currentDeliveryDays).toBe(3);
+    expect(result.previousDeliveryDays).toBe(3);
+    expect(result.faturamento.atual).toBe(300);
+    expect(result.faturamento.anterior).toBe(150);
+    expect(result.faturamento.subiu).toBe(true);
+  });
 });

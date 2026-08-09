@@ -99,12 +99,20 @@ export class LocationTrackingService {
     return routeTrackingRepository.getRouteHistory(date);
   }
 
+  public getRouteSessionById(routeId: string): Promise<RouteTrackingSession | null> {
+    return routeTrackingRepository.getRouteSessionById(routeId);
+  }
+
   public getRouteDistanceForDate(date: string): Promise<RouteDistanceSummary> {
     return routeTrackingRepository.getRouteDistanceForDate(date);
   }
 
   public getTotalDistanceForDate(date: string): Promise<number> {
     return routeTrackingRepository.getTotalDistanceForDate(date);
+  }
+
+  public removeRouteSession(sessionId: string): Promise<boolean> {
+    return routeTrackingRepository.removeRouteSession(sessionId);
   }
 
   public async getPermissionStatus(): Promise<LocationPermissionStatus> {

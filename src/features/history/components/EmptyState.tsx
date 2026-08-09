@@ -1,12 +1,12 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '@/theme';
 
-export function EmptyState() {
+export function EmptyState({ style }: { style?: StyleProp<ViewStyle> }) {
   const { theme } = useAppTheme();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       <Text style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}>
         Nenhuma entrega encontrada
       </Text>

@@ -231,6 +231,16 @@ describe('route distance by day', () => {
     expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(12.4);
   });
 
+  it('returns one finalized session by id without changing its samples', async () => {
+    const session = {
+      ...sessions[0],
+      samples: [{ accuracy: 5, latitude: -25.4296, longitude: -49.2719, timestamp: 1_000 }],
+    };
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify([session]));
+
+    await expect(routeTrackingRepository.getRouteSessionById(session.id)).resolves.toEqual(session);
+  });
+
   it('sums multiple routes from the same day', async () => {
     await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(sessions));
 
@@ -250,5 +260,19 @@ describe('route distance by day', () => {
     );
 
     expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(12.4);
+  });
+
+  it('removes only the selected finalized route and its GPS samples', async () => {
+    const first = { ...sessions[0], samples: [location(-25.4296, -49.2719, 1_000)] };
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([first, sessions[1]]),
+    );
+
+    await expect(routeTrackingRepository.removeRouteSession(first.id)).resolves.toBe(true);
+
+    expect(await routeTrackingRepository.getRouteHistory()).toEqual([sessions[1]]);
+    expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(8.6);
+    await expect(routeTrackingRepository.removeRouteSession(first.id)).resolves.toBe(false);
   });
 });

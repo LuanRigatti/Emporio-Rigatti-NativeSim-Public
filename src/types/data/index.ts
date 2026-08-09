@@ -55,6 +55,7 @@ export type {
   FinancialCalculationFilters,
   FinancialCalculationInput,
   FinancialComparison,
+  FinancialDeliveryDayComparison,
   FinancialComparisonResult,
   FinancialMetric,
   FinancialPeriodSelection,

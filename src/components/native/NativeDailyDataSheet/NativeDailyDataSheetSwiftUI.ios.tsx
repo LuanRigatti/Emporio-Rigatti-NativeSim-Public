@@ -21,7 +21,6 @@ import {
   cornerRadius,
   controlSize,
   frame,
-  font,
   glassEffect,
   keyboardType,
   layoutPriority,
@@ -40,6 +39,7 @@ import {
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
 } from '@/components/native/nativeSheetBackground';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
+import { roundedFont } from '../nativeTypography';
 
 import type {
   NativeDailyDataSheetProps,
@@ -114,7 +114,7 @@ export default function NativeDailyDataSheetSwiftUI({
     <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 4 })]}>
       <HStack spacing={6} modifiers={[layoutPriority(1)]}>
         <Image size={16} systemName={systemImage} />
-        <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>{label}</Text>
+        <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>{label}</Text>
       </HStack>
       <Spacer />
       <HStack
@@ -128,6 +128,7 @@ export default function NativeDailyDataSheetSwiftUI({
         <TextField
           axis="horizontal"
           modifiers={[
+            roundedFont({ textStyle: 'body' }),
             autocorrectionDisabled(true),
             frame({ maxWidth: 1000 }),
             keyboardType('decimal-pad'),
@@ -174,7 +175,7 @@ export default function NativeDailyDataSheetSwiftUI({
             <Image size={20} systemName="xmark" />
           </Button>
         </HStack>
-        <Text modifiers={[font({ size: 17, weight: 'bold' }), offset({ y: 0 })]}>
+        <Text modifiers={[roundedFont({ size: 17, weight: 'bold' }), offset({ y: 0 })]}>
           {'Dados Di\u00e1rios'}
         </Text>
       </ZStack>
@@ -222,7 +223,7 @@ export default function NativeDailyDataSheetSwiftUI({
           <Spacer />
           <Button
             label="Adicionar"
-            modifiers={[buttonStyle('glassProminent'), controlSize('large')]}
+            modifiers={[roundedFont({}), buttonStyle('glassProminent'), controlSize('large')]}
             onPress={() => {
               if (submitting) return;
               triggerNativeButtonHaptic('light');

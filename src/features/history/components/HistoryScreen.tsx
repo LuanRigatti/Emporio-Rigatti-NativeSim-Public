@@ -40,7 +40,7 @@ function filterDayDeliveries<T extends { status: string }>(
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
-  const { refresh, snapshot, toggleDelivery } = useAppData();
+  const { refresh, removeDelivery, snapshot, toggleDelivery } = useAppData();
   const allDeliveries = useMemo(
     () => (snapshot?.entregas ?? []).map(toHistoryDelivery),
     [snapshot],
@@ -89,6 +89,13 @@ export function HistoryScreen() {
     [toggleDelivery],
   );
 
+  const handleDeleteDelivery = useCallback(
+    (deliveryId: string) => {
+      void removeDelivery(deliveryId);
+    },
+    [removeDelivery],
+  );
+
   const renderDayContent = useCallback(
     (date: string) => {
       const dayDeliveries = allDeliveries.filter((delivery) => delivery.data === date);
@@ -106,8 +113,10 @@ export function HistoryScreen() {
               styles.list,
               {
                 gap: theme.spacing.sm,
-                marginTop: -(theme.spacing.xxl * 2 + theme.spacing.md),
+                marginTop:
+                  visibleDeliveries.length === 0 ? 0 : -(theme.spacing.xxl * 2 + theme.spacing.md),
                 paddingBottom: theme.spacing.lg,
+                ...(visibleDeliveries.length === 0 ? styles.emptyList : null),
               },
             ]}
           >
@@ -121,6 +130,7 @@ export function HistoryScreen() {
                 >
                   <DeliveryCard
                     delivery={delivery}
+                    onDelete={() => handleDeleteDelivery(delivery.id)}
                     onToggleStatus={() => handleToggleStatus(delivery.id)}
                   />
                 </Animated.View>
@@ -132,24 +142,36 @@ export function HistoryScreen() {
                 )}
                 style={styles.emptyState}
               >
-                <EmptyState />
+                <EmptyState
+                  style={[styles.historyEmptyContent, { paddingTop: theme.spacing.xxxl * 3 }]}
+                />
               </Animated.View>
             )}
           </Animated.View>
-          <View style={styles.bottomBucketSummary}>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              {dayBucketCount} {dayBucketCount === 1 ? 'balde' : 'baldes'}
-            </Text>
-          </View>
+          {dayDeliveries.length > 0 ? (
+            <View style={styles.bottomBucketSummary}>
+              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                {dayBucketCount} {dayBucketCount === 1 ? 'balde' : 'baldes'}
+              </Text>
+            </View>
+          ) : null}
         </>
       );
     },
-    [allDeliveries, handleToggleStatus, reduceMotionEnabled, selectedFilter, theme],
+    [
+      allDeliveries,
+      handleDeleteDelivery,
+      handleToggleStatus,
+      reduceMotionEnabled,
+      selectedFilter,
+      theme,
+    ],
   );
 
   const dayContent = (
     <ScrollView
       contentContainerStyle={{
+        flexGrow: 1,
         paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
         paddingHorizontal: theme.spacing.md,
         paddingTop: overlayHeaderHeight - theme.spacing.md,
@@ -269,6 +291,8 @@ const styles = StyleSheet.create({
   screenContent: { flex: 1 },
   dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
   emptyState: { alignSelf: 'stretch', width: '100%' },
+  emptyList: { flex: 1 },
+  historyEmptyContent: { flex: 1, minHeight: 0 },
   list: { width: '100%' },
   dayScroll: { flex: 1 },
   bottomBucketSummary: { alignItems: 'center', width: '100%' },

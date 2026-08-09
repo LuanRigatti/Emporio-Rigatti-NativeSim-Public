@@ -39,7 +39,14 @@ export default function NativeSwipeActionsList({
                 </View>
               ) : null}
               <View>
-                <Text style={[styles.title, { color: colors.textPrimary }]}>{item.title}</Text>
+                <Text
+                  style={[
+                    styles.title,
+                    { color: colors.textPrimary, fontWeight: item.titleBold ? '700' : '400' },
+                  ]}
+                >
+                  {item.title}
+                </Text>
                 <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                   {item.subtitle}
                 </Text>

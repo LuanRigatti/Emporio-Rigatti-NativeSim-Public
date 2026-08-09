@@ -5,6 +5,8 @@ import type { NativeSearchFieldProps } from './NativeSearchField.types';
 export default function NativeSearchFieldExpo({
   accessibilityLabel,
   onChangeText,
+  onFocusChange,
+  onSubmit,
   placeholder,
   value,
 }: NativeSearchFieldProps) {
@@ -12,6 +14,9 @@ export default function NativeSearchFieldExpo({
     <SearchBar
       accessibilityLabel={accessibilityLabel}
       onChangeText={onChangeText}
+      onBlur={() => onFocusChange?.(false)}
+      onFocus={() => onFocusChange?.(true)}
+      onSubmitEditing={() => onSubmit?.()}
       placeholder={placeholder}
       value={value}
     />

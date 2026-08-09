@@ -99,3 +99,10 @@ export interface FinancialComparisonResult {
   quantidadeEntregas: FinancialComparison;
   lucroLiquido: FinancialComparison;
 }
+
+export interface FinancialDeliveryDayComparison {
+  currentDeliveryDays: number;
+  previousDeliveryDays: number;
+  faturamento: FinancialComparison;
+  lucroLiquido: FinancialComparison;
+}

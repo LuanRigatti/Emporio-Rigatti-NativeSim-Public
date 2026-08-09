@@ -12,6 +12,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import { triggerSelectionHaptic } from '@/utils/haptics';
+import { roundedFont } from '../nativeTypography';
 
 import { NativeDropdownMenuSwiftUI } from '../NativeDropdown/NativeDropdownMenuSwiftUI';
 import {
@@ -89,7 +90,7 @@ export default function NativePeriodActionGroupSwiftUI({
             <Popover.Content>
               <DatePicker
                 displayedComponents={['date']}
-                modifiers={[datePickerStyle('graphical'), labelsHidden()]}
+                modifiers={[roundedFont({}), datePickerStyle('graphical'), labelsHidden()]}
                 onDateChange={(date) => onDayChange!(formatIsoDate(date))}
                 selection={selectedDate}
               />

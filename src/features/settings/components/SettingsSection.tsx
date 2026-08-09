@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { GlassSurface } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
 export type SettingsSectionProps = {
@@ -10,7 +9,7 @@ export type SettingsSectionProps = {
 };
 
 export function SettingsSection({ children, title }: SettingsSectionProps) {
-  const { resolvedMode, theme } = useAppTheme();
+  const { theme } = useAppTheme();
 
   return (
     <View style={styles.container}>
@@ -21,26 +20,8 @@ export function SettingsSection({ children, title }: SettingsSectionProps) {
           {title.toUpperCase()}
         </Text>
       ) : null}
-      <View
-        style={[
-          { borderRadius: theme.radius.xl + theme.spacing.xs },
-          resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
-        ]}
-      >
-        <GlassSurface
-          glassEffectStyle="none"
-          style={[
-            styles.surface,
-            {
-              backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
-              borderWidth: 0,
-              borderRadius: theme.radius.xl + theme.spacing.xs,
-              paddingHorizontal: theme.spacing.md,
-            },
-          ]}
-        >
-          {children}
-        </GlassSurface>
+      <View style={[styles.items, { gap: theme.spacing.sm, paddingHorizontal: theme.spacing.sm }]}>
+        {children}
       </View>
     </View>
   );
@@ -48,6 +29,6 @@ export function SettingsSection({ children, title }: SettingsSectionProps) {
 
 const styles = StyleSheet.create({
   container: { gap: 8 },
+  items: { width: '100%' },
   title: { letterSpacing: 0.7, paddingHorizontal: 4 },
-  surface: { overflow: 'hidden' },
 });

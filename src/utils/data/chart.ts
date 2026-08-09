@@ -8,3 +8,14 @@ export function getFinancialChartLabelIndexes(pointCount: number, maxLabels: num
   }
   return [...indexes].sort((left, right) => left - right);
 }
+
+export function getFinancialChartYCoordinates(
+  values: readonly number[],
+  chartHeight: number,
+  paddingTop: number,
+): number[] {
+  const max = Math.max(...values, 0);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  return values.map((value) => paddingTop + (1 - (value - min) / range) * chartHeight);
+}

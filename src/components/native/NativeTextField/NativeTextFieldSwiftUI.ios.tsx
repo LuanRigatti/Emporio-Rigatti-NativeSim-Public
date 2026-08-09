@@ -6,6 +6,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 
 import type { NativeTextFieldProps } from '@/types/native-ui';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeTextFieldSwiftUI({
   keyboardType,
@@ -34,7 +35,11 @@ export default function NativeTextFieldSwiftUI({
       <TextField
         ref={textFieldRef}
         axis="horizontal"
-        modifiers={[autocorrectionDisabled(true), keyboardTypeModifier(swiftKeyboardType)]}
+        modifiers={[
+          roundedFont({ textStyle: 'body' }),
+          autocorrectionDisabled(true),
+          keyboardTypeModifier(swiftKeyboardType),
+        ]}
         onTextChange={onChangeText}
         placeholder={placeholder}
         text={text}

@@ -10,7 +10,7 @@ export {
   parseIsoCalendarDate,
   todayIso,
 } from './dates';
-export { getFinancialChartLabelIndexes } from './chart';
+export { getFinancialChartLabelIndexes, getFinancialChartYCoordinates } from './chart';
 export { formatCurrency, maskFinancialValue } from './formatters';
 export { isBoolean, isFiniteNumber, isRecord, isString, readNumber, readString } from './guards';
 export {

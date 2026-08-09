@@ -23,3 +23,13 @@ export {
   todayIso,
 } from './FinancialPeriodService';
 export { financialSeriesService, FinancialSeriesService } from './FinancialSeriesService';
+export {
+  financialDailyDetailService,
+  FinancialDailyDetailService,
+  financialMetricValue,
+} from './FinancialDailyDetailService';
+export type {
+  FinancialDailyDetail,
+  FinancialDailyDetailInput,
+  MonthlyFinancialDetailMetric,
+} from './FinancialDailyDetailService';

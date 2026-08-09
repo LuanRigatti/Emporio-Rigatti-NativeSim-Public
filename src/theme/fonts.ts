@@ -1,9 +1,10 @@
 export const fonts = {
   family: {
     system: 'System',
-    rounded: 'System',
+    rounded: 'ui-rounded',
     monospaced: 'Menlo',
   },
+  activeFamily: 'rounded',
   weight: {
     regular: '400',
     medium: '500',

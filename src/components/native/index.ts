@@ -1,4 +1,9 @@
 export { NativeButton } from './NativeButton';
+export { NativeCardContextMenu } from './NativeCardContextMenu';
+export type {
+  NativeCardContextMenuAction,
+  NativeCardContextMenuProps,
+} from './NativeCardContextMenu';
 export { NativeClientFormSheet } from './NativeClientFormSheet';
 export type { NativeClientFormSheetProps, NativeClientFormValues } from './NativeClientFormSheet';
 export { default as NativeDailyDataSheet } from './NativeDailyDataSheet';

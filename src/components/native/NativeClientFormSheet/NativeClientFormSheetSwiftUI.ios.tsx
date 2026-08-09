@@ -21,7 +21,6 @@ import {
   controlSize,
   cornerRadius,
   disabled,
-  font,
   foregroundColor,
   frame,
   glassEffect,
@@ -34,6 +33,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
+import { roundedFont } from '../nativeTypography';
 
 import type {
   NativeClientFormSheetProps,
@@ -107,10 +107,11 @@ export default function NativeClientFormSheetSwiftUI({
       spacing={8}
       modifiers={[frame({ maxWidth: 1000 }), padding({ vertical: 12 })]}
     >
-      <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>{label}</Text>
+      <Text modifiers={[roundedFont({ size: 15, weight: 'semibold' })]}>{label}</Text>
       <TextField
         axis="horizontal"
         modifiers={[
+          roundedFont({ textStyle: 'body' }),
           autocorrectionDisabled(inputKeyboardType === 'decimal-pad'),
           background('systemGray6'),
           cornerRadius(12),
@@ -171,13 +172,13 @@ export default function NativeClientFormSheetSwiftUI({
             <Image size={18} systemName="xmark" />
           </Button>
         </HStack>
-        <Text modifiers={[font({ size: 17, weight: 'bold' })]}>{title}</Text>
+        <Text modifiers={[roundedFont({ size: 17, weight: 'bold' })]}>{title}</Text>
       </ZStack>
 
       {groupedForm}
 
       {error ? (
-        <Text modifiers={[foregroundColor('#FF3B30'), font({ size: 14 })]}>{error}</Text>
+        <Text modifiers={[foregroundColor('#FF3B30'), roundedFont({ size: 14 })]}>{error}</Text>
       ) : null}
 
       <HStack modifiers={[frame({ maxWidth: 1000, alignment: 'trailing' })]}>
@@ -185,6 +186,7 @@ export default function NativeClientFormSheetSwiftUI({
         <Button
           label="Adicionar"
           modifiers={[
+            roundedFont({}),
             buttonStyle('glassProminent'),
             controlSize('large'),
             ...(submitting ? [disabled(true)] : []),

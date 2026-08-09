@@ -135,7 +135,15 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
-      <GlassCard style={[styles.card, { marginTop: theme.spacing.md }]}>
+      <GlassCard
+        style={[
+          styles.card,
+          {
+            borderRadius: theme.radius.xl + theme.spacing.sm,
+            marginTop: theme.spacing.md,
+          },
+        ]}
+      >
         {mode === 'monthly' ? (
           <>
             <CostField

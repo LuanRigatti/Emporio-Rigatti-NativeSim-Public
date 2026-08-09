@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { NativeCardContextMenu } from '@/components/native';
 import { PremiumCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
@@ -8,10 +9,15 @@ import { DeliveryStatusBadge } from '@/features/history/components/DeliveryStatu
 
 export type TodayDeliveriesCardProps = {
   deliveries: readonly HistoryDelivery[];
+  onDelete: (deliveryId: string) => void;
   onToggleStatus: (deliveryId: string) => void;
 };
 
-export function TodayDeliveriesCard({ deliveries, onToggleStatus }: TodayDeliveriesCardProps) {
+export function TodayDeliveriesCard({
+  deliveries,
+  onDelete,
+  onToggleStatus,
+}: TodayDeliveriesCardProps) {
   const { theme } = useAppTheme();
   const totalBuckets = deliveries.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0);
 
@@ -34,26 +40,38 @@ export function TodayDeliveriesCard({ deliveries, onToggleStatus }: TodayDeliver
       </PremiumCard>
 
       {deliveries.map((delivery) => (
-        <PremiumCard
-          accessibilityLabel={`Entrega de ${delivery.cliente}`}
+        <NativeCardContextMenu
+          actions={[
+            {
+              destructive: true,
+              id: 'delete-delivery',
+              onPress: () => onDelete(delivery.id),
+              systemImage: 'trash',
+              title: 'Excluir',
+            },
+          ]}
           key={delivery.id}
-          style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
         >
-          <View style={styles.row}>
-            <View style={styles.copy}>
-              <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
-                {delivery.cliente}
-              </Text>
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
-              </Text>
+          <PremiumCard
+            accessibilityLabel={`Entrega de ${delivery.cliente}`}
+            style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          >
+            <View style={styles.row}>
+              <View style={styles.copy}>
+                <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
+                  {delivery.cliente}
+                </Text>
+                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                  {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
+                </Text>
+              </View>
+              <DeliveryStatusBadge
+                onPress={() => onToggleStatus(delivery.id)}
+                status={delivery.status}
+              />
             </View>
-            <DeliveryStatusBadge
-              onPress={() => onToggleStatus(delivery.id)}
-              status={delivery.status}
-            />
-          </View>
-        </PremiumCard>
+          </PremiumCard>
+        </NativeCardContextMenu>
       ))}
     </View>
   );

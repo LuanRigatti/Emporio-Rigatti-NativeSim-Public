@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { NativeGlassBackButton, NativeGlassIconButton, NativeTextField } from '@/components/native';
+import { NativeGlassBackButton, NativeTextField } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useAppTheme } from '@/theme';
@@ -31,7 +31,6 @@ export default function ClientDetailsRoute() {
   }>();
   const [bucketValue, setBucketValue] = useState('');
   const [address, setAddress] = useState('');
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const client = useMemo(
     () =>
@@ -55,15 +54,12 @@ export default function ClientDetailsRoute() {
       return;
     }
 
-    setSaving(true);
     setError(undefined);
     try {
       await updatePrice(client, price);
       router.back();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Não foi possível salvar o preço.');
-    } finally {
-      setSaving(false);
     }
   }, [bucketValue, client, router, updatePrice]);
 
@@ -90,15 +86,6 @@ export default function ClientDetailsRoute() {
           containerSize={theme.sizes.touchTargetMinimum}
           onPress={() => void handleSavePrice()}
           size={theme.sizes.iconMedium}
-        />
-        <NativeGlassIconButton
-          accessibilityLabel="Salvar valor do balde"
-          color={theme.colors.textPrimary}
-          disabled={saving || !client}
-          fallbackIcon="checkmark"
-          onPress={() => void handleSavePrice()}
-          size={theme.sizes.iconMedium}
-          systemImage="checkmark"
         />
       </View>
       <GlassCard style={styles.card}>

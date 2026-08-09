@@ -1,6 +1,6 @@
 import { FinancialSeriesService } from '@/services/finance/FinancialSeriesService';
 import type { Delivery } from '@/types/data';
-import { getFinancialChartLabelIndexes } from '@/utils/data';
+import { getFinancialChartLabelIndexes, getFinancialChartYCoordinates } from '@/utils/data';
 
 const service = new FinancialSeriesService();
 
@@ -70,5 +70,18 @@ describe('FinancialSeriesService', () => {
     expect(getFinancialChartLabelIndexes(0, 5)).toEqual([]);
     expect(getFinancialChartLabelIndexes(3, 5)).toEqual([0, 1, 2]);
     expect(getFinancialChartLabelIndexes(20, 5)).toEqual([0, 5, 10, 14, 19]);
+  });
+
+  it('maps higher financial values to higher chart positions, including negative profit', () => {
+    const coordinates = getFinancialChartYCoordinates([50, 200, 100, 300], 100, 0);
+    expect(coordinates[3]).toBeLessThan(coordinates[1]);
+    expect(coordinates[1]).toBeLessThan(coordinates[2]);
+    expect(coordinates[2]).toBeLessThan(coordinates[0]);
+
+    const mixedCoordinates = getFinancialChartYCoordinates([-100, 50, -20, 200], 100, 0);
+    expect(mixedCoordinates[3]).toBeLessThan(mixedCoordinates[1]);
+    expect(mixedCoordinates[1]).toBeLessThan(mixedCoordinates[2]);
+    expect(mixedCoordinates[2]).toBeLessThan(mixedCoordinates[0]);
+    expect(getFinancialChartYCoordinates([100, 100, 100], 100, 0)).toEqual([0, 0, 0]);
   });
 });

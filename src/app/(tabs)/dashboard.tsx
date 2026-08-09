@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
@@ -10,8 +10,8 @@ import { NativeSearchField } from '@/components/native';
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { TabHapticListener } from '@/navigation/TabHapticListener';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
+import { HomeSearchPrototypeSheet } from '@/features/home/components/HomeSearchPrototypeSheet';
 import { useAppData } from '@/hooks/useAppData';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
@@ -32,13 +32,15 @@ export default function Home() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
-  const { snapshot, toggleDelivery } = useAppData();
+  const { removeDelivery, snapshot, toggleDelivery } = useAppData();
   const historyDeliveries = useMemo(
     () => (snapshot?.entregas ?? []).map(toHistoryDelivery),
     [snapshot],
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
+  const [searchResultsVisible, setSearchResultsVisible] = useState(false);
+  const [submittedSearch, setSubmittedSearch] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
@@ -62,6 +64,21 @@ export default function Home() {
     [toggleDelivery],
   );
 
+  const handleTodayDeliveryDelete = useCallback(
+    (deliveryId: string) => {
+      void removeDelivery(deliveryId);
+    },
+    [removeDelivery],
+  );
+
+  const handleSearchSubmit = useCallback(() => {
+    const query = searchText.trim();
+    if (!query) return;
+    Keyboard.dismiss();
+    setSubmittedSearch(query);
+    setSearchResultsVisible(true);
+  }, [searchText]);
+
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={useNativeHeaderOverlay}
@@ -72,7 +89,6 @@ export default function Home() {
 
   return (
     <View style={styles.root}>
-      <TabHapticListener />
       <PremiumScreen
         contentContainerStyle={{ gap: theme.spacing.lg, marginTop: -theme.spacing.xs }}
         overlayHeader={useNativeHeaderOverlay ? homeHeader : undefined}
@@ -84,6 +100,7 @@ export default function Home() {
           <NativeSearchField
             accessibilityLabel="Buscar clientes, entregas e filtros"
             onChangeText={setSearchText}
+            onSubmit={handleSearchSubmit}
             placeholder="Busque clientes, entregas, filtros"
             value={searchText}
           />
@@ -91,6 +108,7 @@ export default function Home() {
 
         <TodayDeliveriesCard
           deliveries={todayDeliveries}
+          onDelete={handleTodayDeliveryDelete}
           onToggleStatus={handleTodayStatusToggle}
         />
 
@@ -192,6 +210,11 @@ export default function Home() {
           </PremiumCard>
         </View>
       </PremiumScreen>
+      <HomeSearchPrototypeSheet
+        onVisibleChange={setSearchResultsVisible}
+        query={submittedSearch}
+        visible={searchResultsVisible}
+      />
     </View>
   );
 }

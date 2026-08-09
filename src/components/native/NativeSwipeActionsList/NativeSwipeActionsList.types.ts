@@ -4,6 +4,7 @@ export type NativeSwipeActionsListItem = {
   id: string;
   overline: string;
   title: string;
+  titleBold?: boolean;
   subtitle: string;
   trailingText: string;
   trailingSystemImage?: SFSymbol;

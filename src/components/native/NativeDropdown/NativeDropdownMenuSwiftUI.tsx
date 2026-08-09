@@ -4,7 +4,6 @@ import {
   buttonStyle,
   disabled as disabledModifier,
   fixedSize,
-  font,
   foregroundColor,
   frame,
   glassEffect,
@@ -14,6 +13,7 @@ import {
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeDropdownItem, NativeDropdownVariant } from './NativeDropdown.types';
+import { roundedFont } from '../nativeTypography';
 
 export type NativeDropdownMenuSwiftUIProps<T extends string | number> = {
   accessibilityLabel?: string;
@@ -74,7 +74,7 @@ export function NativeDropdownMenuSwiftUI<T extends string | number>({
         <Text
           modifiers={[
             fixedSize({ horizontal: true, vertical: false }),
-            font({ size: fontSize, weight: 'medium' }),
+            roundedFont({ size: fontSize, weight: 'medium' }),
             ...(color ? [foregroundColor(color)] : []),
           ]}
         >
@@ -98,7 +98,7 @@ export function NativeDropdownMenuSwiftUI<T extends string | number>({
         <Button
           key={String(item.value)}
           label={item.label}
-          modifiers={item.disabled ? [disabledModifier(true)] : undefined}
+          modifiers={[roundedFont({}), ...(item.disabled ? [disabledModifier(true)] : [])]}
           onPress={() => onValueChange(item.value)}
         />
       ))}

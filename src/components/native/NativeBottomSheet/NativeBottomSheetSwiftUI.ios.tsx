@@ -21,7 +21,6 @@ import {
   controlSize,
   disabled as disabledModifier,
   frame,
-  font,
   foregroundColor,
   hidden,
   glassEffect,
@@ -46,6 +45,7 @@ import {
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
 } from '../nativeSheetBackground';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeBottomSheetSwiftUI({
   items,
@@ -59,6 +59,7 @@ export default function NativeBottomSheetSwiftUI({
   onConfirm,
   selectedItem: controlledSelectedItem,
   initialQuantity,
+  initialDetent,
 }: NativeBottomSheetProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
@@ -104,7 +105,9 @@ export default function NativeBottomSheetSwiftUI({
       spacing={6}
       modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
     >
-      <Text modifiers={[font({ size: 15, weight: 'bold' }), offset({ y: -6 })]}>{title}</Text>
+      <Text modifiers={[roundedFont({ size: 15, weight: 'bold' }), offset({ y: -6 })]}>
+        {title}
+      </Text>
     </HStack>
   );
 
@@ -119,7 +122,7 @@ export default function NativeBottomSheetSwiftUI({
     >
       <VStack
         alignment="leading"
-        spacing={12}
+        spacing={0}
         modifiers={[
           frame({ maxWidth: Infinity, alignment: 'leading' }),
           padding({ horizontal: 8, vertical: 8 }),
@@ -136,33 +139,39 @@ export default function NativeBottomSheetSwiftUI({
               spacing={10}
               modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
             >
-              <Text modifiers={[font({ size: 18, weight: 'semibold' })]}>{selectedItem.title}</Text>
+              <Text modifiers={[roundedFont({ size: 18, weight: 'semibold' })]}>
+                {selectedItem.title}
+              </Text>
             </HStack>
             <Divider />
           </VStack>
         ) : null}
-        <VStack alignment="leading" spacing={8} modifiers={[padding({ horizontal: 12, top: 8 })]}>
-          <HStack alignment="center" spacing={10} modifiers={[padding({ bottom: 18 })]}>
-            <Text modifiers={[font({ size: 16, weight: 'bold' }), padding({ leading: 20 })]}>
-              Data
-            </Text>
+        <VStack
+          alignment="leading"
+          spacing={0}
+          modifiers={[padding({ horizontal: 12, top: 0, bottom: 4 })]}
+        >
+          <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
+            <Image size={18} systemName="calendar" />
+            <Text modifiers={[roundedFont({ size: 16, weight: 'bold' })]}>Data</Text>
             <Spacer />
             <DatePicker
               displayedComponents={['date']}
+              modifiers={[roundedFont({})]}
               onDateChange={setSelectedDate}
               selection={selectedDate}
             />
           </HStack>
-          <HStack alignment="center" spacing={12}>
-            <Text modifiers={[font({ size: 17, weight: 'semibold' }), padding({ leading: 20 })]}>
-              Baldes
-            </Text>
+          <Divider />
+          <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
+            <Image size={18} systemName="shippingbox" />
+            <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Baldes</Text>
             <Spacer />
             <Button
               modifiers={[
                 buttonStyle('plain'),
                 controlSize('regular'),
-                frame({ width: 44, height: 44 }),
+                frame({ width: 40, height: 40 }),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
                   shape: 'circle',
@@ -174,12 +183,14 @@ export default function NativeBottomSheetSwiftUI({
             >
               <Image size={17} systemName="minus" />
             </Button>
-            <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>{bucketQuantity}</Text>
+            <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>
+              {bucketQuantity}
+            </Text>
             <Button
               modifiers={[
                 buttonStyle('plain'),
                 controlSize('regular'),
-                frame({ width: 44, height: 44 }),
+                frame({ width: 40, height: 40 }),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
                   shape: 'circle',
@@ -192,12 +203,14 @@ export default function NativeBottomSheetSwiftUI({
               <Image size={17} systemName="plus" />
             </Button>
           </HStack>
-          <HStack alignment="center" modifiers={[padding({ top: 24 })]}>
-            <Text modifiers={[font({ size: 16, weight: 'bold' }), padding({ leading: 20 })]}>
-              Valor total
-            </Text>
+          <Divider />
+          <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
+            <Image size={16} systemName="brazilianrealsign" />
+            <Text modifiers={[roundedFont({ size: 16, weight: 'bold' })]}>Valor total</Text>
             <Spacer />
-            <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>
+            <Text
+              modifiers={[roundedFont({ size: 17, weight: 'semibold' }), padding({ trailing: 16 })]}
+            >
               {new Intl.NumberFormat('pt-BR', {
                 currency: 'BRL',
                 style: 'currency',
@@ -221,6 +234,7 @@ export default function NativeBottomSheetSwiftUI({
         <Button
           label="Confirmar"
           modifiers={[
+            roundedFont({}),
             buttonStyle('glassProminent'),
             controlSize('large'),
             padding({ top: 4 }),
@@ -271,8 +285,8 @@ export default function NativeBottomSheetSwiftUI({
               systemName={(item.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
             />
             <VStack alignment="leading" spacing={0}>
-              <Text modifiers={[font({ size: 17, weight: 'regular' })]}>{item.title}</Text>
-              <Text modifiers={[foregroundColor('#8B8B93'), font({ size: 14 })]}>
+              <Text modifiers={[roundedFont({ size: 17, weight: 'regular' })]}>{item.title}</Text>
+              <Text modifiers={[foregroundColor('#8B8B93'), roundedFont({ size: 14 })]}>
                 {item.subtitle ?? 'Selecionar'}
               </Text>
             </VStack>
@@ -315,6 +329,9 @@ export default function NativeBottomSheetSwiftUI({
   );
 
   const sheetContent = content ?? registroSheetContent;
+  const sheetDetents = initialDetent
+    ? ([initialDetent, 'large'] as const)
+    : ([{ fraction: 0.48 }, 'large'] as const);
 
   return (
     <Host matchContents={{ horizontal: true }}>
@@ -322,7 +339,10 @@ export default function NativeBottomSheetSwiftUI({
         <Group
           modifiers={[
             presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
-            presentationDetents([{ fraction: 0.48 }, 'large']),
+            presentationDetents(
+              [...sheetDetents],
+              initialDetent ? { selection: initialDetent } : undefined,
+            ),
             presentationDragIndicator('visible'),
           ]}
         >

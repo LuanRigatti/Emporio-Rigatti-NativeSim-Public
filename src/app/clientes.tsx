@@ -4,24 +4,31 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
+  NativeCardContextMenu,
   NativeClientFormSheet,
   NativeGlassBackButton,
   NativeGlassIconButton,
   type NativeClientFormValues,
 } from '@/components/native';
+import { ConfirmationDialog } from '@/components/overlays';
 import { PremiumScreen } from '@/components/premium';
 import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useClients } from '@/hooks/useClients';
 import { useAppTheme } from '@/theme';
+import type { ClientModel } from '@/types/data';
 import { normalizeMoney } from '@/utils/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 export default function ClientsRoute() {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { clients, error, loading, reload, saveCustomClient } = useClients();
+  const { clients, error, loading, reload, removeCustomConfiguration, saveCustomClient } =
+    useClients();
   const [formVisible, setFormVisible] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<ClientModel | null>(null);
+  const [deleteError, setDeleteError] = useState<string>();
+  const [deleting, setDeleting] = useState(false);
 
   const handleCreateClient = useCallback(
     async ({ address, bucketPrice, name }: NativeClientFormValues) => {
@@ -35,6 +42,25 @@ export default function ClientsRoute() {
     },
     [saveCustomClient],
   );
+
+  const handleDeleteClient = useCallback(async () => {
+    if (!clientToDelete) return;
+
+    setDeleting(true);
+    setDeleteError(undefined);
+    try {
+      await removeCustomConfiguration(clientToDelete);
+      setClientToDelete(null);
+    } catch (deleteClientError) {
+      setDeleteError(
+        deleteClientError instanceof Error
+          ? deleteClientError.message
+          : 'NÃ£o foi possÃ­vel excluir o cliente.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }, [clientToDelete, removeCustomConfiguration]);
 
   const header = (
     <NativeGlassHeader
@@ -97,22 +123,37 @@ export default function ClientsRoute() {
           <View style={{ marginTop: theme.spacing.md }}>
             <SettingsSection>
               {clients.map((client, index) => (
-                <SettingItem
-                  fallbackIcon="person"
-                  isLast={index === clients.length - 1}
-                  key={client.clientId}
-                  onPress={() =>
-                    router.push({
-                      params: {
-                        clientId: client.clientId,
-                        clientName: client.canonicalName,
+                <NativeCardContextMenu
+                  actions={[
+                    {
+                      destructive: true,
+                      id: 'delete-client',
+                      onPress: () => {
+                        setDeleteError(undefined);
+                        setClientToDelete(client);
                       },
-                      pathname: '/clientes/[clientId]',
-                    })
-                  }
-                  systemName="person.crop.circle"
-                  title={client.canonicalName}
-                />
+                      systemImage: 'trash',
+                      title: 'Excluir cliente',
+                    },
+                  ]}
+                  key={client.clientId}
+                >
+                  <SettingItem
+                    fallbackIcon="person"
+                    isLast={index === clients.length - 1}
+                    onPress={() =>
+                      router.push({
+                        params: {
+                          clientId: client.clientId,
+                          clientName: client.canonicalName,
+                        },
+                        pathname: '/clientes/[clientId]',
+                      })
+                    }
+                    systemName="person.crop.circle"
+                    title={client.canonicalName}
+                  />
+                </NativeCardContextMenu>
               ))}
             </SettingsSection>
           </View>
@@ -122,6 +163,19 @@ export default function ClientsRoute() {
         onSubmit={handleCreateClient}
         onVisibleChange={setFormVisible}
         visible={formVisible}
+      />
+      <ConfirmationDialog
+        confirmLabel="Excluir cliente"
+        destructive
+        loading={deleting}
+        message={
+          deleteError ??
+          'Somente o cliente do catálogo ativo será removido. Entregas, pagamentos e histórico permanecerão intactos.'
+        }
+        onCancel={() => setClientToDelete(null)}
+        onConfirm={() => void handleDeleteClient()}
+        title="Confirmar exclusão"
+        visible={Boolean(clientToDelete)}
       />
     </>
   );

@@ -11,6 +11,7 @@ import {
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import type { NativeGlassMenuProps } from '@/types/native-ui';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativeGlassMenuSwiftUI({
   accessibilityLabel: label,
@@ -47,7 +48,7 @@ export default function NativeGlassMenuSwiftUI({
           <Button
             key={action.id}
             label={action.title}
-            modifiers={action.disabled ? [disabledModifier(true)] : undefined}
+            modifiers={[roundedFont({}), ...(action.disabled ? [disabledModifier(true)] : [])]}
             onPress={action.onPress}
             role={action.destructive ? 'destructive' : 'default'}
             systemImage={action.systemImage as SFSymbol | undefined}

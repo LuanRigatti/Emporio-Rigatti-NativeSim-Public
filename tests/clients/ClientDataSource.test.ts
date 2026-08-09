@@ -73,6 +73,13 @@ describe('MockClientDataSource', () => {
     });
 
     await source.removeCustomConfiguration(undefined, renamedClient);
+    expect(source.list({ search: renamedName })).toHaveLength(0);
+    expect(mockDeliveryDataSource.getAll()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: oldDelivery.id, cliente: renamedName }),
+        expect.objectContaining({ id: newDelivery.id, cliente: renamedName }),
+      ]),
+    );
     mockDeliveryDataSource.remove(oldDelivery.id);
     mockDeliveryDataSource.remove(newDelivery.id);
   });

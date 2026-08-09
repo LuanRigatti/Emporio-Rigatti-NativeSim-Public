@@ -99,7 +99,15 @@ export default function StockRoute() {
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
-      <GlassCard style={[styles.card, { marginTop: theme.spacing.md }]}>
+      <GlassCard
+        style={[
+          styles.card,
+          {
+            borderRadius: theme.radius.xl + theme.spacing.xs,
+            marginTop: theme.spacing.md,
+          },
+        ]}
+      >
         <StockSummaryRow label="Saldo anterior" value={stockSummary.openingBuckets} />
         <StockSummaryRow label="Baldes Comprados" value={stockSummary.purchasedBuckets} />
         <StockSummaryRow label="Baldes Vendidos" value={stockSummary.deliveredBuckets} />

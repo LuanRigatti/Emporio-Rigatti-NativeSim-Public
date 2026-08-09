@@ -82,14 +82,16 @@ function RegistrarModeSelection() {
                   size={theme.sizes.iconMedium}
                 />
               </View>
-              <View style={styles.widgetCopy}>
+              <View
+                style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              >
                 <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                   Registrar Entrega
                 </Text>
               </View>
             </PremiumCard>
             <PremiumCard
-              accessibilityLabel="Abrir Registrar Dados DiÃ¡rios"
+              accessibilityLabel="Abrir Registrar Dados"
               onPress={() => router.push('/registrar-dados-diarios')}
               style={[
                 styles.widgetCard,
@@ -108,9 +110,11 @@ function RegistrarModeSelection() {
                   size={theme.sizes.iconMedium}
                 />
               </View>
-              <View style={styles.widgetCopy}>
+              <View
+                style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              >
                 <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                  {'Registrar Dados Di\u00e1rios'}
+                  Registrar Dados
                 </Text>
               </View>
             </PremiumCard>
@@ -326,6 +330,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
         overline: formatDeliveryDate(delivery.data),
         subtitle: `${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`,
         title: delivery.cliente,
+        titleBold: true,
         trailingText: delivery.valor,
       })),
     [todayDeliveries],

@@ -2,9 +2,11 @@ import { Platform, type TextStyle } from 'react-native';
 
 import { fonts } from './fonts';
 
+const activeFontFamily = fonts.family[fonts.activeFamily];
+
 const systemFontFamily =
   Platform.select({
-    ios: fonts.family.system,
+    ios: activeFontFamily,
     android: 'sans-serif',
     web: 'system-ui',
     default: 'sans-serif',
@@ -102,7 +104,7 @@ const currency = {
 export const typography = {
   fontFamily: {
     system: systemFontFamily,
-    rounded: systemFontFamily,
+    rounded: fonts.family.rounded,
     monospaced: fonts.family.monospaced,
   },
   fontWeight: fonts.weight,

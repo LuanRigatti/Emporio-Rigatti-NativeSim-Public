@@ -2,6 +2,7 @@ import { Host, Picker, Text } from '@expo/ui/swift-ui';
 import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 
 import type { NativePickerProps } from '@/types/native-ui';
+import { roundedFont } from '../nativeTypography';
 
 export default function NativePickerSwiftUI({
   label,
@@ -18,7 +19,7 @@ export default function NativePickerSwiftUI({
         modifiers={[pickerStyle('menu')]}
       >
         {options.map((option, index) => (
-          <Text key={option} modifiers={[tag(index)]}>
+          <Text key={option} modifiers={[roundedFont({}), tag(index)]}>
             {option}
           </Text>
         ))}

@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -35,7 +35,13 @@ function monthShortLabel(month: number): string {
   );
 }
 
+function trendIcon(difference: number | undefined): ComponentProps<typeof Ionicons>['name'] {
+  if (difference === undefined || difference === 0) return 'remove-outline';
+  return difference > 0 ? 'trending-up' : 'trending-down';
+}
+
 export default function PrototypeFinanceiro() {
+  const router = useRouter();
   const { theme } = useAppTheme();
   const { refresh, snapshot } = useAppData();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
@@ -60,6 +66,24 @@ export default function PrototypeFinanceiro() {
         : undefined,
     [selectedPeriod, snapshot],
   );
+  const comparison = useMemo(
+    () =>
+      snapshot
+        ? financialCalculationService.compareByDeliveryDays({
+            deliveries: snapshot.entregas,
+            dailyExpenses: snapshot.gastosDiarios,
+            filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
+            monthlyExpenses: snapshot.gastosMensais,
+          })
+        : undefined,
+    [selectedPeriod, snapshot],
+  );
+  const trendColor = (difference: number | undefined) =>
+    difference === undefined || difference === 0
+      ? theme.colors.textSecondary
+      : difference > 0
+        ? theme.colors.success
+        : theme.colors.danger;
 
   const header = (
     <NativeGlassHeader
@@ -95,23 +119,51 @@ export default function PrototypeFinanceiro() {
       }
       progressiveBlur
     >
-      <PremiumCard style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+      <PremiumCard
+        accessibilityLabel="Abrir detalhes do faturamento mensal"
+        onPress={() => router.push('/faturamento-mensal')}
+        style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+      >
         <View style={styles.heroHeader}>
-          <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-            FATURAMENTO MENSAL
-          </Text>
-          <PreviewIcon color={theme.colors.revenue} name="trending-up" />
+          <View style={styles.heroTitle}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+              FATURAMENTO MENSAL
+            </Text>
+            <Ionicons
+              color={theme.colors.textSecondary}
+              name="chevron-forward-outline"
+              size={theme.sizes.iconSmall}
+            />
+          </View>
+          <PreviewIcon
+            color={trendColor(comparison?.faturamento.diferenca)}
+            name={trendIcon(comparison?.faturamento.diferenca)}
+          />
         </View>
         <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
           {formatCurrency(summary?.faturamento ?? 0)}
         </Text>
       </PremiumCard>
-      <PremiumCard style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+      <PremiumCard
+        accessibilityLabel="Abrir detalhes do lucro líquido mensal"
+        onPress={() => router.push('/lucro-liquido-mensal')}
+        style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+      >
         <View style={styles.heroHeader}>
-          <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-            LUCRO LÍQUIDO MENSAL
-          </Text>
-          <PreviewIcon color={theme.colors.profit} name="trending-up" />
+          <View style={styles.heroTitle}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+              LUCRO LÍQUIDO MENSAL
+            </Text>
+            <Ionicons
+              color={theme.colors.textSecondary}
+              name="chevron-forward-outline"
+              size={theme.sizes.iconSmall}
+            />
+          </View>
+          <PreviewIcon
+            color={trendColor(comparison?.lucroLiquido.diferenca)}
+            name={trendIcon(comparison?.lucroLiquido.diferenca)}
+          />
         </View>
         <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
           {formatCurrency(summary?.lucroLiquido ?? 0)}
@@ -172,4 +224,5 @@ const styles = StyleSheet.create({
   content: { gap: 24 },
   heroCard: { gap: 8, padding: 24 },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  heroTitle: { alignItems: 'center', flexDirection: 'row', gap: 4 },
 });

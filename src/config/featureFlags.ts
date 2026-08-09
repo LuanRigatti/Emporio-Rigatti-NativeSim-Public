@@ -31,4 +31,4 @@ export const ENABLE_FIREBASE_WRITES = false;
  * Keeps authentication on the local mock until the Firebase Auth migration is
  * explicitly enabled.
  */
-export const ENABLE_FIREBASE_AUTH = false;
+export const ENABLE_FIREBASE_AUTH = true;

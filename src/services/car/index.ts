@@ -5,3 +5,11 @@ export {
   carSettingsStorage,
   type CarSettings,
 } from './CarSettingsStorage';
+export {
+  carSettingsDocumentPath,
+  carSettingsFromFirestore,
+  carSettingsToFirestore,
+  FirestoreCarSettingsDataSource,
+  firestoreCarSettingsDataSource,
+  type FirestoreCarSettingsDocument,
+} from './FirestoreCarSettingsDataSource';

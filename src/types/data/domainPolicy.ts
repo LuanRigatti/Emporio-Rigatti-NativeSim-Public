@@ -59,7 +59,6 @@ export const LOCAL_ONLY_DATA_POLICY = {
     'raw location data',
   ],
   dailyData: ['outros', 'incremental entries', 'detailed automatic route kilometers'],
-  carSettings: ['gasoline autonomy', 'alcohol autonomy'],
   companySettings: ['company profile'],
   localPreferences: ['theme preferences', 'development settings', 'cache'],
 } as const;
@@ -143,10 +142,12 @@ export const DATA_DOMAIN_POLICY: readonly DataDomainDefinition[] = [
     notes: 'These fields are available locally but absent from the legacy Firebase schema.',
   },
   {
-    classification: 'local-only',
+    classification: 'firebase-supported',
     domain: 'carSettings',
-    fields: LOCAL_ONLY_DATA_POLICY.carSettings,
-    notes: 'No compatible legacy Firebase node has been established.',
+    fields: ['gasoline autonomy', 'alcohol autonomy'],
+    firebaseNodes: ['users/{uid}/settings/car'],
+    notes:
+      'Car consumption settings are user-scoped configuration used by fuel calculations; historical delivery values are not recalculated.',
   },
   {
     classification: 'local-only',

@@ -47,3 +47,6 @@ export const ENABLE_FIRESTORE_DAILY_MONTHLY = true;
 
 /** Etapa 4: a configuraÃ§Ã£o vigente do valor do balde usa um documento Firestore. */
 export const ENABLE_FIRESTORE_FACTORY_SETTINGS = true;
+
+/** Etapa 5: as autonomias configuráveis do carro usam um documento Firestore. */
+export const ENABLE_FIRESTORE_CAR_SETTINGS = true;

@@ -3,6 +3,7 @@ import { FlatList } from 'react-native';
 
 import { EmptyState, LargeTitleHeader, PaymentCard, Screen } from '@/components';
 import { useClients } from '@/hooks/useClients';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { useFinancialPrivacy } from '@/hooks/useFinancialPrivacy';
 import { formatCurrency, normalizeClientKey } from '@/utils/data';
 import type { ClientsStackParamList } from '@/navigation/types';
@@ -13,13 +14,16 @@ type Props = NativeStackScreenProps<ClientsStackParamList, 'ClientPayments'>;
 export function ClientPayments({ navigation, route }: Props) {
   const { theme } = useAppTheme();
   const { hidden } = useFinancialPrivacy();
-  const { snapshot } = useClients();
-  const deliveries =
-    snapshot?.entregas.filter((delivery) => {
+  useClients();
+  const { deliveries: loadedDeliveries } = useDeliveries({
+    mode: 'all',
+    clientId: route.params.clientId,
+  });
+  const deliveries = loadedDeliveries.filter((delivery) => {
       const sameClient =
         normalizeClientKey(delivery.cliente) === normalizeClientKey(route.params.clientName);
       return sameClient && (!route.params.onlyPending || delivery.status !== 'Pago');
-    }) ?? [];
+  });
 
   return (
     <Screen>

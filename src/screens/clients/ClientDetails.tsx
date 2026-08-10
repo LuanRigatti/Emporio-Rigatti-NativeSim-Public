@@ -15,6 +15,7 @@ import {
   TextButton,
 } from '@/components';
 import { useClients } from '@/hooks/useClients';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { useFinancialPrivacy } from '@/hooks/useFinancialPrivacy';
 import { summarizeClient } from '@/services/clients';
 import { formatCurrency } from '@/utils/data';
@@ -26,15 +27,18 @@ type Props = NativeStackScreenProps<ClientsStackParamList, 'ClientDetails'>;
 export function ClientDetails({ navigation, route }: Props) {
   const { theme } = useAppTheme();
   const { hidden } = useFinancialPrivacy();
-  const { snapshot, clients, loading } = useClients();
+  const { clients, loading } = useClients();
   const client = useMemo(
     () => clients.find((item) => item.clientId === route.params.clientId),
     [clients, route.params.clientId],
   );
-  const summary =
-    client && snapshot ? summarizeClient(snapshot.entregas, client.normalizedName) : null;
+  const { deliveries, loading: deliveriesLoading } = useDeliveries({
+    mode: 'all',
+    clientId: client?.clientId,
+  });
+  const summary = client ? summarizeClient(deliveries, client.normalizedName) : null;
 
-  if (loading || !client || !summary || !snapshot) {
+  if (loading || deliveriesLoading || !client || !summary) {
     return (
       <Screen>
         <LargeTitleHeader onBack={() => navigation.goBack()} title={route.params.clientName} />

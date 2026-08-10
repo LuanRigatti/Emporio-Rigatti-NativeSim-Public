@@ -20,7 +20,7 @@ import type {
 } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
-import { useAppData } from '@/hooks/useAppData';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
 import { dailyDataQueryService } from '@/services/costs';
 import type { RouteDistanceSummary } from '@/services/routes';
@@ -273,8 +273,11 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     [clients],
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
-  const { addDelivery, removeDelivery, snapshot } = useAppData();
-  const deliveries = useMemo(() => (snapshot?.entregas ?? []).map(toHistoryDelivery), [snapshot]);
+  const { deliveries: firestoreDeliveries, create, remove: removeDelivery } = useDeliveries({
+    mode: 'today',
+    date: currentDate,
+  });
+  const deliveries = useMemo(() => firestoreDeliveries.map(toHistoryDelivery), [firestoreDeliveries]);
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());
@@ -294,11 +297,21 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   };
   const handleConfirm = (confirmation: NativeBottomSheetConfirmation) => {
     const currentClient = clients.find((client) => client.clientId === confirmation.client.id);
-    void addDelivery({
-      bucketPrice: currentClient?.currentPrice ?? confirmation.bucketPrice,
+    if (!currentClient?.clientId || !currentClient.address) return;
+    const bucketPrice = currentClient.currentPrice ?? confirmation.bucketPrice;
+    void create({
+      address: currentClient.address,
+      addressConfirmed: true,
+      clientId: currentClient.clientId,
       clientName: confirmation.client.title,
-      date: confirmation.date,
+      date: todayIso(confirmation.date),
+      delivered: false,
+      invoiceStatus: 'a_emitir',
       quantity: confirmation.quantity,
+      status: 'Não Pago',
+      value: bucketPrice * confirmation.quantity,
+      valueWasManuallyChanged: false,
+      historicalUnitPrice: bucketPrice,
     });
     setSheetVisible(false);
   };

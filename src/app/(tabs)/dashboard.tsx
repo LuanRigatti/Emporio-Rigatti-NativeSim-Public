@@ -12,7 +12,7 @@ import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchPrototypeSheet } from '@/features/home/components/HomeSearchPrototypeSheet';
-import { useAppData } from '@/hooks/useAppData';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 
@@ -32,28 +32,29 @@ export default function Home() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
-  const { removeDelivery, snapshot, toggleDelivery } = useAppData();
-  const historyDeliveries = useMemo(
-    () => (snapshot?.entregas ?? []).map(toHistoryDelivery),
-    [snapshot],
-  );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
   const [searchResultsVisible, setSearchResultsVisible] = useState(false);
   const [submittedSearch, setSubmittedSearch] = useState('');
-
+  const { deliveries: dailyDeliveries, remove: removeDelivery, toggleDelivered: toggleDelivery } =
+    useDeliveries({ mode: 'today', date: currentDate });
+  const { deliveries: pendingDeliveries } = useDeliveries({ mode: 'all', status: 'Não Pago' });
+  const historyDeliveries = useMemo(
+    () => dailyDeliveries.map(toHistoryDelivery),
+    [dailyDeliveries],
+  );
   useEffect(() => {
     const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
     return () => clearInterval(timer);
   }, []);
 
   const todayDeliveries = useMemo(
-    () => historyDeliveries.filter((delivery) => delivery.data === currentDate),
-    [currentDate, historyDeliveries],
+    () => historyDeliveries,
+    [historyDeliveries],
   );
   const openPaymentsCount = useMemo(
-    () => historyDeliveries.filter((delivery) => delivery.status === 'pendente').length,
-    [historyDeliveries],
+    () => pendingDeliveries.length,
+    [pendingDeliveries],
   );
 
   const handleTodayStatusToggle = useCallback(

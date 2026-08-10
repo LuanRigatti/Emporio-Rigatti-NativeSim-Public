@@ -58,7 +58,9 @@ export function DeliveryForm(props: Props) {
   const { theme } = useAppTheme();
   const editing = route.name === 'EditDelivery';
   const { clients } = useClients();
-  const { allDeliveries, snapshot, loading, create, update } = useDeliveries({ mode: 'all' });
+  const { allDeliveries, snapshot, loading, create, update } = useDeliveries(
+    editing ? { mode: 'all', deliveryId: route.params.deliveryId } : { mode: 'all' },
+  );
   const delivery = getInitialDelivery(props, allDeliveries);
   const [clientName, setClientName] = useState(
     route.name === 'NewDelivery' ? (route.params?.clientName ?? '') : '',
@@ -109,17 +111,23 @@ export function DeliveryForm(props: Props) {
   }, [clientSearch, clients]);
 
   useEffect(() => {
-    if (manualValue || !clientName || !snapshot) return;
-    const automatic = deliveryPricingService.calculateAutomaticValue({
-      clientName,
-      date,
-      quantity,
-      customClients: snapshot.clientesCustom,
-      fallbackValue: value,
-    });
+    if (manualValue || !clientName) return;
+    const selected = clients.find((client) => client.canonicalName === clientName);
+    const automatic = selected?.currentPrice !== undefined
+      ? selected.currentPrice * (normalizeMoney(quantity) ?? 0)
+      : snapshot
+        ? deliveryPricingService.calculateAutomaticValue({
+            clientName,
+            date,
+            quantity,
+            customClients: snapshot.clientesCustom,
+            fallbackValue: value,
+          })
+        : undefined;
+    if (automatic === undefined) return;
     const timer = setTimeout(() => setValue(automatic.toFixed(2)), 0);
     return () => clearTimeout(timer);
-  }, [clientName, date, manualValue, quantity, snapshot, value]);
+  }, [clientName, clients, date, manualValue, quantity, snapshot, value]);
 
   const selectClient = (name: string) => {
     const selected = clients.find((client) => client.canonicalName === name);
@@ -140,18 +148,22 @@ export function DeliveryForm(props: Props) {
     try {
       const normalizedQuantity = normalizeMoney(quantity) ?? 0;
       const normalizedValue = normalizeMoney(value) ?? 0;
+      const selectedClient = clients.find((client) => client.canonicalName === clientName);
       const automaticUnitPrice =
-        !manualValue && clientName && snapshot
-          ? deliveryPricingService.resolveUnitPrice({
+        !manualValue && clientName && selectedClient?.currentPrice !== undefined
+          ? selectedClient.currentPrice
+          : !manualValue && clientName && snapshot
+            ? deliveryPricingService.resolveUnitPrice({
               clientName,
               date,
               quantity,
               customClients: snapshot.clientesCustom,
               fallbackValue: value,
             })
-          : undefined;
+            : undefined;
       const draft: DeliveryDraft = {
         id: delivery?.id,
+        clientId: selectedClient?.clientId ?? delivery?.clientId,
         clientName,
         address,
         addressConfirmed,

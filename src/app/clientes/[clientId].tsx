@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { NativeGlassBackButton, NativeTextField } from '@/components/native';
+import { NativeGlassBackButton, NativeTextField, NativeToggle } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useAppTheme } from '@/theme';
@@ -31,6 +31,7 @@ export default function ClientDetailsRoute() {
   }>();
   const [bucketValue, setBucketValue] = useState('');
   const [address, setAddress] = useState('');
+  const [usesInvoice, setUsesInvoice] = useState(false);
   const [error, setError] = useState<string>();
   const client = useMemo(
     () =>
@@ -56,17 +57,18 @@ export default function ClientDetailsRoute() {
 
     setError(undefined);
     try {
-      await updatePrice(client, price);
+      await updatePrice(client, price, usesInvoice);
       router.back();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Não foi possível salvar o preço.');
     }
-  }, [bucketValue, client, router, updatePrice]);
+  }, [bucketValue, client, router, updatePrice, usesInvoice]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (client) {
       setAddress(client.address ?? '');
+      setUsesInvoice(client.usesInvoice);
       setBucketValue(client.currentPrice === undefined ? '' : formatCurrency(client.currentPrice));
     }
   }, [client]);
@@ -105,6 +107,11 @@ export default function ClientDetailsRoute() {
             <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
           ) : null}
         </View>
+        <NativeToggle
+          label="Usa nota fiscal/boleto"
+          onValueChange={setUsesInvoice}
+          value={usesInvoice}
+        />
         <View style={styles.fieldGroup}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
             Endereço

@@ -9,6 +9,7 @@ import {
   Spacer,
   Text,
   TextField,
+  Toggle,
   VStack,
   ZStack,
   useNativeState,
@@ -51,6 +52,7 @@ export default function NativeClientFormSheetSwiftUI({
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [bucketPrice, setBucketPrice] = useState('');
+  const [usesInvoice, setUsesInvoice] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const nameState = useNativeState('');
@@ -63,6 +65,7 @@ export default function NativeClientFormSheetSwiftUI({
       setName('');
       setAddress('');
       setBucketPrice('');
+      setUsesInvoice(false);
       setError(undefined);
       setSubmitting(false);
     }
@@ -84,7 +87,7 @@ export default function NativeClientFormSheetSwiftUI({
   const handleSubmit = async () => {
     setError(undefined);
     setSubmitting(true);
-    const values: NativeClientFormValues = { address, bucketPrice, name };
+    const values: NativeClientFormValues = { address, bucketPrice, name, usesInvoice };
     try {
       await onSubmit(values);
       onVisibleChange(false);
@@ -141,6 +144,19 @@ export default function NativeClientFormSheetSwiftUI({
       {field('Endereço', addressState, setAddress, 'Endereço completo', 'default')}
       <Divider />
       {field('Valor do balde', bucketPriceState, setBucketPrice, 'R$ 0,00', 'decimal-pad')}
+      <Divider />
+      <HStack modifiers={[padding({ vertical: 12 })]}>
+        <Text modifiers={[roundedFont({ size: 15, weight: 'semibold' })]}>
+          Usa nota fiscal/boleto
+        </Text>
+        <Spacer />
+        <Toggle
+          isOn={usesInvoice}
+          label=""
+          modifiers={[controlSize('regular')]}
+          onIsOnChange={setUsesInvoice}
+        />
+      </HStack>
     </VStack>
   );
 

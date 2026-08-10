@@ -31,14 +31,14 @@ export default function ClientsRoute() {
   const [deleting, setDeleting] = useState(false);
 
   const handleCreateClient = useCallback(
-    async ({ address, bucketPrice, name }: NativeClientFormValues) => {
+    async ({ address, bucketPrice, name, usesInvoice }: NativeClientFormValues) => {
       const price = normalizeMoney(bucketPrice);
       if (!name.trim()) throw new Error('Informe o nome do cliente.');
       if (price === undefined || price <= 0) {
         throw new Error('Informe um pre\u00e7o maior que zero.');
       }
       if (!address.trim()) throw new Error('Informe o endere\u00e7o do cliente.');
-      await saveCustomClient(name, price, address);
+      await saveCustomClient(name, price, address, usesInvoice);
     },
     [saveCustomClient],
   );

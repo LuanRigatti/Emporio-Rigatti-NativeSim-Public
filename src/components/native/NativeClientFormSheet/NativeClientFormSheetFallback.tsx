@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { NativeButton } from '@/components/native/NativeButton';
 import { NativeSheet } from '@/components/native/NativeSheet';
@@ -21,19 +21,20 @@ export default function NativeClientFormSheetFallback({
     address: '',
     bucketPrice: '',
     name: '',
+    usesInvoice: false,
   });
   const [error, setError] = useState<string>();
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!visible) {
-      setValues({ address: '', bucketPrice: '', name: '' });
+      setValues({ address: '', bucketPrice: '', name: '', usesInvoice: false });
       setError(undefined);
     }
   }, [visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const update = (key: keyof NativeClientFormValues, value: string) =>
+  const update = (key: 'name' | 'address' | 'bucketPrice', value: string) =>
     setValues((current) => ({ ...current, [key]: value }));
 
   const submit = async () => {
@@ -64,6 +65,17 @@ export default function NativeClientFormSheetFallback({
             />
           </View>
         ))}
+        <View style={styles.toggleRow}>
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Usa nota fiscal/boleto
+          </Text>
+          <Switch
+            onValueChange={(usesInvoice) =>
+              setValues((current) => ({ ...current, usesInvoice }))
+            }
+            value={values.usesInvoice}
+          />
+        </View>
         {error ? <Text style={{ color: theme.colors.danger }}>{error}</Text> : null}
         <NativeButton
           controlSize="large"
@@ -80,4 +92,5 @@ export default function NativeClientFormSheetFallback({
 const styles = StyleSheet.create({
   content: { paddingVertical: 12 },
   input: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10 },
+  toggleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

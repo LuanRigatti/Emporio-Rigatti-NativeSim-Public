@@ -49,7 +49,12 @@ export class ClientMutationService {
       userDataService.readFromFirebase(uid),
   ) {}
 
-  public async saveCustomClient(name: string, price: number, address: string): Promise<void> {
+  public async saveCustomClient(
+    name: string,
+    price: number,
+    address: string,
+    usesInvoice = false,
+  ): Promise<void> {
     const snapshot = await this.readSnapshot();
     const canonicalName = formatClientName(name);
     if (!canonicalName) throw new Error('Informe o nome do cliente.');
@@ -69,6 +74,7 @@ export class ClientMutationService {
       nome: canonicalName,
       preco: price,
       endereco: address.trim(),
+      usesInvoice,
     };
     await clientBackupService.create(this.uid, snapshot);
     await new CustomClientRepository(this.uid).replace(nextCustomClients);
@@ -78,7 +84,11 @@ export class ClientMutationService {
     });
   }
 
-  public async updatePrice(client: ClientModel, price: number): Promise<void> {
+  public async updatePrice(
+    client: ClientModel,
+    price: number,
+    usesInvoice = client.usesInvoice,
+  ): Promise<void> {
     const snapshot = await this.readSnapshot();
     if (!Number.isFinite(price) || price <= 0) {
       throw new Error('Informe um preço maior que zero.');
@@ -92,6 +102,7 @@ export class ClientMutationService {
       ...(currentConfig || !client.address ? {} : { endereco: client.address }),
       nome: client.canonicalName,
       preco: price,
+      usesInvoice,
     };
 
     await clientBackupService.create(this.uid, snapshot);

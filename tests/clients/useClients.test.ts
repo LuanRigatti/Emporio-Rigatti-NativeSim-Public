@@ -16,7 +16,7 @@ jest.mock('@/providers', () => ({
 }));
 
 describe('useClients', () => {
-  it('reuses client references across renders when the source data is unchanged', async () => {
+  it('reuses client references and reload callback across renders when source data is unchanged', async () => {
     let current: ReturnType<typeof useClients> | undefined;
 
     function Harness() {
@@ -40,7 +40,8 @@ describe('useClients', () => {
 
     expect(current?.clients).toBe(firstResult.clients);
     expect(current?.clients[0]).toBe(firstResult.clients[0]);
-    if (!renderer) throw new Error('Renderer não foi criado.');
+    expect(current?.reload).toBe(firstResult.reload);
+    if (!renderer) throw new Error('Renderer nao foi criado.');
     await act(async () => {
       renderer?.unmount();
     });

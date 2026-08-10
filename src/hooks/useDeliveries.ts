@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/providers';
+import { ENABLE_FIRESTORE_CLIENTS_DELIVERIES } from '@/config/featureFlags';
 import { asyncStorageCacheService } from '@/services/cache';
 import { deliveryNormalizationService, deliveryQueryService } from '@/services/deliveries';
 import { DeliveryMutationService } from '@/services/deliveries/DeliveryMutationService';
@@ -15,6 +16,7 @@ import type {
   PaymentMethod,
 } from '@/types/data';
 import { DeliveryRepository } from '@/repositories/DeliveryRepository';
+import { firestoreDeliveryDataSource, mockDeliveryDataSource } from '@/services/deliveries';
 import { todayIso } from '@/utils/data';
 
 export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
@@ -23,6 +25,19 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const firestoreEnabled = ENABLE_FIRESTORE_CLIENTS_DELIVERIES;
+  const filterSignature = JSON.stringify(filters);
+  const stableFilters = useMemo(() => filters, [filterSignature]);
+  const emptySnapshot = useCallback(
+    (entregas: Delivery[]): UserDataSnapshot => ({
+      clientesCustom: {},
+      entregas,
+      gastosDiarios: {},
+      gastosMensais: {},
+      recebimentoBaldes: [],
+    }),
+    [],
+  );
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -31,6 +46,15 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
       else setLoading(true);
       setError(undefined);
       try {
+        if (firestoreEnabled) {
+          try {
+            const result = await firestoreDeliveryDataSource.load(user.id, stableFilters);
+            setSnapshot(emptySnapshot(result));
+          } catch {
+            setSnapshot(emptySnapshot([...mockDeliveryDataSource.getAll()]));
+          }
+          return;
+        }
         const snapshotResult = await loadAppData(user.id);
         const normalized = deliveryNormalizationService.normalize(
           snapshotResult.entregas,
@@ -53,8 +77,15 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
         setRefreshing(false);
       }
     },
-    [user],
+    [emptySnapshot, firestoreEnabled, stableFilters, user],
   );
+
+  useEffect(() => {
+    if (!firestoreEnabled) return undefined;
+    return firestoreDeliveryDataSource.subscribe(() => {
+      setSnapshot(emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)));
+    });
+  }, [emptySnapshot, firestoreEnabled, stableFilters]);
 
   useEffect(() => {
     const timer = setTimeout(() => void load(), 0);
@@ -62,9 +93,13 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   }, [load]);
 
   const deliveries = useMemo(
-    () => (snapshot ? deliveryQueryService.filter(snapshot.entregas, filters) : []),
-    [filters, snapshot],
+    () => (snapshot ? deliveryQueryService.filter(snapshot.entregas, stableFilters) : []),
+    [stableFilters, snapshot],
   );
+
+  const refreshFirestoreState = useCallback(() => {
+    setSnapshot(emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)));
+  }, [emptySnapshot, stableFilters]);
 
   const mutate = useCallback(
     async (operation: (service: DeliveryMutationService) => Promise<void>) => {
@@ -78,22 +113,78 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   const create = useCallback(
     async (draft: DeliveryDraft) => {
       if (!user) throw new Error('Sessão não disponível.');
+      if (firestoreEnabled) {
+        const delivery = await firestoreDeliveryDataSource.create(user.id, draft);
+        refreshFirestoreState();
+        return delivery;
+      }
       const delivery = await new DeliveryMutationService(user.id).create(draft);
       await load(true);
       return delivery;
     },
-    [load, user],
+    [firestoreEnabled, load, refreshFirestoreState, user],
   );
 
   const update = useCallback(
     async (deliveryId: string, draft: DeliveryDraft) => {
       if (!user) throw new Error('Sessão não disponível.');
+      if (firestoreEnabled) {
+        const delivery = await firestoreDeliveryDataSource.update(user.id, deliveryId, draft);
+        refreshFirestoreState();
+        return delivery;
+      }
       const delivery = await new DeliveryMutationService(user.id).update(deliveryId, draft);
       await load(true);
       return delivery;
     },
-    [load, user],
+    [firestoreEnabled, load, refreshFirestoreState, user],
   );
+
+  const remove = useCallback(async (deliveryId: string) => {
+    if (firestoreEnabled && user) {
+      await firestoreDeliveryDataSource.remove(user.id, deliveryId);
+      refreshFirestoreState();
+      return;
+    }
+    await mutate((service) => service.remove(deliveryId));
+  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+
+  const toggleDelivered = useCallback(async (deliveryId: string) => {
+    if (firestoreEnabled && user) {
+      await firestoreDeliveryDataSource.toggleDelivered(user.id, deliveryId);
+      refreshFirestoreState();
+      return;
+    }
+    await mutate((service) => service.toggleDelivered(deliveryId));
+  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+
+  const updateInvoiceStatus = useCallback(async (deliveryId: string, status: InvoiceStatus) => {
+    if (firestoreEnabled && user) {
+      await firestoreDeliveryDataSource.updateInvoiceStatus(user.id, deliveryId, status);
+      refreshFirestoreState();
+      return;
+    }
+    await mutate((service) => service.updateInvoiceStatus(deliveryId, status));
+  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+
+  const settle = useCallback(async (deliveryIds: readonly string[], method: PaymentMethod) => {
+    if (firestoreEnabled && user) {
+      await firestoreDeliveryDataSource.settle(user.id, deliveryIds, method);
+      refreshFirestoreState();
+      return;
+    }
+    await mutate((service) => service.settle(deliveryIds, method));
+  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+
+  const editMany = useCallback(async (deliveryIds: readonly string[], patch: DeliveryBulkPatch) => {
+    if (firestoreEnabled && user) {
+      await firestoreDeliveryDataSource.editMany(user.id, deliveryIds, patch);
+      refreshFirestoreState();
+      return;
+    }
+    await mutate((service) => service.editMany(deliveryIds, patch));
+  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+  const reload = useCallback(() => load(true), [load]);
 
   return {
     deliveries,
@@ -102,18 +193,14 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     loading,
     refreshing,
     error,
-    reload: () => load(true),
+    reload,
     create,
     update,
-    remove: (deliveryId: string) => mutate((service) => service.remove(deliveryId)),
-    toggleDelivered: (deliveryId: string) =>
-      mutate((service) => service.toggleDelivered(deliveryId)),
-    updateInvoiceStatus: (deliveryId: string, status: InvoiceStatus) =>
-      mutate((service) => service.updateInvoiceStatus(deliveryId, status)),
-    settle: (deliveryIds: readonly string[], method: PaymentMethod) =>
-      mutate((service) => service.settle(deliveryIds, method)),
-    editMany: (deliveryIds: readonly string[], patch: DeliveryBulkPatch) =>
-      mutate((service) => service.editMany(deliveryIds, patch)),
+    remove,
+    toggleDelivered,
+    updateInvoiceStatus,
+    settle,
+    editMany,
   };
 }
 

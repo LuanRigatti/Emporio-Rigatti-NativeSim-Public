@@ -10,6 +10,7 @@ import {
   Section,
 } from '@/components';
 import { useClients } from '@/hooks/useClients';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { calculateClientImpact } from '@/services/clients';
 import type { ClientsStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme';
@@ -18,9 +19,15 @@ type Props = NativeStackScreenProps<ClientsStackParamList, 'ClientDeleteReview'>
 
 export function ClientDeleteReview({ navigation, route }: Props) {
   const { theme } = useAppTheme();
-  const { snapshot, clients, removeCustomConfiguration } = useClients();
+  const { clients, removeCustomConfiguration } = useClients();
   const client = clients.find((item) => item.clientId === route.params.clientId);
-  const impact = snapshot && client ? calculateClientImpact(snapshot, client) : undefined;
+  const { deliveries } = useDeliveries({ mode: 'all', clientId: client?.clientId });
+  const impact = client
+    ? calculateClientImpact(
+        { clientesCustom: {}, entregas: deliveries, gastosDiarios: {}, gastosMensais: {}, recebimentoBaldes: [] },
+        client,
+      )
+    : undefined;
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();

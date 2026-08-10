@@ -30,3 +30,7 @@ export {
   historicalClientNames,
   resolveClientPrice,
 } from './priceTables';
+export {
+  FirestoreClientDataSource,
+  firestoreClientDataSource,
+} from './FirestoreClientDataSource';

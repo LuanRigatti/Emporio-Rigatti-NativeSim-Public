@@ -22,7 +22,7 @@ export function DeliverySettlement({ navigation, route }: Props) {
   const [method, setMethod] = useState<PaymentMethod | undefined>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const { settle } = useDeliveries({ mode: 'all' });
+  const { settle } = useDeliveries({ mode: 'all', deliveryIds: route.params.deliveryIds });
 
   const confirm = async () => {
     if (!method) {

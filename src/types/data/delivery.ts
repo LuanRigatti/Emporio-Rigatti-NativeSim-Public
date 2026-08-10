@@ -1,4 +1,5 @@
 import type { UnknownRecord } from './common';
+import type { ClientId } from './client';
 
 export type PaymentMethod = 'Dinheiro' | 'Pix';
 
@@ -8,6 +9,7 @@ export type InvoiceStatus = 'emitido' | 'a_emitir';
 
 export interface Delivery {
   id: string;
+  clientId?: ClientId;
   cliente: string;
   quantidade: number;
   valor: number;
@@ -24,6 +26,7 @@ export interface Delivery {
 
 export interface DeliveryDraft {
   id?: string;
+  clientId?: ClientId;
   clientName: string;
   address: string;
   addressConfirmed: boolean;
@@ -41,6 +44,12 @@ export interface DeliveryDraft {
 export interface DeliveryFilters {
   mode: 'today' | 'all';
   date?: string;
+  startDate?: string;
+  endDate?: string;
+  deliveryId?: string;
+  deliveryIds?: readonly string[];
+  clientId?: ClientId;
+  clientIds?: readonly ClientId[];
   search?: string;
   clientName?: string;
   status?: 'Todos' | 'Pago' | 'Não Pago';

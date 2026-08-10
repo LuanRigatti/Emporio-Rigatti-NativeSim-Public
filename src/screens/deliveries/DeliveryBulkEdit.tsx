@@ -25,7 +25,10 @@ export function DeliveryBulkEdit({ navigation, route }: Props) {
   const [invoiceStatus, setInvoiceStatus] = useState<InvoiceStatus>('a_emitir');
   const [invoiceStatusChanged, setInvoiceStatusChanged] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { allDeliveries, editMany } = useDeliveries({ mode: 'all' });
+  const { allDeliveries, editMany } = useDeliveries({
+    mode: 'all',
+    deliveryIds: route.params.deliveryIds,
+  });
 
   const selectedInvoiceStatuses = useMemo(
     () =>

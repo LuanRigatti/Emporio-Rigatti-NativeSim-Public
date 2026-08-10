@@ -37,9 +37,13 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
         if (__DEV__) {
           console.error('[useClients] Falha ao carregar clientes.', loadError);
         }
-        setError(
-          loadError instanceof Error ? loadError.message : 'Não foi possível carregar clientes.',
-        );
+        const usingLocalFallback =
+          'isUsingLocalFallback' in clientDataSource && clientDataSource.isUsingLocalFallback;
+        if (!usingLocalFallback) {
+          setError(
+            loadError instanceof Error ? loadError.message : 'Não foi possível carregar clientes.',
+          );
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -69,6 +73,7 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
     },
     [load],
   );
+  const reload = useCallback(() => load(true), [load]);
 
   return {
     clients,
@@ -76,14 +81,14 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
     loading,
     refreshing,
     error,
-    reload: () => load(true),
+    reload,
     rename: (client: ClientModel, newName: string) =>
       mutate(() => clientDataSource.rename(user?.id, client, newName)),
     removeCustomConfiguration: (client: ClientModel) =>
       mutate(() => clientDataSource.removeCustomConfiguration(user?.id, client)),
-    saveCustomClient: (name: string, price: number, address: string) =>
-      mutate(() => clientDataSource.saveCustomClient(user?.id, name, price, address)),
-    updatePrice: (client: ClientModel, price: number) =>
-      mutate(() => clientDataSource.updatePrice(user?.id, client, price)),
+    saveCustomClient: (name: string, price: number, address: string, usesInvoice?: boolean) =>
+      mutate(() => clientDataSource.saveCustomClient(user?.id, name, price, address, usesInvoice)),
+    updatePrice: (client: ClientModel, price: number, usesInvoice?: boolean) =>
+      mutate(() => clientDataSource.updatePrice(user?.id, client, price, usesInvoice)),
   };
 }

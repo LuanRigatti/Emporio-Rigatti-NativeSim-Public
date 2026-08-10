@@ -22,7 +22,7 @@ describe('MockClientDataSource', () => {
     const renamedName = `${originalName} Renomeado`;
 
     await source.load();
-    await source.saveCustomClient(undefined, originalName, 51, 'Rua A');
+    await source.saveCustomClient(undefined, originalName, 51, 'Rua A', true);
 
     const createdClient = source.list().find((client) => client.canonicalName === originalName);
     expect(createdClient).toBeDefined();
@@ -40,6 +40,7 @@ describe('MockClientDataSource', () => {
     expect(source.list().find((client) => client.canonicalName === originalName)).toMatchObject({
       customConfig: { preco: 55 },
       currentPrice: 55,
+      usesInvoice: true,
     });
     const newDelivery = mockDeliveryDataSource.createFromRegistration({
       bucketPrice: 55,
@@ -70,6 +71,7 @@ describe('MockClientDataSource', () => {
     expect(restoredSource.list({ search: renamedName })[0]).toMatchObject({
       customConfig: { preco: 55 },
       currentPrice: 55,
+      usesInvoice: true,
     });
 
     await source.removeCustomConfiguration(undefined, renamedClient);

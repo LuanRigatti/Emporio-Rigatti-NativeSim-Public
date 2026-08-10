@@ -15,7 +15,7 @@ import { PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 import { toHistoryDelivery } from '@/services/data';
-import { useAppData } from '@/hooks/useAppData';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { parseIsoCalendarDate, todayIso } from '@/utils/data';
 
 import { DeliveryCard } from './DeliveryCard';
@@ -40,12 +40,13 @@ function filterDayDeliveries<T extends { status: string }>(
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
-  const { refresh, removeDelivery, snapshot, toggleDelivery } = useAppData();
-  const allDeliveries = useMemo(
-    () => (snapshot?.entregas ?? []).map(toHistoryDelivery),
-    [snapshot],
-  );
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
+  const { reload: refresh, remove: removeDelivery, deliveries, toggleDelivered: toggleDelivery } =
+    useDeliveries({ mode: 'today', date: selectedDate });
+  const allDeliveries = useMemo(
+    () => deliveries.map(toHistoryDelivery),
+    [deliveries],
+  );
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);

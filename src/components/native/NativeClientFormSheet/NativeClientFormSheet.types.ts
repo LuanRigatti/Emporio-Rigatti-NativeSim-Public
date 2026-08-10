@@ -2,6 +2,7 @@ export type NativeClientFormValues = {
   name: string;
   address: string;
   bucketPrice: string;
+  usesInvoice: boolean;
 };
 
 export type NativeClientFormSheetProps = {

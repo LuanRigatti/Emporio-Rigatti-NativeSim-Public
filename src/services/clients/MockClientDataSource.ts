@@ -26,7 +26,7 @@ type Listener = () => void;
 
 function createInitialClients(): Record<string, CustomClient> {
   return Object.fromEntries(
-    MOCK_CLIENT_ITEMS.map(({ title }) => [title, { nome: title, preco: MOCK_BUCKET_PRICE }]),
+    MOCK_CLIENT_ITEMS.map(({ title }) => [title, { nome: title, preco: MOCK_BUCKET_PRICE, usesInvoice: false }]),
   );
 }
 
@@ -75,6 +75,7 @@ export class MockClientDataSource {
     name: string,
     price: number,
     address: string,
+    usesInvoice?: boolean,
   ): Promise<void> {
     await this.hydrationPromise;
     const canonicalName = formatClientName(name);
@@ -97,6 +98,7 @@ export class MockClientDataSource {
         endereco: address.trim(),
         nome: canonicalName,
         preco: normalizedPrice,
+        usesInvoice: usesInvoice === true,
       },
     };
     await this.persistAndPublish();
@@ -106,6 +108,7 @@ export class MockClientDataSource {
     _userId: string | undefined,
     client: ClientModel,
     price: number,
+    usesInvoice?: boolean,
   ): Promise<void> {
     await this.hydrationPromise;
     const key = findClientKey(this.clients, client.normalizedName);
@@ -118,7 +121,11 @@ export class MockClientDataSource {
 
     this.clients = {
       ...this.clients,
-      [key]: { ...this.clients[key], preco: normalizedPrice },
+      [key]: {
+        ...this.clients[key],
+        preco: normalizedPrice,
+        ...(usesInvoice === undefined ? {} : { usesInvoice }),
+      },
     };
     await this.persistAndPublish();
   }

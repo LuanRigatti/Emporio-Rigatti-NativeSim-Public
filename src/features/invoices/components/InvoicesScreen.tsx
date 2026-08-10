@@ -9,7 +9,8 @@ import {
   type NativeSwipeActionsListItem,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
-import { useAppData } from '@/hooks/useAppData';
+import { useClients } from '@/hooks/useClients';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
@@ -18,11 +19,19 @@ import type { OpenPaymentPreview } from '@/features/open-payments/data/openPayme
 export function InvoicesScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
-  const { refresh, snapshot } = useAppData();
+  const { clients, reload: reloadClients } = useClients();
+  const eligibleClientIds = useMemo(
+    () => clients.filter((client) => client.usesInvoice).map((client) => client.clientId),
+    [clients],
+  );
+  const { deliveries, reload: reloadDeliveries } = useDeliveries({
+    clientIds: eligibleClientIds,
+    mode: 'all',
+  });
   const [hiddenInvoiceIds, setHiddenInvoiceIds] = useState<ReadonlySet<string>>(new Set());
   const invoiceItems = useMemo<OpenPaymentPreview[]>(
     () =>
-      (snapshot?.entregas ?? [])
+      deliveries
         .filter((delivery) => delivery.invoiceStatus && !hiddenInvoiceIds.has(delivery.id))
         .map((delivery) => ({
           amount: formatCurrency(delivery.valor),
@@ -31,13 +40,14 @@ export function InvoicesScreen() {
           id: delivery.id,
           quantity: delivery.quantidade,
         })),
-    [hiddenInvoiceIds, snapshot],
+    [deliveries, hiddenInvoiceIds],
   );
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
-    }, [refresh]),
+      void reloadClients();
+      void reloadDeliveries();
+    }, [reloadClients, reloadDeliveries]),
   );
 
   const nativeInvoiceItems = useMemo<NativeSwipeActionsListItem[]>(

@@ -54,4 +54,17 @@ describe('client catalog and historical prices', () => {
     expect(aldo[0].customConfig?.preco).toBe(51);
     expect(aldo[0].sources).toEqual(expect.arrayContaining(['historical', 'custom']));
   });
+
+  it('preserves the per-client invoice eligibility preference', () => {
+    const client = mapLegacyClientToModel({
+      customConfig: { nome: 'Aldo', preco: 51, usesInvoice: true },
+      name: 'Aldo',
+      sources: ['custom'],
+    });
+
+    expect(client.usesInvoice).toBe(true);
+    expect(
+      mapLegacyClientToModel({ name: 'Cliente sem nota', sources: ['delivery'] }).usesInvoice,
+    ).toBe(false);
+  });
 });

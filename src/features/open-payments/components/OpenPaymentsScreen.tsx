@@ -16,7 +16,7 @@ import {
   type NativeSwipeActionsListItem,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
-import { useAppData } from '@/hooks/useAppData';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
 import type { Delivery } from '@/types/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -44,14 +44,16 @@ function toOpenPaymentItem(delivery: Delivery): OpenPaymentPreview {
 export function OpenPaymentsScreen() {
   const router = useRouter();
   const { reduceMotionEnabled, theme } = useAppTheme();
-  const { refresh, snapshot, toggleDelivery } = useAppData();
+  const {
+    deliveries,
+    editMany,
+    reload: refresh,
+  } = useDeliveries({ mode: 'all', status: 'Não Pago' });
   const entrance = useSharedValue(0);
   const paymentItems = useMemo(
     () =>
-      (snapshot?.entregas ?? [])
-        .filter((delivery) => delivery.status !== 'Pago')
-        .map(toOpenPaymentItem),
-    [snapshot],
+      deliveries.map(toOpenPaymentItem),
+    [deliveries],
   );
 
   useFocusEffect(
@@ -75,9 +77,9 @@ export function OpenPaymentsScreen() {
   const handlePaymentSwipe = useCallback(
     (deliveryId: string) => {
       triggerLightImpactHaptic();
-      void toggleDelivery(deliveryId);
+      void editMany([deliveryId], { status: 'Pago' });
     },
-    [toggleDelivery],
+    [editMany],
   );
 
   useEffect(() => {

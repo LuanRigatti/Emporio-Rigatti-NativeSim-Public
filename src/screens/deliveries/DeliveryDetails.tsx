@@ -33,7 +33,7 @@ export function DeliveryDetails({ navigation, route }: Props) {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>();
   const { allDeliveries, loading, error, remove, toggleDelivered, updateInvoiceStatus } =
-    useDeliveries({ mode: 'all' });
+    useDeliveries({ mode: 'all', deliveryId: route.params.deliveryId });
   const delivery = allDeliveries.find((item) => item.id === route.params.deliveryId);
 
   if (loading && !delivery) {

@@ -32,3 +32,9 @@ export const ENABLE_FIREBASE_WRITES = false;
  * explicitly enabled.
  */
 export const ENABLE_FIREBASE_AUTH = true;
+
+/**
+ * Etapa 1: clientes e entregas usam documentos do Firestore novo. O mock
+ * permanece disponível como fallback; o RTDB legado não participa deste fluxo.
+ */
+export const ENABLE_FIRESTORE_CLIENTS_DELIVERIES = true;

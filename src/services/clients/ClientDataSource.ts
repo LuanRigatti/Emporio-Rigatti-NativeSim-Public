@@ -1,11 +1,15 @@
 import type { UserDataSnapshot } from '@/services/data';
 import type { ClientModel } from '@/types/data';
 
-import { ENABLE_MOCK_CLIENT_DATA } from '@/config/featureFlags';
+import {
+  ENABLE_FIRESTORE_CLIENTS_DELIVERIES,
+  ENABLE_MOCK_CLIENT_DATA,
+} from '@/config/featureFlags';
 
 import { clientCatalogService, type ClientCatalogQuery } from './ClientCatalogService';
 import { clientIdentityRegistry } from './ClientIdentityRegistry';
 import { mockClientDataSource } from './MockClientDataSource';
+import { firestoreClientDataSource } from './FirestoreClientDataSource';
 
 export type ClientDataMode = 'mock' | 'firebase';
 
@@ -20,8 +24,14 @@ export interface ClientDataSource {
     name: string,
     price: number,
     address: string,
+    usesInvoice?: boolean,
   ): Promise<void>;
-  updatePrice(userId: string | undefined, client: ClientModel, price: number): Promise<void>;
+  updatePrice(
+    userId: string | undefined,
+    client: ClientModel,
+    price: number,
+    usesInvoice?: boolean,
+  ): Promise<void>;
   rename(userId: string | undefined, client: ClientModel, newName: string): Promise<void>;
   removeCustomConfiguration(userId: string | undefined, client: ClientModel): Promise<void>;
 }
@@ -60,10 +70,11 @@ export class FirebaseClientDataSource implements ClientDataSource {
     name: string,
     price: number,
     address: string,
+    usesInvoice?: boolean,
   ): Promise<void> {
     const uid = this.requireUserId(userId);
     const { ClientMutationService } = await import('./ClientMutationService');
-    await new ClientMutationService(uid).saveCustomClient(name, price, address);
+    await new ClientMutationService(uid).saveCustomClient(name, price, address, usesInvoice);
     await this.load(uid);
   }
 
@@ -71,10 +82,11 @@ export class FirebaseClientDataSource implements ClientDataSource {
     userId: string | undefined,
     client: ClientModel,
     price: number,
+    usesInvoice?: boolean,
   ): Promise<void> {
     const uid = this.requireUserId(userId);
     const { ClientMutationService } = await import('./ClientMutationService');
-    await new ClientMutationService(uid).updatePrice(client, price);
+    await new ClientMutationService(uid).updatePrice(client, price, usesInvoice);
     await this.load(uid);
   }
 
@@ -111,6 +123,8 @@ export class FirebaseClientDataSource implements ClientDataSource {
 
 export const firebaseClientDataSource = new FirebaseClientDataSource();
 
-export const clientDataSource: ClientDataSource = ENABLE_MOCK_CLIENT_DATA
-  ? mockClientDataSource
-  : firebaseClientDataSource;
+export const clientDataSource: ClientDataSource = ENABLE_FIRESTORE_CLIENTS_DELIVERIES
+  ? firestoreClientDataSource
+  : ENABLE_MOCK_CLIENT_DATA
+    ? mockClientDataSource
+    : firebaseClientDataSource;

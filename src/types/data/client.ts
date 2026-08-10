@@ -8,6 +8,7 @@ export interface CustomClient {
   nome: string;
   preco: number;
   endereco?: string;
+  usesInvoice?: boolean;
   legacyFields?: UnknownRecord;
 }
 
@@ -20,6 +21,7 @@ export interface ClientModel {
   address?: string;
   hasIncompleteAddress: boolean;
   currentPrice?: number;
+  usesInvoice: boolean;
 }
 
 export interface ClientFinancialSummary {

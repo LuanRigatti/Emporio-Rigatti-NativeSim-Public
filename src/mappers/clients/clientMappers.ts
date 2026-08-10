@@ -21,6 +21,7 @@ export function mapLegacyClientToModel(input: LegacyClientModelInput): ClientMod
     address: input.address,
     hasIncompleteAddress: !input.address,
     currentPrice: input.currentPrice,
+    usesInvoice: input.customConfig?.usesInvoice === true,
   };
 }
 

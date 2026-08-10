@@ -28,6 +28,7 @@ export {
   dailyDocumentToExpense,
   monthlyDocumentToExpense,
   costValuesToDailyDocument,
+  costValuesToDailyWriteDocument,
   costValuesToMonthlyDocument,
   dailyExpenseToCostValues,
   monthlyExpenseToCostValues,

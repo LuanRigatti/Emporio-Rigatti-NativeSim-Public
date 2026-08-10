@@ -102,6 +102,32 @@ export function costValuesToDailyDocument(
   };
 }
 
+const DAILY_WRITABLE_FIELDS = [
+  'estar',
+  'gasolina',
+  'km',
+  'outros',
+  'precoGasolina',
+  'tipoCombustivel',
+] as const;
+
+export function costValuesToDailyWriteDocument(
+  dateValue: string,
+  values: CostValues,
+  deleteFieldValue: () => unknown,
+): Record<string, unknown> {
+  const document = costValuesToDailyDocument(dateValue, values) as Record<string, unknown>;
+  return {
+    data: document.data,
+    ...Object.fromEntries(
+      DAILY_WRITABLE_FIELDS.map((field) => [
+        field,
+        field in document ? document[field] : deleteFieldValue(),
+      ]),
+    ),
+  };
+}
+
 export function costValuesToMonthlyDocument(
   _month: string,
   values: CostValues,
@@ -237,10 +263,13 @@ export class FirestoreDailyMonthlyDataSource {
 
   public async saveDaily(uid: string, date: string, values: CostValues): Promise<DailyExpense> {
     const normalizedDate = normalizeDate(date);
-    const { doc, serverTimestamp, setDoc } = await import('firebase/firestore');
+    const { deleteField, doc, serverTimestamp, setDoc } = await import('firebase/firestore');
     await setDoc(
       doc(await dailyCollectionFor(uid), normalizedDate),
-      { ...costValuesToDailyDocument(normalizedDate, values), updatedAt: serverTimestamp() },
+      {
+        ...costValuesToDailyWriteDocument(normalizedDate, values, deleteField),
+        updatedAt: serverTimestamp(),
+      },
       { merge: true },
     );
     const expense = {

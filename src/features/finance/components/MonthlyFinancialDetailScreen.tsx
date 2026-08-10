@@ -7,7 +7,8 @@ import { NativeGlassBackButton, NativePeriodActionGroup } from '@/components/nat
 import { FinancialSeriesChart } from '@/components/Charts';
 import { EmptyState } from '@/components/feedback';
 import { PremiumCard, PremiumScreen, Skeleton } from '@/components/premium';
-import { useAppData } from '@/hooks/useAppData';
+import { useFinancialData } from '@/hooks/useFinancialData';
+import { expenseQueryForFinancialSelection } from '@/services/costs';
 import {
   financialDailyDetailService,
   financialMetricValue,
@@ -44,20 +45,21 @@ const metricCopy = {
 export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const router = useRouter();
   const { theme } = useAppTheme();
-  const { refresh, snapshot, loading } = useAppData();
   const currentPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
   const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
   const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>([]);
-  const [routesLoading, setRoutesLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>();
   const copy = metricCopy[metric];
   const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const { refresh, snapshot, loading } = useFinancialData(
+    expenseQueryForFinancialSelection({ kind: 'month', month: selectedMonthKey }),
+    { displayMonth: selectedMonthKey },
+  );
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      setRoutesLoading(true);
 
       void Promise.all([refresh(), routeTrackingRepository.getRouteHistory()])
         .then(([, sessions]) => {
@@ -65,9 +67,6 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
         })
         .catch(() => {
           if (active) setRouteSessions([]);
-        })
-        .finally(() => {
-          if (active) setRoutesLoading(false);
         });
 
       return () => {
@@ -142,7 +141,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
         progressiveBlur
         scrollable
       >
-        {loading || routesLoading ? (
+        {loading ? (
           <View style={styles.loading}>
             <Skeleton height={220} />
             <Skeleton height={theme.sizes.loadingLineHeight * 8} />

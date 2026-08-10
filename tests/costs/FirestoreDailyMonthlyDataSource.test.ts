@@ -1,5 +1,6 @@
 import {
   costValuesToDailyDocument,
+  costValuesToDailyWriteDocument,
   costValuesToMonthlyDocument,
   dailyDocumentToExpense,
   dailyExpenseToCostValues,
@@ -32,6 +33,24 @@ describe('Firestore daily/monthly cost documents', () => {
       luz: 100,
     });
     expect(JSON.stringify(values)).not.toContain('samples');
+  });
+
+  it('marks cleared daily fields for deletion instead of leaving stale Firestore values', () => {
+    expect(
+      costValuesToDailyWriteDocument(
+        '2026-08-09',
+        { ...values, estar: '', fuel: '', fuelPrice: '', fuelType: '', kilometers: '', other: '' },
+        () => 'DELETE_FIELD',
+      ),
+    ).toEqual({
+      data: '2026-08-09',
+      estar: 'DELETE_FIELD',
+      gasolina: 'DELETE_FIELD',
+      km: 'DELETE_FIELD',
+      outros: 'DELETE_FIELD',
+      precoGasolina: 'DELETE_FIELD',
+      tipoCombustivel: 'DELETE_FIELD',
+    });
   });
 
   it('preserves current fuel price as a replacement and keeps other manual fields', () => {

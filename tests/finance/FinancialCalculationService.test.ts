@@ -140,6 +140,25 @@ describe('FinancialCalculationService', () => {
     expect(twoDeliveryDays.custoLuz).toBeCloseTo((100 / 14) * 2, 8);
   });
 
+  it('keeps delivery-derived financial values at zero in a month without deliveries', () => {
+    const result = service.calculateResumo({
+      deliveries: [delivery({ data: '2026-07-20', valor: 100, quantidade: 2 })],
+      dailyExpenses: { '2026-08-05': { data: '2026-08-05', estar: 20 } },
+      monthlyExpenses: { '2026-08': { luz: 100 } },
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today,
+    });
+
+    expect(result.faturamento).toBe(0);
+    expect(result.valoresPagos).toBe(0);
+    expect(result.valoresPendentes).toBe(0);
+    expect(result.quantidadeBaldes).toBe(0);
+    expect(result.custoTotalBaldes).toBe(0);
+    expect(result.custoLuz).toBe(0);
+    expect(result.custoEstar).toBe(20);
+    expect(result.lucroBruto).toBe(0);
+  });
+
   it('subtracts monthly Outros costs from net profit', () => {
     const result = service.calculateResumo({
       deliveries: [delivery({ data: '2026-07-01', valor: 100, quantidade: 1 })],

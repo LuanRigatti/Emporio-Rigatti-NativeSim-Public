@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ENABLE_FIRESTORE_DAILY_MONTHLY } from '@/config/featureFlags';
+import {
+  ENABLE_FIRESTORE_CLIENTS_DELIVERIES,
+  ENABLE_FIRESTORE_DAILY_MONTHLY,
+} from '@/config/featureFlags';
 import { useAuth } from '@/providers';
 import { firestoreDailyMonthlyDataSource, type DailyMonthlyQuery } from '@/services/costs';
 import { loadAppData } from '@/services/data';
 import type { UserDataSnapshot } from '@/services/data';
+import { firestoreDeliveryDataSource, deliveryQueryService } from '@/services/deliveries';
+import type { DeliveryFilters } from '@/types/data';
 
 type UseFinancialDataOptions = {
   enabled?: boolean;
+  displayMonth?: string;
 };
 
 export function useFinancialData(
@@ -17,55 +23,108 @@ export function useFinancialData(
   const { user } = useAuth();
   const userId = user?.id;
   const enabled = options.enabled ?? true;
+  const displayMonth = options.displayMonth;
   const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(null);
+  const [comparisonSnapshot, setComparisonSnapshot] = useState<UserDataSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const loadVersion = useRef(0);
+  const snapshotRef = useRef<UserDataSnapshot | null>(null);
+  const snapshotScopeRef = useRef<string | undefined>(undefined);
   const queryKey = JSON.stringify(query);
+  const snapshotScopeKey = displayMonth ?? queryKey;
   const stableQuery = useMemo(() => JSON.parse(queryKey) as DailyMonthlyQuery, [queryKey]);
 
   const load = useCallback(
     async (isRefresh = false) => {
+      const version = ++loadVersion.current;
+      const isCurrent = () => loadVersion.current === version;
       if (!userId) {
-        setLoading(false);
+        if (isCurrent()) setLoading(false);
         return;
       }
 
       if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      else if (snapshotRef.current === null || snapshotScopeRef.current !== snapshotScopeKey) {
+        setLoading(true);
+      }
       setError(undefined);
 
       try {
         const baseSnapshot = await loadAppData(userId);
-        setSnapshot((current) =>
-          current && snapshotsEquivalent(current, baseSnapshot) ? current : baseSnapshot,
-        );
+        if (!isCurrent()) return;
+
+        const deliveryFilters = deliveryFiltersForQuery(stableQuery);
+        const localSnapshot = scopeSnapshotToQuery(baseSnapshot, stableQuery, deliveryFilters);
+        const awaitingRemoteDeliveries =
+          ENABLE_FIRESTORE_CLIENTS_DELIVERIES && deliveryFilters !== undefined;
+        const initialSourceSnapshot = awaitingRemoteDeliveries
+          ? { ...localSnapshot, entregas: [] }
+          : localSnapshot;
+        let latestSourceSnapshot = initialSourceSnapshot;
+        const publishSnapshot = (sourceSnapshot: UserDataSnapshot) => {
+          latestSourceSnapshot = sourceSnapshot;
+          const visibleSnapshot = scopeSnapshotToDisplayMonth(sourceSnapshot, displayMonth);
+          snapshotRef.current = visibleSnapshot;
+          snapshotScopeRef.current = snapshotScopeKey;
+          setComparisonSnapshot((current) =>
+            current && snapshotsEquivalent(current, sourceSnapshot) ? current : sourceSnapshot,
+          );
+          setSnapshot((current) =>
+            current && snapshotsEquivalent(current, visibleSnapshot) ? current : visibleSnapshot,
+          );
+        };
+        const hasKnownSnapshotForScope =
+          snapshotRef.current !== null && snapshotScopeRef.current === snapshotScopeKey;
+        if (!hasKnownSnapshotForScope || !awaitingRemoteDeliveries) {
+          publishSnapshot(initialSourceSnapshot);
+        }
         setLoading(false);
+
+        if (ENABLE_FIRESTORE_CLIENTS_DELIVERIES && deliveryFilters) {
+          try {
+            const deliveries = await firestoreDeliveryDataSource.load(userId, deliveryFilters);
+            if (!isCurrent()) return;
+            publishSnapshot({
+              ...latestSourceSnapshot,
+              entregas: deliveries,
+            });
+          } catch (remoteError) {
+            if (__DEV__)
+              console.warn('[useFinancialData] Firestore deliveries fallback local.', remoteError);
+            if (isCurrent()) publishSnapshot(localSnapshot);
+          }
+        }
 
         if (ENABLE_FIRESTORE_DAILY_MONTHLY) {
           try {
             const costs = await firestoreDailyMonthlyDataSource.load(userId, stableQuery);
-            setSnapshot((current) => {
-              const base = current ?? baseSnapshot;
-              const next = { ...base, ...costs };
-              return snapshotsEquivalent(base, next) ? base : next;
+            if (!isCurrent()) return;
+            publishSnapshot({
+              ...latestSourceSnapshot,
+              gastosDiarios: costs.gastosDiarios,
+              gastosMensais: costs.gastosMensais,
             });
           } catch (remoteError) {
             if (__DEV__) console.warn('[useFinancialData] Firestore fallback local.', remoteError);
           }
         }
       } catch (loadError) {
+        if (!isCurrent()) return;
         setError(
           loadError instanceof Error
             ? loadError.message
             : 'Não foi possível carregar os dados financeiros.',
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (isCurrent()) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [stableQuery, userId],
+    [displayMonth, snapshotScopeKey, stableQuery, userId],
   );
 
   useEffect(() => {
@@ -79,6 +138,7 @@ export function useFinancialData(
 
   return {
     snapshot,
+    comparisonSnapshot,
     loading,
     refreshing,
     error,
@@ -88,6 +148,94 @@ export function useFinancialData(
 }
 
 export type UseFinancialDataResult = ReturnType<typeof useFinancialData>;
+
+function deliveryFiltersForQuery(query: DailyMonthlyQuery): DeliveryFilters | undefined {
+  if (query.loadAll) return undefined;
+  if (!query.date && !query.month && !query.startDate && !query.endDate) return undefined;
+  if (query.month) {
+    const [year, month] = query.month.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+      mode: 'all',
+      startDate: `${query.month}-01`,
+      endDate: `${query.month}-${String(lastDay).padStart(2, '0')}`,
+    };
+  }
+  return {
+    mode: 'all',
+    ...(query.date ? { date: query.date } : {}),
+    ...(query.startDate ? { startDate: query.startDate } : {}),
+    ...(query.endDate ? { endDate: query.endDate } : {}),
+  };
+}
+
+function scopeSnapshotToQuery(
+  snapshot: UserDataSnapshot,
+  query: DailyMonthlyQuery,
+  deliveryFilters: DeliveryFilters | undefined,
+): UserDataSnapshot {
+  const deliveries = deliveryFilters
+    ? deliveryQueryService.filter(snapshot.entregas, deliveryFilters)
+    : snapshot.entregas;
+  const dailyEntries = Object.entries(snapshot.gastosDiarios).filter(([date, expense]) =>
+    matchesCostQuery(date, expense.data, query),
+  );
+  const monthlyEntries = Object.entries(snapshot.gastosMensais).filter(([month]) =>
+    matchesMonthlyQuery(month, query),
+  );
+  return {
+    ...snapshot,
+    entregas: deliveries,
+    gastosDiarios: Object.fromEntries(dailyEntries),
+    gastosMensais: Object.fromEntries(monthlyEntries),
+  };
+}
+
+function scopeSnapshotToDisplayMonth(
+  snapshot: UserDataSnapshot,
+  displayMonth: string | undefined,
+): UserDataSnapshot {
+  if (!displayMonth) return snapshot;
+  const [year, month] = displayMonth.split('-').map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  const deliveries = deliveryQueryService.filter(snapshot.entregas, {
+    mode: 'all',
+    startDate: `${displayMonth}-01`,
+    endDate: `${displayMonth}-${String(lastDay).padStart(2, '0')}`,
+  });
+  const dailyEntries = Object.entries(snapshot.gastosDiarios).filter(([date, expense]) =>
+    (expense.data ?? date).startsWith(displayMonth),
+  );
+  const monthlyEntries = Object.entries(snapshot.gastosMensais).filter(
+    ([monthKey]) => monthKey === displayMonth,
+  );
+  return {
+    ...snapshot,
+    entregas: deliveries,
+    gastosDiarios: Object.fromEntries(dailyEntries),
+    gastosMensais: Object.fromEntries(monthlyEntries),
+  };
+}
+
+function matchesCostQuery(
+  key: string,
+  data: string | undefined,
+  query: DailyMonthlyQuery,
+): boolean {
+  if (query.loadAll) return true;
+  const date = data ?? key;
+  if (query.date) return date === query.date;
+  if (query.month) return date.startsWith(query.month);
+  return (!query.startDate || date >= query.startDate) && (!query.endDate || date <= query.endDate);
+}
+
+function matchesMonthlyQuery(month: string, query: DailyMonthlyQuery): boolean {
+  if (query.loadAll) return true;
+  if (query.month) return month === query.month;
+  const start = query.startDate?.slice(0, 7);
+  const end = query.endDate?.slice(0, 7);
+  return (!start || month >= start) && (!end || month <= end);
+}
 
 function snapshotsEquivalent(left: UserDataSnapshot, right: UserDataSnapshot): boolean {
   return (

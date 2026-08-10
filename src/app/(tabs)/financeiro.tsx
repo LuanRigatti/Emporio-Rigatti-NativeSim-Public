@@ -48,9 +48,9 @@ export default function PrototypeFinanceiro() {
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-  const { snapshot } = useFinancialData(
+  const { comparisonSnapshot, snapshot } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
-    { enabled: isFocused },
+    { displayMonth: selectedPeriod, enabled: isFocused },
   );
 
   const summary = useMemo(
@@ -69,14 +69,15 @@ export default function PrototypeFinanceiro() {
     () =>
       snapshot
         ? financialCalculationService.compareByDeliveryDays({
-            deliveries: snapshot.entregas,
-            dailyExpenses: snapshot.gastosDiarios,
+            deliveries: comparisonSnapshot?.entregas ?? snapshot.entregas,
+            dailyExpenses: comparisonSnapshot?.gastosDiarios ?? snapshot.gastosDiarios,
             filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
-            monthlyExpenses: snapshot.gastosMensais,
+            monthlyExpenses: comparisonSnapshot?.gastosMensais ?? snapshot.gastosMensais,
           })
         : undefined,
-    [selectedPeriod, snapshot],
+    [comparisonSnapshot, selectedPeriod, snapshot],
   );
+
   const trendColor = (difference: number | undefined) =>
     difference === undefined || difference === 0
       ? theme.colors.textSecondary

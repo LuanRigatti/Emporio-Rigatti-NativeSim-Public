@@ -34,7 +34,10 @@ export function FactoryPurchasesScreen({
   const { theme } = useAppTheme();
   const { settings: factorySettings } = useFactorySettings();
   const { addPayment, createPurchase, deletePurchase, purchaseById, purchases } =
-    useFactoryPurchases();
+    useFactoryPurchases({
+      month: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
+      period: 'month',
+    });
   const [quantity, setQuantity] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date());
   const [selectedPurchaseId, setSelectedPurchaseId] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function FactoryPurchasesScreen({
   const handleQuantityBlurReady = useCallback((blur: () => void) => {
     setBlurQuantityField(() => blur);
   }, []);
-  const handleCreatePurchase = () => {
+  const handleCreatePurchase = async () => {
     blurQuantityField?.();
     Keyboard.dismiss();
 
@@ -72,13 +75,21 @@ export function FactoryPurchasesScreen({
       return;
     }
 
-    createPurchase({
-      bucketQuantity: quantityValue,
-      bucketUnitPrice: unitPrice,
-      date: todayIso(purchaseDate),
-    });
-    setQuantity('');
-    setError(undefined);
+    try {
+      await createPurchase({
+        bucketQuantity: quantityValue,
+        bucketUnitPrice: unitPrice,
+        date: todayIso(purchaseDate),
+      });
+      setQuantity('');
+      setError(undefined);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'NÃ£o foi possÃ­vel registrar a compra.',
+      );
+    }
   };
 
   return (
@@ -136,7 +147,7 @@ export function FactoryPurchasesScreen({
               accessibilityLabel="Registrar compra"
               haptic="light"
               label="Registrar"
-              onPress={handleCreatePurchase}
+              onPress={() => void handleCreatePurchase()}
               variant="primary"
             />
           </View>
@@ -181,8 +192,8 @@ export function FactoryPurchasesScreen({
       </PremiumScreen>
 
       <PurchaseDetailsSheet
-        onAddPayment={(purchaseId, payment) => {
-          addPayment(purchaseId, payment);
+        onAddPayment={async (purchaseId, payment) => {
+          await addPayment(purchaseId, payment);
         }}
         onVisibleChange={(visible) => {
           setPurchaseSheetVisible(visible);
@@ -198,8 +209,15 @@ export function FactoryPurchasesScreen({
         onCancel={() => setPurchaseToDeleteId(null)}
         onConfirm={() => {
           if (!purchaseToDeleteId) return;
-          deletePurchase(purchaseToDeleteId);
-          setPurchaseToDeleteId(null);
+          void deletePurchase(purchaseToDeleteId)
+            .then(() => setPurchaseToDeleteId(null))
+            .catch((deleteError) => {
+              setError(
+                deleteError instanceof Error
+                  ? deleteError.message
+                  : 'NÃ£o foi possÃ­vel excluir a compra.',
+              );
+            });
         }}
         title="Excluir compra?"
         visible={purchaseToDeleteId !== null}

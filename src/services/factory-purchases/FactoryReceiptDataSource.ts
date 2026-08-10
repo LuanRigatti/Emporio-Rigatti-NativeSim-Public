@@ -1,8 +1,10 @@
-import type { FactoryPaymentDraft, FactoryReceipt } from '@/types/data';
+import { ENABLE_FIRESTORE_FACTORY_RECEIPTS } from '@/config/featureFlags';
+import type { FactoryFilters, FactoryPaymentDraft, FactoryReceipt } from '@/types/data';
 import { factoryCalculationService } from '@/services/finance/FactoryCalculationService';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
 
 import { mockFactoryReceiptStorage } from './MockFactoryReceiptStorage';
+import { firestoreFactoryReceiptDataSource } from './FirestoreFactoryReceiptDataSource';
 
 export type CreateFactoryReceiptInput = {
   date: string;
@@ -11,13 +13,13 @@ export type CreateFactoryReceiptInput = {
 };
 
 export interface FactoryReceiptDataSource {
-  readonly mode: 'mock';
-  restore(): Promise<void>;
+  readonly mode: 'mock' | 'firebase';
+  restore(userId?: string, filters?: FactoryFilters): Promise<void>;
   getReceipts(): FactoryReceipt[];
-  createReceipt(input: CreateFactoryReceiptInput): FactoryReceipt;
-  addPayment(receiptId: string, payment: FactoryPaymentDraft): FactoryReceipt;
-  removePayment(receiptId: string, paymentId: string): FactoryReceipt;
-  deleteReceipt(receiptId: string): void;
+  createReceipt(input: CreateFactoryReceiptInput): Promise<FactoryReceipt>;
+  addPayment(receiptId: string, payment: FactoryPaymentDraft): Promise<FactoryReceipt>;
+  removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt>;
+  deleteReceipt(receiptId: string): Promise<void>;
 }
 
 const MOCK_RECEIPTS: FactoryReceipt[] = [];
@@ -73,7 +75,8 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     return this.receipts.map(cloneReceipt);
   }
 
-  public createReceipt(input: CreateFactoryReceiptInput): FactoryReceipt {
+  public async createReceipt(input: CreateFactoryReceiptInput): Promise<FactoryReceipt> {
+    await this.restore();
     const quantity = requiredQuantity(input.quantity);
     const date = requiredDate(input.date);
     const unitPrice = requiredUnitPrice(input.bucketUnitPrice);
@@ -81,17 +84,22 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
       id: createId('fab'),
       quantidade: quantity,
       data: date,
+      precoUnitarioHistorico: unitPrice,
       valorTotal: Number((quantity * unitPrice).toFixed(2)),
       concluido: false,
       pagamentos: [],
     };
 
     this.receipts = [receipt, ...this.receipts];
-    this.persist();
+    await this.persist();
     return cloneReceipt(receipt);
   }
 
-  public addPayment(receiptId: string, payment: FactoryPaymentDraft): FactoryReceipt {
+  public async addPayment(
+    receiptId: string,
+    payment: FactoryPaymentDraft,
+  ): Promise<FactoryReceipt> {
+    await this.restore();
     const receipt = this.findReceipt(receiptId);
     const date = requiredDate(payment.date);
     const amount = factoryCalculationService.assertPaymentWithinBalance(receipt, payment.amount);
@@ -101,11 +109,12 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     };
     updatedReceipt.concluido =
       factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-    this.replaceReceipt(updatedReceipt);
+    await this.replaceReceipt(updatedReceipt);
     return cloneReceipt(updatedReceipt);
   }
 
-  public removePayment(receiptId: string, paymentId: string): FactoryReceipt {
+  public async removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt> {
+    await this.restore();
     const receipt = this.findReceipt(receiptId);
     if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
       throw new Error('Pagamento da fÃ¡brica nÃ£o encontrado.');
@@ -117,14 +126,15 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     };
     updatedReceipt.concluido =
       factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-    this.replaceReceipt(updatedReceipt);
+    await this.replaceReceipt(updatedReceipt);
     return cloneReceipt(updatedReceipt);
   }
 
-  public deleteReceipt(receiptId: string): void {
+  public async deleteReceipt(receiptId: string): Promise<void> {
+    await this.restore();
     this.findReceipt(receiptId);
     this.receipts = this.receipts.filter((receipt) => receipt.id !== receiptId);
-    this.persist();
+    await this.persist();
   }
 
   private findReceipt(receiptId: string): FactoryReceipt {
@@ -133,20 +143,21 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     return receipt;
   }
 
-  private replaceReceipt(updatedReceipt: FactoryReceipt): void {
+  private async replaceReceipt(updatedReceipt: FactoryReceipt): Promise<void> {
     this.receipts = this.receipts.map((receipt) =>
       receipt.id === updatedReceipt.id ? updatedReceipt : receipt,
     );
-    this.persist();
+    await this.persist();
   }
 
-  private persist(): void {
+  private async persist(): Promise<void> {
     this.hasLocalMutation = true;
-    void mockFactoryReceiptStorage.save(this.receipts);
+    await mockFactoryReceiptStorage.save(this.receipts);
   }
 }
 
 export const mockFactoryReceiptDataSource = new MockFactoryReceiptDataSource();
 
-// FirebaseReceiptDataSource will be connected in the Firebase activation stage.
-export const factoryReceiptDataSource: FactoryReceiptDataSource = mockFactoryReceiptDataSource;
+export const factoryReceiptDataSource: FactoryReceiptDataSource = ENABLE_FIRESTORE_FACTORY_RECEIPTS
+  ? firestoreFactoryReceiptDataSource
+  : mockFactoryReceiptDataSource;

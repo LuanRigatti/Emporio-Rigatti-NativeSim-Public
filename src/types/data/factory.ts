@@ -11,6 +11,7 @@ export interface FactoryReceipt {
   id: string;
   quantidade: number;
   data: string;
+  precoUnitarioHistorico?: number;
   valorTotal: number;
   concluido: boolean;
   pagamentos: FactoryPayment[];

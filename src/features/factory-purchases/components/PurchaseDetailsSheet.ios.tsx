@@ -38,7 +38,10 @@ import type { Purchase } from '../types';
 type PurchaseDetailsSheetProps = {
   purchase: Purchase | null;
   visible: boolean;
-  onAddPayment: (purchaseId: string, payment: { date: string; amount: number }) => void;
+  onAddPayment: (
+    purchaseId: string,
+    payment: { date: string; amount: number },
+  ) => void | Promise<void>;
   onVisibleChange: (visible: boolean) => void;
 };
 
@@ -75,17 +78,31 @@ export function PurchaseDetailsSheet({
     : 0;
   const isPaid = purchase ? factoryPurchaseCalculationService.isPaid(purchase) : false;
 
-  const handleAddPayment = () => {
+  const handleAddPayment = async () => {
+    if (__DEV__) {
+      console.log('[FactoryPayment] addPaymentPressed', {
+        hasPurchase: Boolean(purchase),
+        receiptId: purchase ? maskReceiptId(purchase.id) : null,
+      });
+    }
     if (!purchase) return;
 
     const amount = normalizeMoney(paymentAmount);
+    const date = todayIso(paymentDate);
+    if (__DEV__) {
+      console.log('[FactoryPayment] paymentPayload', {
+        amount,
+        date,
+        receiptId: maskReceiptId(purchase.id),
+      });
+    }
     if (amount === undefined) {
       setError('Informe um valor de pagamento maior que zero.');
       return;
     }
 
     try {
-      onAddPayment(purchase.id, { amount, date: todayIso(paymentDate) });
+      await onAddPayment(purchase.id, { amount, date });
       setPaymentAmount('');
       setError(undefined);
     } catch (paymentError) {
@@ -163,7 +180,9 @@ export function PurchaseDetailsSheet({
             <Button
               label="Adicionar pagamento"
               modifiers={[buttonStyle('glassProminent'), controlSize('large')]}
-              onPress={handleAddPayment}
+              onPress={() => {
+                void handleAddPayment();
+              }}
             />
           </HStack>
         </VStack>
@@ -209,6 +228,10 @@ export function PurchaseDetailsSheet({
       visible={visible}
     />
   );
+}
+
+function maskReceiptId(receiptId: string): string {
+  return receiptId.length <= 8 ? receiptId : `${receiptId.slice(0, 4)}…${receiptId.slice(-4)}`;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {

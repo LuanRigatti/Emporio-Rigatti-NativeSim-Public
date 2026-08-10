@@ -17,6 +17,10 @@ export {
   type FactoryReceiptDataSource,
 } from './FactoryReceiptDataSource';
 export {
+  FirestoreFactoryReceiptDataSource,
+  firestoreFactoryReceiptDataSource,
+} from './FirestoreFactoryReceiptDataSource';
+export {
   factoryReceiptToPurchase,
   factoryReceiptsToPurchases,
   purchaseToFactoryReceipt,

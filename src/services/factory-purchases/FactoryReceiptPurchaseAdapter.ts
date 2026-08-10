@@ -18,7 +18,8 @@ export function factoryReceiptToPurchase(receipt: FactoryReceipt): Purchase {
     id: receipt.id,
     date: receipt.data,
     bucketQuantity: quantity,
-    bucketUnitPrice: quantity > 0 ? roundMoney(totalAmount / quantity) : 0,
+    bucketUnitPrice:
+      receipt.precoUnitarioHistorico ?? (quantity > 0 ? roundMoney(totalAmount / quantity) : 0),
     totalAmount,
     payments: receipt.pagamentos.map<PurchasePayment>((payment) => ({
       id: payment.id,
@@ -44,6 +45,7 @@ export function purchaseToFactoryReceipt(purchase: Purchase): FactoryReceipt {
     id: purchase.id,
     quantidade: Math.max(0, Math.round(purchase.bucketQuantity)),
     data: purchase.date,
+    precoUnitarioHistorico: roundMoney(purchase.bucketUnitPrice),
     valorTotal: total,
     concluido: Math.abs(total - totalPaid(payments)) < 0.01,
     pagamentos: payments,

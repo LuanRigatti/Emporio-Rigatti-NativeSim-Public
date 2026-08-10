@@ -23,9 +23,9 @@ beforeEach(() => {
 });
 
 describe('MockFactoryReceiptDataSource', () => {
-  it('creates a receipt, keeps its historical total and avoids duplicate records', () => {
+  it('creates a receipt, keeps its historical price and total without duplicates', async () => {
     const source = new MockFactoryReceiptDataSource();
-    const created = source.createReceipt({
+    const created = await source.createReceipt({
       bucketUnitPrice: 35,
       date: '2026-08-05',
       quantity: 10,
@@ -33,12 +33,13 @@ describe('MockFactoryReceiptDataSource', () => {
 
     expect(created).toMatchObject({
       quantidade: 10,
+      precoUnitarioHistorico: 35,
       valorTotal: 350,
       pagamentos: [],
     });
     expect(source.getReceipts()).toHaveLength(1);
 
-    const nextPriceReceipt = source.createReceipt({
+    const nextPriceReceipt = await source.createReceipt({
       bucketUnitPrice: 40,
       date: '2026-08-06',
       quantity: 10,
@@ -49,24 +50,24 @@ describe('MockFactoryReceiptDataSource', () => {
     expect(nextPriceReceipt.valorTotal).toBe(400);
   });
 
-  it('supports partial payments, prevents overpayment and settles exactly at zero', () => {
+  it('supports partial payments, prevents overpayment and settles exactly at zero', async () => {
     const source = new MockFactoryReceiptDataSource();
-    const created = source.createReceipt({
+    const created = await source.createReceipt({
       bucketUnitPrice: 35,
       date: '2026-08-05',
       quantity: 10,
     });
 
-    const partial = source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
+    const partial = await source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
     expect(factoryCalculationService.totalPaid(partial)).toBe(100);
     expect(factoryCalculationService.openValue(partial)).toBe(250);
     expect(partial.concluido).toBe(false);
 
-    expect(() => source.addPayment(created.id, { amount: 251, date: '2026-08-07' })).toThrow(
-      'saldo restante',
-    );
+    await expect(
+      source.addPayment(created.id, { amount: 251, date: '2026-08-07' }),
+    ).rejects.toThrow('saldo restante');
 
-    const settled = source.addPayment(created.id, { amount: 250, date: '2026-08-08' });
+    const settled = await source.addPayment(created.id, { amount: 250, date: '2026-08-08' });
     expect(factoryCalculationService.openValue(settled)).toBe(0);
     expect(settled.concluido).toBe(true);
     expect(settled.pagamentos).toHaveLength(2);
@@ -74,13 +75,13 @@ describe('MockFactoryReceiptDataSource', () => {
 
   it('removes a payment, reopens the receipt and persists through a reload', async () => {
     const source = new MockFactoryReceiptDataSource();
-    const created = source.createReceipt({
+    const created = await source.createReceipt({
       bucketUnitPrice: 35,
       date: '2026-08-05',
       quantity: 10,
     });
-    const settled = source.addPayment(created.id, { amount: 350, date: '2026-08-06' });
-    const reopened = source.removePayment(created.id, settled.pagamentos[0].id);
+    const settled = await source.addPayment(created.id, { amount: 350, date: '2026-08-06' });
+    const reopened = await source.removePayment(created.id, settled.pagamentos[0].id);
 
     expect(reopened.pagamentos).toEqual([]);
     expect(reopened.concluido).toBe(false);
@@ -91,7 +92,7 @@ describe('MockFactoryReceiptDataSource', () => {
     await restoredSource.restore();
     expect(restoredSource.getReceipts()).toEqual(source.getReceipts());
 
-    source.deleteReceipt(created.id);
+    await source.deleteReceipt(created.id);
     expect(source.getReceipts()).toEqual([]);
   });
 
@@ -122,16 +123,16 @@ describe('MockFactoryReceiptDataSource', () => {
     });
   });
 
-  it('deletes a receipt together with its linked payments', () => {
+  it('deletes a receipt together with its linked payments', async () => {
     const source = new MockFactoryReceiptDataSource();
-    const created = source.createReceipt({
+    const created = await source.createReceipt({
       bucketUnitPrice: 35,
       date: '2026-08-05',
       quantity: 10,
     });
-    source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
+    await source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
 
-    source.deleteReceipt(created.id);
+    await source.deleteReceipt(created.id);
 
     expect(source.getReceipts()).toEqual([]);
   });

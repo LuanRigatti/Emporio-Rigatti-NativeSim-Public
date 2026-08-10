@@ -38,3 +38,6 @@ export const ENABLE_FIREBASE_AUTH = true;
  * permanece disponível como fallback; o RTDB legado não participa deste fluxo.
  */
 export const ENABLE_FIRESTORE_CLIENTS_DELIVERIES = true;
+
+/** Etapa 2: compras da fÃ¡brica usam documentos Firestore com pagamentos separados. */
+export const ENABLE_FIRESTORE_FACTORY_RECEIPTS = true;

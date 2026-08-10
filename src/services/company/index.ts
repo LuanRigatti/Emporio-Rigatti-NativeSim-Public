@@ -5,3 +5,11 @@ export {
   companyProfileStorage,
 } from './CompanyProfileStorage';
 export type { CompanyProfile } from './CompanyProfileStorage';
+export {
+  companyProfileDocumentPath,
+  companyProfileFromFirestore,
+  companyProfileToFirestore,
+  FirestoreCompanyProfileDataSource,
+  firestoreCompanyProfileDataSource,
+  type FirestoreCompanyProfileDocument,
+} from './FirestoreCompanyProfileDataSource';

@@ -59,7 +59,6 @@ export const LOCAL_ONLY_DATA_POLICY = {
     'raw location data',
   ],
   dailyData: ['outros', 'incremental entries', 'detailed automatic route kilometers'],
-  companySettings: ['company profile'],
   localPreferences: ['theme preferences', 'development settings', 'cache'],
 } as const;
 
@@ -150,10 +149,12 @@ export const DATA_DOMAIN_POLICY: readonly DataDomainDefinition[] = [
       'Car consumption settings are user-scoped configuration used by fuel calculations; historical delivery values are not recalculated.',
   },
   {
-    classification: 'local-only',
+    classification: 'firebase-supported',
     domain: 'companySettings',
-    fields: LOCAL_ONLY_DATA_POLICY.companySettings,
-    notes: 'No compatible legacy Firebase node has been established.',
+    fields: ['legal name', 'trade name', 'tax id', 'address'],
+    firebaseNodes: ['users/{uid}/settings/company'],
+    notes:
+      'Company profile is user-scoped editable configuration; it is not a financial aggregate or derived value.',
   },
   {
     classification: 'local-only',

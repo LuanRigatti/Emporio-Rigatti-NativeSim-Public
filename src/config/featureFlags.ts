@@ -50,3 +50,6 @@ export const ENABLE_FIRESTORE_FACTORY_SETTINGS = true;
 
 /** Etapa 5: as autonomias configuráveis do carro usam um documento Firestore. */
 export const ENABLE_FIRESTORE_CAR_SETTINGS = true;
+
+/** Etapa 6: os dados editáveis da empresa usam um documento Firestore. */
+export const ENABLE_FIRESTORE_COMPANY_PROFILE = true;

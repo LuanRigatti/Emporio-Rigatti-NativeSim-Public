@@ -9,6 +9,8 @@ export class DeliveryQueryService {
 
     return deliveries
       .filter((delivery) => filters.mode === 'all' || delivery.data === date)
+      .filter((delivery) => !filters.startDate || delivery.data >= filters.startDate)
+      .filter((delivery) => !filters.endDate || delivery.data <= filters.endDate)
       .filter(
         (delivery) =>
           !search || normalizeClientKey(formatClientName(delivery.cliente)).includes(search),

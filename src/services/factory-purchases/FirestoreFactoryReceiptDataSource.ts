@@ -70,9 +70,7 @@ function monthEnd(month: string): string {
   const year = Number(match[1]);
   const monthNumber = Number(match[2]);
   if (monthNumber < 1 || monthNumber > 12) throw new Error('PerÃƒÂ­odo mensal invÃƒÂ¡lido.');
-  return `${year}-${String(monthNumber).padStart(2, '0')}-${new Date(
-    Date.UTC(year, monthNumber, 0),
-  )
+  return `${year}-${String(monthNumber).padStart(2, '0')}-${new Date(Date.UTC(year, monthNumber, 0))
     .getUTCDate()
     .toString()
     .padStart(2, '0')}`;
@@ -135,10 +133,12 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
   private readonly receipts = new Map<string, FactoryReceipt>();
   private userId: string | undefined;
 
-  public getReceipts = (): FactoryReceipt[] =>
-    [...this.receipts.values()].map(cloneReceipt);
+  public getReceipts = (): FactoryReceipt[] => [...this.receipts.values()].map(cloneReceipt);
 
-  public async restore(userId?: string, filters: FactoryFilters = { period: 'all' }): Promise<void> {
+  public async restore(
+    userId?: string,
+    filters: FactoryFilters = { period: 'all' },
+  ): Promise<void> {
     if (!userId) {
       await this.restoreLocalFallback();
       return;
@@ -152,6 +152,13 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       if (filters.period === 'month' && filters.month) {
         constraints.push(where('date', '>=', `${filters.month}-01`));
         constraints.push(where('date', '<=', monthEnd(filters.month)));
+      } else {
+        if (filters.startDate) {
+          constraints.push(where('date', '>=', filters.startDate));
+        }
+        if (filters.endDate) {
+          constraints.push(where('date', '<=', filters.endDate));
+        }
       }
       const result = await getDocs(
         constraints.length ? query(collectionReference, ...constraints) : collectionReference,
@@ -228,7 +235,8 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
         ...receipt,
         pagamentos: [...receipt.pagamentos, nextPayment],
       };
-      updatedReceipt.concluido = factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
+      updatedReceipt.concluido =
+        factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
       const balanceAfter = factoryCalculationService.openValue(updatedReceipt);
       logPayment('paymentWriteStarted', {
         amount,
@@ -280,7 +288,8 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       ...receipt,
       pagamentos: receipt.pagamentos.filter((payment) => payment.id !== paymentId),
     };
-    updatedReceipt.concluido = factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
+    updatedReceipt.concluido =
+      factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
     const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
     const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
     const paymentReference = doc(await paymentsCollection(receiptReference), paymentId);

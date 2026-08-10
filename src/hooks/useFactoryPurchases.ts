@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/providers';
+import { factoryReceiptQueryService } from '@/services/finance';
 import type { FactoryFilters, FactoryReceipt } from '@/types/data';
 import {
   factoryReceiptDataSource,
@@ -11,37 +12,44 @@ import {
 
 export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' }) {
   const { status: authStatus, user } = useAuth();
-  const { month, period } = filters;
+  const { endDate, month, period, startDate } = filters;
   const stableFilters = useMemo(
-    () => ({ period, ...(month ? { month } : {}) }),
-    [month, period],
+    () => ({
+      period,
+      ...(endDate ? { endDate } : {}),
+      ...(month ? { month } : {}),
+      ...(startDate ? { startDate } : {}),
+    }),
+    [endDate, month, period, startDate],
   );
-  const [receipts, setReceipts] = useState<FactoryReceipt[]>(() =>
-    factoryReceiptDataSource.getReceipts(),
+  const readFilteredReceipts = useCallback(
+    () => factoryReceiptQueryService.filter(factoryReceiptDataSource.getReceipts(), stableFilters),
+    [stableFilters],
   );
+  const [receipts, setReceipts] = useState<FactoryReceipt[]>(() => readFilteredReceipts());
 
   useEffect(() => {
     if (factoryReceiptDataSource.mode === 'firebase' && authStatus === 'loading') return;
     let active = true;
     void factoryReceiptDataSource.restore(user?.id, stableFilters).then(() => {
-      if (active) setReceipts(factoryReceiptDataSource.getReceipts());
+      if (active) setReceipts(readFilteredReceipts());
     });
     return () => {
       active = false;
     };
-  }, [authStatus, stableFilters, user?.id]);
+  }, [authStatus, readFilteredReceipts, stableFilters, user?.id]);
 
   const refresh = useCallback(async () => {
     await factoryReceiptDataSource.restore(user?.id, stableFilters);
-    setReceipts(factoryReceiptDataSource.getReceipts());
-  }, [stableFilters, user?.id]);
+    setReceipts(readFilteredReceipts());
+  }, [readFilteredReceipts, stableFilters, user?.id]);
 
   const createPurchase = useCallback(async (input: CreatePurchaseInput) => {
     const receipt = await factoryReceiptDataSource.createReceipt({
-        bucketUnitPrice: input.bucketUnitPrice,
-        date: input.date,
-        quantity: input.bucketQuantity,
-      });
+      bucketUnitPrice: input.bucketUnitPrice,
+      date: input.date,
+      quantity: input.bucketQuantity,
+    });
     setReceipts(factoryReceiptDataSource.getReceipts());
     return factoryReceiptToPurchase(receipt);
   }, []);

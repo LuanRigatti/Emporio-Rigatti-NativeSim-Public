@@ -115,6 +115,17 @@ describe('FactoryReceiptQueryService', () => {
       service.filter(entries, { period: 'all' }, new Date('2026-07-25')).map((item) => item.id),
     ).toEqual(['newer', 'older']);
   });
+
+  it('filters factory movements to the period required by stock calculation', () => {
+    expect(
+      service
+        .filter([...entries, receipt({ id: 'future', data: '2026-08-01' })], {
+          endDate: '2026-07-31',
+          period: 'all',
+        })
+        .map((item) => item.id),
+    ).toEqual(['newer', 'older']);
+  });
 });
 
 describe('FactoryReceiptMutationService', () => {

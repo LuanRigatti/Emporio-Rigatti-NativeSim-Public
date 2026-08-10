@@ -104,4 +104,18 @@ describe('delivery services', () => {
 
     expect(result).toHaveLength(1);
   });
+
+  it('filters deliveries to the period required by stock calculation', () => {
+    const service = new DeliveryQueryService();
+    const result = service.filter(
+      [
+        delivery({ id: 'before', data: '2026-07-31' }),
+        delivery({ id: 'inside', data: '2026-08-15' }),
+        delivery({ id: 'future', data: '2026-09-01' }),
+      ],
+      { endDate: '2026-08-31', mode: 'all' },
+    );
+
+    expect(result.map((item) => item.id)).toEqual(['inside', 'before']);
+  });
 });

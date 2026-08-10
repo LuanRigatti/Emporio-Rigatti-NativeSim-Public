@@ -10,7 +10,7 @@ import {
   getHistoryYearItems,
 } from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
-import { useAppData } from '@/hooks/useAppData';
+import { useDeliveries } from '@/hooks/useDeliveries';
 import { useFactorySettings } from '@/hooks/useFactorySettings';
 import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { stockCalculationService } from '@/services/stock';
@@ -35,31 +35,45 @@ function monthShortLabel(month: number): string {
   return labels[month - 1] ?? String(month);
 }
 
+function monthEnd(year: number, month: number): string {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
 export default function StockRoute() {
   const router = useRouter();
   const { theme } = useAppTheme();
-  const { settings: factorySettings } = useFactorySettings();
-  const { receipts, refresh: refreshPurchases } = useFactoryPurchases();
-  const { refresh, snapshot } = useAppData();
   const currentPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
   const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
-  const deliveries = useMemo(() => snapshot?.entregas ?? [], [snapshot]);
+  const periodEnd = useMemo(
+    () => monthEnd(selectedYear, selectedMonth),
+    [selectedMonth, selectedYear],
+  );
+  const { settings: factorySettings } = useFactorySettings();
+  const { allDeliveries, reload: refreshDeliveries } = useDeliveries({
+    endDate: periodEnd,
+    mode: 'all',
+  });
+  const { receipts, refresh: refreshPurchases } = useFactoryPurchases({
+    endDate: periodEnd,
+    period: 'all',
+  });
   useFocusEffect(
     useCallback(() => {
-      void refresh();
+      void refreshDeliveries();
       void refreshPurchases();
-    }, [refresh, refreshPurchases]),
+    }, [refreshDeliveries, refreshPurchases]),
   );
   const stockSummary = useMemo(
     () =>
       stockCalculationService.calculate({
-        deliveries,
+        deliveries: allDeliveries,
         month: selectedMonth,
         receipts,
         year: selectedYear,
       }),
-    [deliveries, receipts, selectedMonth, selectedYear],
+    [allDeliveries, receipts, selectedMonth, selectedYear],
   );
   const bucketCost = normalizeMoney(factorySettings.bucketCost) ?? 0;
   const stockValue = stockCalculationService.calculateStockValue(

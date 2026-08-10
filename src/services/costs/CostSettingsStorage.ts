@@ -75,21 +75,31 @@ function parseSettings(serialized: string | null): CostSettings | null {
 
 export class CostSettingsStorage {
   private writeQueue = Promise.resolve();
+  private cachedSettings: CostSettings | null = null;
+
+  public getCached(): CostSettings | null {
+    return this.cachedSettings;
+  }
 
   public async load(): Promise<CostSettings> {
+    if (this.cachedSettings) return this.cachedSettings;
+
     try {
-      return (
-        parseSettings(await AsyncStorage.getItem(COST_SETTINGS_STORAGE_KEY)) ?? {
-          periods: { day: {}, month: {}, year: {} },
-        }
-      );
+      const settings = parseSettings(await AsyncStorage.getItem(COST_SETTINGS_STORAGE_KEY)) ?? {
+        periods: { day: {}, month: {}, year: {} },
+      };
+      this.cachedSettings = settings;
+      return settings;
     } catch (error) {
       if (__DEV__) console.warn('[CostSettingsStorage] Falha ao ler custos.', error);
-      return { periods: { day: {}, month: {}, year: {} } };
+      const settings = { periods: { day: {}, month: {}, year: {} } };
+      this.cachedSettings = settings;
+      return settings;
     }
   }
 
   public save(settings: CostSettings): Promise<void> {
+    this.cachedSettings = settings;
     this.writeQueue = this.writeQueue
       .then(() => AsyncStorage.setItem(COST_SETTINGS_STORAGE_KEY, JSON.stringify(settings)))
       .catch((error) => {

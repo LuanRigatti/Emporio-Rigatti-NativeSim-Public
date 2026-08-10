@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { deliveryQueryService } from '@/services/deliveries';
+import { expenseQueryForFinancialSelection } from '@/services/costs';
 import {
   financialCalculationService,
   financialFiltersForSelection,
@@ -29,10 +30,10 @@ export function financialFiltersForPeriod(period: ReportPeriodInput, date = toda
 }
 
 export function useFinancialReport(period: ReportPeriodInput = 'month') {
-  const data = useFinancialData();
   const date = useMemo(() => todayIso(), []);
   const selection = useMemo(() => normalizeSelection(period, date), [date, period]);
   const filters = useMemo(() => financialFiltersForSelection(selection), [selection]);
+  const data = useFinancialData(expenseQueryForFinancialSelection(selection));
   const computed = useMemo(() => {
     if (!data.snapshot) return undefined;
     const input = {

@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ENABLE_FIRESTORE_DAILY_MONTHLY } from '@/config/featureFlags';
+import { useAuth } from '@/providers';
 import {
   addDailyValue,
   localDailyDataDataSource,
+  costSettingsStorage,
+  firestoreDailyMonthlyDataSource,
   setDailyValue,
   EMPTY_COST_VALUES,
   type CostField,
@@ -12,28 +16,79 @@ import {
 } from '@/services/costs';
 
 export function useCostSettings() {
-  const [settings, setSettings] = useState<CostSettings>({
-    periods: { day: {}, month: {}, year: {} },
-  });
-  const [isHydrated, setIsHydrated] = useState(false);
+  const { user } = useAuth();
+  const cachedSettings = costSettingsStorage.getCached();
+  const [settings, setSettings] = useState<CostSettings>(
+    () => cachedSettings ?? { periods: { day: {}, month: {}, year: {} } },
+  );
+  const [isHydrated, setIsHydrated] = useState(() => cachedSettings !== null);
+  const [remoteReady, setRemoteReady] = useState(!ENABLE_FIRESTORE_DAILY_MONTHLY);
+  const [remoteActive, setRemoteActive] = useState(false);
+  const previousSettings = useRef<CostSettings | null>(null);
+  const skipRemoteSync = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    void localDailyDataDataSource.load().then((storedSettings) => {
+    void (async () => {
+      const storedSettings = await localDailyDataDataSource.load();
       if (!isMounted) return;
-      setSettings(storedSettings);
+
+      previousSettings.current = storedSettings;
+      setSettings((current) =>
+        settingsEquivalent(current, storedSettings) ? current : storedSettings,
+      );
       setIsHydrated(true);
-    });
+
+      let nextSettings = storedSettings;
+      let usingRemote = false;
+
+      if (ENABLE_FIRESTORE_DAILY_MONTHLY && user) {
+        try {
+          nextSettings = await firestoreDailyMonthlyDataSource.loadAllAsCostSettings(user.id);
+          usingRemote = true;
+          skipRemoteSync.current = true;
+        } catch (error) {
+          if (__DEV__) console.warn('[useCostSettings] Firestore fallback local.', error);
+        }
+      }
+
+      if (!isMounted) return;
+      previousSettings.current = nextSettings;
+      setSettings((current) =>
+        settingsEquivalent(current, nextSettings) ? current : nextSettings,
+      );
+      setRemoteActive(usingRemote);
+      setRemoteReady(true);
+      setIsHydrated(true);
+    })();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    if (isHydrated) void localDailyDataDataSource.save(settings);
-  }, [isHydrated, settings]);
+    if (!isHydrated || !remoteReady) return;
+    void localDailyDataDataSource.save(settings);
+    if (remoteActive && user && previousSettings.current) {
+      if (skipRemoteSync.current) {
+        skipRemoteSync.current = false;
+        previousSettings.current = settings;
+        return;
+      }
+      const previous = previousSettings.current;
+      previousSettings.current = settings;
+      void firestoreDailyMonthlyDataSource
+        .saveSettingsDiff(user.id, previous, settings)
+        .catch((error) => {
+          if (__DEV__) console.warn('[useCostSettings] Firestore save fallback local.', error);
+          setRemoteActive(false);
+        });
+    } else {
+      previousSettings.current = settings;
+    }
+  }, [isHydrated, remoteActive, remoteReady, settings, user]);
 
   const getValues = useCallback(
     (period: CostPeriod, key: string): CostValues =>
@@ -132,6 +187,10 @@ export function useCostSettings() {
     setFieldValue,
     updateField,
   };
+}
+
+function settingsEquivalent(left: CostSettings, right: CostSettings): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function parseCostNumber(value: string): number {

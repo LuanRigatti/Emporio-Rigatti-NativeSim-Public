@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -12,7 +12,8 @@ import {
   getHistoryYearItems,
 } from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
-import { useAppData } from '@/hooks/useAppData';
+import { useFinancialData } from '@/hooks/useFinancialData';
+import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { useAppTheme } from '@/theme';
 
@@ -43,17 +44,15 @@ function trendIcon(difference: number | undefined): ComponentProps<typeof Ionico
 export default function PrototypeFinanceiro() {
   const router = useRouter();
   const { theme } = useAppTheme();
-  const { refresh, snapshot } = useAppData();
+  const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
-
-  useFocusEffect(
-    useCallback(() => {
-      void refresh();
-    }, [refresh]),
+  const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const { snapshot } = useFinancialData(
+    expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
+    { enabled: isFocused },
   );
 
-  const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
   const summary = useMemo(
     () =>
       snapshot

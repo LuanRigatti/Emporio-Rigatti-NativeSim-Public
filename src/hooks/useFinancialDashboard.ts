@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { deliveryQueryService } from '@/services/deliveries';
+import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { factoryCalculationService } from '@/services/finance/FactoryCalculationService';
 import type { FinancialCalculationFilters } from '@/types/data';
@@ -16,8 +17,10 @@ function todayIso(): string {
 }
 
 export function useFinancialDashboard() {
-  const data = useFinancialData();
   const date = useMemo(() => todayIso(), []);
+  const data = useFinancialData(
+    expenseQueryForFinancialSelection({ kind: 'month', month: date.slice(0, 7) }),
+  );
   const computed = useMemo(() => {
     if (!data.snapshot) return undefined;
 

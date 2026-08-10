@@ -32,7 +32,8 @@ type CostsEditorScreenProps = {
 export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { getLatestDailyValue, getMonthlySum, getValues, updateField } = useCostSettings();
+  const { getLatestDailyValue, getMonthlySum, getValues, isHydrated, updateField } =
+    useCostSettings();
   const { settings: carSettings } = useCarSettings();
   const initialDate = useMemo(() => new Date(), []);
   const [selectedDate, setSelectedDate] = useState(() => todayIso(initialDate));
@@ -153,8 +154,14 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
               placeholder="R$ 0,00"
               value={values.light}
             />
-            <ReadOnlyCostField label="Estar" value={formatCurrency(monthlyEstar)} />
-            <ReadOnlyCostField label="Outros" value={formatCurrency(monthlyOther)} />
+            <ReadOnlyCostField
+              label="Estar"
+              value={isHydrated ? formatCurrency(monthlyEstar) : ''}
+            />
+            <ReadOnlyCostField
+              label="Outros"
+              value={isHydrated ? formatCurrency(monthlyOther) : ''}
+            />
           </>
         ) : (
           <>
@@ -200,7 +207,10 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
               }
               value={values.fuelPrice}
             />
-            <ReadOnlyCostField label="Custo do combustível" value={formatCurrency(dailyFuelCost)} />
+            <ReadOnlyCostField
+              label="Custo do combustível"
+              value={isHydrated ? formatCurrency(dailyFuelCost) : ''}
+            />
           </>
         )}
       </GlassCard>

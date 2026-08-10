@@ -128,7 +128,8 @@ function RegistrarModeSelection() {
 export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
-  const { addFieldValue, getLatestDailyValue, getValues, setFieldValue } = useCostSettings();
+  const { addFieldValue, getLatestDailyValue, getValues, isHydrated, setFieldValue } =
+    useCostSettings();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [dailySheetInitialValues, setDailySheetInitialValues] = useState(EMPTY_DAILY_DATA_VALUES);
   const [routeDistance, setRouteDistance] = useState<RouteDistanceSummary | null>(null);
@@ -136,13 +137,15 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const dailyValues = getValues('day', dailyDate);
   const manualKilometers = normalizeMoney(dailyValues.kilometers) ?? 0;
   const totalKilometers = manualKilometers + (routeDistance?.totalKilometers ?? 0);
-  const hasDailyData = Boolean(
-    dailyValues.estar.trim() ||
-    dailyValues.other.trim() ||
-    dailyValues.kilometers.trim() ||
-    dailyValues.fuelPrice.trim() ||
-    routeDistance?.routeCount,
-  );
+  const hasDailyData =
+    isHydrated &&
+    Boolean(
+      dailyValues.estar.trim() ||
+      dailyValues.other.trim() ||
+      dailyValues.kilometers.trim() ||
+      dailyValues.fuelPrice.trim() ||
+      routeDistance?.routeCount,
+    );
 
   useFocusEffect(
     useCallback(() => {
@@ -273,11 +276,18 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     [clients],
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
-  const { deliveries: firestoreDeliveries, create, remove: removeDelivery } = useDeliveries({
+  const {
+    deliveries: firestoreDeliveries,
+    create,
+    remove: removeDelivery,
+  } = useDeliveries({
     mode: 'today',
     date: currentDate,
   });
-  const deliveries = useMemo(() => firestoreDeliveries.map(toHistoryDelivery), [firestoreDeliveries]);
+  const deliveries = useMemo(
+    () => firestoreDeliveries.map(toHistoryDelivery),
+    [firestoreDeliveries],
+  );
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());

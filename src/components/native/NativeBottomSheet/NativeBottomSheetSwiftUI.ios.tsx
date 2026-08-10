@@ -172,6 +172,7 @@ export default function NativeBottomSheetSwiftUI({
                 buttonStyle('plain'),
                 controlSize('regular'),
                 frame({ width: 40, height: 40 }),
+                contentShape(shapes.rectangle()),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
                   shape: 'circle',
@@ -179,7 +180,14 @@ export default function NativeBottomSheetSwiftUI({
                 accessibilityLabel('Diminuir quantidade'),
                 disabledModifier(!selectedItem),
               ]}
-              onPress={() => setBucketQuantity((value) => Math.max(1, value - 1))}
+              onPress={() => {
+                if (__DEV__) {
+                  console.log('[NativeBottomSheet] nativeButtonMinusAction', {
+                    quantityBefore: bucketQuantity,
+                  });
+                }
+                setBucketQuantity((value) => Math.max(1, value - 1));
+              }}
             >
               <Image size={17} systemName="minus" />
             </Button>
@@ -191,6 +199,7 @@ export default function NativeBottomSheetSwiftUI({
                 buttonStyle('plain'),
                 controlSize('regular'),
                 frame({ width: 40, height: 40 }),
+                contentShape(shapes.rectangle()),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
                   shape: 'circle',
@@ -198,7 +207,14 @@ export default function NativeBottomSheetSwiftUI({
                 accessibilityLabel('Aumentar quantidade'),
                 disabledModifier(!selectedItem),
               ]}
-              onPress={() => setBucketQuantity((value) => value + 1)}
+              onPress={() => {
+                if (__DEV__) {
+                  console.log('[NativeBottomSheet] nativeButtonPlusAction', {
+                    quantityBefore: bucketQuantity,
+                  });
+                }
+                setBucketQuantity((value) => value + 1);
+              }}
             >
               <Image size={17} systemName="plus" />
             </Button>

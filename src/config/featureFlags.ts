@@ -44,3 +44,6 @@ export const ENABLE_FIRESTORE_FACTORY_RECEIPTS = true;
 
 /** Etapa 3: custos manuais usam documentos Firestore por dia/mês. */
 export const ENABLE_FIRESTORE_DAILY_MONTHLY = true;
+
+/** Etapa 4: a configuraÃ§Ã£o vigente do valor do balde usa um documento Firestore. */
+export const ENABLE_FIRESTORE_FACTORY_SETTINGS = true;

@@ -4,3 +4,11 @@ export {
   factorySettingsStorage,
   type FactorySettings,
 } from './FactorySettingsStorage';
+export {
+  factorySettingsFromFirestore,
+  factorySettingsDocumentPath,
+  factorySettingsToFirestore,
+  FirestoreFactorySettingsDataSource,
+  firestoreFactorySettingsDataSource,
+  type FirestoreFactorySettingsDocument,
+} from './FirestoreFactorySettingsDataSource';

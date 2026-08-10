@@ -97,9 +97,17 @@ export const DATA_DOMAIN_POLICY: readonly DataDomainDefinition[] = [
   {
     classification: 'firebase-supported',
     domain: 'factory',
-    fields: ['receipts', 'quantities', 'historical totals', 'partial payments', 'balances'],
-    firebaseNodes: ['recebimentoBaldes'],
-    notes: 'FactoryReceipt is the canonical contract and payments remain nested.',
+    fields: [
+      'receipts',
+      'quantities',
+      'historical totals',
+      'partial payments',
+      'balances',
+      'current bucket cost',
+    ],
+    firebaseNodes: ['users/{uid}/factoryReceipts', 'users/{uid}/settings/factory'],
+    notes:
+      'FactoryReceipt is canonical; payments remain nested and the bucket cost is a setting document.',
   },
   {
     classification: 'firebase-supported',

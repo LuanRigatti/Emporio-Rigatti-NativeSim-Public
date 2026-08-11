@@ -15,9 +15,12 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
+  animation,
+  Animation,
   background,
   buttonStyle,
   contentShape,
+  contentTransition,
   controlSize,
   disabled as disabledModifier,
   frame,
@@ -62,6 +65,7 @@ export default function NativeBottomSheetSwiftUI({
 }: NativeBottomSheetProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
+  const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
   const [pageRequestID, setPageRequestID] = useState(0);
   const selectedItem = controlledSelectedItem ?? null;
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
@@ -70,6 +74,7 @@ export default function NativeBottomSheetSwiftUI({
   useEffect(() => {
     if (!visible) {
       setBucketQuantity(1);
+      setQuantityDirection('up');
       setSelectedDate(new Date());
       setPageRequestID(0);
     }
@@ -170,8 +175,6 @@ export default function NativeBottomSheetSwiftUI({
               modifiers={[
                 buttonStyle('plain'),
                 controlSize('regular'),
-                frame({ width: 40, height: 40 }),
-                contentShape(shapes.rectangle()),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
                   shape: 'circle',
@@ -180,25 +183,34 @@ export default function NativeBottomSheetSwiftUI({
                 disabledModifier(!selectedItem),
               ]}
               onPress={() => {
-                if (__DEV__) {
-                  console.log('[NativeBottomSheet] nativeButtonMinusAction', {
-                    quantityBefore: bucketQuantity,
-                  });
-                }
+                setQuantityDirection('down');
                 setBucketQuantity((value) => Math.max(1, value - 1));
               }}
             >
-              <Image size={17} systemName="minus" />
+              <ZStack
+                modifiers={[
+                  frame({ width: 44, height: 44 }),
+                  contentShape(shapes.rectangle()),
+                ]}
+              >
+                <Image size={17} systemName="minus" />
+              </ZStack>
             </Button>
-            <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>
+            <Text
+              modifiers={[
+                roundedFont({ size: 17, weight: 'semibold' }),
+                contentTransition('numericText', {
+                  countsDown: quantityDirection === 'down',
+                }),
+                animation(Animation.easeInOut({ duration: 0.18 }), bucketQuantity),
+              ]}
+            >
               {bucketQuantity}
             </Text>
             <Button
               modifiers={[
                 buttonStyle('plain'),
                 controlSize('regular'),
-                frame({ width: 40, height: 40 }),
-                contentShape(shapes.rectangle()),
                 glassEffect({
                   glass: { interactive: true, variant: 'regular' },
                   shape: 'circle',
@@ -207,15 +219,18 @@ export default function NativeBottomSheetSwiftUI({
                 disabledModifier(!selectedItem),
               ]}
               onPress={() => {
-                if (__DEV__) {
-                  console.log('[NativeBottomSheet] nativeButtonPlusAction', {
-                    quantityBefore: bucketQuantity,
-                  });
-                }
+                setQuantityDirection('up');
                 setBucketQuantity((value) => value + 1);
               }}
             >
-              <Image size={17} systemName="plus" />
+              <ZStack
+                modifiers={[
+                  frame({ width: 44, height: 44 }),
+                  contentShape(shapes.rectangle()),
+                ]}
+              >
+                <Image size={17} systemName="plus" />
+              </ZStack>
             </Button>
           </HStack>
           <Divider />

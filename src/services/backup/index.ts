@@ -15,3 +15,61 @@ export { BackupService, createBackupService } from './BackupService';
 export type { BackupServiceDependencies } from './BackupService';
 export { backupValidationService, BackupValidationService } from './BackupValidationService';
 export type { BackupValidationResult } from './BackupValidationService';
+export {
+  buildFirestoreBackupPayload,
+  countFirestoreBackupSnapshot,
+  createFirestoreBackupService,
+  FirestoreBackupService,
+  readFirestoreBackupSnapshot,
+  serializeFirestoreDocument,
+  serializeFirestoreValue,
+} from './FirestoreBackupService';
+export type {
+  FirestoreBackupCounts,
+  FirestoreBackupDocument,
+  FirestoreBackupExportResult,
+  FirestoreBackupPayload,
+  FirestoreBackupReceipt,
+  FirestoreBackupServiceDependencies,
+  FirestoreBackupSettings,
+  FirestoreBackupSnapshot,
+} from './FirestoreBackupService';
+export {
+  blockedFirestoreBackupReport,
+  compareFirestoreBackup,
+  firestoreBackupValuesEqual,
+} from './FirestoreBackupComparisonService';
+export type {
+  FirestoreBackupComparisonEntity,
+  FirestoreBackupDryRunReport,
+  FirestoreBackupEntityReport,
+} from './FirestoreBackupComparisonService';
+export {
+  createFirestoreBackupDryRunService,
+  FirestoreBackupDryRunService,
+} from './FirestoreBackupDryRunService';
+export type {
+  FirestoreBackupDryRunPreparation,
+  FirestoreBackupDryRunServiceDependencies,
+} from './FirestoreBackupDryRunService';
+export {
+  createFirestoreBackupRestoreService,
+  FirestoreBackupRestoreService,
+} from './FirestoreBackupRestoreService';
+export type {
+  FirestoreBackupRestoreCommitResult,
+  FirestoreBackupRestoreDocument,
+  FirestoreBackupRestoreFailedDocument,
+  FirestoreBackupRestorePreparation,
+  FirestoreBackupRestoreReport,
+  FirestoreBackupRestoreServiceDependencies,
+} from './FirestoreBackupRestoreService';
+export {
+  deserializeFirestoreValue,
+  firestoreBackupValidationService,
+  FirestoreBackupValidationService,
+} from './FirestoreBackupValidationService';
+export type {
+  FirestoreBackupValidationIssue,
+  ValidatedFirestoreBackup,
+} from './FirestoreBackupValidationService';

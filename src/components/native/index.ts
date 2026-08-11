@@ -1,4 +1,9 @@
 export { NativeButton } from './NativeButton';
+export { default as NativeAnimatedNumber } from './NativeAnimatedNumber/NativeAnimatedNumber';
+export type {
+  NativeAnimatedNumberProps,
+  NativeAnimatedNumberWeight,
+} from './NativeAnimatedNumber/NativeAnimatedNumber.types';
 export { NativeCardContextMenu } from './NativeCardContextMenu';
 export type {
   NativeCardContextMenuAction,

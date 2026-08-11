@@ -5,7 +5,7 @@ import type { SettingsIconProps } from './SettingsIcon.types';
 
 export default function SettingsIconSwiftUI({ color, size, systemName }: SettingsIconProps) {
   return (
-    <Host matchContents>
+    <Host style={{ height: size, width: size }}>
       <Image color={color} size={size} systemName={systemName as SFSymbol} />
     </Host>
   );

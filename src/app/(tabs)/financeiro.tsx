@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativePeriodActionGroup } from '@/components/native';
+import { NativeAnimatedNumber, NativePeriodActionGroup } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
 import {
   HISTORY_MONTH_ITEMS,
@@ -48,7 +48,7 @@ export default function PrototypeFinanceiro() {
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-  const { comparisonSnapshot, snapshot } = useFinancialData(
+  const { comparisonSnapshot, loading, refreshing, snapshot } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
     { displayMonth: selectedPeriod, enabled: isFocused },
   );
@@ -140,9 +140,12 @@ export default function PrototypeFinanceiro() {
             name={trendIcon(comparison?.faturamento.diferenca)}
           />
         </View>
-        <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-          {summary ? formatCurrency(summary.faturamento) : ''}
-        </Text>
+        <NativeAnimatedNumber
+          animationEnabled={!loading && !refreshing}
+          color={theme.colors.textPrimary}
+          text={summary ? formatCurrency(summary.faturamento) : ''}
+          value={summary?.faturamento ?? null}
+        />
       </PremiumCard>
       <PremiumCard
         accessibilityLabel="Abrir detalhes do lucro líquido mensal"
@@ -165,9 +168,12 @@ export default function PrototypeFinanceiro() {
             name={trendIcon(comparison?.lucroLiquido.diferenca)}
           />
         </View>
-        <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-          {summary ? formatCurrency(summary.lucroLiquido) : ''}
-        </Text>
+        <NativeAnimatedNumber
+          animationEnabled={!loading && !refreshing}
+          color={theme.colors.textPrimary}
+          text={summary ? formatCurrency(summary.lucroLiquido) : ''}
+          value={summary?.lucroLiquido ?? null}
+        />
       </PremiumCard>
       <SummaryCard
         rows={[

@@ -5,6 +5,7 @@ import { formatClientName, normalizeClientKey, normalizeMoney } from '@/utils/da
 import type { ClientCatalogQuery } from './ClientCatalogService';
 import type { ClientDataSource } from './ClientDataSource';
 import { mockClientDataSource } from './MockClientDataSource';
+import { clientCatalogCache } from './ClientCatalogCache';
 
 type FirestoreClientDocument = {
   name: string;
@@ -18,7 +19,7 @@ type FirestoreClientDocument = {
   updatedAt?: unknown;
 };
 
-type ClientRecord = FirestoreClientDocument & { id: string };
+export type ClientRecord = FirestoreClientDocument & { id: string };
 
 async function collectionFor(uid: string) {
   const { collection } = await import('firebase/firestore');
@@ -89,6 +90,15 @@ export class FirestoreClientDataSource implements ClientDataSource {
     return () => this.listeners.delete(listener);
   };
 
+  public async hydrateFromCache(userId: string): Promise<boolean> {
+    const cachedRecords = await clientCatalogCache.read(userId);
+    if (!cachedRecords?.length) return false;
+    this.records = cachedRecords;
+    this.snapshot = snapshotForClients(this.records);
+    this.publish();
+    return true;
+  }
+
   public async load(userId?: string): Promise<void> {
     if (!userId) throw new Error('Sessão não disponível.');
     try {
@@ -100,6 +110,7 @@ export class FirestoreClientDataSource implements ClientDataSource {
       }));
       this.isUsingLocalFallback = false;
       this.snapshot = snapshotForClients(this.records);
+      void clientCatalogCache.write(userId, this.records).catch(() => undefined);
       this.publish();
     } catch (error) {
       this.isUsingLocalFallback = true;

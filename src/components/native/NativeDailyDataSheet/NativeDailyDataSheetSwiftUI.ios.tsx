@@ -35,7 +35,6 @@ import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import {
-  NATIVE_SHEET_CARD_BACKGROUND,
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
 } from '@/components/native/nativeSheetBackground';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
@@ -195,7 +194,7 @@ export default function NativeDailyDataSheetSwiftUI({
             padding({ leading: 24, trailing: 0, vertical: 4 }),
             frame({ maxWidth: Infinity, alignment: 'leading' }),
             background(
-              NATIVE_SHEET_CARD_BACKGROUND,
+              '#f2f2f5',
               shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
             ),
             padding({ top: 4 }),
@@ -215,7 +214,7 @@ export default function NativeDailyDataSheetSwiftUI({
             frame({ maxWidth: Infinity, alignment: 'trailing' }),
             padding({ top: 8, trailing: 8, bottom: 8 }),
             background(
-              NATIVE_SHEET_CARD_BACKGROUND,
+              '#f2f2f5',
               shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
             ),
           ]}

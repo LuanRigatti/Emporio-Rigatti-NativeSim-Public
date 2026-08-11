@@ -9,7 +9,9 @@ const EMPTY_CLIENT_QUERY: ClientCatalogQuery = {};
 
 export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
   const { status: authStatus, user } = useAuth();
-  const [loading, setLoading] = useState(clientDataSource.mode === 'firebase');
+  const [loading, setLoading] = useState(
+    clientDataSource.mode === 'firebase' && clientDataSource.getSnapshot() === null,
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const snapshot = useSyncExternalStore(
@@ -29,7 +31,7 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
       }
 
       if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      else if (clientDataSource.getSnapshot() === null) setLoading(true);
       setError(undefined);
       try {
         await clientDataSource.load(user?.id);

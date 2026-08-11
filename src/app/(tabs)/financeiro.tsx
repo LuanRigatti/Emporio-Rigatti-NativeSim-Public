@@ -141,7 +141,7 @@ export default function PrototypeFinanceiro() {
           />
         </View>
         <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-          {formatCurrency(summary?.faturamento ?? 0)}
+          {summary ? formatCurrency(summary.faturamento) : ''}
         </Text>
       </PremiumCard>
       <PremiumCard
@@ -166,45 +166,45 @@ export default function PrototypeFinanceiro() {
           />
         </View>
         <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-          {formatCurrency(summary?.lucroLiquido ?? 0)}
+          {summary ? formatCurrency(summary.lucroLiquido) : ''}
         </Text>
       </PremiumCard>
       <SummaryCard
         rows={[
-          { label: 'Baldes vendidos', value: String(summary?.quantidadeBaldes ?? 0) },
-          { label: 'Lucro bruto', value: formatCurrency(summary?.lucroBruto ?? 0) },
-          { label: 'Recebido', value: formatCurrency(summary?.valoresPagos ?? 0) },
-          { label: 'A receber', value: formatCurrency(summary?.valoresPendentes ?? 0) },
+          { label: 'Baldes vendidos', value: summary ? String(summary.quantidadeBaldes) : '' },
+          { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
+          { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+          { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
         ]}
         title="OPERAÇÃO"
       />
       <SummaryCard
         rows={[
-          { label: 'Custo dos baldes', value: formatCurrency(summary?.custoTotalBaldes ?? 0) },
-          { label: 'Custo combustível', value: formatCurrency(summary?.custoCombustivel ?? 0) },
-          { label: 'Outros', value: formatCurrency(summary?.custoOutros ?? 0) },
-          { label: 'Luz do período', value: formatCurrency(summary?.custoLuz ?? 0) },
+          { label: 'Custo dos baldes', value: summary ? formatCurrency(summary.custoTotalBaldes) : '' },
+          { label: 'Custo combustível', value: summary ? formatCurrency(summary.custoCombustivel) : '' },
+          { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
+          { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
           {
             label: 'Custo médio de entrega',
-            value: formatCurrency(summary?.custoMedioCombustivelPorEntrega ?? 0),
+            value: summary ? formatCurrency(summary.custoMedioCombustivelPorEntrega) : '',
           },
         ]}
         title="CUSTOS"
       />
       <SummaryCard
         rows={[
-          { label: 'Recebido', value: formatCurrency(summary?.valoresPagos ?? 0) },
-          { label: 'A receber', value: formatCurrency(summary?.valoresPendentes ?? 0) },
-          { label: 'Margem bruta', value: `${(summary?.margemBruta ?? 0).toFixed(1)}%` },
-          { label: 'Margem líquida', value: `${(summary?.margemLiquida ?? 0).toFixed(1)}%` },
+          { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+          { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
+          { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
+          { label: 'Margem líquida', value: summary ? `${summary.margemLiquida.toFixed(1)}%` : '' },
         ]}
         title="RECEBIDO/MARGENS"
       />
       <SummaryCard
         rows={[
-          { label: 'Venda p/ balde', value: formatCurrency(summary?.precoMedioBalde ?? 0) },
-          { label: 'Lucro p/ balde', value: formatCurrency(summary?.lucroLiquidoPorBalde ?? 0) },
-          { label: 'Custo p/ balde', value: formatCurrency(summary?.custoMedioBalde ?? 0) },
+          { label: 'Venda p/ balde', value: summary ? formatCurrency(summary.precoMedioBalde) : '' },
+          { label: 'Lucro p/ balde', value: summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '' },
+          { label: 'Custo p/ balde', value: summary ? formatCurrency(summary.custoMedioBalde) : '' },
         ]}
         title="POR BALDE"
       />

@@ -1,5 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useAuth } from '@/providers';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassBackButton, NativePeriodActionGroup } from '@/components/native';
@@ -13,7 +14,11 @@ import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUti
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useFactorySettings } from '@/hooks/useFactorySettings';
 import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
-import { stockCalculationService } from '@/services/stock';
+import {
+  stockCalculationService,
+  stockPeriodSnapshotCache,
+  type StockPeriodSnapshotCacheEntry,
+} from '@/services/stock';
 import { useAppTheme } from '@/theme';
 import { formatCurrency, normalizeMoney } from '@/utils/data';
 
@@ -41,6 +46,7 @@ function monthEnd(year: number, month: number): string {
 }
 
 export default function StockRoute() {
+  const { user } = useAuth();
   const router = useRouter();
   const { theme } = useAppTheme();
   const currentPeriod = getCurrentHistoryPeriod();
@@ -50,22 +56,50 @@ export default function StockRoute() {
     () => monthEnd(selectedYear, selectedMonth),
     [selectedMonth, selectedYear],
   );
-  const { settings: factorySettings } = useFactorySettings();
-  const { allDeliveries, reload: refreshDeliveries } = useDeliveries({
+  const periodKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const [cachedStockState, setCachedStockState] = useState<{
+    entry: StockPeriodSnapshotCacheEntry | null;
+    period: string;
+  }>(() => ({
+    entry: user?.id ? stockPeriodSnapshotCache.getMemory(user.id, periodKey) : null,
+    period: periodKey,
+  }));
+  const cachedStock = cachedStockState.period === periodKey ? cachedStockState.entry : null;
+  const { isHydrated: factorySettingsHydrated, settings: factorySettings } = useFactorySettings();
+  const { allDeliveries, loading: deliveriesLoading, reload: refreshDeliveries } = useDeliveries({
     endDate: periodEnd,
     mode: 'all',
   });
-  const { receipts, refresh: refreshPurchases } = useFactoryPurchases({
+  const { loading: purchasesLoading, receipts, refresh: refreshPurchases } = useFactoryPurchases({
     endDate: periodEnd,
     period: 'all',
   });
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) {
+      return () => undefined;
+    }
+
+    void stockPeriodSnapshotCache.read(user.id, periodKey).then((entry) => {
+      if (active) setCachedStockState({ entry, period: periodKey });
+    });
+    return () => {
+      active = false;
+    };
+  }, [periodKey, user?.id]);
+  const hasFocused = useRef(false);
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocused.current) {
+        hasFocused.current = true;
+        return undefined;
+      }
       void refreshDeliveries();
       void refreshPurchases();
+      return undefined;
     }, [refreshDeliveries, refreshPurchases]),
   );
-  const stockSummary = useMemo(
+  const calculatedStockSummary = useMemo(
     () =>
       stockCalculationService.calculate({
         deliveries: allDeliveries,
@@ -76,10 +110,33 @@ export default function StockRoute() {
     [allDeliveries, receipts, selectedMonth, selectedYear],
   );
   const bucketCost = normalizeMoney(factorySettings.bucketCost) ?? 0;
-  const stockValue = stockCalculationService.calculateStockValue(
-    stockSummary.endingBuckets,
-    bucketCost,
-  );
+  const cacheMatchesSettings =
+    cachedStock === null ||
+    !factorySettingsHydrated ||
+    cachedStock.bucketCost === bucketCost;
+  const sourcesReady =
+    !deliveriesLoading && !purchasesLoading && factorySettingsHydrated;
+  const stockSummary = sourcesReady
+    ? calculatedStockSummary
+    : cacheMatchesSettings
+      ? cachedStock?.summary ?? null
+      : null;
+  const stockValue = stockSummary
+    ? sourcesReady
+      ? stockCalculationService.calculateStockValue(stockSummary.endingBuckets, bucketCost)
+      : cachedStock?.stockValue ?? null
+    : null;
+
+  useEffect(() => {
+    if (!user?.id || !sourcesReady) return;
+    const value = stockCalculationService.calculateStockValue(
+      calculatedStockSummary.endingBuckets,
+      bucketCost,
+    );
+    void stockPeriodSnapshotCache
+      .write(user.id, periodKey, calculatedStockSummary, bucketCost, value)
+      .catch(() => undefined);
+  }, [bucketCost, calculatedStockSummary, periodKey, sourcesReady, user?.id]);
 
   const header = (
     <NativeGlassHeader
@@ -122,37 +179,37 @@ export default function StockRoute() {
           },
         ]}
       >
-        <StockSummaryRow label="Saldo anterior" value={stockSummary.openingBuckets} />
-        <StockSummaryRow label="Baldes Comprados" value={stockSummary.purchasedBuckets} />
-        <StockSummaryRow label="Baldes Vendidos" value={stockSummary.deliveredBuckets} />
-        <StockSummaryRow label="Estoque Atual" value={stockSummary.endingBuckets} />
+        <StockSummaryRow label="Saldo anterior" value={stockSummary?.openingBuckets ?? null} />
+        <StockSummaryRow label="Baldes Comprados" value={stockSummary?.purchasedBuckets ?? null} />
+        <StockSummaryRow label="Baldes Vendidos" value={stockSummary?.deliveredBuckets ?? null} />
+        <StockSummaryRow label="Estoque Atual" value={stockSummary?.endingBuckets ?? null} />
         <StockValueRow label="Valor do estoque" value={stockValue} />
       </GlassCard>
     </PremiumScreen>
   );
 }
 
-function StockSummaryRow({ label, value }: { label: string; value: number }) {
+function StockSummaryRow({ label, value }: { label: string; value: number | null }) {
   const { theme } = useAppTheme();
 
   return (
     <View style={styles.summaryRow}>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-        {value} {value === 1 ? 'balde' : 'baldes'}
+        {value === null ? '' : `${value} ${value === 1 ? 'balde' : 'baldes'}`}
       </Text>
     </View>
   );
 }
 
-function StockValueRow({ label, value }: { label: string; value: number }) {
+function StockValueRow({ label, value }: { label: string; value: number | null }) {
   const { theme } = useAppTheme();
 
   return (
     <View style={styles.summaryRow}>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-        {formatCurrency(value)}
+        {value === null ? '' : formatCurrency(value)}
       </Text>
     </View>
   );

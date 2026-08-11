@@ -9,6 +9,7 @@ import { firestoreDailyMonthlyDataSource, type DailyMonthlyQuery } from '@/servi
 import { loadAppData } from '@/services/data';
 import type { UserDataSnapshot } from '@/services/data';
 import { firestoreDeliveryDataSource, deliveryQueryService } from '@/services/deliveries';
+import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import type { DeliveryFilters } from '@/types/data';
 
 type UseFinancialDataOptions = {
@@ -24,17 +25,33 @@ export function useFinancialData(
   const userId = user?.id;
   const enabled = options.enabled ?? true;
   const displayMonth = options.displayMonth;
-  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(null);
-  const [comparisonSnapshot, setComparisonSnapshot] = useState<UserDataSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | undefined>();
-  const loadVersion = useRef(0);
-  const snapshotRef = useRef<UserDataSnapshot | null>(null);
-  const snapshotScopeRef = useRef<string | undefined>(undefined);
   const queryKey = JSON.stringify(query);
   const snapshotScopeKey = displayMonth ?? queryKey;
   const stableQuery = useMemo(() => JSON.parse(queryKey) as DailyMonthlyQuery, [queryKey]);
+  const initialCacheEntry =
+    userId && displayMonth ? financialPeriodSnapshotCache.getMemory(userId, displayMonth) : null;
+  const initialCachedSnapshot = initialCacheEntry
+    ? scopeSnapshotToDisplayMonth(initialCacheEntry.snapshot, displayMonth)
+    : null;
+  const hasInitialCachedSnapshot =
+    initialCachedSnapshot !== null &&
+    snapshotsEquivalent(initialCachedSnapshot, initialCacheEntry?.snapshot ?? initialCachedSnapshot);
+  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(
+    hasInitialCachedSnapshot ? initialCachedSnapshot : null,
+  );
+  const [comparisonSnapshot, setComparisonSnapshot] = useState<UserDataSnapshot | null>(
+    hasInitialCachedSnapshot ? initialCacheEntry?.comparisonSnapshot ?? null : null,
+  );
+  const [loading, setLoading] = useState(!hasInitialCachedSnapshot);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const loadVersion = useRef(0);
+  const snapshotRef = useRef<UserDataSnapshot | null>(
+    hasInitialCachedSnapshot ? initialCachedSnapshot : null,
+  );
+  const snapshotScopeRef = useRef<string | undefined>(
+    hasInitialCachedSnapshot ? snapshotScopeKey : undefined,
+  );
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -48,11 +65,35 @@ export function useFinancialData(
       if (isRefresh) setRefreshing(true);
       else if (snapshotRef.current === null || snapshotScopeRef.current !== snapshotScopeKey) {
         setLoading(true);
+        snapshotRef.current = null;
+        snapshotScopeRef.current = undefined;
+        setSnapshot(null);
+        setComparisonSnapshot(null);
       }
       setError(undefined);
 
       try {
-        const baseSnapshot = await loadAppData(userId);
+        const cachedEntryPromise = displayMonth
+          ? financialPeriodSnapshotCache.read(userId, displayMonth)
+          : Promise.resolve(null);
+        const baseSnapshotPromise = loadAppData(userId);
+        const cachedEntry = await cachedEntryPromise;
+        if (cachedEntry && isCurrent()) {
+          const cachedSnapshot = scopeSnapshotToDisplayMonth(
+            cachedEntry.snapshot,
+            displayMonth,
+          );
+          if (snapshotsEquivalent(cachedSnapshot, cachedEntry.snapshot)) {
+            snapshotRef.current = cachedSnapshot;
+            snapshotScopeRef.current = snapshotScopeKey;
+            setSnapshot(cachedSnapshot);
+            setComparisonSnapshot(cachedEntry.comparisonSnapshot);
+            setLoading(false);
+            setRefreshing(true);
+          }
+        }
+
+        const baseSnapshot = await baseSnapshotPromise;
         if (!isCurrent()) return;
 
         const deliveryFilters = deliveryFiltersForQuery(stableQuery);
@@ -63,6 +104,7 @@ export function useFinancialData(
           ? { ...localSnapshot, entregas: [] }
           : localSnapshot;
         let latestSourceSnapshot = initialSourceSnapshot;
+        let remoteDataComplete = true;
         const publishSnapshot = (sourceSnapshot: UserDataSnapshot) => {
           latestSourceSnapshot = sourceSnapshot;
           const visibleSnapshot = scopeSnapshotToDisplayMonth(sourceSnapshot, displayMonth);
@@ -75,13 +117,6 @@ export function useFinancialData(
             current && snapshotsEquivalent(current, visibleSnapshot) ? current : visibleSnapshot,
           );
         };
-        const hasKnownSnapshotForScope =
-          snapshotRef.current !== null && snapshotScopeRef.current === snapshotScopeKey;
-        if (!hasKnownSnapshotForScope || !awaitingRemoteDeliveries) {
-          publishSnapshot(initialSourceSnapshot);
-        }
-        setLoading(false);
-
         if (ENABLE_FIRESTORE_CLIENTS_DELIVERIES && deliveryFilters) {
           try {
             const deliveries = await firestoreDeliveryDataSource.load(userId, deliveryFilters);
@@ -93,7 +128,10 @@ export function useFinancialData(
           } catch (remoteError) {
             if (__DEV__)
               console.warn('[useFinancialData] Firestore deliveries fallback local.', remoteError);
-            if (isCurrent()) publishSnapshot(localSnapshot);
+            if (isCurrent()) {
+              latestSourceSnapshot = localSnapshot;
+              remoteDataComplete = false;
+            }
           }
         }
 
@@ -108,7 +146,28 @@ export function useFinancialData(
             });
           } catch (remoteError) {
             if (__DEV__) console.warn('[useFinancialData] Firestore fallback local.', remoteError);
+            remoteDataComplete = false;
           }
+        }
+
+        if (isCurrent()) {
+          publishSnapshot(latestSourceSnapshot);
+          if (displayMonth && remoteDataComplete) {
+            const visibleSnapshot = scopeSnapshotToDisplayMonth(
+              latestSourceSnapshot,
+              displayMonth,
+            );
+            void financialPeriodSnapshotCache
+              .write(userId, displayMonth, visibleSnapshot, latestSourceSnapshot)
+              .catch((cacheError) => {
+                if (__DEV__)
+                  console.warn(
+                    '[useFinancialData] Financial period cache write failed.',
+                    cacheError,
+                  );
+              });
+          }
+          setLoading(false);
         }
       } catch (loadError) {
         if (!isCurrent()) return;

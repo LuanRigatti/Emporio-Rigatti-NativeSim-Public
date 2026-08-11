@@ -27,17 +27,22 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     [stableFilters],
   );
   const [receipts, setReceipts] = useState<FactoryReceipt[]>(() => readFilteredReceipts());
+  const filterKey = JSON.stringify(stableFilters);
+  const [loadedFilterKey, setLoadedFilterKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (factoryReceiptDataSource.mode === 'firebase' && authStatus === 'loading') return;
     let active = true;
     void factoryReceiptDataSource.restore(user?.id, stableFilters).then(() => {
-      if (active) setReceipts(readFilteredReceipts());
+      if (active) {
+        setReceipts(readFilteredReceipts());
+        setLoadedFilterKey(filterKey);
+      }
     });
     return () => {
       active = false;
     };
-  }, [authStatus, readFilteredReceipts, stableFilters, user?.id]);
+  }, [authStatus, filterKey, readFilteredReceipts, stableFilters, user?.id]);
 
   const refresh = useCallback(async () => {
     await factoryReceiptDataSource.restore(user?.id, stableFilters);
@@ -90,5 +95,8 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     receipts,
     refresh,
     removePayment,
+    loading:
+      (factoryReceiptDataSource.mode === 'firebase' && authStatus === 'loading') ||
+      loadedFilterKey !== filterKey,
   };
 }

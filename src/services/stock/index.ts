@@ -14,3 +14,8 @@ export {
   type StockCalculationInput,
   type StockPeriodSummary,
 } from './StockCalculationService';
+export {
+  stockPeriodSnapshotCache,
+  StockPeriodSnapshotCache,
+  type StockPeriodSnapshotCacheEntry,
+} from './StockPeriodSnapshotCache';

@@ -4,6 +4,11 @@ import { createElement } from 'react';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import type { UserDataSnapshot } from '@/services/data';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
+}));
+
 const mockLoadAppData = jest.fn();
 const mockLoadCosts = jest.fn();
 const mockLoadDeliveries = jest.fn();

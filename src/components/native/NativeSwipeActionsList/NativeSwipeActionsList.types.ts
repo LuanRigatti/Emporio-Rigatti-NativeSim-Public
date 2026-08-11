@@ -2,7 +2,7 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 
 export type NativeSwipeActionsListItem = {
   id: string;
-  overline: string;
+  overline?: string;
   title: string;
   titleBold?: boolean;
   subtitle: string;
@@ -34,5 +34,6 @@ export type NativeSwipeActionsListProps = {
   onItemPress?: (id: string) => void;
   onDelete: (id: string) => void;
   action?: NativeSwipeActionsListAction;
+  compact?: boolean;
   trailingValueAlignment?: 'center' | 'top';
 };

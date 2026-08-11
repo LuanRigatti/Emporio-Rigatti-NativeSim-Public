@@ -41,7 +41,6 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
 import {
-  NATIVE_SHEET_CARD_BACKGROUND,
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
 } from '../nativeSheetBackground';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
@@ -127,7 +126,7 @@ export default function NativeBottomSheetSwiftUI({
           frame({ maxWidth: Infinity, alignment: 'leading' }),
           padding({ horizontal: 8, vertical: 8 }),
           background(
-            NATIVE_SHEET_CARD_BACKGROUND,
+            '#f2f2f5',
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}
@@ -241,7 +240,7 @@ export default function NativeBottomSheetSwiftUI({
           frame({ maxWidth: Infinity, alignment: 'trailing' }),
           padding({ top: 8, trailing: 12, bottom: 12 }),
           background(
-            NATIVE_SHEET_CARD_BACKGROUND,
+            '#f2f2f5',
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}

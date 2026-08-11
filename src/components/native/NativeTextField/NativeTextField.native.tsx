@@ -1,18 +1,16 @@
-import { useCallback } from 'react';
+import type { ComponentType } from 'react';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
-import { useLazyNativeImplementation } from '@/platform/useLazyNativeImplementation';
 
 import NativeTextFieldExpo from './NativeTextField.expo';
 import type { NativeTextFieldProps } from './NativeTextField.types';
 
 export default function NativeTextFieldNative(props: NativeTextFieldProps) {
   const canUseExpoUI = getNativeCapabilities().canUseExpoUI;
-  const loadImplementation = useCallback(
-    () => import('./NativeTextFieldSwiftUI.ios').then((module) => module.default),
-    [],
-  );
-  const NativeImplementation = useLazyNativeImplementation(canUseExpoUI, loadImplementation);
+  const NativeImplementation = canUseExpoUI
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('./NativeTextFieldSwiftUI.ios').default as ComponentType<NativeTextFieldProps>)
+    : null;
 
   return NativeImplementation ? (
     <NativeImplementation {...props} />

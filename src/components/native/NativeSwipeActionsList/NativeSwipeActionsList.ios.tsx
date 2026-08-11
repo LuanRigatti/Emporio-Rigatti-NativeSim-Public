@@ -4,7 +4,6 @@ import {
   HStack,
   Host,
   Image,
-  List,
   Spacer,
   Text,
   VStack,
@@ -17,10 +16,7 @@ import {
   listRowBackground,
   listRowInsets,
   listRowSeparator,
-  listRowSpacing,
-  listStyle,
   padding,
-  scrollContentBackground,
   shapes,
   strokeBorder,
   tint,
@@ -33,6 +29,7 @@ import type {
 import { roundedFont } from '../nativeTypography';
 
 const ROW_HEIGHT = 92;
+const COMPACT_ROW_HEIGHT = 74;
 const ROW_SPACING = 8;
 
 function SelectionIndicator({
@@ -103,14 +100,16 @@ function DeliveryRow({
               padding({ top: 13, bottom: 13 }),
             ]}
           >
-            <Text
-              modifiers={[
-                roundedFont({ textStyle: 'caption' }),
-                foregroundStyle(colors.textSecondary),
-              ]}
-            >
-              {item.overline}
-            </Text>
+            {item.overline ? (
+              <Text
+                modifiers={[
+                  roundedFont({ textStyle: 'caption' }),
+                  foregroundStyle(colors.textSecondary),
+                ]}
+              >
+                {item.overline}
+              </Text>
+            ) : null}
             <HStack
               alignment={trailingValueAlignment}
               spacing={0}
@@ -184,25 +183,22 @@ export default function NativeSwipeActionsList({
   onItemPress,
   onDelete,
   action = { label: 'Excluir', role: 'destructive', systemImage: 'trash' },
+  compact = false,
   trailingValueAlignment = 'center',
 }: NativeSwipeActionsListProps) {
+  const rowHeight = compact ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
+
   return (
     <Host
       style={{
         width: '100%',
         height: Math.max(
-          ROW_HEIGHT,
-          items.length * ROW_HEIGHT + Math.max(0, items.length - 1) * ROW_SPACING,
+          rowHeight,
+          items.length * rowHeight + Math.max(0, items.length - 1) * ROW_SPACING,
         ),
       }}
     >
-      <List
-        modifiers={[
-          listStyle('plain'),
-          listRowSpacing(ROW_SPACING),
-          scrollContentBackground('hidden'),
-        ]}
-      >
+      <VStack alignment="leading" spacing={ROW_SPACING}>
         {items.map((item) => (
           <DeliveryRow
             key={item.id}
@@ -216,7 +212,7 @@ export default function NativeSwipeActionsList({
             trailingValueAlignment={trailingValueAlignment}
           />
         ))}
-      </List>
+      </VStack>
     </Host>
   );
 }

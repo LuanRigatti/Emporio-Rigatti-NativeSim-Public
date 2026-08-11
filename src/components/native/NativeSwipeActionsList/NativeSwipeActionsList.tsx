@@ -8,6 +8,7 @@ export default function NativeSwipeActionsList({
   isSelectionMode = false,
   selectedIds,
   onItemPress,
+  compact = false,
 }: NativeSwipeActionsListProps) {
   return (
     <View>
@@ -16,9 +17,13 @@ export default function NativeSwipeActionsList({
           key={item.id}
           disabled={!isSelectionMode && !onItemPress}
           onPress={() => onItemPress?.(item.id)}
-          style={styles.row}
+          style={[styles.row, compact && styles.compactRow]}
         >
-          <Text style={[styles.overline, { color: colors.textSecondary }]}>{item.overline}</Text>
+          {item.overline ? (
+          <Text style={[styles.overline, { color: colors.textSecondary }]}>
+              {item.overline}
+            </Text>
+          ) : null}
           <View style={styles.summary}>
             <View style={styles.leading}>
               {isSelectionMode ? (
@@ -62,6 +67,7 @@ export default function NativeSwipeActionsList({
 
 const styles = StyleSheet.create({
   row: { gap: 8, paddingVertical: 8 },
+  compactRow: { paddingVertical: 4 },
   overline: { fontSize: 12, lineHeight: 16 },
   summary: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   leading: { alignItems: 'center', flexDirection: 'row', gap: 12 },

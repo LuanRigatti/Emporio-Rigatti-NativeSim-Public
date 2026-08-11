@@ -7,6 +7,7 @@ import type {
   PaymentMethod,
 } from '@/types/data';
 import { deliveryQueryService } from './DeliveryQueryService';
+import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 
 import { createDeliveryFromDraft } from './deliveryRecord';
 import { mockDeliveryDataSource } from './DeliveryDataSource';
@@ -198,6 +199,7 @@ export class FirestoreDeliveryDataSource {
     const created = { ...delivery, id: reference.id };
     this.records.set(created.id, created);
     this.publish();
+    void financialPeriodSnapshotCache.invalidate(uid, created.data.slice(0, 7));
     return created;
   }
 
@@ -223,14 +225,20 @@ export class FirestoreDeliveryDataSource {
     );
     this.records.set(deliveryId, delivery);
     this.publish();
+    void financialPeriodSnapshotCache.invalidate(uid, delivery.data.slice(0, 7));
+    if (current.data.slice(0, 7) !== delivery.data.slice(0, 7)) {
+      void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
+    }
     return delivery;
   }
 
   public async remove(uid: string, deliveryId: string): Promise<void> {
+    const previous = this.records.get(deliveryId);
     const { deleteDoc, doc } = await import('firebase/firestore');
     await deleteDoc(doc(await collectionFor(uid), deliveryId));
     this.records.delete(deliveryId);
     this.publish();
+    if (previous) void financialPeriodSnapshotCache.invalidate(uid, previous.data.slice(0, 7));
   }
 
   public async toggleDelivered(uid: string, deliveryId: string): Promise<void> {
@@ -242,6 +250,7 @@ export class FirestoreDeliveryDataSource {
     });
     this.records.set(deliveryId, { ...current, entregue: !current.entregue });
     this.publish();
+    void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
   }
 
   public async updateInvoiceStatus(
@@ -257,6 +266,7 @@ export class FirestoreDeliveryDataSource {
     });
     this.records.set(deliveryId, { ...current, invoiceStatus: status });
     this.publish();
+    void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
   }
 
   public async settle(
@@ -279,6 +289,7 @@ export class FirestoreDeliveryDataSource {
           updatedAt: serverTimestamp(),
         });
         this.records.set(id, { ...current, status: 'Pago', metodoPagamento: method });
+        void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
       }),
     );
     this.publish();
@@ -300,6 +311,7 @@ export class FirestoreDeliveryDataSource {
           updatedAt: serverTimestamp(),
         });
         this.records.set(id, { ...current, ...patch });
+        void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
       }),
     );
     this.publish();

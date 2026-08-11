@@ -1,5 +1,6 @@
 import type { DailyExpense, DailyExpenses, MonthlyExpense, MonthlyExpenses } from '@/types/data';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
+import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 
 import type { CostSettings, CostValues } from './CostSettingsStorage';
 
@@ -278,6 +279,7 @@ export class FirestoreDailyMonthlyDataSource {
       data: normalizedDate,
     };
     this.daily.set(normalizedDate, expense);
+    void financialPeriodSnapshotCache.invalidate(uid, normalizedDate.slice(0, 7));
     return expense;
   }
 
@@ -300,6 +302,7 @@ export class FirestoreDailyMonthlyDataSource {
       ...(typeof mapped === 'object' && mapped ? mapped : { luz: mapped }),
     };
     this.monthly.set(normalizedMonth, expense);
+    void financialPeriodSnapshotCache.invalidate(uid, normalizedMonth);
     return expense;
   }
 

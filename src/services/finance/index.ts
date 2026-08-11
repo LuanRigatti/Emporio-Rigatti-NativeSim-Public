@@ -24,6 +24,10 @@ export {
 } from './FinancialPeriodService';
 export { financialSeriesService, FinancialSeriesService } from './FinancialSeriesService';
 export {
+  financialPeriodSnapshotCache,
+  FinancialPeriodSnapshotCache,
+} from './FinancialPeriodSnapshotCache';
+export {
   financialDailyDetailService,
   FinancialDailyDetailService,
   financialMetricValue,

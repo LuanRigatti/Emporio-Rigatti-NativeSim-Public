@@ -41,7 +41,7 @@ export function SettingItem({
           </Text>
         ) : null}
       </View>
-      <View style={styles.trailingIcon}>
+      <View style={[styles.trailingIcon, { width: theme.sizes.iconSmall }]}>
         <SettingsIcon
           color={theme.colors.textTertiary}
           fallbackIcon="chevron-forward"
@@ -86,5 +86,10 @@ const styles = StyleSheet.create({
   row: { alignItems: 'center', flexDirection: 'row', gap: 12, paddingVertical: 12 },
   iconSlot: { alignItems: 'center', justifyContent: 'center', width: 34 },
   content: { flex: 1, gap: 2 },
-  trailingIcon: { marginRight: 8 },
+  trailingIcon: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+    justifyContent: 'center',
+    marginRight: 8,
+  },
 });

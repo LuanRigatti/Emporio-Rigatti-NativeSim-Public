@@ -145,7 +145,7 @@ export default function NativeClientFormSheetSwiftUI({
       <Divider />
       {field('Valor do balde', bucketPriceState, setBucketPrice, 'R$ 0,00', 'decimal-pad')}
       <Divider />
-      <HStack modifiers={[padding({ vertical: 12 })]}>
+      <HStack modifiers={[padding({ trailing: 8, vertical: 12 })]}>
         <Text modifiers={[roundedFont({ size: 15, weight: 'semibold' })]}>
           Usa nota fiscal/boleto
         </Text>

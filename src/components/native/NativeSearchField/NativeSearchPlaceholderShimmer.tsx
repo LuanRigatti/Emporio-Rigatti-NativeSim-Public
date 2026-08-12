@@ -27,6 +27,7 @@ const SEARCH_ICON_SIZE = 18;
 const HSTACK_SPACING = 20;
 const SEARCH_TEXT_SIZE = 18;
 const PLACEHOLDER_LINE_HEIGHT = 23;
+const PLACEHOLDER_TEXT_SHIFT = -16;
 const PLACEHOLDER_LEFT = HSTACK_HORIZONTAL_PADDING + SEARCH_ICON_SIZE + HSTACK_SPACING;
 const PLACEHOLDER_HEIGHT = PLACEHOLDER_LINE_HEIGHT;
 
@@ -131,6 +132,7 @@ export default function NativeSearchPlaceholderShimmer({
             styles.searchText,
             styles.baseText,
             styles.staticText,
+            styles.shiftedText,
             { color: placeholderColor },
           ]}
         >
@@ -144,7 +146,7 @@ export default function NativeSearchPlaceholderShimmer({
             maskElement={
               <Text
                 numberOfLines={1}
-                style={[theme.typography.body, styles.searchText, styles.maskText]}
+                style={[theme.typography.body, styles.searchText, styles.maskText, styles.shiftedText]}
               >
                 {placeholder}
               </Text>
@@ -219,6 +221,9 @@ const styles = StyleSheet.create({
     opacity: 1,
     textAlign: 'center',
     width: '100%',
+  },
+  shiftedText: {
+    transform: [{ translateX: PLACEHOLDER_TEXT_SHIFT }],
   },
   maskText: {
     color: '#000',

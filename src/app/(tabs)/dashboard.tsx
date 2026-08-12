@@ -91,6 +91,15 @@ export default function Home() {
     setSearchResultsVisible(true);
   }, [searchText]);
 
+  const handleSearchSheetVisibilityChange = useCallback((nextVisible: boolean) => {
+    setSearchResultsVisible(nextVisible);
+    if (!nextVisible) {
+      setSearchText('');
+      setSubmittedSearch('');
+      setFocusEntryKey((entryKey) => entryKey + 1);
+    }
+  }, []);
+
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={useNativeHeaderOverlay}
@@ -224,7 +233,7 @@ export default function Home() {
         </View>
       </PremiumScreen>
       <HomeSearchPrototypeSheet
-        onVisibleChange={setSearchResultsVisible}
+        onVisibleChange={handleSearchSheetVisibilityChange}
         query={submittedSearch}
         visible={searchResultsVisible}
       />

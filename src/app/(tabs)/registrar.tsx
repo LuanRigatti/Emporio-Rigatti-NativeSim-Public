@@ -392,7 +392,12 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
         <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
           {todayDeliveries.length > 0 ? (
             <PremiumCard
-              style={[styles.deliveryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              style={[
+                styles.deliveryCard,
+                {
+                  borderRadius: theme.radius.xl + theme.spacing.xl,
+                },
+              ]}
             >
               <NativeSwipeActionsList
                 colors={{

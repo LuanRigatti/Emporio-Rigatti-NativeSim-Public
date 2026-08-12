@@ -34,6 +34,8 @@ import {
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
+import { useAppTheme } from '@/theme';
+
 import {
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
 } from '@/components/native/nativeSheetBackground';
@@ -60,6 +62,8 @@ export default function NativeDailyDataSheetSwiftUI({
   onVisibleChange,
   visible,
 }: NativeDailyDataSheetProps) {
+  const { resolvedMode, theme } = useAppTheme();
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : 'systemGray6';
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
   const estarState = useNativeState(initialValues.estar);
@@ -194,7 +198,7 @@ export default function NativeDailyDataSheetSwiftUI({
             padding({ leading: 24, trailing: 0, vertical: 4 }),
             frame({ maxWidth: Infinity, alignment: 'leading' }),
             background(
-              '#f2f2f5',
+              cardBackground,
               shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
             ),
             padding({ top: 4 }),
@@ -214,7 +218,7 @@ export default function NativeDailyDataSheetSwiftUI({
             frame({ maxWidth: Infinity, alignment: 'trailing' }),
             padding({ top: 8, trailing: 8, bottom: 8 }),
             background(
-              '#f2f2f5',
+              cardBackground,
               shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
             ),
           ]}

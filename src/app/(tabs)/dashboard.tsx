@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { PremiumCard, PremiumScreen } from '@/components/premium';
@@ -30,8 +30,11 @@ function PreviewIcon({
 
 export default function Home() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { theme } = useAppTheme();
   const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
+  const [focusEntryKey, setFocusEntryKey] = useState(0);
+  const wasFocused = useRef(false);
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
   const [searchResultsVisible, setSearchResultsVisible] = useState(false);
@@ -56,6 +59,14 @@ export default function Home() {
     () => pendingDeliveries.length,
     [pendingDeliveries],
   );
+
+  useEffect(() => {
+    if (isFocused && !wasFocused.current) {
+      setFocusEntryKey((currentKey) => currentKey + 1);
+    }
+
+    wasFocused.current = isFocused;
+  }, [isFocused]);
 
   const handleTodayStatusToggle = useCallback(
     (deliveryId: string) => {
@@ -102,7 +113,8 @@ export default function Home() {
             accessibilityLabel="Buscar clientes, entregas e filtros"
             onChangeText={setSearchText}
             onSubmit={handleSearchSubmit}
-            placeholder="Busque clientes, entregas, filtros"
+            placeholder="Busque clientes, entregas e filtros"
+            focusEntryKey={focusEntryKey}
             value={searchText}
           />
         </View>

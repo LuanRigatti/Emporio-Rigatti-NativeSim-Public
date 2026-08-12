@@ -1,17 +1,26 @@
-import { HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
+import {
+  HStack,
+  Host,
+  Image,
+  TextField,
+  type TextFieldRef,
+  useNativeState,
+} from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   animation,
   Animation,
   frame,
   glassEffect,
+  multilineTextAlignment,
   onSubmit as onSubmitModifier,
+  offset,
   padding,
   strokeBorder,
   submitLabel,
 } from '@expo/ui/swift-ui/modifiers';
 import { PlatformColor } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { roundedFont } from '../nativeTypography';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
@@ -25,7 +34,12 @@ export default function NativeSearchFieldSwiftUI({
   value,
 }: NativeSearchFieldProps) {
   const text = useNativeState(value);
+  const textFieldRef = useRef<TextFieldRef>(null);
   const [focused, setFocused] = useState(false);
+
+  const moveCursorToStart = () => {
+    void textFieldRef.current?.setSelection(0, 0);
+  };
 
   useEffect(() => {
     text.set(value);
@@ -34,7 +48,7 @@ export default function NativeSearchFieldSwiftUI({
   return (
     <Host style={{ minHeight: 36, width: '100%' }}>
       <HStack
-        spacing={8}
+        spacing={20}
         modifiers={[
           frame({ maxWidth: 1000, minHeight: 36 }),
           padding({ horizontal: 12, vertical: 8 }),
@@ -51,17 +65,27 @@ export default function NativeSearchFieldSwiftUI({
           accessibilityLabel(label ?? 'Pesquisar'),
         ]}
       >
-        <Image color="#8B8B93" size={18} systemName="magnifyingglass" />
+        <Image
+          color="#8B8B93"
+          modifiers={[offset({ x: 12 })]}
+          size={18}
+          systemName="magnifyingglass"
+        />
         <TextField
           axis="horizontal"
           modifiers={[
-            roundedFont({ textStyle: 'body' }),
+            roundedFont({ size: 18 }),
             frame({ maxWidth: 1000 }),
+            multilineTextAlignment('leading'),
             submitLabel('search'),
             onSubmitModifier(() => onSubmit?.()),
           ]}
+          ref={textFieldRef}
           onFocusChange={(nextFocused) => {
             setFocused(nextFocused);
+            if (nextFocused) {
+              moveCursorToStart();
+            }
             onFocusChange?.(nextFocused);
           }}
           onTextChange={onChangeText}

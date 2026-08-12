@@ -21,10 +21,6 @@ import { todayIso } from '@/utils/data';
 
 export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   const { user } = useAuth();
-  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | undefined>();
   const firestoreEnabled = ENABLE_FIRESTORE_CLIENTS_DELIVERIES;
   const filterSignature = JSON.stringify(filters);
   const stableFilters = useMemo(() => filters, [filterSignature]);
@@ -38,6 +34,14 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     }),
     [],
   );
+  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(() =>
+    firestoreEnabled
+      ? emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters))
+      : null,
+  );
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | undefined>();
 
   const load = useCallback(
     async (isRefresh = false) => {

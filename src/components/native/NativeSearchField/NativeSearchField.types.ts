@@ -5,4 +5,6 @@ export type NativeSearchFieldProps = {
   onSubmit?: () => void;
   placeholder?: string;
   accessibilityLabel?: string;
+  /** Changes only when the owning route enters focus, not on ordinary renders. */
+  focusEntryKey?: number;
 };

@@ -1,13 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
@@ -46,13 +39,13 @@ function toOpenPaymentItem(delivery: Delivery): OpenPaymentPreview {
 
 export function OpenPaymentsScreen() {
   const router = useRouter();
-  const { reduceMotionEnabled, theme } = useAppTheme();
+  const { theme } = useAppTheme();
   const {
     deliveries,
     editMany,
     reload: refresh,
   } = useDeliveries({ mode: 'all', status: 'Não Pago' });
-  const entrance = useSharedValue(0);
+  const hasMountedRef = useRef(false);
   const paymentItems = useMemo(
     () =>
       deliveries.map(toOpenPaymentItem),
@@ -62,7 +55,10 @@ export function OpenPaymentsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void refresh();
+      if (hasMountedRef.current) {
+        void refresh();
+      }
+      hasMountedRef.current = true;
     }, [refresh]),
   );
 
@@ -73,20 +69,6 @@ export function OpenPaymentsScreen() {
     },
     [editMany],
   );
-
-  useEffect(() => {
-    entrance.value = withTiming(1, {
-      duration: reduceMotionEnabled
-        ? theme.animations.duration.instant
-        : theme.animations.duration.standard,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [entrance, reduceMotionEnabled, theme]);
-
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: entrance.value,
-    transform: [{ translateY: interpolate(entrance.value, [0, 1], [theme.spacing.md, 0]) }],
-  }));
 
   const header = (
     <NativeGlassHeader
@@ -113,7 +95,7 @@ export function OpenPaymentsScreen() {
       overlayHeader={header}
       progressiveBlur
     >
-      <Animated.View style={[styles.content, contentStyle, { marginTop: theme.spacing.xxl }]}>
+      <View style={[styles.content, { marginTop: theme.spacing.xxl }]}>
         <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
           {paymentGroups.map((group) => (
             <View key={group.date} style={styles.dateGroup}>
@@ -164,7 +146,7 @@ export function OpenPaymentsScreen() {
             </View>
           </GlassCard>
         </View>
-      </Animated.View>
+      </View>
     </PremiumScreen>
   );
 }

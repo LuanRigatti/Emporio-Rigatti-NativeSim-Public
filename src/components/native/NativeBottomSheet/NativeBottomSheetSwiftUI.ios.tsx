@@ -42,6 +42,8 @@ import {
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
+import { useAppTheme } from '@/theme';
+
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
 import {
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
@@ -63,6 +65,8 @@ export default function NativeBottomSheetSwiftUI({
   initialQuantity,
   initialDetent,
 }: NativeBottomSheetProps) {
+  const { resolvedMode, theme } = useAppTheme();
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : 'systemGray6';
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
@@ -131,7 +135,7 @@ export default function NativeBottomSheetSwiftUI({
           frame({ maxWidth: Infinity, alignment: 'leading' }),
           padding({ horizontal: 8, vertical: 8 }),
           background(
-            '#f2f2f5',
+            cardBackground,
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}
@@ -255,7 +259,7 @@ export default function NativeBottomSheetSwiftUI({
           frame({ maxWidth: Infinity, alignment: 'trailing' }),
           padding({ top: 8, trailing: 12, bottom: 12 }),
           background(
-            '#f2f2f5',
+            cardBackground,
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}

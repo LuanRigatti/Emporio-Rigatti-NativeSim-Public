@@ -1,8 +1,5 @@
-/**
- * Biometric unlock is prepared but intentionally disabled until the login flow
- * is explicitly migrated to use it.
- */
-export const ENABLE_BIOMETRIC_UNLOCK = false;
+/** Enables the local biometric gate after Firebase restores the session. */
+export const ENABLE_BIOMETRIC_UNLOCK = true;
 
 /**
  * Enables the prepared ProgressiveBlur layer on the Home screen.

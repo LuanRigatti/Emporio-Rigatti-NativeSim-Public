@@ -140,6 +140,12 @@ export function SettingsScreen() {
             title="Estoque"
           />
           <SettingItem
+            fallbackIcon="finger-print-outline"
+            onPress={() => router.push('/face-id')}
+            systemName="faceid"
+            title="Face ID"
+          />
+          <SettingItem
             fallbackIcon="archive-outline"
             onPress={() => router.push('/backup')}
             systemName="externaldrive"

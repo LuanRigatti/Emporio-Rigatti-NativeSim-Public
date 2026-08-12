@@ -122,6 +122,7 @@ export function OpenPaymentsScreen() {
                   id: item.id,
                   subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
                   title: item.client,
+                  titleBold: true,
                   trailingText: item.amount,
                 }))}
                   compact
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
   clientList: { width: '100%' },
-  clientCard: { padding: 16 },
+  clientCard: { paddingHorizontal: 16, paddingVertical: 0 },
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },
   totalCard: { padding: 16 },

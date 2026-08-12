@@ -8,9 +8,11 @@ import type {
 } from '@/types/data';
 import { deliveryQueryService } from './DeliveryQueryService';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
+import { todayIso } from '@/utils/data';
 
 import { createDeliveryFromDraft } from './deliveryRecord';
 import { mockDeliveryDataSource } from './DeliveryDataSource';
+import { firestoreDeliveryCacheService } from './FirestoreDeliveryCacheService';
 
 type FirestoreDeliveryDocument = {
   clientId: string;
@@ -84,6 +86,7 @@ export class FirestoreDeliveryDataSource {
   public isUsingLocalFallback = false;
   private readonly records = new Map<string, Delivery>();
   private readonly listeners = new Set<Listener>();
+  private activeUid?: string;
 
   public subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
@@ -110,6 +113,19 @@ export class FirestoreDeliveryDataSource {
     return deliveryQueryService.filter(bounded, filters);
   }
 
+  public async hydrateFromCache(uid: string, date = todayIso()): Promise<boolean> {
+    if (this.activeUid && this.activeUid !== uid) this.records.clear();
+    this.activeUid = uid;
+
+    const cached = await firestoreDeliveryCacheService.read(uid, date);
+    for (const [id, delivery] of this.records) {
+      if (delivery.data === date) this.records.delete(id);
+    }
+    cached?.forEach((delivery) => this.records.set(delivery.id, delivery));
+    this.publish();
+    return cached !== null;
+  }
+
   public async load(uid: string, filters: DeliveryFilters): Promise<Delivery[]> {
     if (filters.clientIds && filters.clientIds.length === 0) {
       return [];
@@ -118,15 +134,18 @@ export class FirestoreDeliveryDataSource {
       return [];
     }
     try {
+      if (this.activeUid && this.activeUid !== uid) this.records.clear();
+      this.activeUid = uid;
       const { doc, getDoc, getDocs, query, where } = await import('firebase/firestore');
       const deliveryCollection = await collectionFor(uid);
       const constraints: Parameters<typeof query>[1][] = [];
+      const loaded: Delivery[] = [];
       if (filters.deliveryId) {
         const result = await getDoc(doc(deliveryCollection, filters.deliveryId));
         const mapped = result.exists()
           ? mapDocument(result.id, result.data() as FirestoreDeliveryDocument)
           : null;
-        if (mapped) this.records.set(mapped.id, mapped);
+        if (mapped) loaded.push(mapped);
       } else if (filters.deliveryIds?.length) {
         const results = await Promise.all(
           filters.deliveryIds.map((id) => getDoc(doc(deliveryCollection, id))),
@@ -134,7 +153,7 @@ export class FirestoreDeliveryDataSource {
         results.forEach((result) => {
           if (result.exists()) {
             const mapped = mapDocument(result.id, result.data() as FirestoreDeliveryDocument);
-            this.records.set(mapped.id, mapped);
+            loaded.push(mapped);
           }
         });
       } else {
@@ -168,16 +187,17 @@ export class FirestoreDeliveryDataSource {
         );
         results.forEach((result) => {
           result.docs.forEach((item) => {
-            this.records.set(
-              item.id,
-              mapDocument(item.id, item.data() as FirestoreDeliveryDocument),
-            );
+            loaded.push(mapDocument(item.id, item.data() as FirestoreDeliveryDocument));
           });
         });
       }
+      this.replaceDateRecords(filters);
+      loaded.forEach((delivery) => this.records.set(delivery.id, delivery));
       this.isUsingLocalFallback = false;
       this.publish();
-      return this.getCached(filters);
+      const result = this.getCached(filters);
+      if (filters.date) void this.persistDateCache(uid, filters.date);
+      return result;
     } catch (error) {
       this.isUsingLocalFallback = true;
       throw error;
@@ -197,8 +217,10 @@ export class FirestoreDeliveryDataSource {
     const reference = doc(await collectionFor(uid));
     await setDoc(reference, { ...toDocument(delivery), createdAt: serverTimestamp() });
     const created = { ...delivery, id: reference.id };
+    this.activeUid = uid;
     this.records.set(created.id, created);
     this.publish();
+    void this.persistDateCache(uid, created.data);
     void financialPeriodSnapshotCache.invalidate(uid, created.data.slice(0, 7));
     return created;
   }
@@ -225,6 +247,8 @@ export class FirestoreDeliveryDataSource {
     );
     this.records.set(deliveryId, delivery);
     this.publish();
+    void this.persistDateCache(uid, current.data);
+    if (current.data !== delivery.data) void this.persistDateCache(uid, delivery.data);
     void financialPeriodSnapshotCache.invalidate(uid, delivery.data.slice(0, 7));
     if (current.data.slice(0, 7) !== delivery.data.slice(0, 7)) {
       void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
@@ -238,6 +262,7 @@ export class FirestoreDeliveryDataSource {
     await deleteDoc(doc(await collectionFor(uid), deliveryId));
     this.records.delete(deliveryId);
     this.publish();
+    if (previous) void this.persistDateCache(uid, previous.data);
     if (previous) void financialPeriodSnapshotCache.invalidate(uid, previous.data.slice(0, 7));
   }
 
@@ -250,6 +275,7 @@ export class FirestoreDeliveryDataSource {
     });
     this.records.set(deliveryId, { ...current, entregue: !current.entregue });
     this.publish();
+    void this.persistDateCache(uid, current.data);
     void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
   }
 
@@ -266,6 +292,7 @@ export class FirestoreDeliveryDataSource {
     });
     this.records.set(deliveryId, { ...current, invoiceStatus: status });
     this.publish();
+    void this.persistDateCache(uid, current.data);
     void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
   }
 
@@ -293,6 +320,9 @@ export class FirestoreDeliveryDataSource {
       }),
     );
     this.publish();
+    [...new Set(deliveryIds.map((id) => this.records.get(id)?.data))]
+      .filter((date): date is string => Boolean(date))
+      .forEach((date) => void this.persistDateCache(uid, date));
   }
 
   public async editMany(
@@ -315,6 +345,9 @@ export class FirestoreDeliveryDataSource {
       }),
     );
     this.publish();
+    [...new Set(ids.map((id) => this.records.get(id)?.data))]
+      .filter((date): date is string => Boolean(date))
+      .forEach((date) => void this.persistDateCache(uid, date));
   }
 
   private async ensure(uid: string, id: string): Promise<Delivery> {
@@ -337,6 +370,27 @@ export class FirestoreDeliveryDataSource {
       filters.clientIds?.length ||
       (filters.status && filters.status !== 'Todos'),
     );
+  }
+
+  private replaceDateRecords(filters: DeliveryFilters): void {
+    if (!filters.date && !filters.startDate && !filters.endDate) return;
+
+    for (const [id, delivery] of this.records) {
+      const matchesDate = filters.date
+        ? delivery.data === filters.date
+        : (!filters.startDate || delivery.data >= filters.startDate) &&
+          (!filters.endDate || delivery.data <= filters.endDate);
+      if (matchesDate) this.records.delete(id);
+    }
+  }
+
+  private async persistDateCache(uid: string, date: string): Promise<void> {
+    try {
+      const deliveries = [...this.records.values()].filter((delivery) => delivery.data === date);
+      await firestoreDeliveryCacheService.write(uid, date, deliveries);
+    } catch {
+      // The cache is an optimization; Firestore remains the source of truth.
+    }
   }
 
   private publish(): void {

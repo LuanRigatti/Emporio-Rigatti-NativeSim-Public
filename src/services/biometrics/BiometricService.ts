@@ -25,6 +25,14 @@ async function safelyRead<T>(read: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export class BiometricService {
+  public authenticate() {
+    return LocalAuthentication.authenticateAsync({
+      cancelLabel: 'Cancelar',
+      disableDeviceFallback: true,
+      promptMessage: 'Desbloqueie o aplicativo com Face ID',
+    });
+  }
+
   public async getSupport(): Promise<BiometricSupport> {
     const [hasHardware, isEnrolled, authenticationTypes, enrolledLevel] = await Promise.all([
       safelyRead(() => LocalAuthentication.hasHardwareAsync(), false),

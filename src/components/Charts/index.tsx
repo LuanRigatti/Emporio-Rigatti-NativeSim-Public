@@ -213,7 +213,7 @@ function startChartAnimation(progress: { value: number }) {
 
   progress.value = withSequence(
     withTiming(0, { duration: 0 }),
-    withTiming(1, { duration: 600, easing: Easing.inOut(Easing.cubic) }),
+    withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.cubic) }),
   );
 }
 

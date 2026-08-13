@@ -7,7 +7,6 @@ import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeSearchField } from '@/components/native';
-import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
@@ -32,7 +31,6 @@ export default function Home() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { theme } = useAppTheme();
-  const useNativeHeaderOverlay = getNativeCapabilities().canUseExpoUI;
   const [focusEntryKey, setFocusEntryKey] = useState(0);
   const wasFocused = useRef(false);
   const [currentDate, setCurrentDate] = useState(() => todayIso());
@@ -102,22 +100,30 @@ export default function Home() {
 
   const homeHeader = (
     <NativeGlassHeader
-      includeTopSafeArea={useNativeHeaderOverlay}
-      mode={useNativeHeaderOverlay ? 'translucent' : 'transparent'}
+      includeTopSafeArea={false}
+      mode="transparent"
+      largeTitle
       title="Home"
+      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
     />
   );
 
   return (
     <View style={styles.root}>
       <PremiumScreen
-        contentContainerStyle={{ gap: theme.spacing.lg, marginTop: -theme.spacing.xs }}
-        overlayHeader={useNativeHeaderOverlay ? homeHeader : undefined}
+        contentContainerStyle={{
+          gap: theme.spacing.lg,
+          marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs,
+        }}
+        progressiveBlurHeight={
+          theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
+        }
+        progressiveBlurTopOffset={0}
         progressiveBlur
       >
-        {!useNativeHeaderOverlay ? <View style={styles.header}>{homeHeader}</View> : null}
+        <View style={styles.header}>{homeHeader}</View>
 
-        <View style={{ marginBottom: theme.spacing.xs, marginTop: -theme.spacing.xs }}>
+        <View style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.xs }}>
           <NativeSearchField
             accessibilityLabel="Buscar clientes, entregas e filtros"
             onChangeText={setSearchText}
@@ -127,12 +133,6 @@ export default function Home() {
             value={searchText}
           />
         </View>
-
-        <TodayDeliveriesCard
-          deliveries={todayDeliveries}
-          onDelete={handleTodayDeliveryDelete}
-          onToggleStatus={handleTodayStatusToggle}
-        />
 
         {/* <PremiumCard
           style={{
@@ -231,6 +231,12 @@ export default function Home() {
             </View>
           </PremiumCard>
         </View>
+
+        <TodayDeliveriesCard
+          deliveries={todayDeliveries}
+          onDelete={handleTodayDeliveryDelete}
+          onToggleStatus={handleTodayStatusToggle}
+        />
       </PremiumScreen>
       <HomeSearchPrototypeSheet
         onVisibleChange={handleSearchSheetVisibilityChange}

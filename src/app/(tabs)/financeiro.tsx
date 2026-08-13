@@ -85,40 +85,54 @@ export default function PrototypeFinanceiro() {
         ? theme.colors.success
         : theme.colors.danger;
 
+  const periodActions = (
+    <NativePeriodActionGroup
+      color={theme.colors.textPrimary}
+      monthDisplayValue={monthShortLabel(selectedMonth)}
+      monthItems={HISTORY_MONTH_ITEMS}
+      onMonthChange={setSelectedMonth}
+      onYearChange={setSelectedYear}
+      selectedMonth={selectedMonth}
+      selectedYear={selectedYear}
+      showValues
+      valueFontSize={17}
+      yearItems={getHistoryYearItems()}
+    />
+  );
+
   const header = (
     <NativeGlassHeader
-      rightActions={
-        <NativePeriodActionGroup
-          color={theme.colors.textPrimary}
-          monthDisplayValue={monthShortLabel(selectedMonth)}
-          monthItems={HISTORY_MONTH_ITEMS}
-          onMonthChange={setSelectedMonth}
-          onYearChange={setSelectedYear}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-          showValues
-          valueFontSize={17}
-          yearItems={getHistoryYearItems()}
-        />
-      }
+      includeTopSafeArea
+      largeTitle
       mode="transparent"
-      titleStyle={{ transform: [{ translateX: theme.spacing.lg + theme.spacing.xs }] }}
+      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
       title="Finanças"
+    />
+  );
+  const filterHeader = (
+    <NativeGlassHeader
+      includeTopSafeArea
+      mode="transparent"
+      rightActions={periodActions}
+      title=""
     />
   );
 
   return (
     <PremiumScreen
-      contentContainerStyle={styles.content}
-      overlayHeader={header}
-      overlayHeaderContentOffset={
-        theme.typography.headline.lineHeight +
-        theme.spacing.xl -
-        theme.sizes.touchTargetMinimum +
-        theme.spacing.xxs * 8
+      contentContainerStyle={[
+        styles.content,
+        { marginTop: 0 },
+      ]}
+      overlayHeader={filterHeader}
+      overlayHeaderUnderlay
+      progressiveBlurHeight={
+        theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
       }
+      progressiveBlurTopOffset={0}
       progressiveBlur
     >
+      <View style={styles.header}>{header}</View>
       <PremiumCard
         accessibilityLabel="Abrir detalhes do faturamento mensal"
         onPress={() => router.push('/faturamento-mensal')}
@@ -228,6 +242,7 @@ function formatCurrency(value: number): string {
 
 const styles = StyleSheet.create({
   content: { gap: 24 },
+  header: { minHeight: 44 },
   heroCard: { gap: 8, padding: 24 },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   heroTitle: { alignItems: 'center', flexDirection: 'row', gap: 4 },

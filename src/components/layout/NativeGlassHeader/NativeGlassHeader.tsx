@@ -42,10 +42,15 @@ export function NativeGlassHeader({
     >
       <NativeGlassHeaderBackground mode={mode} />
       <View style={[styles.topRow, { minHeight: theme.sizes.touchTargetMinimum }]}>
-        <View style={[styles.actions, { minWidth: theme.sizes.touchTargetMinimum }]}>
+        <View
+          style={[
+            styles.actions,
+            { minWidth: largeTitle && !leftActions ? 0 : theme.sizes.touchTargetMinimum },
+          ]}
+        >
           {leftActions}
         </View>
-        <View style={styles.titleContainer}>
+        <View style={[styles.titleContainer, largeTitle ? styles.largeTitleContainer : undefined]}>
           <Text
             numberOfLines={1}
             style={[
@@ -70,7 +75,7 @@ export function NativeGlassHeader({
           style={[
             styles.actions,
             styles.trailingActions,
-            { minWidth: theme.sizes.touchTargetMinimum },
+            { minWidth: largeTitle && !rightActions ? 0 : theme.sizes.touchTargetMinimum },
           ]}
         >
           {rightActions}
@@ -107,6 +112,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     paddingHorizontal: 8,
+  },
+  largeTitleContainer: {
+    alignItems: 'flex-start',
+    paddingHorizontal: 0,
   },
   largeTitle: {
     alignSelf: 'flex-start',

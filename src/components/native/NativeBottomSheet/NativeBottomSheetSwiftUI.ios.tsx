@@ -66,7 +66,7 @@ export default function NativeBottomSheetSwiftUI({
   initialDetent,
 }: NativeBottomSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : 'systemGray6';
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');

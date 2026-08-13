@@ -1,6 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
 import SettingsIcon from './SettingsIcon';
@@ -12,15 +11,19 @@ export type SettingItemProps = {
   systemName: SettingsIconProps['systemName'];
   fallbackIcon: SettingsIconProps['fallbackIcon'];
   isLast?: boolean;
+  leadingInset?: number;
   onPress?: () => void;
+  trailingInset?: number;
 };
 
 export function SettingItem({
   description,
   fallbackIcon,
   onPress,
+  leadingInset,
   systemName,
   title,
+  trailingInset = 8,
 }: SettingItemProps) {
   const { theme } = useAppTheme();
   const content = (
@@ -41,7 +44,9 @@ export function SettingItem({
           </Text>
         ) : null}
       </View>
-      <View style={[styles.trailingIcon, { width: theme.sizes.iconSmall }]}>
+      <View
+        style={[styles.trailingIcon, { marginRight: trailingInset, width: theme.sizes.iconSmall }]}
+      >
         <SettingsIcon
           color={theme.colors.textTertiary}
           fallbackIcon="chevron-forward"
@@ -53,32 +58,26 @@ export function SettingItem({
   );
 
   return (
-    <GlassCard
-      style={{
-        borderRadius: theme.radius.xl + theme.spacing.xs,
-        marginHorizontal: -theme.spacing.xs,
-        padding: 0,
-      }}
+    <Pressable
+      accessibilityHint={onPress ? undefined : 'Disponível futuramente'}
+      accessibilityLabel={description ? `${title}, ${description}` : title}
+      accessibilityRole={onPress ? 'button' : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          marginHorizontal: -theme.spacing.xs,
+          minHeight: theme.sizes.touchTargetMinimum + theme.spacing.xs,
+          opacity: pressed ? theme.opacities.pressed : 1,
+          paddingLeft: leadingInset ?? theme.spacing.md,
+          paddingRight: trailingInset,
+          width: '100%',
+        },
+      ]}
     >
-      <Pressable
-        accessibilityHint={onPress ? undefined : 'Disponível futuramente'}
-        accessibilityLabel={description ? `${title}, ${description}` : title}
-        accessibilityRole={onPress ? 'button' : undefined}
-        disabled={!onPress}
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.row,
-          {
-            minHeight: theme.sizes.touchTargetMinimum + theme.spacing.xs,
-            opacity: pressed ? theme.opacities.pressed : 1,
-            paddingLeft: theme.spacing.md,
-            paddingRight: theme.spacing.xs,
-          },
-        ]}
-      >
-        {content}
-      </Pressable>
-    </GlassCard>
+      {content}
+    </Pressable>
   );
 }
 
@@ -90,6 +89,5 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     flexShrink: 0,
     justifyContent: 'center',
-    marginRight: 8,
   },
 });

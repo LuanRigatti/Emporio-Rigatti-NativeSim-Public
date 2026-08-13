@@ -105,7 +105,9 @@ export function FinancialDayDetailCard({ detail, metric }: Props) {
 
   return (
     <View style={styles.container}>
-      <PremiumCard style={styles.headingCard}>
+      <PremiumCard
+        style={[styles.headingCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+      >
         <View style={styles.heading}>
           <View style={[styles.headingIcon, { backgroundColor: theme.colors.selectionSurface }]}>
             <Ionicons
@@ -124,27 +126,25 @@ export function FinancialDayDetailCard({ detail, metric }: Props) {
           </View>
         </View>
       </PremiumCard>
-      <View style={{ gap: theme.spacing.sm }}>
+      <PremiumCard style={[styles.infoCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         {visibleRows.map((row) => (
-          <PremiumCard key={row.label} style={styles.infoCard}>
-            <View style={styles.row}>
-              <View style={styles.labelGroup}>
-                <Ionicons
-                  color={theme.colors.textSecondary}
-                  name={row.icon}
-                  size={theme.sizes.iconSmall}
-                />
-                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                  {row.label}
-                </Text>
-              </View>
-              <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
-                {row.value}
+          <View key={row.label} style={styles.row}>
+            <View style={styles.labelGroup}>
+              <Ionicons
+                color={theme.colors.textSecondary}
+                name={row.icon}
+                size={theme.sizes.iconSmall}
+              />
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                {row.label}
               </Text>
             </View>
-          </PremiumCard>
+            <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
+              {row.value}
+            </Text>
+          </View>
         ))}
-      </View>
+      </PremiumCard>
     </View>
   );
 }
@@ -167,5 +167,10 @@ const styles = StyleSheet.create({
   },
   infoCard: { paddingHorizontal: 16, paddingVertical: 14 },
   labelGroup: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8 },
-  row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  row: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+  },
 });

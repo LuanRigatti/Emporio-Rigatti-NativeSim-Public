@@ -24,63 +24,68 @@ export function TodayDeliveriesCard({
   if (deliveries.length === 0) return null;
 
   return (
-    <View style={[styles.container, { gap: theme.spacing.sm }]}>
-      <PremiumCard
-        accessibilityLabel="Entregas de hoje"
-        style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-      >
-        <View style={styles.header}>
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-            Entregas de hoje
-          </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {`${totalBuckets} ${totalBuckets === 1 ? 'balde' : 'baldes'}`}
-          </Text>
+    <View style={[styles.container, { gap: theme.spacing.md }]}>
+      <View style={styles.header}>
+        <Text
+          style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}
+        >
+          Entregas de hoje
+        </Text>
+        <Text
+          style={[
+            theme.typography.footnote,
+            styles.quantity,
+            { color: theme.colors.textSecondary },
+          ]}
+        >
+          {`${totalBuckets} ${totalBuckets === 1 ? 'balde' : 'baldes'}`}
+        </Text>
+      </View>
+
+      <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+        <View style={{ gap: theme.spacing.xs }}>
+          {deliveries.map((delivery) => (
+            <NativeCardContextMenu
+              actions={[
+                {
+                  destructive: true,
+                  id: 'delete-delivery',
+                  onPress: () => onDelete(delivery.id),
+                  systemImage: 'trash',
+                  title: 'Excluir',
+                },
+              ]}
+              key={delivery.id}
+              style={{ width: '100%' }}
+            >
+              <View style={[styles.row, { padding: theme.spacing.md }]}>
+                <View style={styles.copy}>
+                  <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
+                    {delivery.cliente}
+                  </Text>
+                  <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                    {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
+                  </Text>
+                </View>
+                <DeliveryStatusBadge
+                  onPress={() => onToggleStatus(delivery.id)}
+                  status={delivery.status}
+                />
+              </View>
+            </NativeCardContextMenu>
+          ))}
         </View>
       </PremiumCard>
-
-      {deliveries.map((delivery) => (
-        <NativeCardContextMenu
-          actions={[
-            {
-              destructive: true,
-              id: 'delete-delivery',
-              onPress: () => onDelete(delivery.id),
-              systemImage: 'trash',
-              title: 'Excluir',
-            },
-          ]}
-          key={delivery.id}
-        >
-          <PremiumCard
-            accessibilityLabel={`Entrega de ${delivery.cliente}`}
-            style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-          >
-            <View style={styles.row}>
-              <View style={styles.copy}>
-                <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
-                  {delivery.cliente}
-                </Text>
-                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                  {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
-                </Text>
-              </View>
-              <DeliveryStatusBadge
-                onPress={() => onToggleStatus(delivery.id)}
-                status={delivery.status}
-              />
-            </View>
-          </PremiumCard>
-        </NativeCardContextMenu>
-      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 16 },
-  copy: { flex: 1, gap: 2 },
+  card: { padding: 0 },
+  copy: { flex: 1, gap: 2, marginLeft: 8 },
   container: { width: '100%' },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  quantity: { marginRight: 16 },
   row: { alignItems: 'center', flexDirection: 'row' },
+  title: { marginLeft: 16 },
 });

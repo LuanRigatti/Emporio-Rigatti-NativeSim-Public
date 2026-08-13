@@ -13,6 +13,7 @@ type FirestoreClientDocument = {
   address?: string;
   currentUnitPrice?: number;
   usesInvoice?: boolean;
+  usesBoleto?: boolean;
   archivedAt?: unknown;
   legacyFields?: Record<string, unknown>;
   createdAt?: unknown;
@@ -39,6 +40,7 @@ function documentToModel(record: ClientRecord): ClientModel {
     nome: canonicalName,
     preco: record.currentUnitPrice ?? 0,
     ...(record.usesInvoice === true ? { usesInvoice: true } : {}),
+    ...(record.usesBoleto === true ? { usesBoleto: true } : {}),
   };
 
   return {
@@ -51,6 +53,7 @@ function documentToModel(record: ClientRecord): ClientModel {
     hasIncompleteAddress: !record.address?.trim(),
     currentPrice: record.currentUnitPrice,
     usesInvoice: record.usesInvoice === true,
+    usesBoleto: record.usesBoleto === true,
   };
 }
 
@@ -66,6 +69,7 @@ function snapshotForClients(records: readonly ClientRecord[]): UserDataSnapshot 
             nome: record.name,
             preco: record.currentUnitPrice ?? 0,
             ...(record.usesInvoice === true ? { usesInvoice: true } : {}),
+            ...(record.usesBoleto === true ? { usesBoleto: true } : {}),
           },
         ]),
     ),
@@ -137,9 +141,17 @@ export class FirestoreClientDataSource implements ClientDataSource {
     price: number,
     address: string,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void> {
     if (this.isUsingLocalFallback) {
-      return mockClientDataSource.saveCustomClient(userId, name, price, address, usesInvoice);
+      return mockClientDataSource.saveCustomClient(
+        userId,
+        name,
+        price,
+        address,
+        usesInvoice,
+        usesBoleto,
+      );
     }
     if (!userId) throw new Error('Sessão não disponível.');
     const canonicalName = formatClientName(name);
@@ -160,6 +172,7 @@ export class FirestoreClientDataSource implements ClientDataSource {
       name: canonicalName,
       normalizedName: normalizeClientKey(canonicalName),
       usesInvoice: usesInvoice === true,
+      usesBoleto: usesBoleto === true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -171,9 +184,10 @@ export class FirestoreClientDataSource implements ClientDataSource {
     client: ClientModel,
     price: number,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void> {
     if (this.isUsingLocalFallback) {
-      return mockClientDataSource.updatePrice(userId, client, price, usesInvoice);
+      return mockClientDataSource.updatePrice(userId, client, price, usesInvoice, usesBoleto);
     }
     if (!userId) throw new Error('Sessão não disponível.');
     const normalizedPrice = normalizeMoney(price);
@@ -184,6 +198,7 @@ export class FirestoreClientDataSource implements ClientDataSource {
     await updateDoc(doc(await collectionFor(userId), documentIdForClient(client)), {
       currentUnitPrice: normalizedPrice,
       usesInvoice: usesInvoice ?? client.usesInvoice,
+      usesBoleto: usesBoleto ?? client.usesBoleto,
       updatedAt: serverTimestamp(),
     });
     await this.load(userId);

@@ -1,4 +1,5 @@
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
+import type { StyleProp, ViewStyle } from 'react-native';
 
 import type {
   NativeCardContextMenuAction,
@@ -20,6 +21,7 @@ function toMenuAction(action: NativeCardContextMenuAction): MenuAction {
 export default function NativeCardContextMenu({
   actions,
   children,
+  style,
   title,
 }: NativeCardContextMenuProps) {
   return (
@@ -29,6 +31,7 @@ export default function NativeCardContextMenu({
         actions.find((action) => action.id === nativeEvent.event)?.onPress();
       }}
       shouldOpenOnLongPress
+      style={style as StyleProp<ViewStyle>}
       title={title}
     >
       {children}

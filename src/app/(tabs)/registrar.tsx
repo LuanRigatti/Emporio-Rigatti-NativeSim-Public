@@ -46,15 +46,30 @@ function RegistrarModeSelection() {
   const { theme } = useAppTheme();
   const router = useRouter();
 
-  const header = <NativeGlassHeader mode="transparent" title="Registrar" />;
+  const header = (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
+      title="Registrar"
+    />
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
-        contentContainerStyle={styles.modeSelectionContent}
-        overlayHeader={header}
+        contentContainerStyle={[
+          styles.modeSelectionContent,
+          { marginTop: theme.spacing.xxxl + theme.spacing.xl },
+        ]}
+        progressiveBlurHeight={
+          theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
+        }
+        progressiveBlurTopOffset={0}
         progressiveBlur
       >
+        <View style={styles.header}>{header}</View>
         <View
           style={[
             styles.modeSelection,
@@ -396,6 +411,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                 styles.deliveryCard,
                 {
                   borderRadius: theme.radius.xl + theme.spacing.xl,
+                  paddingVertical: theme.spacing.xxs,
                 },
               ]}
             >
@@ -480,6 +496,7 @@ function DailyDataRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  header: { minHeight: 44 },
   modeSelectionContent: { flexGrow: 1 },
   modeSelection: { flex: 1 },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },

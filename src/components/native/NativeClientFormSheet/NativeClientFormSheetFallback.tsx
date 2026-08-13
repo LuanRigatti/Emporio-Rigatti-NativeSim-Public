@@ -21,6 +21,7 @@ export default function NativeClientFormSheetFallback({
     address: '',
     bucketPrice: '',
     name: '',
+    usesBoleto: false,
     usesInvoice: false,
   });
   const [error, setError] = useState<string>();
@@ -28,7 +29,7 @@ export default function NativeClientFormSheetFallback({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!visible) {
-      setValues({ address: '', bucketPrice: '', name: '', usesInvoice: false });
+      setValues({ address: '', bucketPrice: '', name: '', usesBoleto: false, usesInvoice: false });
       setError(undefined);
     }
   }, [visible]);
@@ -67,13 +68,22 @@ export default function NativeClientFormSheetFallback({
         ))}
         <View style={styles.toggleRow}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            Usa nota fiscal/boleto
+            Usa nota fiscal
           </Text>
           <Switch
             onValueChange={(usesInvoice) =>
               setValues((current) => ({ ...current, usesInvoice }))
             }
             value={values.usesInvoice}
+          />
+        </View>
+        <View style={styles.toggleRow}>
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>Usa boleto</Text>
+          <Switch
+            onValueChange={(usesBoleto) =>
+              setValues((current) => ({ ...current, usesBoleto }))
+            }
+            value={values.usesBoleto}
           />
         </View>
         {error ? <Text style={{ color: theme.colors.danger }}>{error}</Text> : null}

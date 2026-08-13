@@ -54,6 +54,7 @@ export class ClientMutationService {
     price: number,
     address: string,
     usesInvoice = false,
+    usesBoleto = false,
   ): Promise<void> {
     const snapshot = await this.readSnapshot();
     const canonicalName = formatClientName(name);
@@ -75,6 +76,7 @@ export class ClientMutationService {
       preco: price,
       endereco: address.trim(),
       usesInvoice,
+      usesBoleto,
     };
     await clientBackupService.create(this.uid, snapshot);
     await new CustomClientRepository(this.uid).replace(nextCustomClients);
@@ -88,6 +90,7 @@ export class ClientMutationService {
     client: ClientModel,
     price: number,
     usesInvoice = client.usesInvoice,
+    usesBoleto = client.usesBoleto,
   ): Promise<void> {
     const snapshot = await this.readSnapshot();
     if (!Number.isFinite(price) || price <= 0) {
@@ -103,6 +106,7 @@ export class ClientMutationService {
       nome: client.canonicalName,
       preco: price,
       usesInvoice,
+      usesBoleto,
     };
 
     await clientBackupService.create(this.uid, snapshot);

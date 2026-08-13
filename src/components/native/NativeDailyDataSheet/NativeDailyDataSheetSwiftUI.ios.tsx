@@ -63,7 +63,7 @@ export default function NativeDailyDataSheetSwiftUI({
   visible,
 }: NativeDailyDataSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : 'systemGray6';
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
   const estarState = useNativeState(initialValues.estar);

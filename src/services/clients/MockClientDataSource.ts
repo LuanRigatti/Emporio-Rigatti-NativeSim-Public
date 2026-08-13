@@ -76,6 +76,7 @@ export class MockClientDataSource {
     price: number,
     address: string,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void> {
     await this.hydrationPromise;
     const canonicalName = formatClientName(name);
@@ -99,6 +100,7 @@ export class MockClientDataSource {
         nome: canonicalName,
         preco: normalizedPrice,
         usesInvoice: usesInvoice === true,
+        usesBoleto: usesBoleto === true,
       },
     };
     await this.persistAndPublish();
@@ -109,6 +111,7 @@ export class MockClientDataSource {
     client: ClientModel,
     price: number,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void> {
     await this.hydrationPromise;
     const key = findClientKey(this.clients, client.normalizedName);
@@ -125,6 +128,7 @@ export class MockClientDataSource {
         ...this.clients[key],
         preco: normalizedPrice,
         ...(usesInvoice === undefined ? {} : { usesInvoice }),
+        ...(usesBoleto === undefined ? {} : { usesBoleto }),
       },
     };
     await this.persistAndPublish();

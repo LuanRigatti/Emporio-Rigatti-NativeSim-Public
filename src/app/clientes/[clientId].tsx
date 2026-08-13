@@ -32,6 +32,7 @@ export default function ClientDetailsRoute() {
   const [bucketValue, setBucketValue] = useState('');
   const [address, setAddress] = useState('');
   const [usesInvoice, setUsesInvoice] = useState(false);
+  const [usesBoleto, setUsesBoleto] = useState(false);
   const [error, setError] = useState<string>();
   const client = useMemo(
     () =>
@@ -43,9 +44,9 @@ export default function ClientDetailsRoute() {
   );
   const clientName = (clientId && CLIENT_NAMES[clientId]) || routeClientName || 'Cliente';
 
-  const handleSavePrice = useCallback(async () => {
+  const handleBack = useCallback(() => {
     if (!client) {
-      setError('Cliente não encontrado.');
+      router.back();
       return;
     }
 
@@ -56,19 +57,23 @@ export default function ClientDetailsRoute() {
     }
 
     setError(undefined);
-    try {
-      await updatePrice(client, price, usesInvoice);
-      router.back();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Não foi possível salvar o preço.');
-    }
-  }, [bucketValue, client, router, updatePrice, usesInvoice]);
+    router.back();
+    void updatePrice(client, price, usesInvoice, usesBoleto).catch((saveError) => {
+      if (__DEV__) {
+        console.error(
+          '[ClientDetails] failed to persist changes after leaving the screen',
+          saveError,
+        );
+      }
+    });
+  }, [bucketValue, client, router, updatePrice, usesBoleto, usesInvoice]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (client) {
       setAddress(client.address ?? '');
       setUsesInvoice(client.usesInvoice);
+      setUsesBoleto(client.usesBoleto);
       setBucketValue(client.currentPrice === undefined ? '' : formatCurrency(client.currentPrice));
     }
   }, [client]);
@@ -86,11 +91,11 @@ export default function ClientDetailsRoute() {
           accessibilityLabel="Voltar para Clientes"
           color={theme.colors.textPrimary}
           containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => void handleSavePrice()}
+          onPress={handleBack}
           size={theme.sizes.iconMedium}
         />
       </View>
-      <GlassCard style={styles.card}>
+      <GlassCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
           {clientName}
         </Text>
@@ -108,10 +113,11 @@ export default function ClientDetailsRoute() {
           ) : null}
         </View>
         <NativeToggle
-          label="Usa nota fiscal/boleto"
+          label="Usa nota fiscal"
           onValueChange={setUsesInvoice}
           value={usesInvoice}
         />
+        <NativeToggle label="Usa boleto" onValueChange={setUsesBoleto} value={usesBoleto} />
         <View style={styles.fieldGroup}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
             Endereço

@@ -166,8 +166,8 @@ const styles = StyleSheet.create({
   content: { gap: 24 },
   clientList: { width: '100%' },
   clientCard: { paddingHorizontal: 16, paddingVertical: 0 },
-  dateGroup: { gap: 6 },
-  groupTitle: { marginLeft: 4 },
+  dateGroup: { gap: 10 },
+  groupTitle: { marginLeft: 12 },
   totalCard: { padding: 16 },
   totalRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

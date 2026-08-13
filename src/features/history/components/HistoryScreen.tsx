@@ -11,7 +11,7 @@ import {
   NativeGlassMenu,
   type NativeMenuAction,
 } from '@/components/native';
-import { PremiumScreen } from '@/components/premium';
+import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 import { toHistoryDelivery } from '@/services/data';
@@ -114,28 +114,32 @@ export function HistoryScreen() {
               styles.list,
               {
                 gap: theme.spacing.sm,
-                marginTop:
-                  visibleDeliveries.length === 0 ? 0 : -(theme.spacing.xxl * 2 + theme.spacing.md),
+                marginTop: theme.spacing.md,
                 paddingBottom: theme.spacing.lg,
                 ...(visibleDeliveries.length === 0 ? styles.emptyList : null),
               },
             ]}
           >
             {visibleDeliveries.length > 0 ? (
-              visibleDeliveries.map((delivery, index) => (
-                <Animated.View
-                  entering={FadeIn.delay(reduceMotionEnabled ? 0 : index * 40).duration(
-                    reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-                  )}
-                  key={delivery.id}
-                >
-                  <DeliveryCard
-                    delivery={delivery}
-                    onDelete={() => handleDeleteDelivery(delivery.id)}
-                    onToggleStatus={() => handleToggleStatus(delivery.id)}
-                  />
-                </Animated.View>
-              ))
+              <GlassCard
+                style={[styles.deliveryGroup, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              >
+                {visibleDeliveries.map((delivery, index) => (
+                  <Animated.View
+                    entering={FadeIn.delay(reduceMotionEnabled ? 0 : index * 40).duration(
+                      reduceMotionEnabled ? 0 : theme.animations.duration.standard,
+                    )}
+                    key={delivery.id}
+                  >
+                    <DeliveryCard
+                      contained
+                      delivery={delivery}
+                      onDelete={() => handleDeleteDelivery(delivery.id)}
+                      onToggleStatus={() => handleToggleStatus(delivery.id)}
+                    />
+                  </Animated.View>
+                ))}
+              </GlassCard>
             ) : (
               <Animated.View
                 entering={FadeInDown.duration(
@@ -169,21 +173,6 @@ export function HistoryScreen() {
     ],
   );
 
-  const dayContent = (
-    <ScrollView
-      contentContainerStyle={{
-        flexGrow: 1,
-        paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
-        paddingHorizontal: theme.spacing.md,
-        paddingTop: overlayHeaderHeight - theme.spacing.md,
-      }}
-      showsVerticalScrollIndicator={false}
-      style={styles.dayScroll}
-    >
-      {renderDayContent(selectedDate)}
-    </ScrollView>
-  );
-
   const filterActions: readonly NativeMenuAction[] = [
     {
       id: 'completed',
@@ -204,10 +193,10 @@ export function HistoryScreen() {
       title: 'Hoje',
     },
   ];
-  const header = (
+  const filterHeader = (
     <NativeGlassHeader
+      includeTopSafeArea
       mode="transparent"
-      titleStyle={{ transform: [{ translateX: theme.spacing.lg + theme.spacing.xs }] }}
       leftActions={
         <NativeGlassMenu
           accessibilityLabel="Filtros do histórico"
@@ -254,8 +243,40 @@ export function HistoryScreen() {
           value={parseIsoCalendarDate(selectedDate) ?? new Date()}
         />
       }
+      title=""
+    />
+  );
+  const header = (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
       title="Histórico"
     />
+  );
+  const dayContent = (
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
+        paddingHorizontal: theme.spacing.md,
+        paddingTop:
+          overlayHeaderHeight -
+          theme.spacing.xxxl -
+          theme.spacing.xl * 2 -
+          theme.spacing.md -
+          theme.spacing.xxs,
+      }}
+      showsVerticalScrollIndicator={false}
+      style={styles.dayScroll}
+    >
+      <View style={styles.header}>{header}</View>
+      {isFilterPreviewVisible ? (
+        <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
+      ) : null}
+      {renderDayContent(selectedDate)}
+    </ScrollView>
   );
 
   return (
@@ -270,17 +291,15 @@ export function HistoryScreen() {
             paddingBottom: 0,
           },
         ]}
-        overlayHeader={header}
-        overlayHeaderContentOffset={0}
-        overlayHeaderSpacing={theme.spacing.lg}
+        overlayHeader={filterHeader}
         overlayHeaderUnderlay
         onOverlayHeaderLayout={setOverlayHeaderHeight}
+        progressiveBlurHeight={
+          theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
+        }
+        progressiveBlurTopOffset={0}
         progressiveBlur
       >
-        {isFilterPreviewVisible ? (
-          <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
-        ) : null}
-
         <View style={styles.dayContentContainer}>{dayContent}</View>
       </PremiumScreen>
     </Animated.View>
@@ -291,6 +310,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   screenContent: { flex: 1 },
   dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
+  deliveryGroup: { padding: 0 },
+  header: { minHeight: 44 },
   emptyState: { alignSelf: 'stretch', width: '100%' },
   emptyList: { flex: 1 },
   historyEmptyContent: { flex: 1, minHeight: 0 },

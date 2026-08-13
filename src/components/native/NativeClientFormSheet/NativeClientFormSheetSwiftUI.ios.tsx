@@ -53,6 +53,7 @@ export default function NativeClientFormSheetSwiftUI({
   const [address, setAddress] = useState('');
   const [bucketPrice, setBucketPrice] = useState('');
   const [usesInvoice, setUsesInvoice] = useState(false);
+  const [usesBoleto, setUsesBoleto] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const nameState = useNativeState('');
@@ -66,6 +67,7 @@ export default function NativeClientFormSheetSwiftUI({
       setAddress('');
       setBucketPrice('');
       setUsesInvoice(false);
+      setUsesBoleto(false);
       setError(undefined);
       setSubmitting(false);
     }
@@ -87,7 +89,13 @@ export default function NativeClientFormSheetSwiftUI({
   const handleSubmit = async () => {
     setError(undefined);
     setSubmitting(true);
-    const values: NativeClientFormValues = { address, bucketPrice, name, usesInvoice };
+    const values: NativeClientFormValues = {
+      address,
+      bucketPrice,
+      name,
+      usesBoleto,
+      usesInvoice,
+    };
     try {
       await onSubmit(values);
       onVisibleChange(false);
@@ -147,7 +155,7 @@ export default function NativeClientFormSheetSwiftUI({
       <Divider />
       <HStack modifiers={[padding({ trailing: 8, vertical: 12 })]}>
         <Text modifiers={[roundedFont({ size: 15, weight: 'semibold' })]}>
-          Usa nota fiscal/boleto
+          Usa nota fiscal
         </Text>
         <Spacer />
         <Toggle
@@ -155,6 +163,17 @@ export default function NativeClientFormSheetSwiftUI({
           label=""
           modifiers={[controlSize('regular')]}
           onIsOnChange={setUsesInvoice}
+        />
+      </HStack>
+      <Divider />
+      <HStack modifiers={[padding({ trailing: 8, vertical: 12 })]}>
+        <Text modifiers={[roundedFont({ size: 15, weight: 'semibold' })]}>Usa boleto</Text>
+        <Spacer />
+        <Toggle
+          isOn={usesBoleto}
+          label=""
+          modifiers={[controlSize('regular')]}
+          onIsOnChange={setUsesBoleto}
         />
       </HStack>
     </VStack>

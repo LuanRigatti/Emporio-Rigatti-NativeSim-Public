@@ -11,7 +11,7 @@ import {
   type NativeClientFormValues,
 } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
-import { PremiumScreen } from '@/components/premium';
+import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useClients } from '@/hooks/useClients';
@@ -31,14 +31,14 @@ export default function ClientsRoute() {
   const [deleting, setDeleting] = useState(false);
 
   const handleCreateClient = useCallback(
-    async ({ address, bucketPrice, name, usesInvoice }: NativeClientFormValues) => {
+    async ({ address, bucketPrice, name, usesBoleto, usesInvoice }: NativeClientFormValues) => {
       const price = normalizeMoney(bucketPrice);
       if (!name.trim()) throw new Error('Informe o nome do cliente.');
       if (price === undefined || price <= 0) {
         throw new Error('Informe um pre\u00e7o maior que zero.');
       }
       if (!address.trim()) throw new Error('Informe o endere\u00e7o do cliente.');
-      await saveCustomClient(name, price, address, usesInvoice);
+      await saveCustomClient(name, price, address, usesInvoice, usesBoleto);
     },
     [saveCustomClient],
   );
@@ -120,42 +120,52 @@ export default function ClientsRoute() {
             />
           </View>
         ) : (
-          <View style={{ marginTop: theme.spacing.md }}>
-            <SettingsSection>
-              {clients.map((client, index) => (
-                <NativeCardContextMenu
-                  actions={[
-                    {
-                      destructive: true,
-                      id: 'delete-client',
-                      onPress: () => {
-                        setDeleteError(undefined);
-                        setClientToDelete(client);
-                      },
-                      systemImage: 'trash',
-                      title: 'Excluir cliente',
-                    },
-                  ]}
-                  key={client.clientId}
-                >
-                  <SettingItem
-                    fallbackIcon="person"
-                    isLast={index === clients.length - 1}
-                    onPress={() =>
-                      router.push({
-                        params: {
-                          clientId: client.clientId,
-                          clientName: client.canonicalName,
+          <View style={{ marginTop: theme.spacing.xl }}>
+            <PremiumCard
+              style={{
+                borderRadius: theme.radius.xl + theme.spacing.md,
+                padding: theme.spacing.sm,
+              }}
+            >
+              <SettingsSection>
+                {clients.map((client, index) => (
+                  <NativeCardContextMenu
+                    actions={[
+                      {
+                        destructive: true,
+                        id: 'delete-client',
+                        onPress: () => {
+                          setDeleteError(undefined);
+                          setClientToDelete(client);
                         },
-                        pathname: '/clientes/[clientId]',
-                      })
-                    }
-                    systemName="person.crop.circle"
-                    title={client.canonicalName}
-                  />
-                </NativeCardContextMenu>
-              ))}
-            </SettingsSection>
+                        systemImage: 'trash',
+                        title: 'Excluir cliente',
+                      },
+                    ]}
+                    key={client.clientId}
+                    style={{ width: '100%' }}
+                  >
+                    <SettingItem
+                      fallbackIcon="person"
+                      isLast={index === clients.length - 1}
+                      leadingInset={theme.spacing.xs}
+                      onPress={() =>
+                        router.push({
+                          params: {
+                            clientId: client.clientId,
+                            clientName: client.canonicalName,
+                          },
+                          pathname: '/clientes/[clientId]',
+                        })
+                      }
+                      systemName="person.crop.circle"
+                      title={client.canonicalName}
+                      trailingInset={theme.spacing.xs}
+                    />
+                  </NativeCardContextMenu>
+                ))}
+              </SettingsSection>
+            </PremiumCard>
           </View>
         )}
       </PremiumScreen>

@@ -17,7 +17,6 @@ export type SummaryCardProps = {
 
 export function SummaryCard({ rows, style, title }: SummaryCardProps) {
   const { theme } = useAppTheme();
-
   return (
     <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }, style]}>
       <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>{title}</Text>

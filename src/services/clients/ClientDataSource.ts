@@ -25,12 +25,14 @@ export interface ClientDataSource {
     price: number,
     address: string,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void>;
   updatePrice(
     userId: string | undefined,
     client: ClientModel,
     price: number,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void>;
   rename(userId: string | undefined, client: ClientModel, newName: string): Promise<void>;
   removeCustomConfiguration(userId: string | undefined, client: ClientModel): Promise<void>;
@@ -71,10 +73,17 @@ export class FirebaseClientDataSource implements ClientDataSource {
     price: number,
     address: string,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void> {
     const uid = this.requireUserId(userId);
     const { ClientMutationService } = await import('./ClientMutationService');
-    await new ClientMutationService(uid).saveCustomClient(name, price, address, usesInvoice);
+    await new ClientMutationService(uid).saveCustomClient(
+      name,
+      price,
+      address,
+      usesInvoice,
+      usesBoleto,
+    );
     await this.load(uid);
   }
 
@@ -83,10 +92,11 @@ export class FirebaseClientDataSource implements ClientDataSource {
     client: ClientModel,
     price: number,
     usesInvoice?: boolean,
+    usesBoleto?: boolean,
   ): Promise<void> {
     const uid = this.requireUserId(userId);
     const { ClientMutationService } = await import('./ClientMutationService');
-    await new ClientMutationService(uid).updatePrice(client, price, usesInvoice);
+    await new ClientMutationService(uid).updatePrice(client, price, usesInvoice, usesBoleto);
     await this.load(uid);
   }
 

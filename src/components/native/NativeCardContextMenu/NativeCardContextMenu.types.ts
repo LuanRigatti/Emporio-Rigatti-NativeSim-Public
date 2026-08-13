@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 export type NativeCardContextMenuAction = {
@@ -13,5 +14,6 @@ export type NativeCardContextMenuAction = {
 export type NativeCardContextMenuProps = {
   children: ReactNode;
   actions: readonly NativeCardContextMenuAction[];
+  style?: StyleProp<ViewStyle>;
   title?: string;
 };

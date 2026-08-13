@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { createElement, useCallback } from 'react';
+import { View } from 'react-native';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import { useLazyNativeImplementation } from '@/platform/useLazyNativeImplementation';
@@ -15,7 +16,9 @@ export default function NativeToggleNative(props: NativeToggleProps) {
   const NativeImplementation = useLazyNativeImplementation(canUseExpoUI, loadImplementation);
 
   return NativeImplementation ? (
-    <NativeImplementation {...props} />
+    createElement(NativeImplementation, props)
+  ) : canUseExpoUI ? (
+    <View style={{ minHeight: 44, width: '100%' }} />
   ) : (
     <NativeToggleExpo {...props} />
   );

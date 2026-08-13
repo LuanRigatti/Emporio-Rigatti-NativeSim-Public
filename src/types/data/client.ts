@@ -9,6 +9,7 @@ export interface CustomClient {
   preco: number;
   endereco?: string;
   usesInvoice?: boolean;
+  usesBoleto?: boolean;
   legacyFields?: UnknownRecord;
 }
 
@@ -22,6 +23,7 @@ export interface ClientModel {
   hasIncompleteAddress: boolean;
   currentPrice?: number;
   usesInvoice: boolean;
+  usesBoleto: boolean;
 }
 
 export interface ClientFinancialSummary {

@@ -88,9 +88,21 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
       mutate(() => clientDataSource.rename(user?.id, client, newName)),
     removeCustomConfiguration: (client: ClientModel) =>
       mutate(() => clientDataSource.removeCustomConfiguration(user?.id, client)),
-    saveCustomClient: (name: string, price: number, address: string, usesInvoice?: boolean) =>
-      mutate(() => clientDataSource.saveCustomClient(user?.id, name, price, address, usesInvoice)),
-    updatePrice: (client: ClientModel, price: number, usesInvoice?: boolean) =>
-      mutate(() => clientDataSource.updatePrice(user?.id, client, price, usesInvoice)),
+    saveCustomClient: (
+      name: string,
+      price: number,
+      address: string,
+      usesInvoice?: boolean,
+      usesBoleto?: boolean,
+    ) =>
+      mutate(() =>
+        clientDataSource.saveCustomClient(user?.id, name, price, address, usesInvoice, usesBoleto),
+      ),
+    updatePrice: (
+      client: ClientModel,
+      price: number,
+      usesInvoice?: boolean,
+      usesBoleto?: boolean,
+    ) => mutate(() => clientDataSource.updatePrice(user?.id, client, price, usesInvoice, usesBoleto)),
   };
 }

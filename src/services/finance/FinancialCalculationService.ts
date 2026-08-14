@@ -131,8 +131,13 @@ export class FinancialCalculationService {
     const search = normalizeClientKey(filters.buscaCliente ?? '');
     return deliveries.filter((delivery) => {
       const name = formatClientName(delivery.cliente);
+      const matchesClient = filters.clientId
+        ? delivery.clientId
+          ? delivery.clientId === filters.clientId
+          : !search || normalizeClientKey(name) === search
+        : !search || normalizeClientKey(name).includes(search);
       return (
-        (!search || normalizeClientKey(name).includes(search)) &&
+        matchesClient &&
         (!filters.status || filters.status === 'Todos' || delivery.status === filters.status) &&
         matchesPeriod(delivery.data, filters, today)
       );

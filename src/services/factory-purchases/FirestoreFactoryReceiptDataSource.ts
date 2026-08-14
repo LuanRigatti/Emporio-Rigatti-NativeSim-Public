@@ -149,6 +149,9 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       const { getDocs, query, where } = await import('firebase/firestore');
       const collectionReference = await receiptCollection(userId);
       const constraints: Parameters<typeof query>[1][] = [];
+      if (filters.completed !== undefined) {
+        constraints.push(where('completed', '==', filters.completed));
+      }
       if (filters.period === 'month' && filters.month) {
         constraints.push(where('date', '>=', `${filters.month}-01`));
         constraints.push(where('date', '<=', monthEnd(filters.month)));

@@ -12,6 +12,9 @@ export class FactoryReceiptQueryService {
   ): FactoryReceipt[] {
     const month = filters.month ?? currentMonth(today);
     return receipts
+      .filter(
+        (receipt) => filters.completed === undefined || receipt.concluido === filters.completed,
+      )
       .filter((receipt) => !filters.startDate || receipt.data >= filters.startDate)
       .filter((receipt) => !filters.endDate || receipt.data <= filters.endDate)
       .filter((receipt) => filters.period === 'all' || receipt.data.startsWith(month))

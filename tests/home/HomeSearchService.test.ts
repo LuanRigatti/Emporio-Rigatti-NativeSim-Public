@@ -1,0 +1,1363 @@
+import {
+  AppHomeSearchDataSource,
+  deliveryFiltersForSearch,
+} from '@/features/home/search/HomeSearchDataSource';
+import { HomeSearchQueryParser } from '@/features/home/search/HomeSearchQueryParser';
+import { HomeSearchService } from '@/features/home/search/HomeSearchService';
+import { clientDataSource } from '@/services/clients';
+import { firestoreDeliveryDataSource } from '@/services/deliveries';
+import { factoryReceiptDataSource } from '@/services/factory-purchases';
+import { firestoreDailyMonthlyDataSource } from '@/services/costs';
+import { financialCalculationService } from '@/services/finance/FinancialCalculationService';
+import { financialFiltersForSelection } from '@/services/finance/FinancialPeriodService';
+import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
+import { routeTrackingRepository } from '@/services/routes/RouteTrackingRepository';
+import { carSettingsStorage, firestoreCarSettingsDataSource } from '@/services/car';
+import type {
+  HomeSearchDataSet,
+  HomeSearchDataSource,
+  HomeSearchFinancialMetric,
+  HomeSearchParsedQuery,
+} from '@/features/home/search/HomeSearchTypes';
+import type { ClientModel, Delivery, FactoryReceipt } from '@/types/data';
+import type { RouteTrackingSession } from '@/types/routeTracking';
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  removeItem: jest.fn().mockResolvedValue(undefined),
+  setItem: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('@/services/clients', () => ({
+  clientDataSource: {
+    getSnapshot: jest.fn(),
+    list: jest.fn(),
+    load: jest.fn(),
+    mode: 'firebase',
+  },
+}));
+
+jest.mock('@/services/deliveries', () => ({
+  firestoreDeliveryDataSource: {
+    getCached: jest.fn(),
+    load: jest.fn(),
+  },
+}));
+
+jest.mock('@/services/factory-purchases', () => ({
+  factoryReceiptDataSource: {
+    getReceipts: jest.fn(),
+    mode: 'firebase',
+    restore: jest.fn(),
+  },
+}));
+
+jest.mock('@/services/costs', () => ({
+  firestoreDailyMonthlyDataSource: {
+    load: jest.fn(),
+  },
+}));
+
+jest.mock('@/services/routes/RouteTrackingRepository', () => ({
+  routeTrackingRepository: {
+    getRouteHistory: jest.fn(),
+  },
+}));
+
+jest.mock('@/services/car', () => ({
+  carSettingsStorage: { load: jest.fn() },
+  firestoreCarSettingsDataSource: { load: jest.fn() },
+}));
+
+const clients: ClientModel[] = [
+  {
+    clientId: 'client:andre',
+    canonicalName: 'Andr\u00e9',
+    normalizedName: 'andre',
+    sources: ['custom'],
+    address: 'Rua das Flores',
+    hasIncompleteAddress: false,
+    usesInvoice: true,
+    usesBoleto: false,
+  },
+  {
+    clientId: 'client:andressa',
+    canonicalName: 'Andressa',
+    normalizedName: 'andressa',
+    sources: ['custom'],
+    hasIncompleteAddress: true,
+    usesInvoice: false,
+    usesBoleto: true,
+  },
+  {
+    clientId: 'client:luciano',
+    canonicalName: 'Luciano',
+    normalizedName: 'luciano',
+    sources: ['custom'],
+    address: 'Rua do Luciano',
+    currentPrice: 49.8,
+    hasIncompleteAddress: false,
+    usesInvoice: false,
+    usesBoleto: false,
+  },
+];
+
+const deliveries: Delivery[] = [
+  {
+    id: 'delivery-andre-2026-08-12',
+    clientId: 'client:andre',
+    cliente: 'Andr\u00e9',
+    quantidade: 3,
+    valor: 150,
+    status: 'Pago',
+    entregue: true,
+    data: '2026-08-12',
+    invoiceStatus: 'a_emitir',
+  },
+  {
+    id: 'delivery-andressa-2026-08-13',
+    clientId: 'client:andressa',
+    cliente: 'Andressa',
+    quantidade: 2,
+    valor: 100,
+    status: 'N\u00e3o Pago',
+    entregue: true,
+    data: '2026-08-13',
+  },
+  {
+    id: 'delivery-luciano-2025-08-12',
+    clientId: 'client:luciano',
+    cliente: 'Luciano',
+    quantidade: 4,
+    valor: 200,
+    status: 'N\u00e3o Pago',
+    entregue: true,
+    data: '2025-08-12',
+  },
+  {
+    id: 'delivery-luciano-2026-09-01',
+    clientId: 'client:luciano',
+    cliente: 'Luciano',
+    quantidade: 1,
+    valor: 50,
+    status: 'Pago',
+    entregue: true,
+    data: '2026-09-01',
+  },
+];
+
+const factoryPurchases: FactoryReceipt[] = [
+  {
+    id: 'factory-2026-08-12',
+    quantidade: 3,
+    data: '2026-08-12',
+    valorTotal: 150,
+    concluido: true,
+    pagamentos: [{ id: 'factory-payment-paid', data: '2026-08-12', valor: 150 }],
+  },
+  {
+    id: 'factory-2025-08-10',
+    quantidade: 4,
+    data: '2025-08-10',
+    valorTotal: 200,
+    concluido: false,
+    pagamentos: [],
+  },
+  {
+    id: 'factory-partial-2026-08-14',
+    quantidade: 6,
+    data: '2026-08-14',
+    valorTotal: 300,
+    concluido: false,
+    pagamentos: [{ id: 'factory-payment-partial', data: '2026-09-02', valor: 100 }],
+  },
+  {
+    id: 'factory-open-2026-08-15',
+    quantidade: 2,
+    data: '2026-08-15',
+    valorTotal: 100,
+    concluido: false,
+    pagamentos: [],
+  },
+];
+
+const financialDeliveries: Delivery[] = [
+  deliveries[0],
+  deliveries[1],
+  {
+    id: 'delivery-luciano-2026-08-14',
+    clientId: 'client:luciano',
+    cliente: 'Luciano',
+    quantidade: 7,
+    valor: 350,
+    status: 'Pago',
+    entregue: true,
+    data: '2026-08-14',
+  },
+  {
+    id: 'delivery-luciano-2026-08-17',
+    clientId: 'client:luciano',
+    cliente: 'Luciano',
+    quantidade: 9,
+    valor: 450,
+    status: 'Não Pago',
+    entregue: true,
+    data: '2026-08-17',
+  },
+];
+
+const financialData = {
+  costsAvailable: true,
+  deliveries: financialDeliveries,
+  dailyExpenses: {
+    '2026-08-12': {
+      data: '2026-08-12',
+      km: 74,
+      precoGasolina: 6,
+      tipoCombustivel: 'gasolina',
+      estar: 10,
+      outros: 18,
+    },
+  },
+  monthlyExpenses: { '2026-08': { luz: 100 } },
+};
+
+function routeSession(id: string, date: string, distanceMeters: number): RouteTrackingSession {
+  return {
+    id,
+    date,
+    distanceMeters,
+    durationSeconds: 600,
+    startTimestamp: 1_000,
+    endTimestamp: 601_000,
+    pointsCount: 2,
+    samples: [],
+    status: 'finalized',
+  };
+}
+
+const dataSet: HomeSearchDataSet = {
+  clients,
+  deliveries,
+  factoryPurchases,
+  financial: financialData,
+  coverage: [
+    { source: 'clients', mode: 'memory' },
+    { source: 'deliveries', mode: 'memory' },
+    { source: 'factoryPurchases', mode: 'memory' },
+  ],
+  errors: [],
+};
+
+class FixedDataSource implements HomeSearchDataSource {
+  public calls = 0;
+
+  public async load(): Promise<HomeSearchDataSet> {
+    this.calls += 1;
+    return dataSet;
+  }
+}
+
+function resultIds(response: Awaited<ReturnType<HomeSearchService['search']>>): string[] {
+  return response.results.map((result) => result.id);
+}
+
+const mockedClientDataSource = jest.mocked(clientDataSource);
+const mockedDeliveryDataSource = jest.mocked(firestoreDeliveryDataSource);
+const mockedFactoryDataSource = jest.mocked(factoryReceiptDataSource);
+const mockedCostDataSource = jest.mocked(firestoreDailyMonthlyDataSource);
+const mockedRouteRepository = jest.mocked(routeTrackingRepository);
+const mockedCarStorage = jest.mocked(carSettingsStorage);
+const mockedCarDataSource = jest.mocked(firestoreCarSettingsDataSource);
+
+describe('HomeSearchQueryParser', () => {
+  const parser = new HomeSearchQueryParser();
+  const referenceDate = new Date(2026, 7, 13, 12);
+
+  it('normalizes accents, case and repeated whitespace', () => {
+    expect(parser.parse('  ANDR\u00c9   da Silva  ')).toMatchObject({
+      normalized: 'andre da silva',
+      text: 'andre da silva',
+      detectedTypes: ['text'],
+    });
+  });
+
+  it('resolves a named month without year to the current year', () => {
+    expect(parser.parse('agosto', referenceDate).period).toEqual({
+      kind: 'month',
+      month: 8,
+      year: 2026,
+    });
+  });
+
+  it('resolves a numeric date without year to the current year', () => {
+    expect(parser.parse('12/08', referenceDate).period).toEqual({
+      kind: 'date',
+      date: '2026-08-12',
+    });
+  });
+
+  it('preserves explicit month/year formats', () => {
+    expect(parser.parse('08/2025', referenceDate).period).toEqual({
+      kind: 'month',
+      month: 8,
+      year: 2025,
+    });
+    expect(parser.parse('2025/08', referenceDate).period).toEqual({
+      kind: 'month',
+      month: 8,
+      year: 2025,
+    });
+    expect(parser.parse('2027-11', referenceDate).period).toEqual({
+      kind: 'month',
+      month: 11,
+      year: 2027,
+    });
+    expect(parser.parse('agosto 2025', referenceDate).period).toEqual({
+      kind: 'month',
+      month: 8,
+      year: 2025,
+    });
+  });
+
+  it('preserves complete dates', () => {
+    expect(parser.parse('12/08/2025', referenceDate).period).toEqual({
+      kind: 'date',
+      date: '2025-08-12',
+    });
+    expect(parser.parse('2026-08-12', referenceDate).period).toEqual({
+      kind: 'date',
+      date: '2026-08-12',
+    });
+  });
+
+  it('recognizes quantity, money and payment status filters', () => {
+    expect(parser.parse('3 baldes')).toMatchObject({ quantity: 3, detectedTypes: ['quantity'] });
+    expect(parser.parse('R$ 150,00')).toMatchObject({ money: 150, detectedTypes: ['money'] });
+    expect(parser.parse('pago').paymentStatus).toBe('paid');
+    expect(parser.parse('n\u00e3o pago').paymentStatus).toBe('open');
+    expect(parser.parse('em aberto').paymentStatus).toBe('open');
+  });
+
+  it('recognizes financial aliases, preserves client text and defaults to the current month', () => {
+    expect(parser.parse('  FATURAMENTO   Luciano  ', referenceDate)).toMatchObject({
+      financialMetric: 'revenue',
+      financialMetricAlias: 'faturamento',
+      text: 'luciano',
+      period: { kind: 'month', month: 8, year: 2026 },
+    });
+    expect(parser.parse('lucro líquido agosto', referenceDate)).toMatchObject({
+      financialMetric: 'netProfit',
+      text: '',
+    });
+  });
+
+  it('recognizes client, factory, route, car and period-summary intents deterministically', () => {
+    expect(parser.parse('valor do balde Luciano', referenceDate)).toMatchObject({
+      clientField: 'currentPrice',
+      text: 'luciano',
+    });
+    expect(parser.parse('pagamentos das compras de agosto', referenceDate)).toMatchObject({
+      factoryMetric: 'payments',
+      period: { kind: 'month', month: 8, year: 2026 },
+    });
+    expect(parser.parse('km 12/08', referenceDate)).toMatchObject({
+      routeMetric: 'distance',
+      period: { kind: 'date', date: '2026-08-12' },
+    });
+    expect(parser.parse('autonomia ÁLCOOL', referenceDate).carMetric).toBe('alcoholAutonomy');
+    expect(parser.parse('dados do dia 12/08', referenceDate).periodSummary).toBe(true);
+  });
+
+  it.each([
+    'pagamentos realizados em agosto',
+    'pagamentos pagos em agosto',
+    'parcelas pagas em agosto',
+  ])('marks payment-date intent as unsupported for %s', (query) => {
+    expect(parser.parse(query, referenceDate)).toMatchObject({
+      factoryMetric: 'payments',
+      factoryPaymentDateUnsupported: true,
+    });
+  });
+});
+
+describe('AppHomeSearchDataSource', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedClientDataSource.getSnapshot.mockReturnValue({} as never);
+    mockedClientDataSource.list.mockReturnValue(clients);
+    mockedDeliveryDataSource.getCached.mockReturnValue(deliveries);
+    mockedFactoryDataSource.getReceipts.mockReturnValue(factoryPurchases);
+    mockedFactoryDataSource.restore.mockResolvedValue(undefined);
+    mockedDeliveryDataSource.load.mockResolvedValue(financialDeliveries);
+    mockedCostDataSource.load.mockResolvedValue({
+      gastosDiarios: financialData.dailyExpenses,
+      gastosMensais: financialData.monthlyExpenses,
+    });
+    mockedRouteRepository.getRouteHistory.mockResolvedValue([]);
+    mockedCarStorage.load.mockResolvedValue({
+      gasolineAutonomy: '7,4 Km/l',
+      alcoholAutonomy: '5,6 Km/l',
+    });
+    mockedCarDataSource.load.mockResolvedValue({
+      gasolineAutonomy: '8,2 Km/l',
+      alcoholAutonomy: '6,1 Km/l',
+    });
+  });
+
+  it('builds the indexed client plus month query without dropping either dimension', () => {
+    const query = new HomeSearchQueryParser().parse('Luciano 08/2025');
+
+    expect(deliveryFiltersForSearch(query, clients)).toEqual({
+      mode: 'all',
+      startDate: '2025-08-01',
+      endDate: '2025-08-31',
+      clientIds: ['client:luciano'],
+    });
+  });
+
+  it('returns an empty remote snapshot instead of reusing the global cache', async () => {
+    mockedDeliveryDataSource.load.mockResolvedValue([]);
+    mockedDeliveryDataSource.getCached.mockReturnValue([
+      deliveries.find(({ id }) => id === 'delivery-luciano-2025-08-12')!,
+    ]);
+    mockedFactoryDataSource.getReceipts.mockReturnValue([]);
+    const query = new HomeSearchQueryParser().parse('01/2099');
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(data.deliveries).toEqual([]);
+    expect(mockedDeliveryDataSource.getCached).not.toHaveBeenCalled();
+  });
+
+  it('uses the complete client, period and status scope when remote loading fails', async () => {
+    mockedDeliveryDataSource.load.mockRejectedValue(new Error('The query requires an index.'));
+    mockedDeliveryDataSource.getCached.mockReturnValue(deliveries);
+    mockedFactoryDataSource.getReceipts.mockReturnValue([]);
+    const query = new HomeSearchQueryParser().parse(
+      'Andr\u00e9 agosto 2026 3 baldes R$ 150,00 pago nota fiscal',
+    );
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedDeliveryDataSource.getCached).toHaveBeenCalledWith({
+      mode: 'all',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+      clientIds: ['client:andre', 'client:andressa'],
+    });
+    expect(data.errors).toEqual([
+      { source: 'deliveries', message: 'The query requires an index.' },
+    ]);
+
+    const response = await new HomeSearchService({ load: async () => data }).searchParsed(query);
+    expect(resultIds(response)).toEqual(['client:andre', 'delivery-andre-2026-08-12']);
+  });
+
+  it('loads financial deliveries and costs by period without narrowing deliveries to one client', async () => {
+    const query = new HomeSearchQueryParser().parse(
+      'faturamento Luciano agosto',
+      new Date(2026, 7, 13, 12),
+    );
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedDeliveryDataSource.load).toHaveBeenCalledWith('uid', {
+      mode: 'all',
+      startDate: '2026-08-01',
+      endDate: '2026-08-13',
+    });
+    expect(mockedCostDataSource.load).toHaveBeenCalledWith('uid', {
+      startDate: '2026-08-01',
+      endDate: '2026-08-13',
+    });
+    expect(data.financial).toMatchObject({ costsAvailable: true });
+    expect(data.factoryPurchases).toEqual([]);
+  });
+
+  it('uses the existing financial memory cache before performing remote reads', async () => {
+    const snapshot = {
+      clientesCustom: {},
+      entregas: financialDeliveries,
+      gastosDiarios: financialData.dailyExpenses,
+      gastosMensais: financialData.monthlyExpenses,
+      recebimentoBaldes: [],
+    };
+    jest.spyOn(financialPeriodSnapshotCache, 'getMemory').mockReturnValueOnce({
+      cacheVersion: 1,
+      uid: 'uid',
+      displayMonth: '2026-08',
+      snapshot,
+      comparisonSnapshot: snapshot,
+      cachedAt: Date.now(),
+    });
+    const query = new HomeSearchQueryParser().parse(
+      'faturamento agosto',
+      new Date(2026, 7, 13, 12),
+    );
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(data.financial?.deliveries).toEqual(financialDeliveries);
+    expect(data.coverage).toContainEqual({ source: 'financialData', mode: 'memory' });
+    expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
+    expect(mockedCostDataSource.load).not.toHaveBeenCalled();
+  });
+
+  it('dispatches client field searches without loading unrelated domains', async () => {
+    const query = new HomeSearchQueryParser().parse('preço Luciano');
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(data.clients).toEqual(clients);
+    expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
+    expect(mockedFactoryDataSource.restore).not.toHaveBeenCalled();
+    expect(mockedRouteRepository.getRouteHistory).not.toHaveBeenCalled();
+  });
+
+  it('uses a bounded factory query and treats the period as the purchase date', async () => {
+    const query = new HomeSearchQueryParser().parse(
+      'pagamentos fábrica agosto',
+      new Date(2026, 7, 13, 12),
+    );
+
+    await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedFactoryDataSource.restore).toHaveBeenCalledWith('uid', {
+      period: 'all',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+    });
+    expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
+    expect(mockedRouteRepository.getRouteHistory).not.toHaveBeenCalled();
+  });
+
+  it('bounds an exact factory purchase date without scanning other receipts', async () => {
+    const query = new HomeSearchQueryParser().parse(
+      'compra fábrica 12/08',
+      new Date(2026, 7, 13, 12),
+    );
+
+    await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedFactoryDataSource.restore).toHaveBeenCalledWith('uid', {
+      period: 'all',
+      startDate: '2026-08-12',
+      endDate: '2026-08-12',
+    });
+  });
+
+  it('queries only unfinished factory receipts for an unbounded outstanding intent', async () => {
+    const query = new HomeSearchQueryParser().parse('a pagar fábrica');
+
+    await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedFactoryDataSource.restore).toHaveBeenCalledWith('uid', {
+      completed: false,
+      period: 'all',
+    });
+  });
+
+  it('performs no reads for unsupported payment-date filters', async () => {
+    const query = new HomeSearchQueryParser().parse('parcelas pagas em agosto');
+
+    await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedFactoryDataSource.restore).not.toHaveBeenCalled();
+    expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
+    expect(mockedRouteRepository.getRouteHistory).not.toHaveBeenCalled();
+  });
+
+  it('keeps route searches strictly local-only', async () => {
+    mockedRouteRepository.getRouteHistory.mockResolvedValue([
+      routeSession('route-12', '2026-08-12', 12_500),
+    ]);
+    const query = new HomeSearchQueryParser().parse('km 12/08', new Date(2026, 7, 13, 12));
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(data.routeSessions).toHaveLength(1);
+    expect(data.coverage).toContainEqual({ source: 'routeHistory', mode: 'local' });
+    expect(mockedClientDataSource.load).not.toHaveBeenCalled();
+    expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
+    expect(mockedFactoryDataSource.restore).not.toHaveBeenCalled();
+    expect(mockedCostDataSource.load).not.toHaveBeenCalled();
+    expect(mockedRouteRepository.getRouteHistory).toHaveBeenCalledWith('2026-08-12');
+  });
+
+  it('filters a route month inside the local repository result', async () => {
+    mockedRouteRepository.getRouteHistory.mockResolvedValue([
+      routeSession('route-august', '2026-08-12', 12_500),
+      routeSession('route-september', '2026-09-02', 7_500),
+    ]);
+    const query = new HomeSearchQueryParser().parse(
+      'quilometragem agosto',
+      new Date(2026, 7, 13, 12),
+    );
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(data.routeSessions?.map(({ id }) => id)).toEqual(['route-august']);
+    expect(mockedRouteRepository.getRouteHistory).toHaveBeenCalledWith();
+  });
+
+  it('loads the single car settings document with local fallback available', async () => {
+    const query = new HomeSearchQueryParser().parse('autonomia gasolina');
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedCarStorage.load).toHaveBeenCalledTimes(1);
+    expect(mockedCarDataSource.load).toHaveBeenCalledWith('uid');
+    expect(data.carSettings?.gasolineAutonomy).toBe('8,2 Km/l');
+  });
+
+  it('uses local car settings when the single remote settings read fails', async () => {
+    mockedCarDataSource.load.mockRejectedValue(new Error('offline'));
+    const query = new HomeSearchQueryParser().parse('autonomia álcool');
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(data.carSettings?.alcoholAutonomy).toBe('5,6 Km/l');
+    expect(data.coverage).toContainEqual({
+      source: 'carSettings',
+      mode: 'localFallback',
+      reason: 'sourceError',
+    });
+  });
+
+  it('loads only bounded business sources for a period summary', async () => {
+    mockedRouteRepository.getRouteHistory.mockResolvedValue([
+      routeSession('route-12', '2026-08-12', 12_500),
+    ]);
+    const query = new HomeSearchQueryParser().parse('resumo agosto', new Date(2026, 7, 13, 12));
+
+    await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedDeliveryDataSource.load).toHaveBeenCalledWith('uid', {
+      mode: 'all',
+      startDate: '2026-08-01',
+      endDate: '2026-08-13',
+    });
+    expect(mockedCostDataSource.load).toHaveBeenCalledWith('uid', {
+      startDate: '2026-08-01',
+      endDate: '2026-08-13',
+    });
+    expect(mockedFactoryDataSource.restore).toHaveBeenCalledWith('uid', {
+      period: 'all',
+      startDate: '2026-08-01',
+      endDate: '2026-08-31',
+    });
+    expect(mockedRouteRepository.getRouteHistory).toHaveBeenCalledWith();
+    expect(mockedClientDataSource.load).not.toHaveBeenCalled();
+  });
+});
+
+describe('HomeSearchService', () => {
+  it('returns no results and performs no reads for an empty query', async () => {
+    const dataSource = new FixedDataSource();
+    const response = await new HomeSearchService(dataSource).search('   ');
+
+    expect(response.results).toEqual([]);
+    expect(response.coverage).toEqual([]);
+    expect(dataSource.calls).toBe(0);
+  });
+
+  it('ranks exact client match before prefix and related deliveries', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search('ANDR\u00c9');
+
+    expect(response.results[0]).toMatchObject({ id: 'client:andre', type: 'client' });
+    expect(response.results.find((result) => result.id === 'client:andressa')?.score).toBeLessThan(
+      response.results[0].score,
+    );
+    expect(resultIds(response)).toContain('delivery-andre-2026-08-12');
+  });
+
+  it('supports prefix and partial client matching', async () => {
+    const service = new HomeSearchService(new FixedDataSource());
+    const prefix = await service.search('andr');
+    const partial = await service.search('dressa');
+
+    expect(resultIds(prefix)).toEqual(expect.arrayContaining(['client:andre', 'client:andressa']));
+    expect(resultIds(partial)).toEqual(
+      expect.arrayContaining(['client:andressa', 'delivery-andressa-2026-08-13']),
+    );
+  });
+
+  it('returns a client with typed aggregation and related deliveries', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search('Luciano');
+    const client = response.results.find((result) => result.id === 'client:luciano');
+
+    expect(client).toMatchObject({
+      type: 'client',
+      data: { aggregation: { deliveryCount: 2, quantity: 5, revenue: 250 } },
+    });
+    expect(resultIds(response)).toEqual(
+      expect.arrayContaining(['delivery-luciano-2025-08-12', 'delivery-luciano-2026-09-01']),
+    );
+  });
+
+  it('searches client address while preserving ID-based delivery relations', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search('Flores');
+
+    expect(resultIds(response)).toEqual(
+      expect.arrayContaining(['client:andre', 'delivery-andre-2026-08-12']),
+    );
+  });
+
+  it('filters exact date across deliveries and factory purchases', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search('12/08/2026');
+
+    expect(resultIds(response)).toEqual(
+      expect.arrayContaining(['delivery-andre-2026-08-12', 'factory-2026-08-12']),
+    );
+    expect(resultIds(response)).not.toContain('delivery-luciano-2025-08-12');
+  });
+
+  it('matches a named month only in the current year', async () => {
+    const query = new HomeSearchQueryParser().parse('agosto', new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(query);
+
+    expect(resultIds(response)).toEqual(
+      expect.arrayContaining(['delivery-andre-2026-08-12', 'factory-2026-08-12']),
+    );
+    expect(resultIds(response)).not.toContain('delivery-luciano-2025-08-12');
+    expect(resultIds(response)).not.toContain('factory-2025-08-10');
+  });
+
+  it('matches a date without year only in the current year', async () => {
+    const query = new HomeSearchQueryParser().parse('12/08', new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(query);
+
+    expect(resultIds(response)).toEqual(
+      expect.arrayContaining(['delivery-andre-2026-08-12', 'factory-2026-08-12']),
+    );
+    expect(resultIds(response)).not.toContain('delivery-luciano-2025-08-12');
+  });
+
+  it('filters any explicit month/year present in data', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search('08/2025');
+
+    expect(resultIds(response)).toEqual(
+      expect.arrayContaining(['delivery-luciano-2025-08-12', 'factory-2025-08-10']),
+    );
+    expect(resultIds(response)).not.toContain('delivery-andre-2026-08-12');
+  });
+
+  it('returns empty for an explicit period without data', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search('01/2099');
+
+    expect(response.results).toEqual([]);
+  });
+
+  it('replaces Luciano results with an exactly empty nonexistent period response', async () => {
+    const dataSource: HomeSearchDataSource = {
+      load: jest
+        .fn<Promise<HomeSearchDataSet>, [HomeSearchParsedQuery]>()
+        .mockResolvedValueOnce(dataSet)
+        .mockResolvedValueOnce({ ...dataSet, deliveries: [], factoryPurchases: [] }),
+    };
+    const service = new HomeSearchService(dataSource);
+
+    const first = await service.search('Luciano');
+    const second = await service.search('01/2099');
+
+    expect(first.results.length).toBeGreaterThan(0);
+    expect(second.results).toEqual([]);
+    expect(second.counts).toEqual({
+      client: 0,
+      delivery: 0,
+      factoryPurchase: 0,
+      financialMetric: 0,
+      factorySummary: 0,
+      routeSummary: 0,
+      carSetting: 0,
+      periodSummary: 0,
+    });
+  });
+
+  it('keeps Luciano, empty period and M\u00e1rcia searches completely independent', async () => {
+    const marcia: ClientModel = {
+      clientId: 'client:marcia',
+      canonicalName: 'M\u00e1rcia',
+      normalizedName: 'marcia',
+      sources: ['custom'],
+      hasIncompleteAddress: true,
+      usesInvoice: false,
+      usesBoleto: false,
+    };
+    const marciaDelivery: Delivery = {
+      id: 'delivery-marcia',
+      clientId: marcia.clientId,
+      cliente: marcia.canonicalName,
+      quantidade: 1,
+      valor: 50,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-14',
+    };
+    const service = new HomeSearchService({
+      load: async () => ({
+        ...dataSet,
+        clients: [...clients, marcia],
+        deliveries: [...deliveries, marciaDelivery],
+      }),
+    });
+
+    const luciano = await service.search('Luciano');
+    const nonexistent = await service.search('01/2099');
+    const marciaResponse = await service.search('M\u00e1rcia');
+
+    expect(resultIds(luciano)).toContain('client:luciano');
+    expect(nonexistent.results).toEqual([]);
+    expect(resultIds(marciaResponse)).toEqual(['client:marcia', 'delivery-marcia']);
+  });
+
+  it('combines client with named month, month/year and exact date', async () => {
+    const service = new HomeSearchService(new FixedDataSource());
+    const namedMonth = new HomeSearchQueryParser().parse(
+      'Luciano agosto',
+      new Date(2025, 7, 13, 12),
+    );
+
+    await expect(service.searchParsed(namedMonth)).resolves.toMatchObject({
+      results: [
+        expect.objectContaining({ id: 'client:luciano' }),
+        expect.objectContaining({ id: 'delivery-luciano-2025-08-12' }),
+      ],
+    });
+    expect(resultIds(await service.search('Luciano 08/2025'))).toEqual([
+      'client:luciano',
+      'delivery-luciano-2025-08-12',
+    ]);
+    expect(resultIds(await service.search('Luciano 12/08/2025'))).toEqual([
+      'client:luciano',
+      'delivery-luciano-2025-08-12',
+    ]);
+  });
+
+  it('does not reuse old source data when the next source response contains an error', async () => {
+    const dataSource: HomeSearchDataSource = {
+      load: jest
+        .fn<Promise<HomeSearchDataSet>, [HomeSearchParsedQuery]>()
+        .mockResolvedValueOnce(dataSet)
+        .mockResolvedValueOnce({
+          ...dataSet,
+          deliveries: [],
+          factoryPurchases: [],
+          errors: [{ source: 'deliveries', message: 'offline' }],
+        }),
+    };
+    const service = new HomeSearchService(dataSource);
+
+    expect((await service.search('Luciano')).results.length).toBeGreaterThan(0);
+    const next = await service.search('01/2099');
+
+    expect(next.results).toEqual([]);
+    expect(next.errors).toEqual([{ source: 'deliveries', message: 'offline' }]);
+  });
+
+  it('returns distinct results for two consecutive successful searches', async () => {
+    const service = new HomeSearchService(new FixedDataSource());
+
+    const luciano = await service.search('Luciano');
+    const andre = await service.search('Andr\u00e9');
+
+    expect(resultIds(luciano)).toContain('client:luciano');
+    expect(resultIds(luciano)).not.toContain('client:andre');
+    expect(resultIds(andre)).toContain('client:andre');
+    expect(resultIds(andre)).not.toContain('client:luciano');
+  });
+
+  it('filters bucket quantity and monetary value', async () => {
+    const service = new HomeSearchService(new FixedDataSource());
+    const quantity = await service.search('3 baldes');
+    const money = await service.search('R$ 150,00');
+
+    expect(resultIds(quantity)).toEqual(
+      expect.arrayContaining(['delivery-andre-2026-08-12', 'factory-2026-08-12']),
+    );
+    expect(resultIds(money)).toEqual(
+      expect.arrayContaining(['delivery-andre-2026-08-12', 'factory-2026-08-12']),
+    );
+  });
+
+  it.each([
+    ['pago', ['delivery-andre-2026-08-12', 'delivery-luciano-2026-09-01', 'factory-2026-08-12']],
+    [
+      'n\u00e3o pago',
+      ['delivery-andressa-2026-08-13', 'delivery-luciano-2025-08-12', 'factory-2025-08-10'],
+    ],
+    [
+      'em aberto',
+      ['delivery-andressa-2026-08-13', 'delivery-luciano-2025-08-12', 'factory-2025-08-10'],
+    ],
+  ])('filters payment status for %s', async (query, expectedIds) => {
+    const response = await new HomeSearchService(new FixedDataSource()).search(query);
+    expect(resultIds(response)).toEqual(expect.arrayContaining(expectedIds));
+  });
+
+  it('combines client and period filters', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search(
+      'Luciano agosto 2025',
+    );
+
+    expect(resultIds(response)).toEqual(['client:luciano', 'delivery-luciano-2025-08-12']);
+  });
+
+  it('marks an older asynchronous response as stale', async () => {
+    const pending: {
+      query: HomeSearchParsedQuery;
+      resolve: (value: HomeSearchDataSet) => void;
+    }[] = [];
+    const dataSource: HomeSearchDataSource = {
+      load: (query) =>
+        new Promise((resolve) => {
+          pending.push({ query, resolve });
+        }),
+    };
+    const service = new HomeSearchService(dataSource);
+    const firstPromise = service.search('Andr\u00e9');
+    const secondPromise = service.search('Luciano');
+
+    pending.find(({ query }) => query.text === 'luciano')?.resolve(dataSet);
+    await expect(secondPromise).resolves.toMatchObject({ stale: false });
+    pending.find(({ query }) => query.text === 'andre')?.resolve(dataSet);
+    await expect(firstPromise).resolves.toMatchObject({ stale: true });
+  });
+
+  it.each<[string, HomeSearchFinancialMetric, keyof ReturnType<typeof financialSummary>]>([
+    ['faturamento agosto', 'revenue', 'faturamento'],
+    ['lucro bruto agosto', 'grossProfit', 'lucroBruto'],
+    ['lucro líquido agosto', 'netProfit', 'lucroLiquido'],
+    ['lucro agosto', 'netProfit', 'lucroLiquido'],
+    ['recebido agosto', 'received', 'valoresPagos'],
+    ['a receber agosto', 'receivable', 'valoresPendentes'],
+    ['baldes vendidos agosto', 'bucketsSold', 'quantidadeBaldes'],
+    ['custo dos baldes agosto', 'bucketCost', 'custoTotalBaldes'],
+    ['combustível agosto', 'fuelCost', 'custoCombustivel'],
+    ['outros custos agosto', 'otherCosts', 'custoOutros'],
+    ['luz agosto', 'electricityCost', 'custoLuz'],
+    ['custo médio de entrega agosto', 'averageDeliveryCost', 'custoMedioCombustivelPorEntrega'],
+    ['margem bruta agosto', 'grossMargin', 'margemBruta'],
+    ['margem líquida agosto', 'netMargin', 'margemLiquida'],
+    ['venda por balde agosto', 'salePerBucket', 'precoMedioBalde'],
+    ['lucro por balde agosto', 'profitPerBucket', 'lucroLiquidoPorBalde'],
+    ['custo por balde agosto', 'costPerBucket', 'custoMedioBalde'],
+  ])('uses the Finance summary source for %s', async (query, metric, summaryField) => {
+    const parsed = new HomeSearchQueryParser().parse(query, new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+    const result = response.results[0];
+
+    expect(result).toMatchObject({ type: 'financialMetric', data: { available: true, metric } });
+    if (result?.type !== 'financialMetric') throw new Error('Métrica financeira ausente.');
+    expect(result.data.value).toBeCloseTo(financialSummary()[summaryField], 8);
+    expect(response.counts.financialMetric).toBe(1);
+  });
+
+  it('maps generic client profit to gross profit and supports explicit gross profit', async () => {
+    const service = new HomeSearchService(new FixedDataSource());
+    const parser = new HomeSearchQueryParser();
+    const referenceDate = new Date(2026, 7, 13, 12);
+    const generic = await service.searchParsed(parser.parse('lucro Luciano agosto', referenceDate));
+    const explicit = await service.searchParsed(
+      parser.parse('lucro bruto Luciano agosto', referenceDate),
+    );
+
+    for (const response of [generic, explicit]) {
+      expect(response.results[0]).toMatchObject({
+        type: 'financialMetric',
+        data: {
+          available: true,
+          clientId: 'client:luciano',
+          clientName: 'Luciano',
+          metric: 'grossProfit',
+        },
+      });
+    }
+  });
+
+  it.each<[string, HomeSearchFinancialMetric, keyof ReturnType<typeof financialClientSummary>]>([
+    ['faturamento Luciano agosto', 'revenue', 'faturamento'],
+    ['recebido Luciano agosto', 'received', 'valoresPagos'],
+    ['a receber Luciano agosto', 'receivable', 'valoresPendentes'],
+    ['baldes vendidos Luciano agosto', 'bucketsSold', 'quantidadeBaldes'],
+    ['custo dos baldes Luciano agosto', 'bucketCost', 'custoTotalBaldes'],
+    ['margem bruta Luciano agosto', 'grossMargin', 'margemBruta'],
+    ['venda por balde Luciano agosto', 'salePerBucket', 'precoMedioBalde'],
+    ['combustível Luciano agosto', 'fuelCost', 'custoCombustivel'],
+    ['luz Luciano agosto', 'electricityCost', 'custoLuz'],
+  ])('uses only the selected client for %s', async (query, metric, summaryField) => {
+    const parsed = new HomeSearchQueryParser().parse(query, new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+    const result = response.results[0];
+
+    expect(result).toMatchObject({
+      type: 'financialMetric',
+      data: { available: true, clientId: 'client:luciano', metric },
+    });
+    if (result?.type !== 'financialMetric') throw new Error('Métrica financeira ausente.');
+    expect(result.data.value).toBeCloseTo(financialClientSummary()[summaryField], 8);
+  });
+
+  it('returns an explicit unavailable financial result for client net profit', async () => {
+    const parsed = new HomeSearchQueryParser().parse(
+      'lucro líquido Luciano agosto',
+      new Date(2026, 7, 13, 12),
+    );
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        type: 'financialMetric',
+        data: expect.objectContaining({
+          available: false,
+          clientId: 'client:luciano',
+          metric: 'netProfit',
+          unavailableReason: 'clientScopeUnsupported',
+        }),
+      }),
+    ]);
+  });
+
+  it.each([
+    ['valor do balde Luciano', 'currentPrice', 49.8],
+    ['preço Luciano', 'currentPrice', 49.8],
+    ['endereço Luciano', 'address', 'Rua do Luciano'],
+    ['nota fiscal Luciano', 'usesInvoice', false],
+    ['boleto Luciano', 'usesBoleto', false],
+  ])('returns the structured client field for %s', async (query, field, value) => {
+    const response = await new HomeSearchService(new FixedDataSource()).search(query);
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        type: 'client',
+        id: 'client:luciano',
+        data: expect.objectContaining({
+          matchedField: expect.objectContaining({ field, value }),
+        }),
+      }),
+    ]);
+  });
+
+  it.each([
+    ['nota fiscal André', 'usesInvoice'],
+    ['boleto Andressa', 'usesBoleto'],
+  ])('preserves positive fiscal eligibility for %s', async (query, field) => {
+    const response = await new HomeSearchService(new FixedDataSource()).search(query);
+
+    expect(response.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'client',
+          data: expect.objectContaining({
+            matchedField: { available: true, field, unit: 'boolean', value: true },
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it.each([
+    ['compras fábrica agosto', 'purchases'],
+    ['compras da fábrica 08/2026', 'purchases'],
+    ['baldes comprados agosto', 'bucketsPurchased'],
+    ['valor comprado agosto', 'purchaseValue'],
+    ['pagamentos fábrica agosto', 'payments'],
+    ['pagamentos das compras de agosto', 'payments'],
+  ])(
+    'aggregates factory purchases without choosing an arbitrary receipt for %s',
+    async (query, metric) => {
+      const parsed = new HomeSearchQueryParser().parse(query, new Date(2026, 7, 13, 12));
+      const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+
+      expect(response.results).toHaveLength(1);
+      expect(response.results[0]).toMatchObject({
+        type: 'factorySummary',
+        data: {
+          available: true,
+          metric,
+          aggregate: {
+            receiptCount: 3,
+            totalBuckets: 11,
+            totalValue: 550,
+            totalPaid: 250,
+            openValue: 300,
+            paymentCount: 2,
+            progress: 250 / 550,
+          },
+          receipts: expect.arrayContaining([
+            expect.objectContaining({
+              receiptId: 'factory-2026-08-12',
+              status: 'paid',
+            }),
+            expect.objectContaining({
+              paymentIds: ['factory-payment-partial'],
+              receiptId: 'factory-partial-2026-08-14',
+              status: 'partial',
+            }),
+            expect.objectContaining({
+              receiptId: 'factory-open-2026-08-15',
+              status: 'open',
+            }),
+          ]),
+        },
+        relations: {
+          receiptIds: [
+            'factory-2026-08-12',
+            'factory-partial-2026-08-14',
+            'factory-open-2026-08-15',
+          ],
+        },
+      });
+    },
+  );
+
+  it('uses the purchase date for an exact factory query', async () => {
+    const parsed = new HomeSearchQueryParser().parse(
+      'compra fábrica 12/08',
+      new Date(2026, 7, 13, 12),
+    );
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        type: 'factorySummary',
+        data: expect.objectContaining({
+          aggregate: expect.objectContaining({ receiptCount: 1, totalBuckets: 3 }),
+        }),
+        relations: expect.objectContaining({ receiptIds: ['factory-2026-08-12'] }),
+      }),
+    ]);
+  });
+
+  it('distinguishes partial, paid, open and outstanding factory states', async () => {
+    const service = new HomeSearchService(new FixedDataSource());
+    const parser = new HomeSearchQueryParser();
+    const referenceDate = new Date(2026, 7, 13, 12);
+    const partial = await service.searchParsed(
+      parser.parse('pagamentos parciais fábrica agosto', referenceDate),
+    );
+    const paid = await service.searchParsed(parser.parse('pago fábrica agosto', referenceDate));
+    const open = await service.searchParsed(
+      parser.parse('em aberto fábrica agosto', referenceDate),
+    );
+    const outstanding = await service.search('a pagar fábrica');
+
+    expect(partial.results[0]).toMatchObject({
+      type: 'factorySummary',
+      data: { aggregate: { totalPaid: 100, openValue: 200 }, status: 'partial' },
+      relations: { receiptIds: ['factory-partial-2026-08-14'] },
+    });
+    expect(paid.results[0]).toMatchObject({
+      type: 'factorySummary',
+      relations: { receiptIds: ['factory-2026-08-12'] },
+    });
+    expect(open.results[0]).toMatchObject({
+      type: 'factorySummary',
+      relations: { receiptIds: ['factory-open-2026-08-15'] },
+    });
+    expect(outstanding.results[0]).toMatchObject({
+      type: 'factorySummary',
+      data: { aggregate: { openValue: 500 } },
+    });
+  });
+
+  it('returns a typed unsupported result for payment-date queries', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).search(
+      'pagamentos realizados em agosto',
+    );
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        type: 'factorySummary',
+        data: expect.objectContaining({
+          available: false,
+          unsupportedReason: 'paymentDateFilter',
+        }),
+      }),
+    ]);
+  });
+
+  it('aggregates finalized route sessions by day and month without coordinates', async () => {
+    const routeData = {
+      ...dataSet,
+      routeSessions: [
+        routeSession('route-1', '2026-08-12', 12_500),
+        routeSession('route-2', '2026-08-12', 7_500),
+      ],
+    };
+    const service = new HomeSearchService({ load: async () => routeData });
+    const parser = new HomeSearchQueryParser();
+    const referenceDate = new Date(2026, 7, 13, 12);
+
+    for (const query of ['km 12/08', 'quilometragem agosto']) {
+      const response = await service.searchParsed(parser.parse(query, referenceDate));
+      expect(response.results).toEqual([
+        expect.objectContaining({
+          type: 'routeSummary',
+          data: expect.objectContaining({
+            distanceKm: 20,
+            routeCount: 2,
+            durationSeconds: 1200,
+            pointsCount: 4,
+            consideredDistanceKm: 20,
+            sessions: expect.arrayContaining([
+              expect.objectContaining({ sessionId: 'route-1', dailyDistanceKm: 20 }),
+              expect.objectContaining({ sessionId: 'route-2', dailyDistanceKm: 20 }),
+            ]),
+          }),
+          relations: { sessionIds: ['route-1', 'route-2'] },
+        }),
+      ]);
+      expect(response.results[0]).not.toHaveProperty('data.samples');
+    }
+  });
+
+  it.each(['rota 13/08', 'quilometragem 13/08', 'km 13/08'])(
+    'exposes the full structured data for one route session: %s',
+    async (query) => {
+      const session = routeSession('route-13', '2026-08-13', 13_250);
+      const service = new HomeSearchService({
+        load: async () => ({ ...dataSet, routeSessions: [session] }),
+      });
+      const response = await service.searchParsed(
+        new HomeSearchQueryParser().parse(query, new Date(2026, 7, 13, 12)),
+      );
+
+      expect(response.results[0]).toMatchObject({
+        type: 'routeSummary',
+        data: {
+          routeCount: 1,
+          distanceKm: 13.25,
+          durationSeconds: 600,
+          pointsCount: 2,
+          startTimestamp: 1_000,
+          endTimestamp: 601_000,
+          consideredDistanceKm: 13.25,
+          sessions: [
+            expect.objectContaining({
+              sessionId: 'route-13',
+              date: '2026-08-13',
+              dailyDistanceKm: 13.25,
+              distanceKm: 13.25,
+              durationSeconds: 600,
+              pointsCount: 2,
+            }),
+          ],
+        },
+      });
+    },
+  );
+
+  it('returns empty when the selected period has no local route', async () => {
+    const parsed = new HomeSearchQueryParser().parse('km 12/08', new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService({
+      load: async () => ({ ...dataSet, routeSessions: [] }),
+    }).searchParsed(parsed);
+
+    expect(response.results).toEqual([]);
+  });
+
+  it.each([
+    ['autonomia gasolina', 'gasolineAutonomy'],
+    ['autonomia álcool', 'alcoholAutonomy'],
+    ['consumo carro', 'consumption'],
+  ])('returns only real car settings for %s', async (query, metric) => {
+    const response = await new HomeSearchService({
+      load: async () => ({
+        ...dataSet,
+        carSettings: { gasolineAutonomy: '7,4 Km/l', alcoholAutonomy: '5,6 Km/l' },
+      }),
+    }).search(query);
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        type: 'carSetting',
+        data: {
+          metric,
+          available: true,
+          gasolineKmPerLiter: 7.4,
+          alcoholKmPerLiter: 5.6,
+        },
+      }),
+    ]);
+  });
+
+  it.each(['resumo 12/08', 'dados do dia 12/08', 'resumo agosto'])(
+    'composes a typed period summary for %s',
+    async (query) => {
+      const parsed = new HomeSearchQueryParser().parse(query, new Date(2026, 7, 13, 12));
+      const response = await new HomeSearchService({
+        load: async () => ({
+          ...dataSet,
+          routeSessions: [routeSession('route-1', '2026-08-12', 12_500)],
+        }),
+      }).searchParsed(parsed);
+
+      expect(response.results).toHaveLength(1);
+      expect(response.results[0]).toMatchObject({
+        type: 'periodSummary',
+        data: {
+          financial: expect.objectContaining({ faturamento: expect.any(Number) }),
+          factory: expect.objectContaining({ totalBuckets: expect.any(Number) }),
+          routes: { distanceKm: 12.5, routeCount: 1 },
+        },
+        relations: expect.objectContaining({ sessionIds: ['route-1'] }),
+      });
+    },
+  );
+
+  it('returns empty for a period summary without data', async () => {
+    const parsed = new HomeSearchQueryParser().parse('resumo 01/2099');
+    const response = await new HomeSearchService({
+      load: async () => ({
+        ...dataSet,
+        deliveries: [],
+        factoryPurchases: [],
+        financial: {
+          costsAvailable: true,
+          dailyExpenses: {},
+          deliveries: [],
+          monthlyExpenses: {},
+        },
+        routeSessions: [],
+      }),
+    }).searchParsed(parsed);
+
+    expect(response.results).toEqual([]);
+  });
+
+  it('returns no financial result for a period without any data', async () => {
+    const parsed = new HomeSearchQueryParser().parse(
+      'faturamento 01/2099',
+      new Date(2026, 7, 13, 12),
+    );
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+
+    expect(response.results).toEqual([]);
+  });
+});
+
+function financialSummary() {
+  return financialCalculationService.calculateResumo({
+    deliveries: financialDeliveries,
+    dailyExpenses: financialData.dailyExpenses,
+    monthlyExpenses: financialData.monthlyExpenses,
+    filters: financialFiltersForSelection({ kind: 'month', month: '2026-08' }),
+    today: new Date(2026, 7, 13, 12),
+  });
+}
+
+function financialClientSummary() {
+  return financialCalculationService.calculateResumo({
+    deliveries: financialDeliveries,
+    dailyExpenses: financialData.dailyExpenses,
+    monthlyExpenses: financialData.monthlyExpenses,
+    filters: {
+      ...financialFiltersForSelection({ kind: 'month', month: '2026-08' }),
+      buscaCliente: 'Luciano',
+      clientId: 'client:luciano',
+    },
+    today: new Date(2026, 7, 13, 12),
+  });
+}

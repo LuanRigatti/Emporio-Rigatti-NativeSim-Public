@@ -7,6 +7,7 @@ import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 export default function NativeBottomSheetFallback({
   items,
   content,
+  onDismiss,
   onSelect,
   onVisibleChange,
   subtitle,
@@ -16,6 +17,7 @@ export default function NativeBottomSheetFallback({
   const { theme } = useAppTheme();
   const handleVisibleChange = (nextVisible: boolean) => {
     onVisibleChange(nextVisible);
+    if (!nextVisible) onDismiss?.();
   };
 
   return (

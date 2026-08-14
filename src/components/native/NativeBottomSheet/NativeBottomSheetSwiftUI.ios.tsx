@@ -45,9 +45,7 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '@/theme';
 
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
-import {
-  NATIVE_SHEET_PRESENTATION_BACKGROUND,
-} from '../nativeSheetBackground';
+import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { roundedFont } from '../nativeTypography';
 
@@ -55,8 +53,10 @@ export default function NativeBottomSheetSwiftUI({
   items,
   bucketPrice = 49.8,
   content,
+  detents,
   onSelect,
   onPageSettled,
+  onDismiss,
   onVisibleChange,
   title,
   visible,
@@ -192,10 +192,7 @@ export default function NativeBottomSheetSwiftUI({
               }}
             >
               <ZStack
-                modifiers={[
-                  frame({ width: 44, height: 44 }),
-                  contentShape(shapes.rectangle()),
-                ]}
+                modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.rectangle())]}
               >
                 <Image size={17} systemName="minus" />
               </ZStack>
@@ -228,10 +225,7 @@ export default function NativeBottomSheetSwiftUI({
               }}
             >
               <ZStack
-                modifiers={[
-                  frame({ width: 44, height: 44 }),
-                  contentShape(shapes.rectangle()),
-                ]}
+                modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.rectangle())]}
               >
                 <Image size={17} systemName="plus" />
               </ZStack>
@@ -363,13 +357,40 @@ export default function NativeBottomSheetSwiftUI({
   );
 
   const sheetContent = content ?? registroSheetContent;
-  const sheetDetents = initialDetent
-    ? ([initialDetent, 'large'] as const)
-    : ([{ fraction: 0.48 }, 'large'] as const);
+  const sheetDetents =
+    detents ??
+    (initialDetent
+      ? ([initialDetent, 'large'] as const)
+      : ([{ fraction: 0.48 }, 'large'] as const));
+
+  const handleIsPresentedChange = (nextVisible: boolean) => {
+    if (__DEV__) {
+      console.log('[native-bottom-sheet-flow]', {
+        timestampMs: Date.now(),
+        event: 'is-presented-change',
+        title,
+        visible: nextVisible,
+      });
+    }
+    onVisibleChange(nextVisible);
+  };
 
   return (
     <Host matchContents={{ horizontal: true }}>
-      <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
+      <BottomSheet
+        isPresented={visible}
+        onDismiss={() => {
+          if (__DEV__) {
+            console.log('[native-bottom-sheet-flow]', {
+              timestampMs: Date.now(),
+              event: 'dismiss-completed',
+              title,
+            });
+          }
+          onDismiss?.();
+        }}
+        onIsPresentedChange={handleIsPresentedChange}
+      >
         <Group
           modifiers={[
             presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),

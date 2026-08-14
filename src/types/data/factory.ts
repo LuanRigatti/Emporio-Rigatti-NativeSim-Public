@@ -21,6 +21,7 @@ export interface FactoryReceipt {
 export type FactoryPeriod = 'month' | 'all';
 
 export interface FactoryFilters {
+  completed?: boolean;
   endDate?: string;
   period: FactoryPeriod;
   month?: string;

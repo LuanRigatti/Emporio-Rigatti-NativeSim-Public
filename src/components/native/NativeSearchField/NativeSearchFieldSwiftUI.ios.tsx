@@ -1,11 +1,4 @@
-import {
-  HStack,
-  Host,
-  Image,
-  TextField,
-  type TextFieldRef,
-  useNativeState,
-} from '@expo/ui/swift-ui';
+import { HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   animation,
@@ -20,10 +13,23 @@ import {
   submitLabel,
 } from '@expo/ui/swift-ui/modifiers';
 import { PlatformColor } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { roundedFont } from '../nativeTypography';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
+
+function logNativeSearchSubmit(nativeValue: string, reactValue: string, focused: boolean): void {
+  if (!__DEV__) return;
+
+  console.log('[home-search-input]', {
+    timestampMs: Date.now(),
+    event: 'native-submit',
+    nativeLength: nativeValue.length,
+    reactLength: reactValue.length,
+    valuesMatch: nativeValue === reactValue,
+    focused,
+  });
+}
 
 export default function NativeSearchFieldSwiftUI({
   accessibilityLabel: label,
@@ -34,11 +40,12 @@ export default function NativeSearchFieldSwiftUI({
   value,
 }: NativeSearchFieldProps) {
   const text = useNativeState(value);
-  const textFieldRef = useRef<TextFieldRef>(null);
   const [focused, setFocused] = useState(false);
 
-  const moveCursorToStart = () => {
-    void textFieldRef.current?.setSelection(0, 0);
+  const handleNativeSubmit = () => {
+    const nativeValue = text.get();
+    logNativeSearchSubmit(nativeValue, value, focused);
+    onSubmit?.(nativeValue);
   };
 
   useEffect(() => {
@@ -78,14 +85,10 @@ export default function NativeSearchFieldSwiftUI({
             frame({ maxWidth: 1000 }),
             multilineTextAlignment('leading'),
             submitLabel('search'),
-            onSubmitModifier(() => onSubmit?.()),
+            onSubmitModifier(handleNativeSubmit),
           ]}
-          ref={textFieldRef}
           onFocusChange={(nextFocused) => {
             setFocused(nextFocused);
-            if (nextFocused) {
-              moveCursorToStart();
-            }
             onFocusChange?.(nextFocused);
           }}
           onTextChange={onChangeText}

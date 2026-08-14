@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { PremiumCard, PremiumScreen } from '@/components/premium';
@@ -10,7 +10,14 @@ import { NativeSearchField } from '@/components/native';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
-import { HomeSearchPrototypeSheet } from '@/features/home/components/HomeSearchPrototypeSheet';
+import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
+import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
+import {
+  homeSearchPresentationReducer,
+  initialHomeSearchPresentationState,
+  isHomeSearchSheetVisible,
+} from '@/features/home/hooks/HomeSearchPresentationFlow';
+import { useHomeSearch } from '@/features/home/hooks/useHomeSearch';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
@@ -35,10 +42,20 @@ export default function Home() {
   const wasFocused = useRef(false);
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
-  const [searchResultsVisible, setSearchResultsVisible] = useState(false);
-  const [submittedSearch, setSubmittedSearch] = useState('');
-  const { deliveries: dailyDeliveries, remove: removeDelivery, toggleDelivered: toggleDelivery } =
-    useDeliveries({ mode: 'today', date: currentDate });
+  const [searchFlow, dispatchSearchFlow] = useReducer(
+    homeSearchPresentationReducer,
+    initialHomeSearchPresentationState,
+  );
+  const activeSearchId = useRef(0);
+  const previousSearchPhase = useRef(searchFlow.phase);
+  const lastSubmitAt = useRef<number | null>(null);
+  const lastTextChangeAt = useRef<number | null>(null);
+  const { search: runHomeSearch } = useHomeSearch();
+  const {
+    deliveries: dailyDeliveries,
+    remove: removeDelivery,
+    toggleDelivered: toggleDelivery,
+  } = useDeliveries({ mode: 'today', date: currentDate });
   const { deliveries: pendingDeliveries } = useDeliveries({ mode: 'all', status: 'Não Pago' });
   const historyDeliveries = useMemo(
     () => dailyDeliveries.map(toHistoryDelivery),
@@ -49,14 +66,8 @@ export default function Home() {
     return () => clearInterval(timer);
   }, []);
 
-  const todayDeliveries = useMemo(
-    () => historyDeliveries,
-    [historyDeliveries],
-  );
-  const openPaymentsCount = useMemo(
-    () => pendingDeliveries.length,
-    [pendingDeliveries],
-  );
+  const todayDeliveries = useMemo(() => historyDeliveries, [historyDeliveries]);
+  const openPaymentsCount = useMemo(() => pendingDeliveries.length, [pendingDeliveries]);
 
   useEffect(() => {
     if (isFocused && !wasFocused.current) {
@@ -65,6 +76,38 @@ export default function Home() {
 
     wasFocused.current = isFocused;
   }, [isFocused]);
+
+  useEffect(() => {
+    if (previousSearchPhase.current === searchFlow.phase) return;
+
+    logHomeSearchFlow('state-transition', {
+      searchId: searchFlow.activeSearchId,
+      presentationId: searchFlow.presentationId,
+      from: previousSearchPhase.current,
+      to: searchFlow.phase,
+    });
+    previousSearchPhase.current = searchFlow.phase;
+  }, [searchFlow.activeSearchId, searchFlow.phase, searchFlow.presentationId]);
+
+  useEffect(() => {
+    if (searchFlow.phase !== 'resultReady' || !searchFlow.response) return;
+
+    logHomeSearchFlow('content-committed', {
+      searchId: searchFlow.activeSearchId,
+      resultCount: searchFlow.response.results.length,
+    });
+    dispatchSearchFlow({ type: 'CONTENT_COMMITTED' });
+  }, [searchFlow.activeSearchId, searchFlow.phase, searchFlow.response]);
+
+  useEffect(() => {
+    if (searchFlow.phase !== 'readyToPresent') return;
+
+    logHomeSearchFlow('presentation-requested', {
+      searchId: searchFlow.activeSearchId,
+      presentationId: searchFlow.presentationId + 1,
+    });
+    dispatchSearchFlow({ type: 'PRESENTATION_REQUESTED' });
+  }, [searchFlow.activeSearchId, searchFlow.phase, searchFlow.presentationId]);
 
   const handleTodayStatusToggle = useCallback(
     (deliveryId: string) => {
@@ -81,22 +124,83 @@ export default function Home() {
     [removeDelivery],
   );
 
-  const handleSearchSubmit = useCallback(() => {
-    const query = searchText.trim();
-    if (!query) return;
-    Keyboard.dismiss();
-    setSubmittedSearch(query);
-    setSearchResultsVisible(true);
-  }, [searchText]);
-
-  const handleSearchSheetVisibilityChange = useCallback((nextVisible: boolean) => {
-    setSearchResultsVisible(nextVisible);
-    if (!nextVisible) {
-      setSearchText('');
-      setSubmittedSearch('');
-      setFocusEntryKey((entryKey) => entryKey + 1);
+  const handleSearchTextChange = useCallback((value: string) => {
+    const timestampMs = Date.now();
+    lastTextChangeAt.current = timestampMs;
+    if (lastSubmitAt.current !== null && timestampMs - lastSubmitAt.current < 500) {
+      logHomeSearchFlow('text-change-after-submit', {
+        searchId: activeSearchId.current,
+        elapsedMs: timestampMs - lastSubmitAt.current,
+        textLength: value.length,
+      });
     }
+    setSearchText(value);
   }, []);
+
+  const handleSearchSubmit = useCallback(
+    (submittedValue: string) => {
+      const searchId = activeSearchId.current + 1;
+      const timestampMs = Date.now();
+      lastSubmitAt.current = timestampMs;
+      const query = submittedValue.trim();
+      logHomeSearchFlow('submit-received', {
+        searchId,
+        queryLength: query.length,
+        msSinceTextChange:
+          lastTextChangeAt.current === null ? null : timestampMs - lastTextChangeAt.current,
+      });
+      if (!query) {
+        logHomeSearchFlow('submit-ignored-empty', { searchId });
+        return;
+      }
+      activeSearchId.current = searchId;
+      Keyboard.dismiss();
+      dispatchSearchFlow({ type: 'SEARCH_SUBMITTED', searchId });
+      void runHomeSearch(query).then((nextResponse) => {
+        if (!nextResponse || nextResponse.stale) {
+          if (!nextResponse) {
+            dispatchSearchFlow({ type: 'SEARCH_UNAVAILABLE', searchId });
+          }
+          return;
+        }
+
+        logHomeSearchFlow('result-ready', {
+          searchId,
+          resultCount: nextResponse.results.length,
+        });
+        dispatchSearchFlow({ type: 'RESULT_RECEIVED', response: nextResponse, searchId });
+      });
+    },
+    [runHomeSearch],
+  );
+
+  const handleSearchSheetImplementationReady = useCallback(
+    (implementation: 'swiftui' | 'fallback') => {
+      logHomeSearchFlow('implementation-ready', { implementation });
+      dispatchSearchFlow({ type: 'IMPLEMENTATION_READY' });
+    },
+    [],
+  );
+
+  const handleSearchSheetVisibleChange = useCallback(
+    (nextVisible: boolean) => {
+      logHomeSearchFlow('sheet-visible-change', {
+        searchId: searchFlow.activeSearchId,
+        presentationId: searchFlow.presentationId,
+        visible: nextVisible,
+      });
+      dispatchSearchFlow({ type: 'NATIVE_VISIBILITY_CHANGED', visible: nextVisible });
+    },
+    [searchFlow.activeSearchId, searchFlow.presentationId],
+  );
+
+  const handleSearchSheetDismiss = useCallback(() => {
+    logHomeSearchFlow('dismiss-confirmed', {
+      searchId: searchFlow.activeSearchId,
+      presentationId: searchFlow.presentationId,
+    });
+    dispatchSearchFlow({ type: 'DISMISS_COMPLETED' });
+  }, [searchFlow.activeSearchId, searchFlow.presentationId]);
 
   const homeHeader = (
     <NativeGlassHeader
@@ -126,7 +230,7 @@ export default function Home() {
         <View style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.xs }}>
           <NativeSearchField
             accessibilityLabel="Buscar clientes, entregas e filtros"
-            onChangeText={setSearchText}
+            onChangeText={handleSearchTextChange}
             onSubmit={handleSearchSubmit}
             placeholder="Busque clientes, entregas e filtros"
             focusEntryKey={focusEntryKey}
@@ -238,10 +342,12 @@ export default function Home() {
           onToggleStatus={handleTodayStatusToggle}
         />
       </PremiumScreen>
-      <HomeSearchPrototypeSheet
-        onVisibleChange={handleSearchSheetVisibilityChange}
-        query={submittedSearch}
-        visible={searchResultsVisible}
+      <HomeSearchResultsSheet
+        onDismiss={handleSearchSheetDismiss}
+        onImplementationReady={handleSearchSheetImplementationReady}
+        onVisibleChange={handleSearchSheetVisibleChange}
+        response={searchFlow.response}
+        visible={isHomeSearchSheetVisible(searchFlow)}
       />
     </View>
   );

@@ -61,6 +61,7 @@ export interface FinancialCalculationFilters {
   dataInicioSelecionada?: string;
   dataFimSelecionada?: string;
   buscaCliente?: string;
+  clientId?: import('./client').ClientId;
   status?: string;
 }
 

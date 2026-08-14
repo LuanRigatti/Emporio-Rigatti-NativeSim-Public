@@ -10,6 +10,8 @@ export interface FactorySummary {
   openValue: number;
 }
 
+export type FactorySettlementStatus = 'paid' | 'partial' | 'open';
+
 export const FACTORY_PAYMENT_TOLERANCE = 0.01;
 
 function safeNumber(value: unknown): number {
@@ -26,8 +28,12 @@ export class FactoryCalculationService {
   }
 
   public paymentProgress(receipt: FactoryReceipt): number {
-    const total = safeNumber(receipt.valorTotal);
-    return total > 0 ? Math.min(1, this.totalPaid(receipt) / total) : 0;
+    return this.paymentProgressForValues(this.totalPaid(receipt), receipt.valorTotal);
+  }
+
+  public paymentProgressForValues(totalPaid: number, totalValue: number): number {
+    const total = safeNumber(totalValue);
+    return total > 0 ? Math.min(1, safeNumber(totalPaid) / total) : 0;
   }
 
   public calculateReceiptTotal(quantity: number, date: string): number {
@@ -40,6 +46,11 @@ export class FactoryCalculationService {
     return (
       Math.abs(safeNumber(receipt.valorTotal) - this.totalPaid(receipt)) < FACTORY_PAYMENT_TOLERANCE
     );
+  }
+
+  public settlementStatus(receipt: FactoryReceipt): FactorySettlementStatus {
+    if (this.isWithinSettlementTolerance(receipt)) return 'paid';
+    return this.totalPaid(receipt) > 0 ? 'partial' : 'open';
   }
 
   public assertPaymentWithinBalance(receipt: FactoryReceipt, amount: number): number {

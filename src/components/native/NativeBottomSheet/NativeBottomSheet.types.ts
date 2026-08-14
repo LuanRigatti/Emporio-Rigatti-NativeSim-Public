@@ -19,12 +19,15 @@ export type NativeBottomSheetConfirmation = {
 
 export type NativeBottomSheetProps = {
   content?: ReactNode;
+  detents?: readonly NativeBottomSheetDetent[];
   visible: boolean;
   bucketPrice?: number;
   title: string;
   titleSystemImage?: string;
   subtitle?: string;
   items: readonly NativeBottomSheetItem[];
+  onDismiss?: () => void;
+  onImplementationReady?: (implementation: 'swiftui' | 'fallback') => void;
   onVisibleChange: (visible: boolean) => void;
   onSelect?: (item: NativeBottomSheetItem) => void;
   onPageSettled?: (page: number) => void;

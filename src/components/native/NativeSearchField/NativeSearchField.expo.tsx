@@ -16,7 +16,7 @@ export default function NativeSearchFieldExpo({
       onChangeText={onChangeText}
       onBlur={() => onFocusChange?.(false)}
       onFocus={() => onFocusChange?.(true)}
-      onSubmitEditing={() => onSubmit?.()}
+      onSubmitEditing={({ nativeEvent }) => onSubmit?.(nativeEvent.text)}
       placeholder={placeholder}
       value={value}
     />

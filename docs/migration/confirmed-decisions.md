@@ -1,6 +1,6 @@
 # Decisões confirmadas de negócio e arquitetura
 
-Este documento registra decisões permanentes para a migração do projeto original para React Native/Expo.
+Este documento registra decisões permanentes de negócio e arquitetura do aplicativo React Native atual.
 
 Nenhuma decisão abaixo autoriza implementação automática nesta etapa. Funcionalidades somente devem ser implementadas após localização dos arquivos relacionados, documentação das regras, apresentação de plano e autorização explícita.
 
@@ -57,7 +57,7 @@ Quando um endereço não puder ser localizado, o fluxo deverá:
 
 Uma rota só poderá usar coordenadas confirmadas pelo geocodificador ou selecionadas manualmente pelo usuário.
 
-## 6. Clientes personalizados
+## 6. Clientes e histórico
 
 Clientes personalizados poderão ser:
 
@@ -75,59 +75,23 @@ Antes de renomear ou excluir um cliente, o fluxo deverá:
 6. gerar backup preventivo;
 7. impedir perda de histórico.
 
-Como os registros atuais se relacionam pelo nome do cliente, não é permitido renomear diretamente sem atualizar todas as referências relacionadas. A operação deve ser transacional do ponto de vista do usuário: ou todas as referências são atualizadas com sucesso, ou a alteração não é concluída.
+Como os clientes possuem identidade própria no Cloud Firestore, renomeações e exclusões devem verificar referências relacionadas, apresentar impacto, exigir confirmação e preservar o histórico. Excluir ou arquivar um cliente não pode apagar entregas.
 
-A arquitetura deve ser preparada para uso futuro de `clientId`, mas o contrato atual do Firebase não deve ser alterado sem uma etapa específica de migração.
+O Realtime Database legado e o schema antigo não fazem parte do fluxo normal do aplicativo. Não criar compatibilidade, importação ou migração automática para eles. Qualquer auditoria ou migração futura precisa ser solicitada explicitamente e ter backup, validação de integridade e rollback.
 
-## 7. Estrutura atual do Firebase
+## 7. Persistência atual
 
-Na primeira versão React Native:
+O Cloud Firestore é a fonte persistente atual, por usuário, em `users/{uid}/...`. As entidades usam documentos próprios e consultas granulares. Não armazenar arrays crescentes nem criar leituras globais quando a tela precisa de um período ou entidade específica.
 
-- manter compatibilidade com os arrays completos existentes;
-- não alterar automaticamente a estrutura dos dados;
-- continuar lendo e gravando no formato atual;
-- encapsular o acesso em `repositories`;
-- preparar mappers para uma migração estrutural futura.
-
-Uma migração futura para registros indexados por ID deverá possuir, obrigatoriamente:
-
-- backup;
-- conversão;
-- validação;
-- verificação de integridade;
-- rollback.
+AsyncStorage/local storage pode ser usado como cache, fallback local ou preferência exclusiva do dispositivo. Finanças, Estoque, gráficos e outros resumos são derivados e não possuem uma coleção própria.
 
 ## 8. Notificações
 
-As notificações serão migradas na primeira versão.
+Notificações e tokens não devem ser alterados incidentalmente. Uma etapa futura de notificações somente deve ser criada após auditoria do código atual, das regras do Firestore e da configuração nativa.
 
-O escopo inclui:
+## 9. Backup e Restore
 
-- notificação de nova entrega;
-- lembretes de cobrança;
-- registro e atualização do token;
-- compatibilidade com iOS;
-- validação das Cloud Functions existentes.
-
-A implementação deverá usar Expo Notifications ou outra solução compatível com Expo e React Native.
-
-## 9. Backup
-
-Importação e exportação de backup serão migradas na primeira versão.
-
-Requisitos obrigatórios:
-
-- manter compatibilidade com os arquivos JSON existentes;
-- validar o arquivo antes da importação;
-- mostrar uma prévia dos dados;
-- informar quantos registros serão importados;
-- gerar backup automático dos dados atuais;
-- solicitar confirmação;
-- permitir cancelamento;
-- apresentar o resultado da importação;
-- não sobrescrever silenciosamente dados válidos.
-
-Toda operação de importação deve ser cancelável antes da confirmação e deve deixar claro o que será criado, atualizado ou ignorado.
+Backup e Restore já estão implementados. As operações devem preservar checksum, `backupVersion`, `schemaVersion`, UID, IDs originais, timestamps, dry-run, confirmação explícita, relatório e detecção de conflitos. Nunca excluir ou sobrescrever silenciosamente documentos válidos.
 
 ## 10. Pagamentos parciais da fábrica
 
@@ -142,17 +106,6 @@ Pagamentos de recebimentos da fábrica não podem ultrapassar o saldo restante.
 - pagamento igual ao saldo conclui automaticamente o recebimento;
 - remover uma parcela deve recalcular o total pago, o saldo e a conclusão.
 
-## 11. Compatibilidade de tokens de notificação
+## 11. Autenticação e desbloqueio local
 
-Na primeira versão React Native, o campo Firebase `/usuarios/{uid}/pushToken` continuará sendo
-utilizado sem alteração estrutural.
-
-- iOS e Android registrarão o Expo Push Token nesse campo;
-- Web continuará compatível com o token FCM usado pelo Ionic;
-- as Cloud Functions deverão identificar o formato do token e encaminhar pela integração
-  correspondente;
-- não será criada uma coleção de tokens por dispositivo nesta etapa;
-- portanto, permanece a limitação histórica de um único token por usuário, com o último
-  dispositivo registrado prevalecendo;
-- a migração futura para múltiplos dispositivos exigirá uma etapa própria, com backup,
-  conversão, validação, integridade e rollback.
+Google/Firebase Auth é a autenticação da conta. Face ID, quando habilitado pela feature flag e pela preferência local do dispositivo, é apenas um gate biométrico local; não substitui o Firebase Auth, não executa novo login Google e não armazena tokens ou credenciais.

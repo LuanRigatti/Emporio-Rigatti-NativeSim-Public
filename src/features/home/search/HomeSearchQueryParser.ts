@@ -44,6 +44,7 @@ function isoDate(day: number, month: number, year: number): string {
 function parsePeriod(
   normalized: string,
   currentYear: number,
+  referenceDate = new Date(),
 ): { period?: HomeSearchPeriod; matched?: string } {
   const isoDateMatch = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(normalized);
   if (isoDateMatch) {
@@ -122,6 +123,14 @@ function parsePeriod(
     }
   }
 
+  const today = /\bhoje\b/.exec(normalized);
+  if (today) {
+    const year = referenceDate.getFullYear();
+    const month = referenceDate.getMonth() + 1;
+    const day = referenceDate.getDate();
+    return { period: { kind: 'date', date: isoDate(day, month, year) }, matched: today[0] };
+  }
+
   const year = /\b(20\d{2})\b/.exec(normalized);
   return year ? { period: { kind: 'year', year: Number(year[1]) }, matched: year[0] } : {};
 }
@@ -164,7 +173,7 @@ export class HomeSearchQueryParser {
       normalizedWithoutFinancial,
       businessResult?.alias,
     );
-    const parsedPeriod = parsePeriod(normalized, referenceDate.getFullYear());
+    const parsedPeriod = parsePeriod(normalized, referenceDate.getFullYear(), referenceDate);
     const defaultsToCurrentMonth = Boolean(
       financialResult ||
       businessResult?.routeMetric ||

@@ -1,22 +1,27 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeCardContextMenu,
-  NativeDatePicker,
   NativeGlassBackButton,
   NativeGlassIconButton,
+  NativePeriodActionGroup,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { NativeTrackedRouteMap } from '@/components/routes';
-import { formatRouteDateKey, locationTrackingService, RouteTrackingError } from '@/services/routes';
+import { locationTrackingService, RouteTrackingError } from '@/services/routes';
 import type { LocationTrackingService } from '@/services/routes';
 import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import {
+  HISTORY_MONTH_ITEMS,
+  getHistoryYearItems,
+} from '@/features/history/components/periodOptions';
+import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 
 type TrackingErrorState = {
   code?: RouteTrackingError['code'];
@@ -41,9 +46,22 @@ function createRouteId(): string {
   return `location-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function parseRouteDate(value: string): Date {
+function monthShortLabel(month: number): string {
+  return (
+    ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
+      month - 1
+    ] ?? String(month)
+  );
+}
+
+function formatRouteDayLabel(value: string): string {
   const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12);
+  if (!year || !month || !day) return value;
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date(year, month - 1, day, 12));
 }
 
 function getErrorMessage(error: unknown): string {
@@ -56,8 +74,10 @@ export function LocationTrackingScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const currentPeriod = getCurrentHistoryPeriod();
   const [route, setRoute] = useState<RouteTrackingRecord | null>(null);
-  const [selectedDate, setSelectedDate] = useState(() => formatRouteDateKey(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
+  const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
   const [routeHistory, setRouteHistory] = useState<RouteTrackingSession[]>([]);
   const [busy, setBusy] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<Awaited<
@@ -70,8 +90,11 @@ export function LocationTrackingScreen() {
     setRoute(storedRoute);
   }, []);
 
-  const refreshHistory = useCallback(async (date: string) => {
-    setRouteHistory(await locationTrackingService.getRouteHistory(date));
+  const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+
+  const refreshHistory = useCallback(async (period: string) => {
+    const history = await locationTrackingService.getRouteHistory();
+    setRouteHistory(history.filter((session) => session.date.startsWith(`${period}-`)));
   }, []);
 
   const refreshPermissions = useCallback(async () => {
@@ -94,7 +117,7 @@ export function LocationTrackingScreen() {
       };
 
       void sync();
-      void refreshHistory(selectedDate);
+      void refreshHistory(selectedPeriod);
       void refreshPermissions();
       const appStateSubscription = AppState.addEventListener('change', (state) => {
         if (state === 'active') void refreshPermissions();
@@ -105,20 +128,8 @@ export function LocationTrackingScreen() {
         clearInterval(interval);
         appStateSubscription.remove();
       };
-    }, [refreshHistory, refreshPermissions, selectedDate]),
+    }, [refreshHistory, refreshPermissions, selectedPeriod]),
   );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void locationTrackingService.getRouteHistory(selectedDate).then((sessions) => {
-      if (!cancelled) setRouteHistory(sessions);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedDate]);
 
   const handleStart = useCallback(async () => {
     setBusy(true);
@@ -148,7 +159,7 @@ export function LocationTrackingScreen() {
     try {
       const finishedRoute = await locationTrackingService.stopRouteTracking(route.routeId);
       setRoute(finishedRoute ?? (await locationTrackingService.getRoute()));
-      await refreshHistory(selectedDate);
+      await refreshHistory(selectedPeriod);
       triggerLightImpactHaptic();
     } catch (error) {
       setTrackingError({
@@ -159,7 +170,7 @@ export function LocationTrackingScreen() {
     } finally {
       setBusy(false);
     }
-  }, [refreshHistory, refreshRoute, route, selectedDate]);
+  }, [refreshHistory, refreshRoute, route, selectedPeriod]);
 
   const handleDeleteRoute = useCallback(
     async (sessionId: string) => {
@@ -168,15 +179,27 @@ export function LocationTrackingScreen() {
 
       try {
         await locationTrackingService.removeRouteSession(sessionId);
-        await refreshHistory(selectedDate);
+        await refreshHistory(selectedPeriod);
       } catch (error) {
         setTrackingError({ message: getErrorMessage(error) });
       } finally {
         setBusy(false);
       }
     },
-    [refreshHistory, selectedDate],
+    [refreshHistory, selectedPeriod],
   );
+
+  const routeHistoryByDay = useMemo(() => {
+    const groups = new Map<string, RouteTrackingSession[]>();
+
+    routeHistory.forEach((session) => {
+      const sessions = groups.get(session.date) ?? [];
+      sessions.push(session);
+      groups.set(session.date, sessions);
+    });
+
+    return Array.from(groups.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [routeHistory]);
 
   const visibleErrorMessage =
     trackingError?.code === 'permission-denied' && permissionStatus?.background.granted
@@ -196,12 +219,17 @@ export function LocationTrackingScreen() {
       }
       mode="transparent"
       rightActions={
-        <NativeDatePicker
-          accessibilityLabel="Selecionar dia da rota"
-          mode="date"
-          onChange={(nextDate) => setSelectedDate(formatRouteDateKey(nextDate))}
-          style="compact"
-          value={parseRouteDate(selectedDate)}
+        <NativePeriodActionGroup
+          color={theme.colors.textPrimary}
+          monthDisplayValue={monthShortLabel(selectedMonth)}
+          monthItems={HISTORY_MONTH_ITEMS}
+          onMonthChange={setSelectedMonth}
+          onYearChange={setSelectedYear}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          showValues
+          valueFontSize={17}
+          yearItems={getHistoryYearItems()}
         />
       }
       title=""
@@ -222,22 +250,29 @@ export function LocationTrackingScreen() {
               { color: theme.colors.textPrimary, textAlign: 'center' },
             ]}
           >
-            Rotas do dia
+            Rotas do mês
           </Text>
           {visibleErrorMessage ? (
             <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
               {visibleErrorMessage}
             </Text>
           ) : null}
-          {routeHistory.length > 0 ? (
-            routeHistory.map((session) => (
-              <RouteHistoryCard
-                key={session.id}
-                onDelete={() => void handleDeleteRoute(session.id)}
-                onPress={() => router.push(`/localizacao/${encodeURIComponent(session.id)}`)}
-                session={session}
-                theme={theme}
-              />
+          {routeHistoryByDay.length > 0 ? (
+            routeHistoryByDay.map(([date, sessions]) => (
+              <View key={date} style={styles.dayGroup}>
+                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                  {formatRouteDayLabel(date)}
+                </Text>
+                {sessions.map((session) => (
+                  <RouteHistoryCard
+                    key={session.id}
+                    onDelete={() => void handleDeleteRoute(session.id)}
+                    onPress={() => router.push(`/localizacao/${encodeURIComponent(session.id)}`)}
+                    session={session}
+                    theme={theme}
+                  />
+                ))}
+              </View>
             ))
           ) : (
             <Text
@@ -246,7 +281,7 @@ export function LocationTrackingScreen() {
                 { alignSelf: 'stretch', color: theme.colors.textSecondary, textAlign: 'center' },
               ]}
             >
-              Nenhuma rota registrada neste dia.
+              Nenhuma rota registrada neste mês.
             </Text>
           )}
         </View>
@@ -337,6 +372,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flexGrow: 1, paddingBottom: 120 },
   historyCard: { overflow: 'hidden', padding: 0 },
+  dayGroup: { gap: 12 },
   historySection: { gap: 12 },
   routeMeta: { gap: 4, padding: 16 },
   routePreview: { height: 180, overflow: 'hidden' },

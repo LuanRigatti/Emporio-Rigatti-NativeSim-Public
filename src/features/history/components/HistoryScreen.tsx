@@ -41,15 +41,18 @@ export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
-  const { reload: refresh, remove: removeDelivery, deliveries, toggleDelivered: toggleDelivery } =
-    useDeliveries({ mode: 'today', date: selectedDate });
-  const allDeliveries = useMemo(
-    () => deliveries.map(toHistoryDelivery),
-    [deliveries],
-  );
+  const {
+    reload: refresh,
+    remove: removeDelivery,
+    deliveries,
+    toggleDelivered: toggleDelivery,
+  } = useDeliveries({ mode: 'today', date: selectedDate });
+  const allDeliveries = useMemo(() => deliveries.map(toHistoryDelivery), [deliveries]);
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
-  const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
+  const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(
+    () => insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm,
+  );
 
   useFocusEffect(
     useCallback(() => {

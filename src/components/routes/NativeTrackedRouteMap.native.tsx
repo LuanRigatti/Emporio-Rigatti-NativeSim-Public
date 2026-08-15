@@ -7,13 +7,23 @@ import { useLazyNativeImplementation } from '@/platform/useLazyNativeImplementat
 import { useAppTheme } from '@/theme';
 
 import { NativeTrackedRouteMapFallback } from './NativeTrackedRouteMapFallback';
-import type { NativeTrackedRouteMapProps } from './NativeTrackedRouteMap.types';
+import { NativeTrackedRoutesMapFallback } from './NativeTrackedRoutesMapFallback';
+import type {
+  NativeTrackedRouteMapProps,
+  NativeTrackedRoutesMapProps,
+} from './NativeTrackedRouteMap.types';
 
 function canUseExpoMaps() {
   return getRuntimeEnvironment() === 'development-build' && hasNativeModule('ExpoMaps');
 }
 
 function NativeTrackedRouteMapLoading({ style }: Pick<NativeTrackedRouteMapProps, 'style'>) {
+  const { theme } = useAppTheme();
+
+  return <View style={[{ backgroundColor: theme.colors.surface }, style]} />;
+}
+
+function NativeTrackedRoutesMapLoading({ style }: Pick<NativeTrackedRoutesMapProps, 'style'>) {
   const { theme } = useAppTheme();
 
   return <View style={[{ backgroundColor: theme.colors.surface }, style]} />;
@@ -31,4 +41,18 @@ export function NativeTrackedRouteMap(props: NativeTrackedRouteMapProps) {
   if (NativeImplementation) return createElement(NativeImplementation, props);
   if (expoMapsAvailable) return <NativeTrackedRouteMapLoading style={props.style} />;
   return <NativeTrackedRouteMapFallback {...props} />;
+}
+
+export function NativeTrackedRoutesMap(props: NativeTrackedRoutesMapProps) {
+  const expoMapsAvailable = canUseExpoMaps();
+  const loadImplementation = useCallback(
+    () =>
+      import('./NativeTrackedRouteMapDevelopment').then((module) => module.NativeTrackedRoutesMap),
+    [],
+  );
+  const NativeImplementation = useLazyNativeImplementation(expoMapsAvailable, loadImplementation);
+
+  if (NativeImplementation) return createElement(NativeImplementation, props);
+  if (expoMapsAvailable) return <NativeTrackedRoutesMapLoading style={props.style} />;
+  return <NativeTrackedRoutesMapFallback {...props} />;
 }

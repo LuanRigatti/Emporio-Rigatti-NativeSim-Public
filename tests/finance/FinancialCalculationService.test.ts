@@ -106,6 +106,23 @@ describe('FinancialCalculationService', () => {
     ).toBeCloseTo((74 / 5.6) * 6, 8);
   });
 
+  it('includes local route kilometers in daily fuel and net profit', () => {
+    const result = service.calculateResumo({
+      deliveries: [delivery({ data: '2026-07-01' })],
+      dailyExpenses: dailyExpenses,
+      monthlyExpenses: {},
+      filters: { periodo: 'dia', diaSelecionado: '2026-07-01' },
+      automaticKilometersByDate: { '2026-07-01': 7.4 },
+      today,
+    });
+
+    expect(result.custoCombustivel).toBeCloseTo((81.4 / 5.6) * 6, 8);
+    expect(result.lucroLiquido).toBeCloseTo(
+      result.lucroBruto - result.custoEstar - result.custoCombustivel - result.custoLuz,
+      8,
+    );
+  });
+
   it('returns zero light allocation when the selected period has no deliveries', () => {
     expect(service.calculateLuzDoPeriodo([], monthlyExpenses, false, today)).toBe(0);
     const result = service.calculateResumo({

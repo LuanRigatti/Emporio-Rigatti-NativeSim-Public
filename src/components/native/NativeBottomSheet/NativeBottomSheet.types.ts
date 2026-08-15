@@ -19,6 +19,7 @@ export type NativeBottomSheetConfirmation = {
 
 export type NativeBottomSheetProps = {
   content?: ReactNode;
+  hostSizing?: 'content' | 'fill' | 'viewport';
   detents?: readonly NativeBottomSheetDetent[];
   visible: boolean;
   bucketPrice?: number;
@@ -32,6 +33,7 @@ export type NativeBottomSheetProps = {
   onSelect?: (item: NativeBottomSheetItem) => void;
   onPageSettled?: (page: number) => void;
   onConfirm?: (confirmation: NativeBottomSheetConfirmation) => void;
+  onDetentChange?: (detent: NativeBottomSheetDetent) => void;
   selectedItem?: NativeBottomSheetItem | null;
   initialQuantity?: number;
   initialDetent?: NativeBottomSheetDetent;

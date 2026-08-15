@@ -365,7 +365,6 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     () =>
       [...todayDeliveries].reverse().map((delivery) => ({
         id: delivery.id,
-        overline: formatDeliveryDate(delivery.data),
         subtitle: `${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`,
         title: delivery.cliente,
         titleBold: true,
@@ -411,10 +410,20 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                 styles.deliveryCard,
                 {
                   borderRadius: theme.radius.xl + theme.spacing.xl,
-                  paddingVertical: theme.spacing.xxs,
+                  paddingVertical: 0,
+                  position: 'relative',
                 },
               ]}
             >
+              <Text
+                style={[
+                  theme.typography.headline,
+                  styles.deliveryDayTitle,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Hoje
+              </Text>
               <NativeSwipeActionsList
                 colors={{
                   border: theme.colors.borderStrong,
@@ -423,8 +432,10 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                   textPrimary: theme.colors.textPrimary,
                   textSecondary: theme.colors.textSecondary,
                 }}
+                compact
                 items={nativeDeliveryItems}
                 onDelete={handleDeleteBySwipe}
+                rowSpacing={theme.spacing.sm}
                 trailingValueAlignment="top"
               />
             </PremiumCard>
@@ -519,4 +530,5 @@ const styles = StyleSheet.create({
   deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8 },
+  deliveryDayTitle: { left: 0, position: 'absolute', right: 0, textAlign: 'center', top: 8 },
 });

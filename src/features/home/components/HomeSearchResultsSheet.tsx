@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
@@ -7,7 +7,11 @@ import type { HomeSearchResponse } from '../search/HomeSearchTypes';
 import { logHomeSearchFlow } from '../debug/HomeSearchFlowDebug';
 import HomeSearchResultsContent from './HomeSearchResultsContent';
 
-const HOME_SEARCH_DETENTS: NonNullable<NativeBottomSheetProps['detents']> = [{ fraction: 0.58 }];
+const HOME_SEARCH_INITIAL_DETENT = { fraction: 0.58 } as const;
+const HOME_SEARCH_DETENTS: NonNullable<NativeBottomSheetProps['detents']> = [
+  HOME_SEARCH_INITIAL_DETENT,
+  'large',
+];
 
 type Props = {
   onDismiss: () => void;
@@ -24,6 +28,8 @@ export function HomeSearchResultsSheet({
   response,
   visible,
 }: Props) {
+  const [isLarge, setIsLarge] = useState(false);
+
   useEffect(() => {
     logHomeSearchFlow('results-sheet-mounted');
     return () => {
@@ -48,14 +54,25 @@ export function HomeSearchResultsSheet({
     });
   }, [response, visible]);
 
+  const handleVisibleChange = (nextVisible: boolean) => {
+    if (!nextVisible) setIsLarge(false);
+    onVisibleChange(nextVisible);
+  };
+  const handleDismiss = () => {
+    onDismiss();
+  };
+
   return (
     <NativeBottomSheet
-      content={<HomeSearchResultsContent response={response} />}
+      content={<HomeSearchResultsContent isLarge={isLarge} response={response} />}
       detents={HOME_SEARCH_DETENTS}
+      hostSizing="viewport"
       items={[]}
-      onDismiss={onDismiss}
+      initialDetent={HOME_SEARCH_INITIAL_DETENT}
+      onDismiss={handleDismiss}
+      onDetentChange={(detent) => setIsLarge(detent === 'large')}
       onImplementationReady={onImplementationReady}
-      onVisibleChange={onVisibleChange}
+      onVisibleChange={handleVisibleChange}
       title="Resultados"
       visible={visible}
     />

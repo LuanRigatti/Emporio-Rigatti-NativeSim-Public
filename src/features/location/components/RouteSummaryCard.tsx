@@ -27,15 +27,23 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes} min ${String(remainingSeconds).padStart(2, '0')} s`;
 }
 
-function formatDistance(meters: number): string {
-  return `${(meters / 1000).toLocaleString('pt-BR', {
+function formatKilometers(kilometers: number): string {
+  return `${kilometers.toLocaleString('pt-BR', {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   })} km`;
 }
 
+function formatDistance(meters: number): string {
+  return formatKilometers(meters / 1000);
+}
+
 export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
   const { theme } = useAppTheme();
+  const sessionDistanceKilometers = session.distanceMeters / 1000;
+  const showDailyDistance =
+    dailyDistanceKilometers !== undefined &&
+    formatKilometers(dailyDistanceKilometers) !== formatKilometers(sessionDistanceKilometers);
   const rows = [
     { icon: 'calendar', label: 'Data', value: formatDate(session.startTimestamp) },
     { icon: 'play.circle', label: 'Início', value: formatTime(session.startTimestamp) },
@@ -47,40 +55,29 @@ export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
       value: formatDistance(session.distanceMeters),
     },
     { icon: 'mappin.and.ellipse', label: 'Pontos GPS', value: String(session.pointsCount) },
-    ...(dailyDistanceKilometers === undefined
+    ...(!showDailyDistance
       ? []
       : [
           {
             icon: 'road.lanes',
             label: 'Km considerado no dia',
-            value: `${dailyDistanceKilometers.toLocaleString('pt-BR', {
-              maximumFractionDigits: 2,
-              minimumFractionDigits: 2,
-            })} km`,
+            value: formatKilometers(dailyDistanceKilometers),
           },
         ]),
   ];
 
   return (
-    <View style={[styles.cards, { gap: theme.spacing.sm, paddingHorizontal: theme.spacing.sm }]}>
-      {rows.map((row) => (
-        <GlassCard
-          key={row.label}
-          style={[
-            styles.card,
-            {
-              borderRadius: theme.radius.xl + theme.spacing.xs,
-              marginHorizontal: -theme.spacing.xs,
-              padding: 0,
-            },
-          ]}
-        >
+    <GlassCard
+      style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.xs, padding: 0 }]}
+    >
+      <View style={[styles.cards, { gap: theme.spacing.xs, paddingHorizontal: theme.spacing.sm }]}>
+        {rows.map((row) => (
           <View
+            key={row.label}
             style={[
               styles.row,
               {
                 minHeight: theme.sizes.touchTargetMinimum + theme.spacing.xs,
-                paddingHorizontal: theme.spacing.xs,
               },
             ]}
           >
@@ -99,15 +96,15 @@ export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
               {row.value}
             </Text>
           </View>
-        </GlassCard>
-      ))}
-    </View>
+        ))}
+      </View>
+    </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
   cards: { width: '100%' },
-  card: {},
+  card: { width: '100%' },
   labelGroup: { alignItems: 'center', flexDirection: 'row', flexShrink: 1, gap: 8 },
   row: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
 });

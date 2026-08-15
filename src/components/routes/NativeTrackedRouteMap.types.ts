@@ -9,3 +9,15 @@ export type NativeTrackedRouteMapProps = {
   samples: readonly RouteTrackingSample[];
   style?: StyleProp<ViewStyle>;
 };
+
+export type NativeTrackedRoute = {
+  routeId: string;
+  samples: readonly RouteTrackingSample[];
+};
+
+export type NativeTrackedRoutesMapProps = {
+  animate?: boolean;
+  interactive?: boolean;
+  routes: readonly NativeTrackedRoute[];
+  style?: StyleProp<ViewStyle>;
+};

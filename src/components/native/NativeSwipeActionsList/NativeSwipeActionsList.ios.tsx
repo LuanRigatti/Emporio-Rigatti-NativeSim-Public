@@ -1,13 +1,4 @@
-import {
-  Button,
-  ContextMenu,
-  HStack,
-  Host,
-  Image,
-  Spacer,
-  Text,
-  VStack,
-} from '@expo/ui/swift-ui';
+import { Button, ContextMenu, HStack, Host, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   background,
   buttonStyle,
@@ -184,6 +175,7 @@ export default function NativeSwipeActionsList({
   onDelete,
   action = { label: 'Excluir', role: 'destructive', systemImage: 'trash' },
   compact = false,
+  rowSpacing = ROW_SPACING,
   trailingValueAlignment = 'center',
 }: NativeSwipeActionsListProps) {
   const rowHeight = compact ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
@@ -194,11 +186,11 @@ export default function NativeSwipeActionsList({
         width: '100%',
         height: Math.max(
           rowHeight,
-          items.length * rowHeight + Math.max(0, items.length - 1) * ROW_SPACING,
+          items.length * rowHeight + Math.max(0, items.length - 1) * rowSpacing,
         ),
       }}
     >
-      <VStack alignment="leading" spacing={ROW_SPACING}>
+      <VStack alignment="leading" spacing={rowSpacing}>
         {items.map((item) => (
           <DeliveryRow
             key={item.id}

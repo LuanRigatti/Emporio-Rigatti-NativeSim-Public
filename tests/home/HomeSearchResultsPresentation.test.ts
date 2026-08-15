@@ -380,7 +380,6 @@ describe('HomeSearchResultsPresentation', () => {
         expect.stringMatching(/^Fim:/),
         'Duração: 20 min 00 s',
         'Distância: 20,00 km',
-        'Pontos GPS: 4',
         'Km considerado no dia: 20,00 km',
       ]),
     });

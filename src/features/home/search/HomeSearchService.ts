@@ -2,7 +2,10 @@ import { factoryCalculationService } from '@/services/finance/FactoryCalculation
 import { financialCalculationService } from '@/services/finance/FinancialCalculationService';
 import { financialFiltersForSelection } from '@/services/finance/FinancialPeriodService';
 import { parseKmPerLiter } from '@/services/expenses/FuelCostCalculationService';
-import { summarizeRouteDistance } from '@/services/routes/routeTrackingDistance';
+import {
+  summarizeRouteDistance,
+  summarizeRouteKilometersByDate,
+} from '@/services/routes/routeTrackingDistance';
 import type {
   ClientId,
   ClientModel,
@@ -397,7 +400,9 @@ function routeSummaryResults(
 ): HomeSearchRouteSummaryResult[] {
   const period = query.period;
   const metric = query.routeMetric;
-  const sessions = data.routeSessions ?? [];
+  const sessions = (data.routeSessions ?? []).filter((session) =>
+    matchesPeriod(session.date, period),
+  );
   if (!period || !metric || sessions.length === 0) return [];
   const distance = summarizeRouteDistance(sessions);
   const dailySummaries = new Map(
@@ -511,6 +516,7 @@ function periodSummaryResults(
     dailyExpenses: financial.dailyExpenses,
     filters: financialFiltersForSelection(financialSelection(period)),
     monthlyExpenses: financial.monthlyExpenses,
+    automaticKilometersByDate: summarizeRouteKilometersByDate(sessions),
   });
   const routeSummary = summarizeRouteDistance(sessions);
   return [
@@ -593,6 +599,7 @@ function financialResults(
 
   const clients = financialClients(data.clients, query);
   const scopes: (ClientModel | undefined)[] = query.text ? clients : [undefined];
+  const automaticKilometersByDate = summarizeRouteKilometersByDate(data.routeSessions ?? []);
 
   return scopes.flatMap((client) => {
     const metric = client ? effectiveClientMetric(query) : requestedMetric;
@@ -635,6 +642,7 @@ function financialResults(
       dailyExpenses: financial.dailyExpenses,
       filters,
       monthlyExpenses: financial.monthlyExpenses,
+      automaticKilometersByDate,
     });
     return [
       {

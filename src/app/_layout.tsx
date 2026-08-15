@@ -2,7 +2,7 @@ import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { SessionProvider, useSession } from '@/providers';
 import { BiometricLockOverlay } from '@/components/auth/BiometricLockOverlay';
@@ -68,7 +68,7 @@ function AppShell() {
 export default function PrototypeRootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <SessionProvider>
           <ThemeProvider>
             <AppShell />

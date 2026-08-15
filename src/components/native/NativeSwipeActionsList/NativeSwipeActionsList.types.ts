@@ -35,5 +35,6 @@ export type NativeSwipeActionsListProps = {
   onDelete: (id: string) => void;
   action?: NativeSwipeActionsListAction;
   compact?: boolean;
+  rowSpacing?: number;
   trailingValueAlignment?: 'center' | 'top';
 };

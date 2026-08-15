@@ -85,11 +85,15 @@ function dailyExpenseDates(
 }
 
 export class ExpenseCalculationService {
-  public calculateFuelCost(date: string, expense?: DailyExpenses[string]): number {
+  public calculateFuelCost(
+    date: string,
+    expense?: DailyExpenses[string],
+    additionalKilometers = 0,
+  ): number {
     if (!expense) return 0;
     const normalizedDate = isoDate(date);
     if (normalizedDate >= EXPENSE_CUTOFFS.currentFuelModel) {
-      const kilometers = safeNumber(expense.km);
+      const kilometers = safeNumber(expense.km) + Math.max(0, safeNumber(additionalKilometers));
       const fuelPrice = safeNumber(expense.precoGasolina);
       if (kilometers <= 0 || fuelPrice <= 0) return 0;
 

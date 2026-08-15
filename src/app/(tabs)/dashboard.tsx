@@ -199,6 +199,8 @@ export default function Home() {
       searchId: searchFlow.activeSearchId,
       presentationId: searchFlow.presentationId,
     });
+    setSearchText('');
+    setFocusEntryKey((currentKey) => currentKey + 1);
     dispatchSearchFlow({ type: 'DISMISS_COMPLETED' });
   }, [searchFlow.activeSearchId, searchFlow.presentationId]);
 
@@ -213,7 +215,7 @@ export default function Home() {
   );
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
         contentContainerStyle={{
           gap: theme.spacing.lg,

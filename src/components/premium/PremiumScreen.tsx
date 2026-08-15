@@ -62,8 +62,10 @@ export function PremiumScreen({
   const { resolvedMode, theme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
+  const effectiveOverlayHeaderHeight =
+    overlayHeaderHeight || insets.top + theme.sizes.touchTargetMinimum;
   const overlayHeaderTopOffset = overlayHeaderSafeArea ? insets.top + overlayHeaderTopSpacing : 0;
-  const overlayHeaderTotalHeight = overlayHeaderHeight + overlayHeaderTopOffset;
+  const overlayHeaderTotalHeight = effectiveOverlayHeaderHeight + overlayHeaderTopOffset;
   const shouldRenderProgressiveBlur =
     progressiveBlur && ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
   const resolvedProgressiveBlurHeight =

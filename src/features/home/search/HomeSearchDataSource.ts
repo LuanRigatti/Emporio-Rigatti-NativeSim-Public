@@ -135,12 +135,16 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       return { clients, deliveries: [], factoryPurchases: [], coverage, errors };
     }
     if (query.financialMetric) {
-      const financial = await this.loadFinancialData(query, coverage, errors);
+      const [financial, routeSessions] = await Promise.all([
+        this.loadFinancialData(query, coverage, errors),
+        this.loadRoutes(query, coverage, errors),
+      ]);
       return {
         clients,
         deliveries: financial.deliveries,
         factoryPurchases: [],
         financial,
+        routeSessions,
         coverage,
         errors,
       };

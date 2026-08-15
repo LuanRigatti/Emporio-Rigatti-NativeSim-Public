@@ -3,23 +3,32 @@
 
 > Documento mestre para qualquer agente de IA (Codex, Gemini, Claude, Continue, Cursor, etc.)
 
+Para o estado atual do produto, schema, flags e áreas já validadas, consulte
+`docs/current-state.md`. Os documentos em `docs/migration/` são históricos.
+
 # Objetivo do Projeto
 
-Este projeto é uma migração completa de um aplicativo Ionic/Angular para React Native + Expo + TypeScript.
+Este é o aplicativo React Native atual, construído originalmente a partir de uma migração Ionic/Angular. A migração histórica não é mais a fonte principal de contexto.
 
-O objetivo não é apenas migrar funcionalidades.
-
-O objetivo é entregar um aplicativo que tenha aparência, comportamento e experiência equivalentes a um aplicativo iOS nativo moderno, preservando compatibilidade com Android, Web e Expo Go.
+O objetivo atual é manter um aplicativo funcional, rápido e com experiência de iOS nativo moderno, preservando compatibilidade com Android, Web e Expo Go quando possível.
 
 # Stack
 
-- Expo SDK 54
+- Expo SDK 57
 - React Native
 - TypeScript
 - Expo Router
 - expo-router/unstable-native-tabs
 - @expo/ui 0.2.0-beta.9
 - Development Build para iOS
+
+## Documentação do Expo
+
+Antes de escrever qualquer código, consulte a documentação oficial versionada do Expo SDK 57:
+
+https://docs.expo.dev/versions/v57.0.0/
+
+O projeto utiliza o Expo SDK 57. Para decisões sobre APIs, componentes, configuração e compatibilidade do Expo neste checkout, use exclusivamente a documentação versionada do SDK 57. Não use documentação de outras versões como referência para a implementação.
 
 # Plataformas
 
@@ -38,6 +47,18 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - Utilizar expo-router/unstable-native-tabs.
 - Não migrar para React Navigation.
 - Preservar a arquitetura existente.
+
+## Persistência atual
+
+- Google/Firebase Auth é a autenticação real da conta.
+- Cloud Firestore é a persistência de negócio atual.
+- Os dados são separados por usuário em `users/{uid}/...`.
+- Clientes, entregas, fábrica, pagamentos, dados diários/mensais e configurações usam documentos próprios e queries granulares.
+- O Realtime Database legado não é fonte de verdade e não deve ser lido ou migrado automaticamente.
+- AsyncStorage/local storage permanece apenas como cache, fallback local ou preferência específica do dispositivo.
+- Finanças, Estoque, gráficos e índices são derivados em memória; não criar uma segunda fonte de verdade para eles.
+
+Áreas já validadas: Clientes, Entregas, Pagamentos em aberto, Notas fiscais/boletos, Fábrica e pagamentos parciais, Dados Diários/Mensais, Finanças, Estoque, FactorySettings, CarSettings, CompanyProfile e Backup/Restore.
 
 ## Componentes nativos
 
@@ -97,7 +118,7 @@ Priorizar:
 
 # Limitações Conhecidas
 
-- Permanecer no Expo SDK 54.
+- Permanecer no Expo SDK 57.
 - @expo/ui 0.2.0-beta.9 utiliza ContextMenu no lugar de Menu.
 - Evitar wrappers com overflow:hidden ao redor de componentes SwiftUI.
 - Não envolver Button SwiftUI com Pressable.

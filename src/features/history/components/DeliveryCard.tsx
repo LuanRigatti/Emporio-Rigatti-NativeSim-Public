@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
-import { formatPtBrDate } from '@/utils/data';
 
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
@@ -19,24 +18,25 @@ function statusLabel(status: HistoryDelivery['status']): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-export function DeliveryCard({ contained = false, delivery, onDelete, onToggleStatus }: DeliveryCardProps) {
+export function DeliveryCard({
+  contained = false,
+  delivery,
+  onDelete,
+  onToggleStatus,
+}: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
 
   const content = (
     <View style={styles.cardRow}>
       <View style={styles.cardContent}>
-        <View style={styles.cardDateRow}>
-          <Text style={[theme.typography.caption, { color: theme.colors.textTertiary }]}>
-            {formatPtBrDate(delivery.data)}
+        <View style={styles.cardHeaderRow}>
+          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+            {delivery.cliente}
           </Text>
           <View style={styles.statusInset}>
             <DeliveryStatusBadge onPress={onToggleStatus} status={delivery.status} />
           </View>
         </View>
-
-        <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-          {delivery.cliente}
-        </Text>
 
         <View style={[styles.primaryInfo, { gap: theme.spacing.sm }]}>
           <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   card: { paddingLeft: 20, paddingRight: 14, paddingVertical: 18 },
   cardRow: { alignItems: 'stretch', flexDirection: 'row', gap: 10 },
   cardContent: { flex: 1, gap: 8 },
-  cardDateRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  cardHeaderRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   primaryInfo: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 8 },
   statusInset: { marginRight: 8 },
 });

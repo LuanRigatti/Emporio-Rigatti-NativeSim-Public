@@ -54,6 +54,27 @@ describe('FinancialDailyDetailService', () => {
     expect(details[0]?.routeCount).toBe(1);
   });
 
+  it('uses automatic route kilometers when calculating the daily fuel cost', () => {
+    const [detail] = service.buildMonth(
+      {
+        dailyExpenses: {
+          '2026-08-05': {
+            data: '2026-08-05',
+            km: 3,
+            precoGasolina: 6,
+            tipoCombustivel: 'gasolina',
+          },
+        },
+        deliveries: [delivery('one', '2026-08-05', 100)],
+        monthlyExpenses: {},
+        routeSessions: [route('route-one', '2026-08-05', 2500)],
+      },
+      '2026-08',
+    );
+
+    expect(detail?.summary.custoCombustivel).toBeCloseTo((5.5 / 7.4) * 6, 8);
+  });
+
   it('does not mix dates or months when building a monthly series', () => {
     const details = service.buildMonth(
       {

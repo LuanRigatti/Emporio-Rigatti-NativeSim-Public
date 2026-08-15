@@ -9,9 +9,10 @@ export default function NativeSwipeActionsList({
   selectedIds,
   onItemPress,
   compact = false,
+  rowSpacing = 8,
 }: NativeSwipeActionsListProps) {
   return (
-    <View>
+    <View style={{ gap: rowSpacing }}>
       {items.map((item) => (
         <Pressable
           key={item.id}
@@ -20,9 +21,7 @@ export default function NativeSwipeActionsList({
           style={[styles.row, compact && styles.compactRow]}
         >
           {item.overline ? (
-          <Text style={[styles.overline, { color: colors.textSecondary }]}>
-              {item.overline}
-            </Text>
+            <Text style={[styles.overline, { color: colors.textSecondary }]}>{item.overline}</Text>
           ) : null}
           <View style={styles.summary}>
             <View style={styles.leading}>

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useIsFocused, useRouter } from 'expo-router';
+import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -15,6 +15,8 @@ import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUti
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
+import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
+import type { RouteTrackingSession } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
 
 function PreviewIcon({
@@ -47,10 +49,34 @@ export default function PrototypeFinanceiro() {
   const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
+  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>([]);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
   const { comparisonSnapshot, loading, refreshing, snapshot } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
     { displayMonth: selectedPeriod, enabled: isFocused },
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void routeTrackingRepository
+        .getRouteHistory()
+        .then((sessions) => {
+          if (active) setRouteSessions(sessions);
+        })
+        .catch(() => {
+          if (active) setRouteSessions([]);
+        });
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const automaticKilometersByDate = useMemo(
+    () => summarizeRouteKilometersByDate(routeSessions),
+    [routeSessions],
   );
 
   const summary = useMemo(
@@ -61,9 +87,10 @@ export default function PrototypeFinanceiro() {
             dailyExpenses: snapshot.gastosDiarios,
             filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
             monthlyExpenses: snapshot.gastosMensais,
+            automaticKilometersByDate,
           })
         : undefined,
-    [selectedPeriod, snapshot],
+    [automaticKilometersByDate, selectedPeriod, snapshot],
   );
   const comparison = useMemo(
     () =>
@@ -73,9 +100,10 @@ export default function PrototypeFinanceiro() {
             dailyExpenses: comparisonSnapshot?.gastosDiarios ?? snapshot.gastosDiarios,
             filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
             monthlyExpenses: comparisonSnapshot?.gastosMensais ?? snapshot.gastosMensais,
+            automaticKilometersByDate,
           })
         : undefined,
-    [comparisonSnapshot, selectedPeriod, snapshot],
+    [automaticKilometersByDate, comparisonSnapshot, selectedPeriod, snapshot],
   );
 
   const trendColor = (difference: number | undefined) =>
@@ -120,10 +148,7 @@ export default function PrototypeFinanceiro() {
 
   return (
     <PremiumScreen
-      contentContainerStyle={[
-        styles.content,
-        { marginTop: 0 },
-      ]}
+      contentContainerStyle={[styles.content, { marginTop: 0 }]}
       overlayHeader={filterHeader}
       overlayHeaderUnderlay
       progressiveBlurHeight={
@@ -200,8 +225,14 @@ export default function PrototypeFinanceiro() {
       />
       <SummaryCard
         rows={[
-          { label: 'Custo dos baldes', value: summary ? formatCurrency(summary.custoTotalBaldes) : '' },
-          { label: 'Custo combustível', value: summary ? formatCurrency(summary.custoCombustivel) : '' },
+          {
+            label: 'Custo dos baldes',
+            value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
+          },
+          {
+            label: 'Custo combustível',
+            value: summary ? formatCurrency(summary.custoCombustivel) : '',
+          },
           { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
           { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
           {
@@ -222,9 +253,18 @@ export default function PrototypeFinanceiro() {
       />
       <SummaryCard
         rows={[
-          { label: 'Venda p/ balde', value: summary ? formatCurrency(summary.precoMedioBalde) : '' },
-          { label: 'Lucro p/ balde', value: summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '' },
-          { label: 'Custo p/ balde', value: summary ? formatCurrency(summary.custoMedioBalde) : '' },
+          {
+            label: 'Venda p/ balde',
+            value: summary ? formatCurrency(summary.precoMedioBalde) : '',
+          },
+          {
+            label: 'Lucro p/ balde',
+            value: summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
+          },
+          {
+            label: 'Custo p/ balde',
+            value: summary ? formatCurrency(summary.custoMedioBalde) : '',
+          },
         ]}
         title="POR BALDE"
       />

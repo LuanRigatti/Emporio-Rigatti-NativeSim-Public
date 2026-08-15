@@ -297,6 +297,13 @@ describe('HomeSearchQueryParser', () => {
     });
   });
 
+  it('resolves hoje to the reference date', () => {
+    expect(parser.parse('rotas hoje', referenceDate).period).toEqual({
+      kind: 'date',
+      date: '2026-08-13',
+    });
+  });
+
   it('preserves explicit month/year formats', () => {
     expect(parser.parse('08/2025', referenceDate).period).toEqual({
       kind: 'month',
@@ -364,6 +371,10 @@ describe('HomeSearchQueryParser', () => {
     expect(parser.parse('km 12/08', referenceDate)).toMatchObject({
       routeMetric: 'distance',
       period: { kind: 'date', date: '2026-08-12' },
+    });
+    expect(parser.parse('rotas agosto', referenceDate)).toMatchObject({
+      routeMetric: 'routes',
+      period: { kind: 'month', month: 8, year: 2026 },
     });
     expect(parser.parse('autonomia ÁLCOOL', referenceDate).carMetric).toBe('alcoholAutonomy');
     expect(parser.parse('dados do dia 12/08', referenceDate).periodSummary).toBe(true);
@@ -954,6 +965,31 @@ describe('HomeSearchService', () => {
     expect(response.counts.financialMetric).toBe(1);
   });
 
+  it('includes local route kilometers in the daily net profit search result', async () => {
+    const route = routeSession('route-august-12', '2026-08-12', 7_400);
+    const response = await new HomeSearchService({
+      load: async () => ({ ...dataSet, routeSessions: [route] }),
+    }).searchParsed(
+      new HomeSearchQueryParser().parse('lucro líquido 12/08', new Date(2026, 7, 13, 12)),
+    );
+
+    const result = response.results[0];
+    expect(result).toMatchObject({
+      type: 'financialMetric',
+      data: { available: true, metric: 'netProfit', value: expect.any(Number) },
+    });
+    if (result?.type !== 'financialMetric') throw new Error('Métrica financeira ausente.');
+
+    const expected = financialCalculationService.calculateResumo({
+      deliveries: financialData.deliveries,
+      dailyExpenses: financialData.dailyExpenses,
+      monthlyExpenses: financialData.monthlyExpenses,
+      filters: financialFiltersForSelection({ kind: 'day', date: '2026-08-12' }),
+      automaticKilometersByDate: { '2026-08-12': 7.4 },
+    });
+    expect(result.data.value).toBeCloseTo(expected.lucroLiquido, 8);
+  });
+
   it('maps generic client profit to gross profit and supports explicit gross profit', async () => {
     const service = new HomeSearchService(new FixedDataSource());
     const parser = new HomeSearchQueryParser();
@@ -1211,6 +1247,30 @@ describe('HomeSearchService', () => {
       ]);
       expect(response.results[0]).not.toHaveProperty('data.samples');
     }
+  });
+
+  it('filters route sessions by the requested period before aggregating', async () => {
+    const service = new HomeSearchService({
+      load: async () => ({
+        ...dataSet,
+        routeSessions: [
+          routeSession('route-today', '2026-08-13', 10_000),
+          routeSession('route-other-day', '2026-08-14', 20_000),
+        ],
+      }),
+    });
+
+    const response = await service.searchParsed(
+      new HomeSearchQueryParser().parse('rota hoje', new Date(2026, 7, 13, 12)),
+    );
+
+    expect(response.results).toEqual([
+      expect.objectContaining({
+        type: 'routeSummary',
+        data: expect.objectContaining({ routeCount: 1, distanceKm: 10 }),
+        relations: { sessionIds: ['route-today'] },
+      }),
+    ]);
   });
 
   it.each(['rota 13/08', 'quilometragem 13/08', 'km 13/08'])(

@@ -13,47 +13,18 @@ import {
 } from 'react-native-reanimated';
 
 import { useAppTheme } from '@/theme';
-import type { RouteTrackingSample } from '@/types/routeTracking';
-
 import { NativeTrackedRouteMapFallback } from './NativeTrackedRouteMapFallback';
-import type { NativeTrackedRouteMapProps } from './NativeTrackedRouteMap.types';
-
-type Coordinate = { latitude: number; longitude: number };
-
-function isValidSample(sample: RouteTrackingSample): boolean {
-  return Number.isFinite(sample.latitude) && Number.isFinite(sample.longitude);
-}
-
-function getCameraPosition(coordinates: readonly Coordinate[]) {
-  const latitudes = coordinates.map((coordinate) => coordinate.latitude);
-  const longitudes = coordinates.map((coordinate) => coordinate.longitude);
-  const minLatitude = Math.min(...latitudes);
-  const maxLatitude = Math.max(...latitudes);
-  const minLongitude = Math.min(...longitudes);
-  const maxLongitude = Math.max(...longitudes);
-  const centerLatitude = (minLatitude + maxLatitude) / 2;
-  const centerLongitude = (minLongitude + maxLongitude) / 2;
-  const latitudeSpan = Math.max(0.002, maxLatitude - minLatitude) * 1.5;
-  const longitudeSpan = Math.max(0.002, maxLongitude - minLongitude) * 1.5;
-  const adjustedLongitudeSpan =
-    longitudeSpan * Math.max(0.2, Math.cos((centerLatitude * Math.PI) / 180));
-  const span = Math.max(latitudeSpan, adjustedLongitudeSpan);
-  const zoom = Math.max(3, Math.min(18, Math.log2(360 / span)));
-
-  return {
-    coordinates: { latitude: centerLatitude, longitude: centerLongitude },
-    zoom,
-  };
-}
-
-function getVisibleCoordinates(coordinates: readonly Coordinate[], progress: number): Coordinate[] {
-  if (coordinates.length <= 1 || progress >= 1) return [...coordinates];
-  if (progress <= 0) return coordinates.length > 0 ? [coordinates[0]] : [];
-
-  const position = progress * (coordinates.length - 1);
-  const endIndex = Math.floor(position);
-  return coordinates.slice(0, endIndex + 1);
-}
+import { NativeTrackedRoutesMapFallback } from './NativeTrackedRoutesMapFallback';
+import {
+  createTrackedRouteProjection,
+  getTrackedRouteCameraPosition,
+  getVisibleTrackedRouteCoordinates,
+} from './NativeTrackedRouteMapProjection';
+import type {
+  NativeTrackedRoute,
+  NativeTrackedRouteMapProps,
+  NativeTrackedRoutesMapProps,
+} from './NativeTrackedRouteMap.types';
 
 function startRouteAnimation(progress: { value: number }, duration: number) {
   'worklet';
@@ -64,20 +35,33 @@ function startRouteAnimation(progress: { value: number }, duration: number) {
   );
 }
 
-export function NativeTrackedRouteMap({
+function routeDatasetKey(
+  routes: readonly NativeTrackedRoute[],
+  preparedRoutes: ReturnType<typeof createTrackedRouteProjection>['routes'],
+): string {
+  return routes
+    .map((route) => {
+      const preparedRoute = preparedRoutes.find((item) => item.routeId === route.routeId);
+      const lastSample = route.samples[route.samples.length - 1];
+      return `${route.routeId}:${preparedRoute?.coordinates.length ?? 0}:${lastSample?.timestamp ?? 0}`;
+    })
+    .join('|');
+}
+
+function TrackedRoutesMap({
   animate = true,
   interactive = true,
-  routeId,
-  samples,
+  routes,
   style,
-}: NativeTrackedRouteMapProps) {
+}: NativeTrackedRoutesMapProps) {
   const { theme } = useAppTheme();
-  const coordinates = useMemo(
-    () => samples.filter(isValidSample).map(({ latitude, longitude }) => ({ latitude, longitude })),
-    [samples],
+  const projection = useMemo(() => createTrackedRouteProjection(routes), [routes]);
+  const preparedRoutes = projection.routes;
+  const allCoordinates = projection.allCoordinates;
+  const datasetKey = useMemo(
+    () => routeDatasetKey(routes, preparedRoutes),
+    [preparedRoutes, routes],
   );
-  const lastSample = samples[samples.length - 1];
-  const datasetKey = `${routeId}:${coordinates.length}:${lastSample?.timestamp ?? 0}`;
   const animationProgress = useSharedValue(0);
   const [animationState, setAnimationState] = useState(() => ({
     datasetKey,
@@ -100,66 +84,115 @@ export function NativeTrackedRouteMap({
   useEffect(() => {
     if (!animate) return undefined;
 
-    const duration = Math.min(1200, 800 + Math.min(400, coordinates.length));
+    const points = allCoordinates.length;
+    const duration = Math.min(1200, 800 + Math.min(400, points));
     runOnUI(startRouteAnimation)(animationProgress, duration);
 
     return () => cancelAnimation(animationProgress);
-  }, [animate, animationProgress, coordinates.length, datasetKey]);
+  }, [animate, allCoordinates.length, animationProgress, datasetKey]);
 
   const visibleProgress = !animate
     ? 1
     : animationState.datasetKey === datasetKey
       ? animationState.progress
       : 0;
-  const visibleCoordinates = getVisibleCoordinates(coordinates, visibleProgress);
-  const cameraPosition = coordinates.length > 0 ? getCameraPosition(coordinates) : undefined;
-  const markers =
-    coordinates.length > 0
+  const visibleRoutes = preparedRoutes.map((route) => ({
+    ...route,
+    coordinates: getVisibleTrackedRouteCoordinates(route.coordinates, visibleProgress),
+  }));
+  const cameraPosition =
+    allCoordinates.length > 0 ? getTrackedRouteCameraPosition(allCoordinates) : undefined;
+  const markers = preparedRoutes.flatMap(({ coordinates, routeId }) => [
+    {
+      coordinates: coordinates[0],
+      id: `${routeId}-start`,
+      systemImage: 'play.fill',
+      title: 'Início da rota',
+      tintColor: theme.colors.success,
+    },
+    ...(coordinates.length > 1
       ? [
           {
-            coordinates: coordinates[0],
-            id: `${routeId}-start`,
-            systemImage: 'play.fill',
-            title: 'Início da rota',
-            tintColor: theme.colors.success,
+            coordinates: coordinates[coordinates.length - 1],
+            id: `${routeId}-end`,
+            systemImage: 'flag.fill',
+            title: 'Fim da rota',
+            tintColor: theme.colors.danger,
           },
-          ...(coordinates.length > 1
-            ? [
-                {
-                  coordinates: coordinates[coordinates.length - 1],
-                  id: `${routeId}-end`,
-                  systemImage: 'flag.fill',
-                  title: 'Fim da rota',
-                  tintColor: theme.colors.danger,
-                },
-              ]
-            : []),
         ]
-      : [];
+      : []),
+  ]);
 
-  if (coordinates.length === 0 || !cameraPosition) {
-    return <NativeTrackedRouteMapFallback routeId={routeId} samples={samples} style={style} />;
+  const polylineCount = visibleRoutes.filter(({ coordinates }) => coordinates.length > 1).length;
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('[home-route-map]', {
+        allCoordinateCount: allCoordinates.length,
+        cameraPosition,
+        event: 'projection-ready',
+        markerCount: markers.length,
+        polylineCount,
+        routeCount: preparedRoutes.length,
+      });
+    }
+  }, [allCoordinates.length, cameraPosition, markers.length, polylineCount, preparedRoutes.length]);
+
+  useEffect(() => {
+    if (__DEV__ && Platform.OS === 'ios' && cameraPosition) {
+      console.log('[home-route-map]', {
+        event: 'apple-maps-branch-rendered',
+      });
+    }
+  }, [cameraPosition]);
+
+  if (!cameraPosition) {
+    if (routes.length === 1) {
+      return (
+        <NativeTrackedRouteMapFallback
+          routeId={routes[0].routeId}
+          samples={routes[0].samples}
+          style={style}
+        />
+      );
+    }
+    return <NativeTrackedRoutesMapFallback routes={routes} style={style} />;
   }
+
+  const polylines = visibleRoutes.flatMap(({ coordinates, routeId }) =>
+    coordinates.length > 1
+      ? [
+          {
+            color: theme.colors.textPrimary,
+            coordinates,
+            id: `${routeId}-path`,
+            width: 5,
+          },
+        ]
+      : [],
+  );
 
   if (Platform.OS === 'ios') {
     return (
       <AppleMaps.View
         annotations={markers}
         cameraPosition={cameraPosition}
-        polylines={
-          visibleCoordinates.length > 1
-            ? [
-                {
-                  color: theme.colors.textPrimary,
-                  coordinates: visibleCoordinates,
-                  id: `${routeId}-path`,
-                  width: 5,
-                },
-              ]
-            : []
-        }
+        onCameraMove={(event) => {
+          if (__DEV__) {
+            console.log('[home-route-map]', {
+              coordinates: event.coordinates,
+              event: 'apple-maps-camera-move',
+              zoom: event.zoom,
+            });
+          }
+        }}
+        polylines={polylines}
         style={style}
-        uiSettings={{ compassEnabled: interactive, scaleBarEnabled: interactive }}
+        uiSettings={{
+          compassEnabled: interactive,
+          scaleBarEnabled: interactive,
+          togglePitchEnabled: interactive,
+        }}
       />
     );
   }
@@ -173,18 +206,7 @@ export function NativeTrackedRouteMap({
           id: marker.id,
           title: marker.title,
         }))}
-        polylines={
-          visibleCoordinates.length > 1
-            ? [
-                {
-                  color: theme.colors.textPrimary,
-                  coordinates: visibleCoordinates,
-                  id: `${routeId}-path`,
-                  width: 5,
-                },
-              ]
-            : []
-        }
+        polylines={polylines}
         style={style}
         uiSettings={{
           compassEnabled: interactive,
@@ -195,5 +217,15 @@ export function NativeTrackedRouteMap({
     );
   }
 
-  return <NativeTrackedRouteMapFallback routeId={routeId} samples={samples} style={style} />;
+  return <NativeTrackedRoutesMapFallback routes={routes} style={style} />;
+}
+
+export function NativeTrackedRouteMap(props: NativeTrackedRouteMapProps) {
+  return (
+    <TrackedRoutesMap {...props} routes={[{ routeId: props.routeId, samples: props.samples }]} />
+  );
+}
+
+export function NativeTrackedRoutesMap(props: NativeTrackedRoutesMapProps) {
+  return <TrackedRoutesMap {...props} />;
 }

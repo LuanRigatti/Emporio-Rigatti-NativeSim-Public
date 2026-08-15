@@ -7,6 +7,7 @@ import type {
 } from '@/types/data';
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
+import { summarizeRouteKilometersByDate } from '@/services/routes/routeTrackingDistance';
 
 import { financialCalculationService } from './FinancialCalculationService';
 
@@ -46,6 +47,7 @@ export function financialMetricValue(
 
 export class FinancialDailyDetailService {
   public buildMonth(input: FinancialDailyDetailInput, month: string): FinancialDailyDetail[] {
+    const automaticKilometersByDate = summarizeRouteKilometersByDate(input.routeSessions);
     const allDates = new Set<string>();
     const deliveryDates = new Set<string>();
 
@@ -72,10 +74,7 @@ export class FinancialDailyDetailService {
         const routeSessions = input.routeSessions.filter(
           (session) => dateOf(session.date) === date,
         );
-        const automaticKilometers = routeSessions.reduce(
-          (total, session) => total + session.distanceMeters / 1000,
-          0,
-        );
+        const automaticKilometers = automaticKilometersByDate[date] ?? 0;
         const manualKilometers = normalizeMoney(expense?.km) ?? 0;
 
         const summary = financialCalculationService.calculateResumo({
@@ -83,6 +82,7 @@ export class FinancialDailyDetailService {
           dailyExpenses: input.dailyExpenses,
           filters: { diaSelecionado: date, periodo: 'dia' },
           monthlyExpenses: input.monthlyExpenses,
+          automaticKilometersByDate,
           today: input.today,
         });
 

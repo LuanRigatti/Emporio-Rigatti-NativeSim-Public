@@ -104,7 +104,7 @@ export function SettingsScreen() {
       progressiveBlurTopOffset={0}
       progressiveBlur
     >
-      <View style={{ gap: theme.spacing.xl }}>
+      <View style={{ gap: theme.spacing.xl, marginTop: 0 }}>
         <View style={styles.header}>{header}</View>
         <PremiumCard
           style={{

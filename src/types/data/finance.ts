@@ -70,6 +70,8 @@ export interface FinancialCalculationInput {
   dailyExpenses: import('./expenses').DailyExpenses;
   monthlyExpenses: import('./expenses').MonthlyExpenses;
   filters: FinancialCalculationFilters;
+  /** Kilometers recorded by local route tracking, grouped by calendar date. */
+  automaticKilometersByDate?: Readonly<Record<string, number>>;
   today?: Date;
   fullLightInterval?: boolean;
 }

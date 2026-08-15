@@ -287,16 +287,27 @@ export class FinancialCalculationService {
       withoutClient(input.filters),
       today,
     );
-    const dailyDates = Object.keys(input.dailyExpenses).filter((date) =>
-      matchesPeriod(date, input.filters, today),
-    );
+    const dailyDates = [
+      ...new Set([
+        ...Object.keys(input.dailyExpenses),
+        ...Object.keys(input.automaticKilometersByDate ?? {}),
+      ]),
+    ].filter((date) => matchesPeriod(date, input.filters, today));
     let custoEstar = this.calculateEstar(input.dailyExpenses, input.filters, today);
     const custoOutros = this.calculateOutros(input.dailyExpenses, input.filters, today);
-    let custoCombustivel = dailyDates.reduce(
-      (total, date) =>
-        total + expenseCalculationService.calculateFuelCost(date, input.dailyExpenses[date]),
-      0,
-    );
+    let custoCombustivel = dailyDates.reduce((total, date) => {
+      const normalizedDate = isoDate(date);
+      const expense =
+        input.dailyExpenses[date] ??
+        Object.entries(input.dailyExpenses).find(([key]) => isoDate(key) === normalizedDate)?.[1];
+      const automaticKilometers =
+        input.automaticKilometersByDate?.[normalizedDate] ??
+        input.automaticKilometersByDate?.[date] ??
+        0;
+      return (
+        total + expenseCalculationService.calculateFuelCost(date, expense, automaticKilometers)
+      );
+    }, 0);
     let custoLuz =
       input.filters.periodo === 'mes'
         ? (() => {

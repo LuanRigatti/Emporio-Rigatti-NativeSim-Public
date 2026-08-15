@@ -41,6 +41,16 @@ describe('ExpenseCalculationService historical rules', () => {
     ).toBeCloseTo(60, 8);
   });
 
+  it('adds local route kilometers to the saved daily kilometers', () => {
+    expect(
+      service.calculateFuelCost(
+        '2026-05-01',
+        { data: '2026-05-01', km: 74, precoGasolina: 6, tipoCombustivel: 'gasolina' },
+        7.4,
+      ),
+    ).toBeCloseTo(66, 8);
+  });
+
   it('uses ethanol average for an explicit ethanol record', () => {
     expect(
       service.calculateFuelCost('2026-05-01', {

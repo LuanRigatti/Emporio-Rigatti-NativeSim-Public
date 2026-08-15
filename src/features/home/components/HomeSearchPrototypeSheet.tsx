@@ -3,9 +3,7 @@ import type { NativeBottomSheetProps } from '@/components/native';
 
 import HomeSearchPrototypeContent from './HomeSearchPrototypeContent';
 
-const SEARCH_SHEET_DETENT: NonNullable<NativeBottomSheetProps['initialDetent']> = {
-  fraction: 0.88,
-};
+const SEARCH_SHEET_DETENTS: NonNullable<NativeBottomSheetProps['detents']> = ['large'];
 
 type Props = {
   onVisibleChange: (visible: boolean) => void;
@@ -17,7 +15,8 @@ export function HomeSearchPrototypeSheet({ onVisibleChange, query, visible }: Pr
   return (
     <NativeBottomSheet
       content={<HomeSearchPrototypeContent query={query} />}
-      initialDetent={SEARCH_SHEET_DETENT}
+      detents={SEARCH_SHEET_DETENTS}
+      initialDetent="large"
       items={[]}
       onVisibleChange={onVisibleChange}
       title="Resultados"

@@ -67,6 +67,7 @@ const INTENT_DEFINITIONS: HomeSearchBusinessIntentMatch[] = [
   { alias: 'autonomia alcool', carMetric: 'alcoholAutonomy' },
   { alias: 'consumo carro', carMetric: 'consumption' },
   { alias: 'quilometragem', routeMetric: 'distance' },
+  { alias: 'rotas', routeMetric: 'routes' },
   { alias: 'km', routeMetric: 'distance' },
   { alias: 'rota', routeMetric: 'routes' },
   { alias: 'dados do dia', periodSummary: true },

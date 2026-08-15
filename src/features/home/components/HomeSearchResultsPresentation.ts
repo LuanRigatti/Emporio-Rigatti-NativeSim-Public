@@ -120,7 +120,6 @@ function formatCurrency(value: number): string {
 
 function formatRouteTime(timestamp: number): string {
   return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
     timeStyle: 'short',
   }).format(timestamp);
 }
@@ -219,7 +218,7 @@ function factoryDetails(
   };
 }
 
-function routeDetails(
+function baseRouteDetails(
   result: HomeSearchRouteSummaryResult,
 ): Pick<HomeSearchResultsPresentation, 'details' | 'primaryTitle' | 'relatedCount' | 'typeLabel'> {
   const consideredLabel =
@@ -241,6 +240,28 @@ function routeDetails(
       `Pontos GPS: ${result.data.pointsCount}`,
       `${consideredLabel}: ${formatRouteDistance(result.data.consideredDistanceKm)}`,
     ],
+  };
+}
+
+function routeDetails(
+  result: HomeSearchRouteSummaryResult,
+): Pick<HomeSearchResultsPresentation, 'details' | 'primaryTitle' | 'relatedCount' | 'typeLabel'> {
+  const base = baseRouteDetails(result);
+  const routeCountByDate = new Map<string, number>();
+  result.data.sessions.forEach((session) => {
+    routeCountByDate.set(session.date, (routeCountByDate.get(session.date) ?? 0) + 1);
+  });
+  const showConsideredDistance =
+    result.data.sessions.length === 0
+      ? result.data.routeCount > 1
+      : [...routeCountByDate.values()].some((count) => count > 1);
+  return {
+    ...base,
+    details: base.details?.filter(
+      (detail) =>
+        !detail.startsWith('Pontos GPS:') &&
+        (showConsideredDistance || !detail.startsWith('Km considerado')),
+    ),
   };
 }
 

@@ -23,6 +23,7 @@ export type {
 export { NativeInteractivePager, NativeInteractivePagerPage } from './NativeInteractivePager';
 export type {
   NativeInteractivePagerPageProps,
+  NativeInteractivePagerGeometryEvent,
   NativeInteractivePagerProps,
   NativeInteractivePagerSettledEvent,
 } from './NativeInteractivePager';

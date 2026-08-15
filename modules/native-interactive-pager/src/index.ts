@@ -3,6 +3,7 @@ export {
   NativeInteractivePagerPageWrapper as NativeInteractivePagerPage,
 } from './NativeInteractivePager';
 export type {
+  NativeInteractivePagerGeometryEvent,
   NativeInteractivePagerPageProps,
   NativeInteractivePagerProps,
   NativeInteractivePagerSettledEvent,

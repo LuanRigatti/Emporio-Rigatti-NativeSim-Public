@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -48,8 +48,13 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const currentPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
   const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
-  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>([]);
+  const initialRouteSessions = routeTrackingRepository.getMemoryRouteHistory();
+  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>(
+    () => initialRouteSessions ?? [],
+  );
+  const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
   const [selectedDate, setSelectedDate] = useState<string>();
+  const isFirstFocus = useRef(true);
   const copy = metricCopy[metric];
   const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
   const { refresh, snapshot, loading } = useFinancialData(
@@ -60,13 +65,23 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      const isInitial = isFirstFocus.current;
+      isFirstFocus.current = false;
 
-      void Promise.all([refresh(), routeTrackingRepository.getRouteHistory()])
+      const refreshPromise = isInitial ? Promise.resolve() : refresh();
+
+      void Promise.all([refreshPromise, routeTrackingRepository.getRouteHistory()])
         .then(([, sessions]) => {
-          if (active) setRouteSessions(sessions);
+          if (active) {
+            setRouteSessions(sessions);
+            setRoutesLoaded(true);
+          }
         })
         .catch(() => {
-          if (active) setRouteSessions([]);
+          if (active) {
+            setRouteSessions([]);
+            setRoutesLoaded(true);
+          }
         });
 
       return () => {
@@ -75,9 +90,11 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
     }, [refresh]),
   );
 
+  const isDataReady = !loading && routesLoaded;
+
   const details = useMemo(
     () =>
-      snapshot
+      isDataReady && snapshot
         ? financialDailyDetailService.buildMonth(
             {
               dailyExpenses: snapshot.gastosDiarios,
@@ -88,7 +105,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
             selectedMonthKey,
           )
         : [],
-    [routeSessions, selectedMonthKey, snapshot],
+    [isDataReady, routeSessions, selectedMonthKey, snapshot],
   );
 
   const points = useMemo(() => buildDailyPoints(details, metric), [details, metric]);
@@ -141,7 +158,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
         progressiveBlur
         scrollable
       >
-        {loading ? (
+        {!isDataReady ? (
           <View style={styles.loading}>
             <Skeleton height={220} />
             <Skeleton height={theme.sizes.loadingLineHeight * 8} />

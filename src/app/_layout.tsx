@@ -10,7 +10,7 @@ import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import { firestoreClientDataSource } from '@/services/clients';
 import { firestoreDeliveryDataSource } from '@/services/deliveries';
-import { locationTrackingService } from '@/services/routes';
+import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider } from '@/theme';
 
@@ -30,6 +30,9 @@ function AppShell() {
     void locationTrackingService.restoreActiveRouteAfterAppRestart().catch((error) => {
       if (__DEV__) console.warn('[RouteTracking] Falha ao restaurar rota ativa.', error);
     });
+    void routeTrackingRepository.getRouteHistory().catch((error) => {
+      if (__DEV__) console.warn('[RouteTracking] Falha ao hidratar histórico de rotas.', error);
+    });
   }, []);
 
   useEffect(() => {
@@ -40,6 +43,7 @@ function AppShell() {
     void stockPeriodSnapshotCache.read(user.id, currentMonth);
     void firestoreClientDataSource.hydrateFromCache(user.id);
     void firestoreDeliveryDataSource.hydrateFromCache(user.id);
+    void routeTrackingRepository.getRouteHistory();
   }, [user?.id]);
 
   return (

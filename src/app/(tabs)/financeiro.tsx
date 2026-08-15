@@ -49,7 +49,11 @@ export default function PrototypeFinanceiro() {
   const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
-  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>([]);
+  const initialRouteSessions = routeTrackingRepository.getMemoryRouteHistory();
+  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>(
+    () => initialRouteSessions ?? [],
+  );
+  const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
   const { comparisonSnapshot, loading, refreshing, snapshot } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
@@ -62,10 +66,16 @@ export default function PrototypeFinanceiro() {
       void routeTrackingRepository
         .getRouteHistory()
         .then((sessions) => {
-          if (active) setRouteSessions(sessions);
+          if (active) {
+            setRouteSessions(sessions);
+            setRoutesLoaded(true);
+          }
         })
         .catch(() => {
-          if (active) setRouteSessions([]);
+          if (active) {
+            setRouteSessions([]);
+            setRoutesLoaded(true);
+          }
         });
 
       return () => {
@@ -75,9 +85,11 @@ export default function PrototypeFinanceiro() {
   );
 
   const automaticKilometersByDate = useMemo(
-    () => summarizeRouteKilometersByDate(routeSessions),
-    [routeSessions],
+    () => (routesLoaded ? summarizeRouteKilometersByDate(routeSessions) : {}),
+    [routesLoaded, routeSessions],
   );
+
+  const isNetProfitReady = !loading && routesLoaded;
 
   const summary = useMemo(
     () =>
@@ -203,15 +215,15 @@ export default function PrototypeFinanceiro() {
             />
           </View>
           <PreviewIcon
-            color={trendColor(comparison?.lucroLiquido.diferenca)}
-            name={trendIcon(comparison?.lucroLiquido.diferenca)}
+            color={trendColor(isNetProfitReady ? comparison?.lucroLiquido.diferenca : undefined)}
+            name={trendIcon(isNetProfitReady ? comparison?.lucroLiquido.diferenca : undefined)}
           />
         </View>
         <NativeAnimatedNumber
-          animationEnabled={!loading && !refreshing}
+          animationEnabled={isNetProfitReady && !refreshing}
           color={theme.colors.textPrimary}
-          text={summary ? formatCurrency(summary.lucroLiquido) : ''}
-          value={summary?.lucroLiquido ?? null}
+          text={isNetProfitReady && summary ? formatCurrency(summary.lucroLiquido) : ''}
+          value={isNetProfitReady && summary ? summary.lucroLiquido : null}
         />
       </PremiumCard>
       <SummaryCard
@@ -231,13 +243,16 @@ export default function PrototypeFinanceiro() {
           },
           {
             label: 'Custo combustível',
-            value: summary ? formatCurrency(summary.custoCombustivel) : '',
+            value: isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
           },
           { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
           { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
           {
             label: 'Custo médio de entrega',
-            value: summary ? formatCurrency(summary.custoMedioCombustivelPorEntrega) : '',
+            value:
+              isNetProfitReady && summary
+                ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
+                : '',
           },
         ]}
         title="CUSTOS"
@@ -247,7 +262,10 @@ export default function PrototypeFinanceiro() {
           { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
           { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
           { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
-          { label: 'Margem líquida', value: summary ? `${summary.margemLiquida.toFixed(1)}%` : '' },
+          {
+            label: 'Margem líquida',
+            value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
+          },
         ]}
         title="RECEBIDO/MARGENS"
       />
@@ -259,11 +277,11 @@ export default function PrototypeFinanceiro() {
           },
           {
             label: 'Lucro p/ balde',
-            value: summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
+            value: isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
           },
           {
             label: 'Custo p/ balde',
-            value: summary ? formatCurrency(summary.custoMedioBalde) : '',
+            value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
           },
         ]}
         title="POR BALDE"

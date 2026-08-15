@@ -131,6 +131,18 @@ function parseStoredHistory(value: string | null): RouteTrackingSession[] {
 
 export class RouteTrackingRepository {
   private writeQueue = Promise.resolve();
+  private memoryHistory: RouteTrackingSession[] | null = null;
+
+  public getMemoryRouteHistory(date?: string): RouteTrackingSession[] | null {
+    if (this.memoryHistory === null) return null;
+    return date
+      ? this.memoryHistory.filter((session) => session.date === date)
+      : this.memoryHistory;
+  }
+
+  public clearMemoryCache(): void {
+    this.memoryHistory = null;
+  }
 
   public async getRoute(): Promise<RouteTrackingRecord | null> {
     return parseStoredRecord(await AsyncStorage.getItem(ROUTE_TRACKING_STORAGE_KEY));
@@ -144,11 +156,11 @@ export class RouteTrackingRepository {
   public async getRouteHistory(date?: string): Promise<RouteTrackingSession[]> {
     const history = parseStoredHistory(
       await AsyncStorage.getItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY),
-    )
-      .filter((session) => !date || session.date === date)
-      .sort((left, right) => left.startTimestamp - right.startTimestamp);
+    ).sort((left, right) => left.startTimestamp - right.startTimestamp);
 
-    return history;
+    this.memoryHistory = history;
+
+    return date ? history.filter((session) => session.date === date) : history;
   }
 
   public async getRouteSessionById(routeId: string): Promise<RouteTrackingSession | null> {
@@ -171,6 +183,7 @@ export class RouteTrackingRepository {
       const nextHistory = history.filter((session) => session.id !== sessionId);
       if (nextHistory.length === history.length) return false;
 
+      this.memoryHistory = nextHistory;
       await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
       return true;
     });
@@ -253,10 +266,9 @@ export class RouteTrackingRepository {
       };
 
       if (!history.some((item) => item.id === session.id)) {
-        await AsyncStorage.setItem(
-          ROUTE_TRACKING_HISTORY_STORAGE_KEY,
-          JSON.stringify([...history, session]),
-        );
+        const nextHistory = [...history, session];
+        this.memoryHistory = nextHistory;
+        await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
       }
       return finished;
     });

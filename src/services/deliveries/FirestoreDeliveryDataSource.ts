@@ -1,4 +1,5 @@
 import type {
+  BoletoStatus,
   Delivery,
   DeliveryBulkPatch,
   DeliveryDraft,
@@ -15,7 +16,7 @@ import { mockDeliveryDataSource } from './DeliveryDataSource';
 import { firestoreDeliveryCacheService } from './FirestoreDeliveryCacheService';
 
 type FirestoreDeliveryDocument = {
-  clientId: string;
+  clientId?: string;
   clientNameSnapshot: string;
   addressSnapshot?: string;
   date: string;
@@ -25,6 +26,7 @@ type FirestoreDeliveryDocument = {
   status: string;
   delivered: boolean;
   invoiceStatus?: InvoiceStatus;
+  boletoStatus?: BoletoStatus;
   paymentMethod?: PaymentMethod;
   observation?: string;
   legacyFields?: Record<string, unknown>;
@@ -52,6 +54,7 @@ function mapDocument(id: string, value: FirestoreDeliveryDocument): Delivery {
     entregue: value.delivered,
     data: value.date,
     invoiceStatus: value.invoiceStatus,
+    boletoStatus: value.boletoStatus,
     endereco: value.addressSnapshot,
     metodoPagamento: value.paymentMethod,
     observacao: value.observation,
@@ -76,6 +79,7 @@ function toDocument(delivery: Delivery): FirestoreDeliveryDocument {
       ? {}
       : { unitPriceHistorical: delivery.precoUnitarioHistorico }),
     ...(delivery.invoiceStatus ? { invoiceStatus: delivery.invoiceStatus } : {}),
+    ...(delivery.boletoStatus ? { boletoStatus: delivery.boletoStatus } : {}),
     ...(delivery.metodoPagamento ? { paymentMethod: delivery.metodoPagamento } : {}),
     ...(delivery.observacao ? { observation: delivery.observacao } : {}),
     ...(delivery.legacyFields ? { legacyFields: delivery.legacyFields } : {}),
@@ -296,6 +300,23 @@ export class FirestoreDeliveryDataSource {
     void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
   }
 
+  public async updateBoletoStatus(
+    uid: string,
+    deliveryId: string,
+    status: BoletoStatus,
+  ): Promise<void> {
+    const current = await this.ensure(uid, deliveryId);
+    const { doc, serverTimestamp, updateDoc } = await import('firebase/firestore');
+    await updateDoc(doc(await collectionFor(uid), deliveryId), {
+      boletoStatus: status,
+      updatedAt: serverTimestamp(),
+    });
+    this.records.set(deliveryId, { ...current, boletoStatus: status });
+    this.publish();
+    void this.persistDateCache(uid, current.data);
+    void financialPeriodSnapshotCache.invalidate(uid, current.data.slice(0, 7));
+  }
+
   public async settle(
     uid: string,
     deliveryIds: readonly string[],
@@ -338,6 +359,7 @@ export class FirestoreDeliveryDataSource {
           ...(patch.status ? { status: patch.status } : {}),
           ...(patch.entregue === undefined ? {} : { delivered: patch.entregue }),
           ...(patch.invoiceStatus ? { invoiceStatus: patch.invoiceStatus } : {}),
+          ...(patch.boletoStatus ? { boletoStatus: patch.boletoStatus } : {}),
           updatedAt: serverTimestamp(),
         });
         this.records.set(id, { ...current, ...patch });

@@ -43,6 +43,7 @@ export function createDeliveryFromDraft(draft: DeliveryDraft, previous?: Deliver
     entregue: draft.delivered,
     data: draft.date,
     invoiceStatus: draft.invoiceStatus,
+    ...(draft.boletoStatus !== undefined ? { boletoStatus: draft.boletoStatus } : {}),
     endereco: draft.address.trim(),
   };
   if (draft.paymentMethod) known.metodoPagamento = draft.paymentMethod;

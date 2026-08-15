@@ -6,6 +6,7 @@ export type PaymentMethod = 'Dinheiro' | 'Pix';
 export type DeliveryStatus = 'Pago' | 'Não Pago' | (string & {});
 
 export type InvoiceStatus = 'emitido' | 'a_emitir';
+export type BoletoStatus = 'emitido' | 'a_emitir';
 
 export interface Delivery {
   id: string;
@@ -18,6 +19,7 @@ export interface Delivery {
   entregue: boolean;
   data: string;
   invoiceStatus?: InvoiceStatus;
+  boletoStatus?: BoletoStatus;
   endereco?: string;
   metodoPagamento?: PaymentMethod;
   observacao?: string;
@@ -38,6 +40,7 @@ export interface DeliveryDraft {
   status: 'Pago' | 'Não Pago';
   delivered: boolean;
   invoiceStatus: InvoiceStatus;
+  boletoStatus?: BoletoStatus;
   paymentMethod?: PaymentMethod;
 }
 
@@ -55,10 +58,12 @@ export interface DeliveryFilters {
   status?: 'Todos' | 'Pago' | 'Não Pago';
   deliveryStatus?: 'Todos' | 'Entregue' | 'Não entregue';
   invoiceStatus?: 'Todos' | InvoiceStatus;
+  boletoStatus?: 'Todos' | BoletoStatus;
 }
 
 export interface DeliveryBulkPatch {
   status?: 'Pago' | 'Não Pago';
   entregue?: boolean;
   invoiceStatus?: InvoiceStatus;
+  boletoStatus?: BoletoStatus;
 }

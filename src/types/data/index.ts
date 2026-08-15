@@ -20,6 +20,7 @@ export type {
 } from './client';
 export type { DataMap, DataNodeName, UnknownRecord } from './common';
 export type {
+  BoletoStatus,
   Delivery,
   DeliveryBulkPatch,
   DeliveryDraft,

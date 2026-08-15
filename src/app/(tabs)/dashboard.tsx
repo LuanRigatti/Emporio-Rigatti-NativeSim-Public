@@ -18,6 +18,8 @@ import {
   isHomeSearchSheetVisible,
 } from '@/features/home/hooks/HomeSearchPresentationFlow';
 import { useHomeSearch } from '@/features/home/hooks/useHomeSearch';
+import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoices';
+import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
@@ -57,6 +59,18 @@ export default function Home() {
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
   const { deliveries: pendingDeliveries } = useDeliveries({ mode: 'all', status: 'Não Pago' });
+  const { clients } = useClients();
+  const eligibleClientIds = useMemo(
+    () =>
+      clients
+        .filter((client) => client.usesInvoice || client.usesBoleto)
+        .map((client) => client.clientId),
+    [clients],
+  );
+  const { deliveries: invoiceDeliveries } = useDeliveries({
+    clientIds: eligibleClientIds,
+    mode: 'all',
+  });
   const historyDeliveries = useMemo(
     () => dailyDeliveries.map(toHistoryDelivery),
     [dailyDeliveries],
@@ -68,6 +82,10 @@ export default function Home() {
 
   const todayDeliveries = useMemo(() => historyDeliveries, [historyDeliveries]);
   const openPaymentsCount = useMemo(() => pendingDeliveries.length, [pendingDeliveries]);
+  const openDocumentsCount = useMemo(
+    () => countOpenDocuments(invoiceDeliveries, clients),
+    [invoiceDeliveries, clients],
+  );
 
   useEffect(() => {
     if (isFocused && !wasFocused.current) {
@@ -309,14 +327,16 @@ export default function Home() {
               <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
-            <View style={styles.widgetCopy}>
+            <View
+              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+            >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                 {openPaymentsCount} recebimentos em aberto
               </Text>
             </View>
           </PremiumCard>
           <PremiumCard
-            accessibilityLabel="Abrir notas fiscais e boletos"
+            accessibilityLabel="Abrir documentos"
             onPress={() => router.push('/notas-fiscais-boletos')}
             style={[
               styles.widgetCard,
@@ -327,12 +347,17 @@ export default function Home() {
             ]}
           >
             <View style={styles.widgetHeader}>
-              <PreviewIcon color={theme.colors.textSecondary} name="document-text-outline" />
+              <PreviewIcon
+                color={openDocumentsCount > 0 ? theme.colors.warning : theme.colors.textSecondary}
+                name="document-text-outline"
+              />
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
-            <View style={styles.widgetCopy}>
+            <View
+              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+            >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                Notas fiscais/boletos
+                {formatOpenDocumentsLabel(openDocumentsCount)}
               </Text>
             </View>
           </PremiumCard>

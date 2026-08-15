@@ -59,6 +59,12 @@ export function validateDeliveryRecord(value: unknown, path: string): void {
     throw new DataValidationError(`${path}.invoiceStatus`, 'status de nota inválido');
   }
   if (
+    record.boletoStatus !== undefined &&
+    !['emitido', 'a_emitir'].includes(String(record.boletoStatus))
+  ) {
+    throw new DataValidationError(`${path}.boletoStatus`, 'status de boleto inválido');
+  }
+  if (
     record.metodoPagamento !== undefined &&
     !['Dinheiro', 'Pix'].includes(String(record.metodoPagamento))
   ) {

@@ -113,17 +113,18 @@ export function DeliveryForm(props: Props) {
   useEffect(() => {
     if (manualValue || !clientName) return;
     const selected = clients.find((client) => client.canonicalName === clientName);
-    const automatic = selected?.currentPrice !== undefined
-      ? selected.currentPrice * (normalizeMoney(quantity) ?? 0)
-      : snapshot
-        ? deliveryPricingService.calculateAutomaticValue({
-            clientName,
-            date,
-            quantity,
-            customClients: snapshot.clientesCustom,
-            fallbackValue: value,
-          })
-        : undefined;
+    const automatic =
+      selected?.currentPrice !== undefined
+        ? selected.currentPrice * (normalizeMoney(quantity) ?? 0)
+        : snapshot
+          ? deliveryPricingService.calculateAutomaticValue({
+              clientName,
+              date,
+              quantity,
+              customClients: snapshot.clientesCustom,
+              fallbackValue: value,
+            })
+          : undefined;
     if (automatic === undefined) return;
     const timer = setTimeout(() => setValue(automatic.toFixed(2)), 0);
     return () => clearTimeout(timer);
@@ -154,12 +155,12 @@ export function DeliveryForm(props: Props) {
           ? selectedClient.currentPrice
           : !manualValue && clientName && snapshot
             ? deliveryPricingService.resolveUnitPrice({
-              clientName,
-              date,
-              quantity,
-              customClients: snapshot.clientesCustom,
-              fallbackValue: value,
-            })
+                clientName,
+                date,
+                quantity,
+                customClients: snapshot.clientesCustom,
+                fallbackValue: value,
+              })
             : undefined;
       const draft: DeliveryDraft = {
         id: delivery?.id,
@@ -179,6 +180,8 @@ export function DeliveryForm(props: Props) {
         status,
         delivered,
         invoiceStatus,
+        boletoStatus:
+          delivery?.boletoStatus ?? (selectedClient?.usesBoleto ? 'a_emitir' : undefined),
         paymentMethod: status === 'Pago' ? paymentMethod : undefined,
       };
       if (editing && delivery) await update(delivery.id, draft);

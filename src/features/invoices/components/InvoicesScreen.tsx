@@ -3,20 +3,14 @@ import { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import {
-  NativeGlassBackButton,
-  NativeSwipeActionsList,
-} from '@/components/native';
+import { NativeGlassBackButton, NativeSwipeActionsList } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { normalizeClientKey } from '@/utils/data';
-import {
-  formatDateAsDayMonthYear,
-  groupItemsByDate,
-} from '@/utils/groupItemsByDate';
+import { formatDateAsDayMonthYear, groupItemsByDate } from '@/utils/groupItemsByDate';
 import type { DatedItemGroup } from '@/utils/groupItemsByDate';
 
 import type { Delivery } from '@/types/data';
@@ -28,11 +22,15 @@ export function InvoicesScreen() {
   const { theme } = useAppTheme();
   const { clients, reload: reloadClients } = useClients();
   const invoiceClientNames = useMemo(
-    () => new Set(clients.filter((client) => client.usesInvoice).map((client) => client.normalizedName)),
+    () =>
+      new Set(
+        clients.filter((client) => client.usesInvoice).map((client) => client.normalizedName),
+      ),
     [clients],
   );
   const boletoClientNames = useMemo(
-    () => new Set(clients.filter((client) => client.usesBoleto).map((client) => client.normalizedName)),
+    () =>
+      new Set(clients.filter((client) => client.usesBoleto).map((client) => client.normalizedName)),
     [clients],
   );
   const eligibleClientIds = useMemo(
@@ -42,21 +40,35 @@ export function InvoicesScreen() {
         .map((client) => client.clientId),
     [clients],
   );
-  const { deliveries, reload: reloadDeliveries, updateInvoiceStatus } = useDeliveries({
+  const {
+    deliveries,
+    reload: reloadDeliveries,
+    updateInvoiceStatus,
+    updateBoletoStatus,
+  } = useDeliveries({
     clientIds: eligibleClientIds,
     mode: 'all',
   });
-  const pendingDeliveries = useMemo(
-    () => deliveries.filter((delivery) => delivery.invoiceStatus === 'a_emitir'),
+  const invoiceDeliveries = useMemo(
+    () => deliveries.filter((delivery) => (delivery.invoiceStatus ?? 'a_emitir') === 'a_emitir'),
     [deliveries],
   );
+  const boletoDeliveries = useMemo(
+    () =>
+      deliveries.filter(
+        (delivery) =>
+          (delivery.boletoStatus ?? delivery.invoiceStatus ?? 'a_emitir') === 'a_emitir',
+      ),
+    [deliveries],
+  );
+
   const invoiceItems = useMemo(
-    () => documentItemsForClients(pendingDeliveries, invoiceClientNames),
-    [invoiceClientNames, pendingDeliveries],
+    () => documentItemsForClients(invoiceDeliveries, invoiceClientNames),
+    [invoiceClientNames, invoiceDeliveries],
   );
   const boletoItems = useMemo(
-    () => documentItemsForClients(pendingDeliveries, boletoClientNames),
-    [boletoClientNames, pendingDeliveries],
+    () => documentItemsForClients(boletoDeliveries, boletoClientNames),
+    [boletoClientNames, boletoDeliveries],
   );
   const invoiceGroups = useMemo(() => groupItemsByDate(invoiceItems), [invoiceItems]);
   const boletoGroups = useMemo(() => groupItemsByDate(boletoItems), [boletoItems]);
@@ -74,6 +86,14 @@ export function InvoicesScreen() {
       await updateInvoiceStatus(deliveryId, 'emitido');
     },
     [updateInvoiceStatus],
+  );
+
+  const handleBoletoSwipe = useCallback(
+    async (deliveryId: string) => {
+      triggerLightImpactHaptic();
+      await updateBoletoStatus(deliveryId, 'emitido');
+    },
+    [updateBoletoStatus],
   );
 
   const header = (
@@ -112,7 +132,7 @@ export function InvoicesScreen() {
         <DocumentTypeCard
           emptyLabel="Nenhum boleto pendente"
           groups={boletoGroups}
-          onDelete={handleInvoiceSwipe}
+          onDelete={handleBoletoSwipe}
           theme={theme}
           title="Boleto"
         />

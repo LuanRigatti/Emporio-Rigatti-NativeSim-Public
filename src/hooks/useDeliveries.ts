@@ -3,11 +3,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/providers';
 import { ENABLE_FIRESTORE_CLIENTS_DELIVERIES } from '@/config/featureFlags';
 import { asyncStorageCacheService } from '@/services/cache';
-import { deliveryNormalizationService, deliveryQueryService } from '@/services/deliveries';
+import {
+  deliveryNormalizationService,
+  deliveryQueryService,
+  firestoreDeliveryDataSource,
+  mockDeliveryDataSource,
+} from '@/services/deliveries';
 import { DeliveryMutationService } from '@/services/deliveries/DeliveryMutationService';
 import { APP_DATA_MODE, loadAppData } from '@/services/data';
 import type { UserDataSnapshot } from '@/services/data';
 import type {
+  BoletoStatus,
   Delivery,
   DeliveryBulkPatch,
   DeliveryDraft,
@@ -16,7 +22,6 @@ import type {
   PaymentMethod,
 } from '@/types/data';
 import { DeliveryRepository } from '@/repositories/DeliveryRepository';
-import { firestoreDeliveryDataSource, mockDeliveryDataSource } from '@/services/deliveries';
 import { todayIso } from '@/utils/data';
 
 export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
@@ -35,9 +40,7 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     [],
   );
   const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(() =>
-    firestoreEnabled
-      ? emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters))
-      : null,
+    firestoreEnabled ? emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)) : null,
   );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -144,50 +147,77 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     [firestoreEnabled, load, refreshFirestoreState, user],
   );
 
-  const remove = useCallback(async (deliveryId: string) => {
-    if (firestoreEnabled && user) {
-      await firestoreDeliveryDataSource.remove(user.id, deliveryId);
-      refreshFirestoreState();
-      return;
-    }
-    await mutate((service) => service.remove(deliveryId));
-  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+  const remove = useCallback(
+    async (deliveryId: string) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.remove(user.id, deliveryId);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.remove(deliveryId));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
 
-  const toggleDelivered = useCallback(async (deliveryId: string) => {
-    if (firestoreEnabled && user) {
-      await firestoreDeliveryDataSource.toggleDelivered(user.id, deliveryId);
-      refreshFirestoreState();
-      return;
-    }
-    await mutate((service) => service.toggleDelivered(deliveryId));
-  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+  const toggleDelivered = useCallback(
+    async (deliveryId: string) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.toggleDelivered(user.id, deliveryId);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.toggleDelivered(deliveryId));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
 
-  const updateInvoiceStatus = useCallback(async (deliveryId: string, status: InvoiceStatus) => {
-    if (firestoreEnabled && user) {
-      await firestoreDeliveryDataSource.updateInvoiceStatus(user.id, deliveryId, status);
-      refreshFirestoreState();
-      return;
-    }
-    await mutate((service) => service.updateInvoiceStatus(deliveryId, status));
-  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+  const updateInvoiceStatus = useCallback(
+    async (deliveryId: string, status: InvoiceStatus) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.updateInvoiceStatus(user.id, deliveryId, status);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.updateInvoiceStatus(deliveryId, status));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
 
-  const settle = useCallback(async (deliveryIds: readonly string[], method: PaymentMethod) => {
-    if (firestoreEnabled && user) {
-      await firestoreDeliveryDataSource.settle(user.id, deliveryIds, method);
-      refreshFirestoreState();
-      return;
-    }
-    await mutate((service) => service.settle(deliveryIds, method));
-  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+  const updateBoletoStatus = useCallback(
+    async (deliveryId: string, status: BoletoStatus) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.updateBoletoStatus(user.id, deliveryId, status);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.updateBoletoStatus(deliveryId, status));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
 
-  const editMany = useCallback(async (deliveryIds: readonly string[], patch: DeliveryBulkPatch) => {
-    if (firestoreEnabled && user) {
-      await firestoreDeliveryDataSource.editMany(user.id, deliveryIds, patch);
-      refreshFirestoreState();
-      return;
-    }
-    await mutate((service) => service.editMany(deliveryIds, patch));
-  }, [firestoreEnabled, mutate, refreshFirestoreState, user]);
+  const settle = useCallback(
+    async (deliveryIds: readonly string[], method: PaymentMethod) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.settle(user.id, deliveryIds, method);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.settle(deliveryIds, method));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
+
+  const editMany = useCallback(
+    async (deliveryIds: readonly string[], patch: DeliveryBulkPatch) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.editMany(user.id, deliveryIds, patch);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.editMany(deliveryIds, patch));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
   const reload = useCallback(() => load(true), [load]);
 
   return {
@@ -203,6 +233,7 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     remove,
     toggleDelivered,
     updateInvoiceStatus,
+    updateBoletoStatus,
     settle,
     editMany,
   };

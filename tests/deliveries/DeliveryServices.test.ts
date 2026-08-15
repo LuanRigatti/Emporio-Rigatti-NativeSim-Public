@@ -105,17 +105,22 @@ describe('delivery services', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('filters deliveries to the period required by stock calculation', () => {
+  it('filters deliveries by boleto status with legacy fallback', () => {
     const service = new DeliveryQueryService();
     const result = service.filter(
       [
-        delivery({ id: 'before', data: '2026-07-31' }),
-        delivery({ id: 'inside', data: '2026-08-15' }),
-        delivery({ id: 'future', data: '2026-09-01' }),
+        delivery({ id: 'legacy-open', invoiceStatus: 'a_emitir' }),
+        delivery({ id: 'legacy-emitted', invoiceStatus: 'emitido' }),
+        delivery({
+          id: 'custom-boleto-emitted',
+          invoiceStatus: 'a_emitir',
+          boletoStatus: 'emitido',
+        }),
+        delivery({ id: 'custom-boleto-open', invoiceStatus: 'emitido', boletoStatus: 'a_emitir' }),
       ],
-      { endDate: '2026-08-31', mode: 'all' },
+      { mode: 'all', boletoStatus: 'a_emitir' },
     );
 
-    expect(result.map((item) => item.id)).toEqual(['inside', 'before']);
+    expect(result.map((item) => item.id)).toEqual(['legacy-open', 'custom-boleto-open']);
   });
 });

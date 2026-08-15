@@ -157,6 +157,7 @@ export function normalizeFactoryReceipt(value: unknown, path: string): FactoryRe
 
 const deliveryKeys = new Set([
   'id',
+  'clientId',
   'cliente',
   'quantidade',
   'valor',
@@ -165,6 +166,7 @@ const deliveryKeys = new Set([
   'entregue',
   'data',
   'invoiceStatus',
+  'boletoStatus',
   'endereco',
   'metodoPagamento',
   'observacao',

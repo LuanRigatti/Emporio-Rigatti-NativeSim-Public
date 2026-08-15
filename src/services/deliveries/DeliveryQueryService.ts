@@ -30,7 +30,13 @@ export class DeliveryQueryService {
         (delivery) =>
           !filters.invoiceStatus ||
           filters.invoiceStatus === 'Todos' ||
-          delivery.invoiceStatus === filters.invoiceStatus,
+          (delivery.invoiceStatus ?? 'a_emitir') === filters.invoiceStatus,
+      )
+      .filter(
+        (delivery) =>
+          !filters.boletoStatus ||
+          filters.boletoStatus === 'Todos' ||
+          (delivery.boletoStatus ?? delivery.invoiceStatus ?? 'a_emitir') === filters.boletoStatus,
       )
       .sort(
         (left, right) =>

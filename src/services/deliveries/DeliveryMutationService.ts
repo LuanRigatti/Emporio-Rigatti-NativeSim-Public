@@ -1,4 +1,5 @@
 import type {
+  BoletoStatus,
   Delivery,
   DeliveryBulkPatch,
   DeliveryDraft,
@@ -54,6 +55,7 @@ function draftToDelivery(draft: DeliveryDraft, previous?: Delivery): Delivery {
     entregue: draft.delivered,
     data: draft.date,
     invoiceStatus: draft.invoiceStatus,
+    ...(draft.boletoStatus !== undefined ? { boletoStatus: draft.boletoStatus } : {}),
     endereco: draft.address.trim(),
   };
   if (draft.paymentMethod) known.metodoPagamento = draft.paymentMethod;
@@ -136,6 +138,14 @@ export class DeliveryMutationService {
     const snapshot = await this.readSnapshot();
     const deliveries = snapshot.entregas.map((delivery) =>
       delivery.id === deliveryId ? { ...delivery, invoiceStatus } : delivery,
+    );
+    await this.replace(snapshot, deliveries);
+  }
+
+  public async updateBoletoStatus(deliveryId: string, boletoStatus: BoletoStatus): Promise<void> {
+    const snapshot = await this.readSnapshot();
+    const deliveries = snapshot.entregas.map((delivery) =>
+      delivery.id === deliveryId ? { ...delivery, boletoStatus } : delivery,
     );
     await this.replace(snapshot, deliveries);
   }

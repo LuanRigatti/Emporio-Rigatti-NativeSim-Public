@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassBackButton } from '@/components/native';
-import { PremiumScreen } from '@/components/premium';
+import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useAppTheme } from '@/theme';
@@ -30,7 +30,13 @@ export default function FactoryRoute() {
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
-      <View style={[styles.section, { marginTop: theme.spacing.md }]}>
+      <PremiumCard
+        style={{
+          borderRadius: theme.radius.xl + theme.spacing.md,
+          marginTop: theme.spacing.md,
+          padding: theme.spacing.sm,
+        }}
+      >
         <SettingsSection>
           <SettingItem
             fallbackIcon="cash-outline"
@@ -46,12 +52,11 @@ export default function FactoryRoute() {
             title="Compras"
           />
         </SettingsSection>
-      </View>
+      </PremiumCard>
     </PremiumScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1 },
-  section: { gap: 8 },
 });

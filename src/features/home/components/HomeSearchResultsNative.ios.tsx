@@ -306,17 +306,27 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
   const diagnosticScope = model.routePager ? 'home-multiple' : 'home-single';
   const shouldEnableScroll = isLarge && model.items.length > 1 && !model.routePager;
-  const content = (
-    <VStack
-      alignment="leading"
-      spacing={spacing.xxl}
-      modifiers={[
+
+  const contentModifiers = model.routePager
+    ? [
+        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+        onGeometryChange((frame) =>
+          logHomeSearchGeometry(diagnosticScope, 'results-content', frame),
+        ),
+      ]
+    : [
         padding({ horizontal: spacing.xl, top: spacing.xxl, bottom: spacing.xxl }),
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
         onGeometryChange((frame) =>
           logHomeSearchGeometry(diagnosticScope, 'results-content', frame),
         ),
-      ]}
+      ];
+
+  const content = (
+    <VStack
+      alignment="leading"
+      spacing={model.routePager ? 0 : spacing.xxl}
+      modifiers={contentModifiers}
     >
       {model.empty ? (
         <ResultState result={model} />
@@ -324,7 +334,7 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
         <VStack
           alignment="leading"
           modifiers={[
-            frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+            frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
             onGeometryChange((frame) =>
               logHomeSearchGeometry(diagnosticScope, 'route-pager-container', frame),
             ),
@@ -336,8 +346,8 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
                 <VStack
                   alignment="leading"
                   modifiers={[
-                    frame({ maxWidth: Infinity, alignment: 'topLeading' }),
-                    padding({ horizontal: spacing.sm }),
+                    frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+                    padding({ horizontal: spacing.xl, top: spacing.xxl, bottom: spacing.xxl }),
                     scrollIndicators('hidden', 'both'),
                     onGeometryChange((frame) =>
                       logHomeSearchGeometry(diagnosticScope, 'route-page-content', frame),

@@ -89,7 +89,10 @@ function sourceError(source: HomeSearchSourceName, error: unknown): HomeSearchSo
 }
 
 export class AppHomeSearchDataSource implements HomeSearchDataSource {
-  public constructor(private readonly userId: string) {}
+  public constructor(
+    private readonly userId: string,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   public async load(query: HomeSearchParsedQuery): Promise<HomeSearchDataSet> {
     const coverage: HomeSearchCoverage[] = [];
@@ -249,7 +252,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       }
     }
 
-    const bounds = financialDateBoundsForSearch(query);
+    const bounds = financialDateBoundsForSearch(query, this.now());
     if (!bounds) {
       coverage.push({ source: 'financialData', mode: 'skipped', reason: 'missingPeriod' });
       return { costsAvailable: false, dailyExpenses: {}, deliveries: [], monthlyExpenses: {} };

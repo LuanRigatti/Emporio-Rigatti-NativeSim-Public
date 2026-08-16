@@ -471,7 +471,9 @@ describe('AppHomeSearchDataSource', () => {
       new Date(2026, 7, 13, 12),
     );
 
-    const data = await new AppHomeSearchDataSource('uid').load(query);
+    const data = await new AppHomeSearchDataSource('uid', () => new Date(2026, 7, 13, 12)).load(
+      query,
+    );
 
     expect(mockedDeliveryDataSource.load).toHaveBeenCalledWith('uid', {
       mode: 'all',
@@ -642,7 +644,7 @@ describe('AppHomeSearchDataSource', () => {
     ]);
     const query = new HomeSearchQueryParser().parse('resumo agosto', new Date(2026, 7, 13, 12));
 
-    await new AppHomeSearchDataSource('uid').load(query);
+    await new AppHomeSearchDataSource('uid', () => new Date(2026, 7, 13, 12)).load(query);
 
     expect(mockedDeliveryDataSource.load).toHaveBeenCalledWith('uid', {
       mode: 'all',

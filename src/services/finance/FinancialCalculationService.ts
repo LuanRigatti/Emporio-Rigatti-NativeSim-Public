@@ -18,6 +18,7 @@ import {
   normalizeMoney,
 } from '@/utils/data';
 import { expenseCalculationService } from '@/services/expenses/ExpenseCalculationService';
+import { calculateScheduledMonthComparisonCutoffs } from './FinancialScheduledComparison';
 
 function safeNumber(value: unknown): number {
   return normalizeMoney(value) ?? 0;
@@ -102,24 +103,6 @@ function comparison(
 function previousMonthKey(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number);
   return formatLocalDate(new Date(year, monthNumber - 2, 1, 12)).slice(0, 7);
-}
-
-function deliveryDates(deliveries: readonly Delivery[]): string[] {
-  return [...new Set(deliveries.map((delivery) => isoDate(delivery.data)))].sort();
-}
-
-function deliveriesOnDates(deliveries: readonly Delivery[], dates: readonly string[]): Delivery[] {
-  const dateSet = new Set(dates);
-  return deliveries.filter((delivery) => dateSet.has(isoDate(delivery.data)));
-}
-
-function expensesOnDates(dailyExpenses: DailyExpenses, dates: readonly string[]): DailyExpenses {
-  const dateSet = new Set(dates);
-  return Object.fromEntries(
-    Object.entries(dailyExpenses).filter(
-      ([key, expense]) => dateSet.has(isoDate(key)) || dateSet.has(isoDate(expense.data)),
-    ),
-  );
 }
 
 export class FinancialCalculationService {
@@ -499,6 +482,18 @@ export class FinancialCalculationService {
     const today = input.today ?? new Date();
     const currentMonth = input.filters.mesSelecionado ?? todayIso(today).slice(0, 7);
     const previousMonth = previousMonthKey(currentMonth);
+
+    const cutoffs = calculateScheduledMonthComparisonCutoffs(currentMonth, today);
+
+    if (cutoffs.comparableN === 0 || !cutoffs.currentCutoff || !cutoffs.previousCutoff) {
+      return {
+        currentDeliveryDays: 0,
+        previousDeliveryDays: 0,
+        faturamento: comparison(0, 0),
+        lucroLiquido: comparison(0, 0, true),
+      };
+    }
+
     const currentFilters: FinancialCalculationFilters = {
       ...input.filters,
       periodo: 'mes',
@@ -509,31 +504,54 @@ export class FinancialCalculationService {
       periodo: 'mes',
       mesSelecionado: previousMonth,
     };
+
     const currentMonthDeliveries = this.filterDeliveries(input.deliveries, currentFilters, today);
     const previousMonthDeliveries = this.filterDeliveries(input.deliveries, previousFilters, today);
-    const currentDeliveryDates = deliveryDates(currentMonthDeliveries);
-    const previousDeliveryDates = deliveryDates(previousMonthDeliveries).slice(
-      0,
-      currentDeliveryDates.length,
+
+    const currentCutoffDate = cutoffs.currentCutoff;
+    const previousCutoffDate = cutoffs.previousCutoff;
+
+    const currentDeliveriesInRange = currentMonthDeliveries.filter((d) => {
+      const date = isoDate(d.data);
+      return date >= `${currentMonth}-01` && date <= currentCutoffDate;
+    });
+    const previousDeliveriesInRange = previousMonthDeliveries.filter((d) => {
+      const date = isoDate(d.data);
+      return date >= `${previousMonth}-01` && date <= previousCutoffDate;
+    });
+
+    const currentExpensesInRange = Object.fromEntries(
+      Object.entries(input.dailyExpenses).filter(([key, expense]) => {
+        const date = isoDate(expense.data ?? key);
+        return date >= `${currentMonth}-01` && date <= currentCutoffDate;
+      }),
     );
+    const previousExpensesInRange = Object.fromEntries(
+      Object.entries(input.dailyExpenses).filter(([key, expense]) => {
+        const date = isoDate(expense.data ?? key);
+        return date >= `${previousMonth}-01` && date <= previousCutoffDate;
+      }),
+    );
+
     const currentSummary = this.calculateResumo({
       ...input,
-      deliveries: deliveriesOnDates(currentMonthDeliveries, currentDeliveryDates),
-      dailyExpenses: expensesOnDates(input.dailyExpenses, currentDeliveryDates),
+      deliveries: currentDeliveriesInRange,
+      dailyExpenses: currentExpensesInRange,
       filters: currentFilters,
       today,
     });
+
     const previousSummary = this.calculateResumo({
       ...input,
-      deliveries: deliveriesOnDates(previousMonthDeliveries, previousDeliveryDates),
-      dailyExpenses: expensesOnDates(input.dailyExpenses, previousDeliveryDates),
+      deliveries: previousDeliveriesInRange,
+      dailyExpenses: previousExpensesInRange,
       filters: previousFilters,
       today,
     });
 
     return {
-      currentDeliveryDays: currentDeliveryDates.length,
-      previousDeliveryDays: previousDeliveryDates.length,
+      currentDeliveryDays: cutoffs.comparableN,
+      previousDeliveryDays: cutoffs.comparableN,
       faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
       lucroLiquido: comparison(currentSummary.lucroLiquido, previousSummary.lucroLiquido, true),
     };

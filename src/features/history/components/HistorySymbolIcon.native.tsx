@@ -1,7 +1,6 @@
-import { useCallback } from 'react';
+import type { ComponentType } from 'react';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
-import { useLazyNativeImplementation } from '@/platform/useLazyNativeImplementation';
 import { useAppTheme } from '@/theme';
 
 import HistorySymbolIconFallback from './HistorySymbolIconFallback';
@@ -16,11 +15,10 @@ export default function HistorySymbolIconNative(props: HistorySymbolIconProps | 
     systemName: props?.systemName ?? 'questionmark.circle',
   };
   const canUseExpoUI = getNativeCapabilities().canUseExpoUI;
-  const loadImplementation = useCallback(
-    () => import('./HistorySymbolIconSwiftUI.ios').then((module) => module.default),
-    [],
-  );
-  const NativeImplementation = useLazyNativeImplementation(canUseExpoUI, loadImplementation);
+  const NativeImplementation = canUseExpoUI
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('./HistorySymbolIconSwiftUI.ios').default as ComponentType<HistorySymbolIconProps>)
+    : null;
 
   return NativeImplementation ? (
     <NativeImplementation {...safeProps} />

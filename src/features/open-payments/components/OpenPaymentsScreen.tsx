@@ -3,19 +3,13 @@ import { useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import {
-  NativeGlassBackButton,
-  NativeSwipeActionsList,
-} from '@/components/native';
+import { NativeGlassBackButton, NativeSwipeActionsList } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
 import type { Delivery } from '@/types/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import {
-  formatDateAsDayMonthYear,
-  groupItemsByDate,
-} from '@/utils/groupItemsByDate';
+import { formatDateAsDayMonthYear, groupItemsByDate } from '@/utils/groupItemsByDate';
 
 import type { OpenPaymentPreview } from '../data/openPaymentPreview';
 
@@ -46,11 +40,7 @@ export function OpenPaymentsScreen() {
     reload: refresh,
   } = useDeliveries({ mode: 'all', status: 'Não Pago' });
   const hasMountedRef = useRef(false);
-  const paymentItems = useMemo(
-    () =>
-      deliveries.map(toOpenPaymentItem),
-    [deliveries],
-  );
+  const paymentItems = useMemo(() => deliveries.map(toOpenPaymentItem), [deliveries]);
   const paymentGroups = useMemo(() => groupItemsByDate(paymentItems), [paymentItems]);
 
   useFocusEffect(
@@ -97,6 +87,30 @@ export function OpenPaymentsScreen() {
     >
       <View style={[styles.content, { marginTop: theme.spacing.xxl }]}>
         <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
+          <GlassCard
+            style={[styles.totalCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          >
+            <View style={styles.totalRow}>
+              <Text
+                style={[
+                  theme.typography.caption,
+                  { color: theme.colors.textSecondary, fontWeight: '700' },
+                ]}
+              >
+                TOTAL EM ABERTO
+              </Text>
+              <Text
+                style={[
+                  theme.typography.body,
+                  { color: theme.colors.textPrimary, fontWeight: '700' },
+                ]}
+              >
+                {formatCurrency(
+                  paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
+                )}
+              </Text>
+            </View>
+          </GlassCard>
           {paymentGroups.map((group) => (
             <View key={group.date} style={styles.dateGroup}>
               <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
@@ -106,25 +120,24 @@ export function OpenPaymentsScreen() {
                 style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
               >
                 <NativeSwipeActionsList
-                action={{
-                  label: 'Concluído',
-                  systemImage: 'checkmark.circle.fill',
-                  tint: theme.colors.success,
-                }}
-                colors={{
-                  border: theme.colors.borderStrong,
-                  selectionContent: theme.colors.selectionContent,
-                  selectionSurface: theme.colors.selectionSurface,
-                  textPrimary: theme.colors.textPrimary,
-                  textSecondary: theme.colors.textSecondary,
-                }}
-                items={group.items.map((item) => ({
-                  id: item.id,
-                  subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
-                  title: item.client,
-                  titleBold: true,
-                  trailingText: item.amount,
-                }))}
+                  action={{
+                    label: 'Concluído',
+                    systemImage: 'checkmark.circle.fill',
+                    tint: theme.colors.success,
+                  }}
+                  colors={{
+                    border: theme.colors.borderStrong,
+                    selectionContent: theme.colors.selectionContent,
+                    selectionSurface: theme.colors.selectionSurface,
+                    textPrimary: theme.colors.textPrimary,
+                    textSecondary: theme.colors.textSecondary,
+                  }}
+                  items={group.items.map((item) => ({
+                    id: item.id,
+                    subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
+                    title: item.client,
+                    trailingText: item.amount,
+                  }))}
                   compact
                   onDelete={handlePaymentSwipe}
                   trailingValueAlignment="top"
@@ -132,20 +145,6 @@ export function OpenPaymentsScreen() {
               </GlassCard>
             </View>
           ))}
-          <GlassCard
-            style={[styles.totalCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-          >
-            <View style={styles.totalRow}>
-              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                TOTAL EM ABERTO
-              </Text>
-              <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                {formatCurrency(
-                  paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
-                )}
-              </Text>
-            </View>
-          </GlassCard>
         </View>
       </View>
     </PremiumScreen>

@@ -288,15 +288,104 @@ sem criar uma segunda fonte de verdade:
 - Branch: `upgrade/expo-sdk-57`.
 - Commit: `d806c32ac95a89950c8e2e85fc607e2c0cad0af7`.
 - Mensagem: `feat: expand Home Search metrics and route summaries`.
-- Este é o último commit conhecido; a atualização desta documentação e as
-  alterações de trabalho relacionadas ainda não foram commitadas.
-- Nenhum commit ou push adicional foi feito.
+
+## Gráfico Diário de Finanças: Scrubbing Contínuo e Interpolação de Curva
+
+### Funcionalidade implementada
+
+Interação contínua por arraste e toque livre no gráfico de linha da tela **MonthlyFinancialDetailScreen** (`FinancialSeriesChart`), separando o movimento contínuo do gesto da seleção discreta de dias:
+
+- Captura contínua de toque e arraste horizontal via `PanResponder` sem interferência ou roubo de gesto da `ScrollView` pai (`onPanResponderTerminationRequest: () => false`).
+- Desacoplamento arquitetural entre a posição contínua de arraste (`scrubX`, `scrubY` em `SharedValue` no UI thread) e o dia selecionado (`selectedIndex` em React state).
+- Interpolação matemática contínua da altura $Y$ ao longo dos segmentos da curva (`interpolateYOnCoordinates`).
+- Renderização da linha vertical pontilhada e do marcador em overlay nativo acelerado por hardware (`Animated.View` com `transform: [{ translateX }, { translateY }]`), rodando a 120fps/60fps na GPU sem re-renderizar o SVG.
+- Feedback tátil sutil (`triggerSelectionHaptic`) e atualização de dados no cabeçalho/card inferior acionados exclusivamente ao cruzar o limiar de um novo dia (`nearestIndex !== selectedIndex`).
+- Snap suave com curva easing (`withTiming`, 160ms) em direção ao ponto selecionado ao soltar o dedo (`release`/`terminate`).
+
+### Comportamento final
+
+- O usuário pode tocar em qualquer parte do gráfico ou arrastar continuamente o dedo na horizontal para percorrer os dias do mês de forma suave e contínua.
+- A linha pontilhada e o marcador de vidro acompanham o dedo pixel a pixel sem saltos bruscos, enquanto os valores e cards refletem instantaneamente os dados discretos reais do dia correspondente.
+
+### Arquivos principais
+
+- `src/components/Charts/index.tsx`
+- `src/features/finance/components/MonthlyFinancialDetailScreen.tsx`
+- `src/utils/haptics.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema alterado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros.
+- Jest (`npm test -- tests/finance`): 12 suítes / 87 testes passando.
+- `git diff --check`: passou.
+
+### Limitações conhecidas
+
+- Em telas web ou ambientes sem Reanimated UI thread nativo, o layout utiliza fallback síncrono.
+
+### Commit e publicação
+
+- Alteração validada localmente; ainda não commitada.
+
+## Morph e Fusão Nativa de Liquid Glass (@expo/ui)
+
+### Funcionalidade implementada
+
+Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explorando as capacidades de Liquid Glass e transições de namespace nativas do `@expo/ui` (`ExpoUI` / SwiftUI):
+
+- Utilização exclusiva de componentes oficiais do `@expo/ui/swift-ui` (`Host`, `Namespace`, `GlassEffectContainer`, `HStack`, `Button`, `Image`).
+- Utilização dos modificadores SwiftUI nativos `glassEffect`, `glassEffectId`, `animation(Animation.spring(...))` e `buttonStyle('plain')`.
+- Transição orgânica entre estado recolhido (1 botão circular de 44x44 com SF Symbol `ellipsis`) e estado expandido (2 botões circulares de 44x44 com SF Symbols `xmark` e `plus`).
+- Fusão física / coalescência e separação da superfície de vidro com refração contínua durante a animação de mola (`GlassEffectContainer` com `spacing={8}`).
+- Inserção de card de demonstração seguro na tela de **Configurações** (`SettingsScreen.tsx`).
+
+### Comportamento final
+
+- Ao tocar no botão de teste em Configurações, o botão de vidro se expande e divide em dois controles com animação spring nativa sem flash e sem recarregar componentes React Native.
+- Ao tocar novamente, os botões realizam o morph inverso e se fundem novamente em uma única gota de vidro circular.
+- 100% interpretado via Hot Reload / Metro, sem necessidade de recompilação nativa no Xcode.
+
+### Arquivos principais
+
+- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.types.ts`
+- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroupSwiftUI.ios.tsx`
+- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroupFallback.tsx`
+- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.native.tsx`
+- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.tsx`
+- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.web.tsx`
+- `src/components/native/NativeGlassMorphActionGroup/index.ts`
+- `src/components/native/index.ts`
+- `src/features/settings/components/SettingsScreen.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema alterado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros.
+- `git diff --check`: passou.
+
+### Limitações conhecidas
+
+- O efeito físico de coalescência/fusão de superfícies de vidro é renderizado nativamente no target SwiftUI de Liquid Glass do `@expo/ui`. Ambientes web ou Android utilizam o fallback gracioso correspondente.
+
+### Commit e publicação
+
+- Alteração validada localmente; ainda não commitada.
 
 As telas devem reutilizar repositories/services/hooks existentes, consultar
 apenas o período ou entidade necessário e atualizar a UI imediatamente após
 uma operação confirmada.
 
 ## Flags atuais
+
 
 Valores presentes em `src/config/featureFlags.ts`:
 

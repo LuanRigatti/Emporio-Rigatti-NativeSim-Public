@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { FinancialDailyDetail, MonthlyFinancialDetailMetric } from '@/services/finance';
-import { formatCurrency, formatPtBrDate } from '@/utils/data';
+import { formatCurrency } from '@/utils/data';
 import { useAppTheme } from '@/theme';
 import { PremiumCard } from '@/components/premium';
 
@@ -104,48 +104,25 @@ export function FinancialDayDetailCard({ detail, metric }: Props) {
   );
 
   return (
-    <View style={styles.container}>
-      <PremiumCard
-        style={[styles.headingCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-      >
-        <View style={styles.heading}>
-          <View style={[styles.headingIcon, { backgroundColor: theme.colors.selectionSurface }]}>
+    <PremiumCard style={[styles.infoCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+      {visibleRows.map((row) => (
+        <View key={row.label} style={styles.row}>
+          <View style={styles.labelGroup}>
             <Ionicons
-              color={theme.colors.selectionContent}
-              name="analytics-outline"
-              size={theme.sizes.iconMedium}
+              color={theme.colors.textSecondary}
+              name={row.icon}
+              size={theme.sizes.iconSmall}
             />
-          </View>
-          <View style={styles.headingCopy}>
-            <Text style={[theme.typography.title3, { color: theme.colors.textPrimary }]}>
-              Detalhes do dia
-            </Text>
             <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {formatPtBrDate(detail.date)}
+              {row.label}
             </Text>
           </View>
+          <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
+            {row.value}
+          </Text>
         </View>
-      </PremiumCard>
-      <PremiumCard style={[styles.infoCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
-        {visibleRows.map((row) => (
-          <View key={row.label} style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons
-                color={theme.colors.textSecondary}
-                name={row.icon}
-                size={theme.sizes.iconSmall}
-              />
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                {row.label}
-              </Text>
-            </View>
-            <Text style={[theme.typography.subheadline, { color: theme.colors.textPrimary }]}>
-              {row.value}
-            </Text>
-          </View>
-        ))}
-      </PremiumCard>
-    </View>
+      ))}
+    </PremiumCard>
   );
 }
 
@@ -154,17 +131,6 @@ function formatNumber(value: number): string {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 12 },
-  heading: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-  headingCard: { padding: 20 },
-  headingCopy: { flex: 1, gap: 2 },
-  headingIcon: {
-    alignItems: 'center',
-    borderRadius: 18,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
   infoCard: { paddingHorizontal: 16, paddingVertical: 14 },
   labelGroup: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8 },
   row: {

@@ -37,3 +37,9 @@ export type {
   FinancialDailyDetailInput,
   MonthlyFinancialDetailMetric,
 } from './FinancialDailyDetailService';
+export {
+  SCHEDULED_ROUTE_WEEKDAYS,
+  calculateScheduledMonthComparisonCutoffs,
+  getScheduledRouteDatesInMonth,
+  type ScheduledMonthComparisonCutoffs,
+} from './FinancialScheduledComparison';

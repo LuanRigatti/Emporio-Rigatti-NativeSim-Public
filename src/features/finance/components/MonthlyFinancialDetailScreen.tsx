@@ -1,5 +1,5 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -18,12 +18,12 @@ import {
 import { routeTrackingRepository } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
-import { formatCurrency } from '@/utils/data';
+import { formatCurrency, formatPtBrDate } from '@/utils/data';
 import {
   HISTORY_MONTH_ITEMS,
   getHistoryYearItems,
 } from '@/features/history/components/periodOptions';
-import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
+import { formatMonthlyPeriodKey, parseMonthlyPeriodParam } from '../utils/monthlyPeriodUtils';
 
 import { FinancialDayDetailCard } from './FinancialDayDetailCard';
 
@@ -33,21 +33,39 @@ type Props = {
 
 const metricCopy = {
   faturamento: {
-    title: 'Faturamento mensal',
+    title: 'Faturamento',
     subtitle: 'Faturamento por dia',
   },
   lucroLiquido: {
-    title: 'Lucro líquido mensal',
+    title: 'Lucro líquido',
     subtitle: 'Lucro líquido por dia',
   },
 };
 
 export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const router = useRouter();
+  const params = useLocalSearchParams<{ period?: string | string[] }>();
   const { theme } = useAppTheme();
-  const currentPeriod = getCurrentHistoryPeriod();
-  const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
-  const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => parseMonthlyPeriodParam(params.period).month,
+  );
+  const [selectedYear, setSelectedYear] = useState(
+    () => parseMonthlyPeriodParam(params.period).year,
+  );
+  const lastParamPeriodRef = useRef(
+    Array.isArray(params.period) ? params.period[0] : params.period,
+  );
+
+  useEffect(() => {
+    const currentParam = Array.isArray(params.period) ? params.period[0] : params.period;
+    if (currentParam !== undefined && currentParam !== lastParamPeriodRef.current) {
+      lastParamPeriodRef.current = currentParam;
+      const parsed = parseMonthlyPeriodParam(currentParam);
+      setSelectedMonth(parsed.month);
+      setSelectedYear(parsed.year);
+    }
+  }, [params.period]);
+
   const initialRouteSessions = routeTrackingRepository.getMemoryRouteHistory();
   const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>(
     () => initialRouteSessions ?? [],
@@ -56,7 +74,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>();
   const isFirstFocus = useRef(true);
   const copy = metricCopy[metric];
-  const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  const selectedMonthKey = formatMonthlyPeriodKey(selectedYear, selectedMonth);
   const { refresh, snapshot, loading } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedMonthKey }),
     { displayMonth: selectedMonthKey },
@@ -139,7 +157,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
           yearItems={getHistoryYearItems()}
         />
       }
-      title={copy.title}
+      title=""
     />
   );
 
@@ -174,18 +192,16 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
               style={[styles.chartCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
               <View style={styles.chartHeader}>
-                <View>
+                <View style={styles.chartHeaderRow}>
                   <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
                     {copy.subtitle}
                   </Text>
-                  <Text
-                    style={[theme.typography.metricMedium, { color: theme.colors.textPrimary }]}
-                  >
-                    {formatCurrency(financialMetricValue(selectedDetail.summary, metric))}
+                  <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                    {formatPtBrDate(selectedDetail.date)}
                   </Text>
                 </View>
-                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                  Toque ou arraste
+                <Text style={[theme.typography.metricMedium, { color: theme.colors.textPrimary }]}>
+                  {formatCurrency(financialMetricValue(selectedDetail.summary, metric))}
                 </Text>
               </View>
               <FinancialSeriesChart
@@ -231,6 +247,11 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { gap: 16, paddingBottom: 32 },
   chartCard: { gap: 16, padding: 20 },
-  chartHeader: { alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'space-between' },
+  chartHeader: { gap: 4 },
+  chartHeaderRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   loading: { gap: 16 },
 });

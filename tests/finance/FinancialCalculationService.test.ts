@@ -304,27 +304,80 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.subiu).toBe(true);
   });
 
-  it('compares the first delivery days of the previous month instead of calendar dates', () => {
+  it('compares scheduled route days (Mon/Wed/Fri) instead of raw delivery day counts', () => {
+    // Current: Aug 2026 up to Friday 2026-08-14 (6 scheduled days: 03, 05, 07, 10, 12, 14)
+    // Previous: July 2026 up to Monday 2026-07-13 (6 scheduled days: 01, 03, 06, 08, 10, 13)
     const result = service.compareByDeliveryDays({
       deliveries: [
-        delivery({ id: 'current-1', data: '2026-07-01', valor: 100 }),
-        delivery({ id: 'current-2', data: '2026-07-10', valor: 100 }),
-        delivery({ id: 'current-3', data: '2026-07-20', valor: 100 }),
-        delivery({ id: 'previous-1', data: '2026-06-01', valor: 50 }),
-        delivery({ id: 'previous-2', data: '2026-06-08', valor: 50 }),
-        delivery({ id: 'previous-3', data: '2026-06-20', valor: 50 }),
-        delivery({ id: 'previous-extra', data: '2026-06-30', valor: 1000 }),
+        // Current month: 3 deliveries on scheduled days, 1 extraordinary on Thursday 13th
+        delivery({ id: 'current-1', data: '2026-08-03', valor: 100 }), // Mon (Day 1)
+        delivery({ id: 'current-2', data: '2026-08-07', valor: 100 }), // Fri (Day 3)
+        delivery({ id: 'current-extra-thu', data: '2026-08-13', valor: 50 }), // Thu (extraordinary)
+        delivery({ id: 'current-3', data: '2026-08-14', valor: 100 }), // Fri (Day 6)
+        delivery({ id: 'current-after-cutoff', data: '2026-08-17', valor: 500 }), // Mon (Day 7 - after cutoff)
+
+        // Previous month (July 2026):
+        delivery({ id: 'previous-1', data: '2026-07-01', valor: 50 }), // Wed (Day 1)
+        delivery({ id: 'previous-2', data: '2026-07-06', valor: 50 }), // Mon (Day 3)
+        delivery({ id: 'previous-3', data: '2026-07-13', valor: 50 }), // Mon (Day 6)
+        delivery({ id: 'previous-after-cutoff', data: '2026-07-20', valor: 1000 }), // Mon (Day 9 - after cutoff)
       ],
       dailyExpenses: {},
       monthlyExpenses: {},
-      filters: { periodo: 'mes', mesSelecionado: '2026-07' },
-      today: new Date('2026-07-24T12:00:00'),
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-08-16T12:00:00'), // Sunday 16th -> cutoffs: Aug 14th vs July 13th (N=6)
     });
 
-    expect(result.currentDeliveryDays).toBe(3);
-    expect(result.previousDeliveryDays).toBe(3);
-    expect(result.faturamento.atual).toBe(300);
+    expect(result.currentDeliveryDays).toBe(6);
+    expect(result.previousDeliveryDays).toBe(6);
+    // Current faturamento: 100 + 100 + 50 (extra Thu) + 100 = 350
+    expect(result.faturamento.atual).toBe(350);
+    // Previous faturamento: 50 + 50 + 50 = 150
     expect(result.faturamento.anterior).toBe(150);
     expect(result.faturamento.subiu).toBe(true);
+    expect(result.faturamento.diferenca).toBe(200);
+  });
+
+  it('handles scheduled days with zero deliveries as zero performance in N', () => {
+    // 6 scheduled days, but current month only has deliveries on day 1 and day 6 (days 2,3,4,5 had 0)
+    const result = service.compareByDeliveryDays({
+      deliveries: [
+        delivery({ id: 'current-1', data: '2026-08-03', valor: 100 }), // Mon (Day 1)
+        delivery({ id: 'current-6', data: '2026-08-14', valor: 100 }), // Fri (Day 6)
+        delivery({ id: 'previous-1', data: '2026-07-01', valor: 50 }),
+        delivery({ id: 'previous-2', data: '2026-07-03', valor: 50 }),
+        delivery({ id: 'previous-3', data: '2026-07-06', valor: 50 }),
+        delivery({ id: 'previous-4', data: '2026-07-08', valor: 50 }),
+        delivery({ id: 'previous-5', data: '2026-07-10', valor: 50 }),
+        delivery({ id: 'previous-6', data: '2026-07-13', valor: 50 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-08-16T12:00:00'),
+    });
+
+    expect(result.currentDeliveryDays).toBe(6);
+    expect(result.previousDeliveryDays).toBe(6);
+    expect(result.faturamento.atual).toBe(200);
+    expect(result.faturamento.anterior).toBe(300);
+    expect(result.faturamento.subiu).toBe(false);
+    expect(result.faturamento.diferenca).toBe(-100);
+  });
+
+  it('returns neutral comparison when before the first scheduled route of the month', () => {
+    const result = service.compareByDeliveryDays({
+      deliveries: [delivery({ id: 'current-1', data: '2026-08-01', valor: 100 })],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-08-02T12:00:00'), // Sunday before Monday 03/08
+    });
+
+    expect(result.currentDeliveryDays).toBe(0);
+    expect(result.previousDeliveryDays).toBe(0);
+    expect(result.faturamento.atual).toBe(0);
+    expect(result.faturamento.anterior).toBe(0);
+    expect(result.faturamento.diferenca).toBe(0);
   });
 });

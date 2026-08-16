@@ -1,12 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
-import type { ComponentProps } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeAnimatedNumber, NativePeriodActionGroup } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
+import { FinancialTrendIndicator } from '@/features/finance';
 import {
   HISTORY_MONTH_ITEMS,
   getHistoryYearItems,
@@ -19,28 +19,12 @@ import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/servi
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
 
-function PreviewIcon({
-  color,
-  name,
-}: {
-  color: string;
-  name: ComponentProps<typeof Ionicons>['name'];
-}) {
-  const { theme } = useAppTheme();
-  return <Ionicons color={color} name={name} size={theme.sizes.iconMedium} />;
-}
-
 function monthShortLabel(month: number): string {
   return (
     ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
       month - 1
     ] ?? String(month)
   );
-}
-
-function trendIcon(difference: number | undefined): ComponentProps<typeof Ionicons>['name'] {
-  if (difference === undefined || difference === 0) return 'remove-outline';
-  return difference > 0 ? 'trending-up' : 'trending-down';
 }
 
 export default function PrototypeFinanceiro() {
@@ -118,13 +102,6 @@ export default function PrototypeFinanceiro() {
     [automaticKilometersByDate, comparisonSnapshot, selectedPeriod, snapshot],
   );
 
-  const trendColor = (difference: number | undefined) =>
-    difference === undefined || difference === 0
-      ? theme.colors.textSecondary
-      : difference > 0
-        ? theme.colors.success
-        : theme.colors.danger;
-
   const periodActions = (
     <NativePeriodActionGroup
       color={theme.colors.textPrimary}
@@ -171,14 +148,19 @@ export default function PrototypeFinanceiro() {
     >
       <View style={styles.header}>{header}</View>
       <PremiumCard
-        accessibilityLabel="Abrir detalhes do faturamento mensal"
-        onPress={() => router.push('/faturamento-mensal')}
+        accessibilityLabel="Abrir detalhes do faturamento"
+        onPress={() =>
+          router.push({
+            pathname: '/faturamento-mensal',
+            params: { period: selectedPeriod },
+          })
+        }
         style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
       >
         <View style={styles.heroHeader}>
           <View style={styles.heroTitle}>
             <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              FATURAMENTO MENSAL
+              FATURAMENTO
             </Text>
             <Ionicons
               color={theme.colors.textSecondary}
@@ -186,10 +168,7 @@ export default function PrototypeFinanceiro() {
               size={theme.sizes.iconSmall}
             />
           </View>
-          <PreviewIcon
-            color={trendColor(comparison?.faturamento.diferenca)}
-            name={trendIcon(comparison?.faturamento.diferenca)}
-          />
+          <FinancialTrendIndicator comparison={comparison?.faturamento} />
         </View>
         <NativeAnimatedNumber
           animationEnabled={!loading && !refreshing}
@@ -199,14 +178,19 @@ export default function PrototypeFinanceiro() {
         />
       </PremiumCard>
       <PremiumCard
-        accessibilityLabel="Abrir detalhes do lucro líquido mensal"
-        onPress={() => router.push('/lucro-liquido-mensal')}
+        accessibilityLabel="Abrir detalhes do lucro líquido"
+        onPress={() =>
+          router.push({
+            pathname: '/lucro-liquido-mensal',
+            params: { period: selectedPeriod },
+          })
+        }
         style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
       >
         <View style={styles.heroHeader}>
           <View style={styles.heroTitle}>
             <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              LUCRO LÍQUIDO MENSAL
+              LUCRO LÍQUIDO
             </Text>
             <Ionicons
               color={theme.colors.textSecondary}
@@ -214,9 +198,8 @@ export default function PrototypeFinanceiro() {
               size={theme.sizes.iconSmall}
             />
           </View>
-          <PreviewIcon
-            color={trendColor(isNetProfitReady ? comparison?.lucroLiquido.diferenca : undefined)}
-            name={trendIcon(isNetProfitReady ? comparison?.lucroLiquido.diferenca : undefined)}
+          <FinancialTrendIndicator
+            comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
           />
         </View>
         <NativeAnimatedNumber

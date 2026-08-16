@@ -8,13 +8,14 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { PanResponder, View } from 'react-native';
-import {
+import { PanResponder, StyleSheet, View } from 'react-native';
+import Animated, {
   cancelAnimation,
   Easing,
   runOnJS,
   runOnUI,
   useAnimatedReaction,
+  useAnimatedStyle,
   useSharedValue,
   withSequence,
   withTiming,
@@ -23,6 +24,7 @@ import {
 import type { FinancialSeriesPoint } from '@/types/data';
 import { useAppTheme } from '@/theme';
 import { getFinancialChartLabelIndexes, getFinancialChartYCoordinates } from '@/utils/data';
+import { triggerSelectionHaptic } from '@/utils/haptics';
 
 type Props = {
   points: readonly FinancialSeriesPoint[];
@@ -81,6 +83,22 @@ export function FinancialSeriesChart({
 
     return () => cancelAnimation(animationProgress);
   }, [animationProgress, datasetKey]);
+
+  const selectedPoint = selectedIndex === undefined ? undefined : coordinates[selectedIndex];
+  const initialX = selectedPoint?.x ?? coordinates[0]?.x ?? width / 2;
+  const initialY = selectedPoint?.y ?? coordinates[0]?.y ?? paddingTop + chartHeight / 2;
+
+  const scrubX = useSharedValue(initialX);
+  const scrubY = useSharedValue(initialY);
+  const containerWidthShared = useSharedValue(360);
+  const isInteracting = useSharedValue(false);
+
+  useEffect(() => {
+    if (selectedPoint && !isInteracting.value) {
+      runOnUI(snapScrubPosition)(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
+    }
+  }, [isInteracting, scrubX, scrubY, selectedPoint]);
+
   const visibleProgress = animationState.datasetKey === datasetKey ? animationState.progress : 0;
   const visibleCoordinates = getProgressiveCoordinates(coordinates, visibleProgress);
   const linePath = buildSmoothPath(visibleCoordinates);
@@ -97,33 +115,103 @@ export function FinancialSeriesChart({
         : getFinancialChartLabelIndexes(points.length, maxLabels),
     [maxLabels, points.length, showAllLabels],
   );
+
+  const handleTouchAt = useCallback(
+    (locationX: number) => {
+      if (!onSelectPoint || coordinates.length === 0) return;
+
+      if (coordinates.length === 1) {
+        runOnUI(setScrubPosition)(scrubX, scrubY, coordinates[0].x, coordinates[0].y);
+        if (selectedIndex !== 0) {
+          triggerSelectionHaptic();
+          onSelectPoint(0);
+        }
+        return;
+      }
+
+      const viewBoxX = (locationX / Math.max(1, containerWidth)) * width;
+      const firstX = coordinates[0].x;
+      const lastX = coordinates[coordinates.length - 1].x;
+      const clampedX = Math.max(firstX, Math.min(lastX, viewBoxX));
+      const interpolatedY = interpolateYOnCoordinates(clampedX, coordinates);
+
+      runOnUI(setScrubPosition)(scrubX, scrubY, clampedX, interpolatedY);
+
+      const nearestIndex = getNearestIndexForX(clampedX, coordinates);
+      if (nearestIndex !== selectedIndex) {
+        triggerSelectionHaptic();
+        onSelectPoint(nearestIndex);
+      }
+    },
+    [containerWidth, coordinates, onSelectPoint, scrubX, scrubY, selectedIndex, width],
+  );
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: () => Boolean(onSelectPoint),
+        onStartShouldSetPanResponder: () => Boolean(onSelectPoint),
+        onStartShouldSetPanResponderCapture: () => Boolean(onSelectPoint),
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          return (
+            Boolean(onSelectPoint) &&
+            (Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1)
+          );
+        },
+        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+          return Boolean(onSelectPoint) && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        },
         onPanResponderGrant: (event) => {
-          if (!onSelectPoint || points.length === 0) return;
-          const x = (event.nativeEvent.locationX / Math.max(1, containerWidth)) * width;
-          const index = Math.round(((x - paddingX) / chartWidth) * (points.length - 1));
-          onSelectPoint(Math.max(0, Math.min(points.length - 1, index)));
+          runOnUI(setSharedFlag)(isInteracting, true);
+          handleTouchAt(event.nativeEvent.locationX);
         },
         onPanResponderMove: (event) => {
-          if (!onSelectPoint || points.length === 0) return;
-          const x = (event.nativeEvent.locationX / Math.max(1, containerWidth)) * width;
-          const index = Math.round(((x - paddingX) / chartWidth) * (points.length - 1));
-          onSelectPoint(Math.max(0, Math.min(points.length - 1, index)));
+          handleTouchAt(event.nativeEvent.locationX);
         },
-        onStartShouldSetPanResponder: () => Boolean(onSelectPoint),
+        onPanResponderRelease: () => {
+          runOnUI(setSharedFlag)(isInteracting, false);
+          if (selectedPoint) {
+            runOnUI(snapScrubPosition)(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
+          }
+        },
+        onPanResponderTerminate: () => {
+          runOnUI(setSharedFlag)(isInteracting, false);
+          if (selectedPoint) {
+            runOnUI(snapScrubPosition)(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
+          }
+        },
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
       }),
-    [chartWidth, containerWidth, onSelectPoint, points.length, width],
+    [handleTouchAt, isInteracting, onSelectPoint, scrubX, scrubY, selectedPoint],
   );
-  const selectedPoint = selectedIndex === undefined ? undefined : coordinates[selectedIndex];
+
+  const animatedLineStyle = useAnimatedStyle(() => {
+    const pixelX = (scrubX.value / 360) * containerWidthShared.value;
+    return {
+      opacity: selectedIndex === undefined ? 0 : 1,
+      transform: [{ translateX: pixelX }],
+    };
+  });
+
+  const animatedMarkerStyle = useAnimatedStyle(() => {
+    const pixelX = (scrubX.value / 360) * containerWidthShared.value;
+    const pixelY = scrubY.value;
+    return {
+      opacity: selectedIndex === undefined ? 0 : 1,
+      transform: [{ translateX: pixelX - 6 }, { translateY: pixelY - 6 }],
+    };
+  });
 
   return (
     <View
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="image"
-      onLayout={(event) => setContainerWidth(Math.max(1, event.nativeEvent.layout.width))}
+      onLayout={(event) => {
+        const measured = Math.max(1, event.nativeEvent.layout.width);
+        setContainerWidth(measured);
+        containerWidthShared.value = measured;
+      }}
+      style={styles.root}
       {...panResponder.panHandlers}
     >
       <Svg height={height} viewBox={`0 0 ${width} ${height}`} width="100%">
@@ -149,17 +237,6 @@ export function FinancialSeriesChart({
           );
         })}
         {areaPath ? <Path d={areaPath} fill="url(#financialChartAreaFill)" /> : null}
-        {selectedPoint ? (
-          <Line
-            stroke={strokeColor}
-            strokeDasharray="3 4"
-            strokeWidth={1}
-            x1={selectedPoint.x}
-            x2={selectedPoint.x}
-            y1={paddingTop}
-            y2={height - paddingBottom}
-          />
-        ) : null}
         <Path
           d={linePath}
           fill="none"
@@ -175,17 +252,6 @@ export function FinancialSeriesChart({
             </Fragment>
           ) : null,
         )}
-        {coordinates.map((point) => (
-          <Fragment key={`hit-${point.x}-${point.y}`}>
-            <Circle
-              cx={point.x}
-              cy={point.y}
-              fill="transparent"
-              onPress={() => onSelectPoint?.(coordinates.indexOf(point))}
-              r={14}
-            />
-          </Fragment>
-        ))}
         {labelIndexes.map((index) => {
           const point = points[index];
           return (
@@ -202,11 +268,101 @@ export function FinancialSeriesChart({
           );
         })}
       </Svg>
+      <View pointerEvents="none" style={styles.overlay}>
+        <Animated.View
+          style={[styles.indicatorLine, { borderColor: strokeColor }, animatedLineStyle]}
+        />
+        <Animated.View
+          style={[
+            styles.markerDot,
+            {
+              backgroundColor: strokeColor,
+              borderColor: theme.colors.surface,
+            },
+            animatedMarkerStyle,
+          ]}
+        />
+      </View>
     </View>
   );
 }
 
 type ChartCoordinate = { x: number; y: number };
+
+function interpolateYOnCoordinates(
+  scrubX: number,
+  coordinates: readonly ChartCoordinate[],
+): number {
+  if (coordinates.length === 0) return 0;
+  if (coordinates.length === 1) return coordinates[0].y;
+
+  const firstX = coordinates[0].x;
+  const lastX = coordinates[coordinates.length - 1].x;
+  const clampedX = Math.max(firstX, Math.min(lastX, scrubX));
+
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const p1 = coordinates[i];
+    const p2 = coordinates[i + 1];
+    if (clampedX >= p1.x && clampedX <= p2.x) {
+      const segmentWidth = p2.x - p1.x;
+      if (segmentWidth === 0) return p1.y;
+      const t = (clampedX - p1.x) / segmentWidth;
+      return p1.y + (p2.y - p1.y) * t;
+    }
+  }
+
+  return coordinates[coordinates.length - 1].y;
+}
+
+function getNearestIndexForX(scrubX: number, coordinates: readonly ChartCoordinate[]): number {
+  if (coordinates.length <= 1) return 0;
+  let nearestIndex = 0;
+  let minDistance = Infinity;
+  for (let i = 0; i < coordinates.length; i++) {
+    const dist = Math.abs(coordinates[i].x - scrubX);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestIndex = i;
+    }
+  }
+  return nearestIndex;
+}
+
+function setScrubPosition(
+  scrubX: { value: number },
+  scrubY: { value: number },
+  x: number,
+  y: number,
+) {
+  'worklet';
+
+  scrubX.value = x;
+  scrubY.value = y;
+}
+
+function setSharedFlag(flag: { value: boolean }, value: boolean) {
+  'worklet';
+
+  flag.value = value;
+}
+
+function snapScrubPosition(
+  scrubX: { value: number },
+  scrubY: { value: number },
+  targetX: number,
+  targetY: number,
+) {
+  'worklet';
+
+  scrubX.value = withTiming(targetX, {
+    duration: 160,
+    easing: Easing.out(Easing.quad),
+  });
+  scrubY.value = withTiming(targetY, {
+    duration: 160,
+    easing: Easing.out(Easing.quad),
+  });
+}
 
 function startChartAnimation(progress: { value: number }) {
   'worklet';
@@ -276,3 +432,32 @@ function getLastVisibleMarkerIndex(pointCount: number, progress: number): number
   if (pointCount <= 1) return pointCount - 1;
   return Math.min(pointCount - 1, Math.floor(progress * (pointCount - 1)));
 }
+
+const styles = StyleSheet.create({
+  root: {
+    height: 220,
+    position: 'relative',
+    width: '100%',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFill,
+  },
+  indicatorLine: {
+    borderLeftWidth: 1,
+    borderStyle: 'dashed',
+    bottom: 36,
+    left: 0,
+    position: 'absolute',
+    top: 20,
+    width: 1,
+  },
+  markerDot: {
+    borderRadius: 6,
+    borderWidth: 2,
+    height: 12,
+    left: 0,
+    position: 'absolute',
+    top: 0,
+    width: 12,
+  },
+});

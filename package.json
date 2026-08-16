@@ -65,6 +65,8 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-expo-ui-bottom-sheet.js",
+    "patch:expo-ui": "node scripts/patch-expo-ui-bottom-sheet.js",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",

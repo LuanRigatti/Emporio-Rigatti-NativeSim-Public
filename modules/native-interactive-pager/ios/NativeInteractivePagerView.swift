@@ -56,7 +56,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
               layer: "tab-view",
               page: nil,
               selectedPage: currentPage,
-              frame: geometry.frame(in: .global),
+              frame: geometry.frame(in: .global)
             )
           }
           .onChange(of: geometry.frame(in: .global)) { frame in
@@ -65,7 +65,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
               layer: "tab-view",
               page: nil,
               selectedPage: currentPage,
-              frame: frame,
+              frame: frame
             )
           }
       }
@@ -84,7 +84,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
                 layer: "pager",
                 page: nil,
                 selectedPage: currentPage,
-                frame: geometry.frame(in: .global),
+                frame: geometry.frame(in: .global)
               )
             }
             .onChange(of: geometry.frame(in: .global)) { frame in
@@ -93,7 +93,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
                 layer: "pager",
                 page: nil,
                 selectedPage: currentPage,
-                frame: frame,
+                frame: frame
               )
             }
         }
@@ -128,7 +128,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
   private static func pageContent(
     for page: NativeInteractivePagerPage,
     props: NativeInteractivePagerViewProps,
-    selectedPage: Int,
+    selectedPage: Int
   ) -> AnyView {
     let fillWidth = props.fillWidth
     let content = AnyView(
@@ -150,7 +150,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
                 layer: "page",
                 page: page.props.page,
                 selectedPage: selectedPage,
-                frame: geometry.frame(in: .global),
+                frame: geometry.frame(in: .global)
               )
             }
             .onChange(of: geometry.frame(in: .global)) { frame in
@@ -159,7 +159,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
                 layer: "page",
                 page: page.props.page,
                 selectedPage: selectedPage,
-                frame: frame,
+                frame: frame
               )
             }
         }
@@ -172,9 +172,10 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
     layer: String,
     page: Int?,
     selectedPage: Int,
-    frame: CGRect,
+    frame: CGRect
   ) {
     #if DEBUG
+    let pageString = page.map { String($0) } ?? "none"
     props.onGeometry([
       "fillWidth": props.fillWidth,
       "height": Double(frame.height),
@@ -186,7 +187,7 @@ public struct NativeInteractivePagerView: ExpoSwiftUI.View {
       "y": Double(frame.origin.y),
     ])
     print(
-      "[bottom-sheet-geometry] scope=native-interactive-pager layer=\(layer) page=\(page.map(String.init) ?? \"none\") selectedPage=\(selectedPage) fillWidth=\(props.fillWidth) x=\(frame.origin.x) y=\(frame.origin.y) width=\(frame.size.width) height=\(frame.size.height)"
+      "[bottom-sheet-geometry] scope=native-interactive-pager layer=\(layer) page=\(pageString) selectedPage=\(selectedPage) fillWidth=\(props.fillWidth) x=\(frame.origin.x) y=\(frame.origin.y) width=\(frame.size.width) height=\(frame.size.height)"
     )
     #endif
   }

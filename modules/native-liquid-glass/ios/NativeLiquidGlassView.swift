@@ -137,14 +137,14 @@ public struct NativeLiquidGlassView: ExpoSwiftUI.View {
         .glassEffectTransition(.matchedGeometry)
     } else if action.shape == "roundedRectangle" {
       button
-        .frame(width: action.width.map(CGFloat.init), height: CGFloat(action.height ?? 44))
+        .frame(width: action.width.map { CGFloat($0) }, height: CGFloat(action.height ?? 44))
         .glassEffect(glassMaterial(for: action), in: .rect(cornerRadius: 16))
         .glassEffectID(glassID(for: action), in: namespace)
         .glassEffectUnion(id: props.unionID, namespace: namespace)
         .glassEffectTransition(.matchedGeometry)
     } else {
       button
-        .frame(width: action.width.map(CGFloat.init), height: CGFloat(action.height ?? 44))
+        .frame(width: action.width.map { CGFloat($0) }, height: CGFloat(action.height ?? 44))
         .glassEffect(glassMaterial(for: action), in: .capsule)
         .glassEffectID(glassID(for: action), in: namespace)
         .glassEffectUnion(id: props.unionID, namespace: namespace)
@@ -237,11 +237,11 @@ public struct NativeLiquidGlassView: ExpoSwiftUI.View {
         .background(.ultraThinMaterial, in: Circle())
     } else if action.shape == "roundedRectangle" {
       label
-        .frame(width: action.width.map(CGFloat.init), height: CGFloat(action.height ?? 44))
+        .frame(width: action.width.map { CGFloat($0) }, height: CGFloat(action.height ?? 44))
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     } else {
       label
-        .frame(width: action.width.map(CGFloat.init), height: CGFloat(action.height ?? 44))
+        .frame(width: action.width.map { CGFloat($0) }, height: CGFloat(action.height ?? 44))
         .background(.ultraThinMaterial, in: Capsule())
     }
   }

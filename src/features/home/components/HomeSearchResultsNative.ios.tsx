@@ -270,13 +270,13 @@ function ResultState({ result }: { result: HomeSearchVisualResult }) {
 }
 
 function ResultContent({
-  isLarge,
   cardBackground,
+  isLarge,
   query,
   result,
 }: {
-  cardBackground: string;
-  isLarge: boolean;
+  cardBackground?: string;
+  isLarge?: boolean;
   query?: string;
   result: HomeSearchVisualResult;
 }) {
@@ -292,10 +292,10 @@ function ResultContent({
       {result.metric ? <ResultMetric metric={result.metric} /> : null}
       {result.state ? <ResultState result={result} /> : null}
       {result.route ? (
-        <HomeSearchRoutePreview isLarge={isLarge} sessionIds={result.route.sessionIds} />
+        <HomeSearchRoutePreview isLarge={Boolean(isLarge)} sessionIds={result.route.sessionIds} />
       ) : null}
       {result.sections.map((section) => (
-        <ResultSection cardBackground={cardBackground} key={section.id} section={section} />
+        <ResultSection cardBackground={cardBackground ?? ''} key={section.id} section={section} />
       ))}
     </VStack>
   );
@@ -347,7 +347,7 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
                   alignment="leading"
                   modifiers={[
                     frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-                    padding({ horizontal: spacing.xl, top: spacing.xxl, bottom: spacing.xxl }),
+                    padding({ bottom: 0, horizontal: spacing.xl, top: spacing.xxl }),
                     scrollIndicators('hidden', 'both'),
                     onGeometryChange((frame) =>
                       logHomeSearchGeometry(diagnosticScope, 'route-page-content', frame),

@@ -33,7 +33,7 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
           RevealCompletionModifier(
             animatableData: revealRadius,
             targetValue: max(geometry.size.width, geometry.size.height) * 1.25,
-            completion: sendCompletionIfNeeded,
+            completion: sendCompletionIfNeeded
           )
         )
         .onAppear {
@@ -96,7 +96,7 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
           .scaledToFit()
           .frame(
             width: max(1, revealRadius * 2),
-            height: max(1, revealRadius * 2),
+            height: max(1, revealRadius * 2)
           )
           .blendMode(.destinationOut)
       }
@@ -134,7 +134,7 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
     let resourceBundle: Bundle?
     if let resourceURL = Bundle.main.url(
       forResource: "NativeStartupSplashResources",
-      withExtension: "bundle",
+      withExtension: "bundle"
     ) {
       resourceBundle = Bundle(url: resourceURL)
     } else {
@@ -204,7 +204,7 @@ public struct NativeStartupSplashView: ExpoSwiftUI.View {
       x: minX,
       y: minY,
       width: maxX - minX + 1,
-      height: maxY - minY + 1,
+      height: maxY - minY + 1
     )
     guard let cropped = cgImage.cropping(to: cropRect) else { return image }
     return UIImage(cgImage: cropped, scale: image.scale, orientation: image.imageOrientation)

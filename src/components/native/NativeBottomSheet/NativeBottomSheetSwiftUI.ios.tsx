@@ -34,7 +34,6 @@ import {
   onTapGesture,
   padding,
   presentationDetents,
-  presentationBackground,
   presentationDragIndicator,
   scrollContentBackground,
   scrollDisabled,
@@ -49,7 +48,6 @@ import { useAppTheme } from '@/theme';
 
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
 import type { NativeInteractivePagerGeometryEvent } from '../NativeInteractivePager';
-import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { roundedFont } from '../nativeTypography';
 
@@ -505,7 +503,6 @@ export default function NativeBottomSheetSwiftUI({
       >
         <Group
           modifiers={[
-            presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
             presentationDetents(
               [...sheetDetents],
               initialDetent || onDetentChange

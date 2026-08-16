@@ -6,13 +6,16 @@ import { useAppTheme } from '@/theme';
 
 import type { NativeGlassMorphActionGroupProps } from './NativeGlassMorphActionGroup.types';
 
+const BUTTON_SIZE = 44;
+const INNER_SPACING = 2;
+const EXPANDED_WIDTH = BUTTON_SIZE * 2 + INNER_SPACING;
+
 export default function NativeGlassMorphActionGroupFallback({
   color,
   isExpanded: controlledExpanded,
   onToggle,
   onSecondaryPress,
   size = 20,
-  spacing = 8,
   style,
 }: NativeGlassMorphActionGroupProps) {
   const { theme } = useAppTheme();
@@ -31,52 +34,79 @@ export default function NativeGlassMorphActionGroupFallback({
   const tintColor = color ?? theme.colors.textPrimary;
 
   return (
-    <View style={[styles.container, { gap: spacing }, style]}>
-      <Pressable
-        accessibilityLabel={expanded ? 'Fechar' : 'Mais opções'}
-        accessibilityRole="button"
-        onPress={handleToggle}
+    <View
+      style={[
+        styles.outerContainer,
+        {
+          height: BUTTON_SIZE,
+          minWidth: EXPANDED_WIDTH,
+          width: EXPANDED_WIDTH,
+        },
+        style,
+      ]}
+    >
+      <View
         style={[
-          styles.button,
+          styles.capsuleSurface,
           {
             backgroundColor: theme.colors.glassSurface,
             borderColor: theme.colors.glassBorder,
+            gap: INNER_SPACING,
           },
         ]}
       >
-        <Ionicons color={tintColor} name={expanded ? 'close' : 'ellipsis-horizontal'} size={size} />
-      </Pressable>
-
-      {expanded ? (
-        <Pressable
-          accessibilityLabel="Ação secundária"
-          accessibilityRole="button"
-          onPress={onSecondaryPress}
-          style={[
-            styles.button,
-            {
-              backgroundColor: theme.colors.glassSurface,
-              borderColor: theme.colors.glassBorder,
-            },
-          ]}
-        >
-          <Ionicons color={tintColor} name="add" size={size} />
-        </Pressable>
-      ) : null}
+        {expanded ? (
+          <>
+            <Pressable
+              accessibilityLabel="Ação secundária"
+              accessibilityRole="button"
+              onPress={onSecondaryPress}
+              style={styles.innerButton}
+            >
+              <Ionicons color={tintColor} name="add" size={size} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Fechar"
+              accessibilityRole="button"
+              onPress={handleToggle}
+              style={styles.innerButton}
+            >
+              <Ionicons color={tintColor} name="close" size={size} />
+            </Pressable>
+          </>
+        ) : (
+          <Pressable
+            accessibilityLabel="Mais opções"
+            accessibilityRole="button"
+            onPress={handleToggle}
+            style={styles.innerButton}
+          >
+            <Ionicons color={tintColor} name="ellipsis-horizontal" size={size} />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  capsuleSurface: {
     alignItems: 'center',
     borderRadius: 22,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  container: {
     flexDirection: 'row',
+    height: BUTTON_SIZE,
+    overflow: 'hidden',
+  },
+  innerButton: {
+    alignItems: 'center',
+    height: BUTTON_SIZE,
+    justifyContent: 'center',
+    width: BUTTON_SIZE,
+  },
+  outerContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
 });

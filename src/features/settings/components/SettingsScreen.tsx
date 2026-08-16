@@ -112,22 +112,16 @@ export function SettingsScreen() {
             borderRadius: theme.radius.xl + theme.spacing.md,
             flexDirection: 'row',
             justifyContent: 'space-between',
-            padding: theme.spacing.md,
+            minHeight: 68,
+            paddingHorizontal: theme.spacing.md,
+            paddingVertical: theme.spacing.sm,
           }}
         >
-          <View style={{ flex: 1, gap: theme.spacing.xxs, paddingRight: theme.spacing.sm }}>
-            <Text
-              style={[
-                theme.typography.body,
-                { color: theme.colors.textPrimary, fontWeight: '600' },
-              ]}
-            >
-              Liquid Glass Morph
-            </Text>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              Toque para testar fusão e separação nativa
-            </Text>
-          </View>
+          <Text
+            style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: '600' }]}
+          >
+            Liquid Glass Morph
+          </Text>
           <NativeGlassMorphActionGroup color={theme.colors.textPrimary} />
         </PremiumCard>
         <PremiumCard

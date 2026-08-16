@@ -8,11 +8,16 @@ import {
   frame,
   glassEffect,
   glassEffectId,
+  matchedGeometryEffect,
   padding,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 
 import type { NativeGlassMorphActionGroupProps } from './NativeGlassMorphActionGroup.types';
+
+const BUTTON_SIZE = 44;
+const INNER_SPACING = 2;
+const EXPANDED_WIDTH = BUTTON_SIZE * 2 + INNER_SPACING;
 
 export default function NativeGlassMorphActionGroupSwiftUI({
   color,
@@ -23,7 +28,6 @@ export default function NativeGlassMorphActionGroupSwiftUI({
   primaryExpandedSymbol = 'xmark',
   secondarySymbol = 'plus',
   size = 20,
-  spacing = 8,
   style,
 }: NativeGlassMorphActionGroupProps) {
   const namespaceId = useId();
@@ -39,56 +43,60 @@ export default function NativeGlassMorphActionGroupSwiftUI({
     }
   };
 
-  const buttonBaseModifiers = [
+  const innerButtonModifiers = [
     padding({ all: 0 }),
     buttonStyle('plain'),
-    frame({ width: 44, height: 44 }),
+    frame({ height: BUTTON_SIZE, width: BUTTON_SIZE }),
     ...(color ? [tint(color)] : []),
   ];
 
   return (
-    <Host matchContents style={style}>
+    <Host
+      matchContents
+      style={[{ height: BUTTON_SIZE, minWidth: EXPANDED_WIDTH, width: EXPANDED_WIDTH }, style]}
+    >
       <Namespace id={namespaceId}>
         <GlassEffectContainer
-          modifiers={[animation(Animation.spring({ duration: 0.42, bounce: 0.12 }), expanded)]}
-          spacing={spacing}
+          modifiers={[
+            animation(Animation.spring({ bounce: 0.04, duration: 0.24 }), expanded),
+            frame({ alignment: 'trailing', height: BUTTON_SIZE, width: EXPANDED_WIDTH }),
+          ]}
         >
-          <HStack spacing={spacing}>
-            <Button
-              modifiers={[
-                ...buttonBaseModifiers,
-                glassEffect({
-                  glass: { interactive: true, variant: 'regular' },
-                  shape: 'circle',
-                }),
-                glassEffectId('morph-action-primary', namespaceId),
-                accessibilityLabel(expanded ? 'Fechar' : 'Mais opções'),
-              ]}
-              onPress={handleToggle}
-            >
-              <Image
-                color={color}
-                size={size}
-                systemName={expanded ? primaryExpandedSymbol : primaryCollapsedSymbol}
-              />
-            </Button>
-
+          <HStack
+            modifiers={[
+              padding({ all: 0 }),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'capsule',
+              }),
+              glassEffectId('glass-morph-surface', namespaceId),
+              matchedGeometryEffect('glass-morph-surface', namespaceId),
+            ]}
+            spacing={INNER_SPACING}
+          >
             {expanded ? (
+              <>
+                <Button
+                  modifiers={[...innerButtonModifiers, accessibilityLabel('Ação secundária')]}
+                  onPress={onSecondaryPress}
+                >
+                  <Image color={color} size={size} systemName={secondarySymbol} />
+                </Button>
+                <Button
+                  modifiers={[...innerButtonModifiers, accessibilityLabel('Fechar')]}
+                  onPress={handleToggle}
+                >
+                  <Image color={color} size={size} systemName={primaryExpandedSymbol} />
+                </Button>
+              </>
+            ) : (
               <Button
-                modifiers={[
-                  ...buttonBaseModifiers,
-                  glassEffect({
-                    glass: { interactive: true, variant: 'regular' },
-                    shape: 'circle',
-                  }),
-                  glassEffectId('morph-action-secondary', namespaceId),
-                  accessibilityLabel('Ação secundária'),
-                ]}
-                onPress={onSecondaryPress}
+                modifiers={[...innerButtonModifiers, accessibilityLabel('Mais opções')]}
+                onPress={handleToggle}
               >
-                <Image color={color} size={size} systemName={secondarySymbol} />
+                <Image color={color} size={size} systemName={primaryCollapsedSymbol} />
               </Button>
-            ) : null}
+            )}
           </HStack>
         </GlassEffectContainer>
       </Namespace>

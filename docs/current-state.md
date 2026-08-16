@@ -45,12 +45,112 @@ Finanças, Estoque, gráficos ou outros dados derivados.
 
 - Clientes e entregas;
 - Pagamentos em aberto;
-- Notas fiscais/boletos e elegibilidade por cliente;
+- Documentos (Notas fiscais e boletos independentes) e elegibilidade por cliente;
 - Compras da fábrica e pagamentos parciais;
-- Dados diários/mensais e Finanças;
+- Dados diários/mensais e Finanças (com sincronização de prontidão e cache de rotas);
 - Estoque derivado de compras menos entregas;
 - FactorySettings, CarSettings e CompanyProfile;
 - Backup, validação/dry-run e Restore seguro.
+
+## Sincronização e Prontidão de Lucro Líquido Mensal
+
+### Funcionalidade implementada
+
+Eliminação do flash visual, do recálculo tardio e da interrupção de animações no card **Lucro Líquido Mensal** da aba de Finanças e no gráfico de barras diário da tela **MonthlyFinancialDetailScreen**:
+
+- Criação de cache síncrono em memória no `RouteTrackingRepository` (`memoryHistory` e `getMemoryRouteHistory()`).
+- Pré-carregamento assíncrono do histórico de rotas disparado na inicialização global do app (`src/app/_layout.tsx`).
+- Hidratação e inicialização de estado síncrona em `financeiro.tsx` e `MonthlyFinancialDetailScreen.tsx` a partir da memória, com controle de prontidão via `routesLoaded` e `isDataReady = !loading && routesLoaded`.
+
+### Comportamento final
+
+- O card de **Lucro Líquido Mensal** em Finanças renderiza o valor definitivo desde o primeiro frame visível, sem flash, sem placeholder/skeleton e no mesmo instante do Faturamento Mensal.
+- A tela `MonthlyFinancialDetailScreen` inicializa com as sessões de rotas locais prontas, evitando o reinício da animação Reanimated no gráfico de barras causado pela transição tardia de `routeSessions: []` para as sessões reais.
+
+### Arquivos principais
+
+- `src/services/routes/RouteTrackingRepository.ts`
+- `src/app/_layout.tsx`
+- `src/app/(tabs)/financeiro.tsx`
+- `src/features/finance/components/MonthlyFinancialDetailScreen.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema alterado. Rotas continuam persistidas exclusivamente no `AsyncStorage` local e carregadas em memória.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): passou com 0 erros.
+- ESLint direcionado: passou com 0 erros.
+- `git diff --check`: passou.
+
+### Limitações conhecidas
+
+- Se o usuário navegar imediatamente em cold start extremo antes do primeiro tick de leitura do `AsyncStorage`, o estado aguarda `routesLoaded` para renderizar os dados derivados de combustível sem valores provisórios.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Commit: `6c7e798`.
+- Mensagem: `fix(finance): synchronize route history memory cache and readiness for monthly net profit`.
+
+## Documentos (Notas Fiscais e Boletos Independentes) e Card da Home
+
+### Funcionalidade implementada
+
+- Separação completa do ciclo de vida e dos status entre **Nota Fiscal** (`invoiceStatus`) e **Boleto** (`boletoStatus`) no domínio, persistência do Cloud Firestore, hooks, formulários e tela de Documentos.
+- Atualização do card da Home de "Notas fiscais/boletos" para "Documentos", com contagem unificada, destaque semântico de pendências e altura estabilizada espelhada no card "Recebimentos em aberto".
+
+### Comportamento final
+
+- **Emissão independente:** Marcar um Boleto como emitido grava exclusivamente `boletoStatus: 'emitido'`, mantendo a Nota Fiscal aberta (`invoiceStatus: 'a_emitir'`). Marcar a Nota Fiscal como emitida altera apenas `invoiceStatus: 'emitido'`, mantendo o Boleto aberto.
+- **Fallback legado seguro:** Registros antigos sem `boletoStatus` utilizam o fallback `effectiveBoletoStatus = delivery.boletoStatus ?? delivery.invoiceStatus ?? 'a_emitir'`, garantindo que boletos antigos emitidos no passado não reapareçam como pendentes.
+- **Novas entregas:** Entregas criadas para clientes que utilizam boleto gravam explicitamente `boletoStatus: 'a_emitir'`, eliminando a dependência do fallback.
+- **Tela de Documentos (`InvoicesScreen`):** Listas `invoiceDeliveries` e `boletoDeliveries` são filtradas e manuseadas independentemente por `handleInvoiceSwipe` e `handleBoletoSwipe`.
+- **Card Documentos da Home:**
+  - `0` pendências $\rightarrow$ exibe `"Documentos"` (altura preservada idêntica ao card "Recebimentos em aberto");
+  - `1` pendência $\rightarrow$ exibe `"1 documento em aberto"`;
+  - `N` pendências $\rightarrow$ exibe `"${N} documentos em aberto"`.
+
+### Arquivos principais
+
+- `src/types/data/delivery.ts`
+- `src/types/data/index.ts`
+- `src/utils/data/validators.ts`
+- `src/utils/data/normalizers.ts`
+- `src/services/deliveries/FirestoreDeliveryDataSource.ts`
+- `src/services/deliveries/DeliveryMutationService.ts`
+- `src/services/deliveries/deliveryRecord.ts`
+- `src/services/deliveries/DeliveryQueryService.ts`
+- `src/hooks/useDeliveries.ts`
+- `src/screens/deliveries/DeliveryForm.tsx`
+- `src/features/invoices/components/InvoicesScreen.tsx`
+- `src/features/invoices/utils/invoiceCountUtils.ts`
+- `src/app/(tabs)/dashboard.tsx`
+- `tests/invoices/InvoicesDocumentCount.test.ts`
+- `tests/deliveries/DeliveryServices.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag nova criada (`ENABLE_FIRESTORE_CLIENTS_DELIVERIES = true` mantida).
+- Adicionado campo opcional `boletoStatus?: 'emitido' | 'a_emitir'` no documento `users/{uid}/deliveries/{deliveryId}` do Cloud Firestore, gravado de forma incremental sem necessidade de migração massiva dos documentos antigos.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): passou com 0 erros.
+- ESLint direcionado: passou com 0 erros.
+- Testes unitários Jest: 32 testes passando em 7 suítes (`tests/invoices`, `tests/deliveries`, `tests/clients`).
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- Entregas legadas criadas antes da introdução de `boletoStatus` dependem do fallback compartilhado até sofrerem a primeira mutação de boleto.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Commit: `26b3864`.
+- Mensagem: `feat(invoices): separar estados de nota fiscal e boleto e atualizar widget documentos`.
 
 ## Home Search
 

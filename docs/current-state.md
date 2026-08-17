@@ -480,6 +480,17 @@ Correção de carregamento, concorrência e ordenação de compras na tela **Fac
 - Jest (`npm test -- tests/factory tests/finance tests/stock tests/home`): 22 suítes / 246 testes passando.
 - `git diff --check`: passou sem erros de formatação.
 
+### Limitações conhecidas
+
+- Compras legadas criadas antes da introdução explícita de `createdAt` utilizam o fallback determinístico por `id` decrescente no desempate de compras do mesmo dia.
+- O cache em memória persiste durante a sessão do app; no encerramento do processo em cold start extremo, os dados são recarregados do Firestore preservando a ordem idêntica.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Commit: `c84f3ac`.
+- Mensagem: `fix(factory): sincronizacao de carregamento, registro e ordenacao deterministica das compras`.
+
 As telas devem reutilizar repositories/services/hooks existentes, consultar
 apenas o período ou entidade necessário e atualizar a UI imediatamente após
 uma operação confirmada.

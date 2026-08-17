@@ -30,7 +30,6 @@ import {
   listRowBackground,
   listStyle,
   offset,
-  onGeometryChange,
   onTapGesture,
   padding,
   presentationDetents,
@@ -38,7 +37,6 @@ import {
   scrollContentBackground,
   scrollDisabled,
   shapes,
-  useScrollGeometryChange,
 } from '@expo/ui/swift-ui/modifiers';
 import type { PresentationDetent } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
@@ -47,41 +45,8 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '@/theme';
 
 import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
-import type { NativeInteractivePagerGeometryEvent } from '../NativeInteractivePager';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { roundedFont } from '../nativeTypography';
-
-type DiagnosticScope = 'registrar' | 'home-search';
-
-function logBottomSheetGeometry(
-  scope: DiagnosticScope,
-  layer: string,
-  frame: { x: number; y: number; width: number; height: number },
-) {
-  if (!__DEV__) return;
-  console.log('[bottom-sheet-geometry]', {
-    height: frame.height,
-    layer,
-    scope,
-    timestampMs: Date.now(),
-    width: frame.width,
-    x: frame.x,
-    y: frame.y,
-  });
-}
-
-function logNativePagerGeometry(
-  scope: DiagnosticScope,
-  event: NativeInteractivePagerGeometryEvent,
-) {
-  if (!__DEV__) return;
-  console.log('[bottom-sheet-geometry]', {
-    ...event.nativeEvent,
-    layer: `native-${event.nativeEvent.layer}`,
-    scope,
-    timestampMs: Date.now(),
-  });
-}
 
 export default function NativeBottomSheetSwiftUI({
   items,
@@ -103,22 +68,6 @@ export default function NativeBottomSheetSwiftUI({
 }: NativeBottomSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
-  const diagnosticScope: DiagnosticScope | null =
-    title === 'Adicionar entrega' ? 'registrar' : title === 'Resultados' ? 'home-search' : null;
-  const listScrollGeometry = useScrollGeometryChange((geometry) => {
-    if (!diagnosticScope || diagnosticScope !== 'registrar' || !__DEV__) return;
-    console.log('[bottom-sheet-geometry]', {
-      containerHeight: geometry.containerHeight,
-      containerWidth: geometry.containerWidth,
-      contentHeight: geometry.contentHeight,
-      contentOffsetX: geometry.contentOffsetX,
-      contentOffsetY: geometry.contentOffsetY,
-      contentWidth: geometry.contentWidth,
-      layer: 'registrar-list-scroll-geometry',
-      scope: diagnosticScope,
-      timestampMs: Date.now(),
-    });
-  });
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
@@ -343,13 +292,6 @@ export default function NativeBottomSheetSwiftUI({
       modifiers={[
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
         padding({ top: -38 }),
-        ...(diagnosticScope === 'registrar'
-          ? [
-              onGeometryChange((frame) =>
-                logBottomSheetGeometry(diagnosticScope, 'registrar-list-wrapper', frame),
-              ),
-            ]
-          : []),
       ]}
     >
       <List
@@ -358,14 +300,6 @@ export default function NativeBottomSheetSwiftUI({
           scrollDisabled(false),
           scrollContentBackground('hidden'),
           padding({ horizontal: 0, bottom: 0 }),
-          ...(diagnosticScope === 'registrar'
-            ? [
-                onGeometryChange((frame) =>
-                  logBottomSheetGeometry(diagnosticScope, 'registrar-list', frame),
-                ),
-                ...(listScrollGeometry ? [listScrollGeometry] : []),
-              ]
-            : []),
         ]}
       >
         {items.map((item) => (
@@ -416,13 +350,6 @@ export default function NativeBottomSheetSwiftUI({
       modifiers={[
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
         padding({ horizontal: 0, top: 12, bottom: 0 }),
-        ...(diagnosticScope === 'registrar'
-          ? [
-              onGeometryChange((frame) =>
-                logBottomSheetGeometry(diagnosticScope, 'registrar-sheet-content', frame),
-              ),
-            ]
-          : []),
       ]}
     >
       <Spacer minLength={8} />
@@ -431,9 +358,6 @@ export default function NativeBottomSheetSwiftUI({
       <NativeInteractivePager
         fillWidth
         initialPage={0}
-        onGeometry={(event) => {
-          if (diagnosticScope) logNativePagerGeometry(diagnosticScope, event);
-        }}
         onPageSettled={({ nativeEvent: { page } }) => onPageSettled?.(page)}
         requestID={pageRequestID}
         requestedPage={selectedItem ? 1 : 0}
@@ -476,18 +400,6 @@ export default function NativeBottomSheetSwiftUI({
   return (
     <Host
       matchContents={hostSizing === 'content' ? { horizontal: true } : false}
-      onLayoutContent={({ nativeEvent: { height, width } }) => {
-        if (!diagnosticScope || !__DEV__) return;
-        console.log('[bottom-sheet-geometry]', {
-          height,
-          layer: 'host-content',
-          scope: diagnosticScope,
-          timestampMs: Date.now(),
-          width,
-          x: null,
-          y: null,
-        });
-      }}
       useViewportSizeMeasurement={hostSizing === 'viewport'}
     >
       <BottomSheet
@@ -516,13 +428,6 @@ export default function NativeBottomSheetSwiftUI({
                 : undefined,
             ),
             presentationDragIndicator('visible'),
-            ...(diagnosticScope
-              ? [
-                  onGeometryChange((frame) =>
-                    logBottomSheetGeometry(diagnosticScope, 'sheet-group', frame),
-                  ),
-                ]
-              : []),
           ]}
         >
           {sheetContent}

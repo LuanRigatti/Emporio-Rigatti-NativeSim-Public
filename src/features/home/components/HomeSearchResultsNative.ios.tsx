@@ -18,7 +18,6 @@ import {
   frame,
   foregroundStyle,
   monospacedDigit,
-  onGeometryChange,
   padding,
   scrollIndicators,
   shapes,
@@ -28,7 +27,6 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { spacing, useAppTheme } from '@/theme';
 import { NativeInteractivePager, NativeInteractivePagerPage } from '@/components/native';
-import type { NativeInteractivePagerGeometryEvent } from '@/components/native';
 
 import HomeSearchRoutePreview from './HomeSearchRoutePreview.ios';
 import type {
@@ -46,33 +44,6 @@ type Props = {
 
 const asSymbol = (value: string) => value as SFSymbol;
 const monospacedLabelValues = new Set(['Início', 'Fim', 'Duração']);
-
-function logHomeSearchGeometry(
-  scope: 'home-single' | 'home-multiple',
-  layer: string,
-  frame: { x: number; y: number; width: number; height: number },
-) {
-  if (!__DEV__) return;
-  console.log('[bottom-sheet-geometry]', {
-    height: frame.height,
-    layer,
-    scope,
-    timestampMs: Date.now(),
-    width: frame.width,
-    x: frame.x,
-    y: frame.y,
-  });
-}
-
-function logNativePagerGeometry(event: NativeInteractivePagerGeometryEvent) {
-  if (!__DEV__) return;
-  console.log('[bottom-sheet-geometry]', {
-    ...event.nativeEvent,
-    layer: `native-${event.nativeEvent.layer}`,
-    scope: 'home-multiple',
-    timestampMs: Date.now(),
-  });
-}
 
 function semanticStyle(tone: HomeSearchVisualTone = 'primary') {
   if (tone === 'success') return foregroundStyle(PlatformColor('systemGreen') as unknown as string);
@@ -304,22 +275,13 @@ function ResultContent({
 export default function HomeSearchResultsNative({ isLarge = false, model }: Props) {
   const { resolvedMode, theme } = useAppTheme();
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
-  const diagnosticScope = model.routePager ? 'home-multiple' : 'home-single';
   const shouldEnableScroll = isLarge && model.items.length > 1 && !model.routePager;
 
   const contentModifiers = model.routePager
-    ? [
-        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-        onGeometryChange((frame) =>
-          logHomeSearchGeometry(diagnosticScope, 'results-content', frame),
-        ),
-      ]
+    ? [frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]
     : [
         padding({ horizontal: spacing.xl, top: spacing.xxl, bottom: spacing.xxl }),
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-        onGeometryChange((frame) =>
-          logHomeSearchGeometry(diagnosticScope, 'results-content', frame),
-        ),
       ];
 
   const content = (
@@ -333,14 +295,9 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
       ) : model.routePager ? (
         <VStack
           alignment="leading"
-          modifiers={[
-            frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-            onGeometryChange((frame) =>
-              logHomeSearchGeometry(diagnosticScope, 'route-pager-container', frame),
-            ),
-          ]}
+          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}
         >
-          <NativeInteractivePager fillWidth onGeometry={logNativePagerGeometry}>
+          <NativeInteractivePager fillWidth>
             {model.items.map((result, index) => (
               <NativeInteractivePagerPage key={result.id} page={index}>
                 <VStack
@@ -349,9 +306,6 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
                     frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
                     padding({ bottom: 0, horizontal: spacing.xl, top: spacing.xxl }),
                     scrollIndicators('hidden', 'both'),
-                    onGeometryChange((frame) =>
-                      logHomeSearchGeometry(diagnosticScope, 'route-page-content', frame),
-                    ),
                   ]}
                 >
                   <ResultContent
@@ -386,9 +340,6 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
         modifiers={[
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
           clipped(),
-          onGeometryChange((frame) =>
-            logHomeSearchGeometry(diagnosticScope, 'results-viewport', frame),
-          ),
         ]}
       >
         <Spacer />

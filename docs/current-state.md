@@ -380,6 +380,64 @@ Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explo
 
 - Alteração validada localmente; ainda não commitada.
 
+## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
+
+### Funcionalidade implementada
+
+1. **Eliminação de Faixas Inferiores e Gap de Safe Area:**
+   - Patch nativo reproduzível e idempotente no `@expo/ui` (`BottomSheetView.swift`) aplicando `.ignoresSafeArea(.container, edges: .bottom)` no UIHostingController da apresentação nativa de sheets, removendo o espaçamento inferior de 34pt do UIKit.
+   - Script automatizado `scripts/patch-expo-ui-bottom-sheet.js` e hook `postinstall` no `package.json` (`npm run patch:expo-ui`) para assegurar compilação determinística no Mac/Xcode após `npm install`.
+   - Ajuste de dimensionamento e preenchimento no Registrar Entrega (`src/app/(tabs)/registrar.tsx` com `hostSizing="viewport"`, e `src/components/native/NativeBottomSheet/NativeBottomSheetSwiftUI.ios.tsx` com `frame(maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading')`, `fillWidth` no pager e `padding({ bottom: 0 })`).
+
+2. **Correções Preventivas Swift nos Módulos Locais:**
+   - `NativeInteractivePagerView.swift`: Limpeza de interpolação e escapes de string.
+   - `NativeLiquidGlassView.swift`: Substituição de inicializadores ambíguos `CGFloat.init` por closures explícitas `{ CGFloat($0) }`.
+   - `NativeStartupSplashView.swift`: Limpeza de sintaxe.
+
+3. **Remoção Completa da Instrumentação de Geometria de Diagnóstico:**
+   - Remoção de todos os modifiers `onGeometryChange` e do hook `useScrollGeometryChange` de `HomeSearchResultsNative.ios.tsx` e `NativeBottomSheetSwiftUI.ios.tsx`.
+   - Desconexão da prop `onGeometry` do `NativeInteractivePager`.
+   - Remoção de todos os 3 `GeometryReader` de background (`tab-view`, `pager`, `page`), leituras de `frame(in: .global)`, método `reportGeometry` e logs `[bottom-sheet-geometry]` em `NativeInteractivePagerView.swift`.
+
+### Comportamento final
+
+- O Home Search e o Registrar Entrega preenchem integralmente a área inferior dos Bottom Sheets até a base da tela no iPhone, sem barras ou recortes inferiores.
+- Os containers e o pager nativo funcionam sem observadores de geometria contínuos ou enfileiramento repetitivo de medições na bridge JS durante a rolagem.
+
+### Arquivos principais
+
+- `scripts/patch-expo-ui-bottom-sheet.js`
+- `package.json`
+- `src/app/(tabs)/registrar.tsx`
+- `src/components/native/NativeBottomSheet/NativeBottomSheetSwiftUI.ios.tsx`
+- `src/features/home/components/HomeSearchResultsNative.ios.tsx`
+- `modules/native-interactive-pager/ios/NativeInteractivePagerView.swift`
+- `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift`
+- `modules/native-startup-splash/ios/NativeStartupSplashView.swift`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema do Cloud Firestore alterado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): passou com 0 erros.
+- ESLint: passou com 0 erros nos arquivos afetados.
+- Testes automatizados Jest (`npm test -- tests/home`): 5 suítes / 132 testes passando.
+- `git diff --check`: passou sem erros de whitespace.
+
+### Limitações conhecidas
+
+- A alteração em `node_modules/@expo/ui/ios/BottomSheetView.swift` depende da execução do script `postinstall` (`node scripts/patch-expo-ui-bottom-sheet.js`) após qualquer `npm install` no ambiente macOS/Xcode antes do build nativo.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Commits relacionados:
+  - `8f829dc` (`fix(native): remocao de barras inferiores do bottom sheet`)
+  - `c50983d` (`test(native): teste de correcao ghosting que requer compilacao`)
+  - `335e619` (`test(native): Remocao de instrucoes swift, requer compilacao para testar se sumiu ghosting`)
+
 As telas devem reutilizar repositories/services/hooks existentes, consultar
 apenas o período ou entidade necessário e atualizar a UI imediatamente após
 uma operação confirmada.

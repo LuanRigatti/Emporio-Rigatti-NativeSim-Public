@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassMenu, NativeGlassMorphActionGroup } from '@/components/native';
+import { NativeGlassMenu } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
@@ -106,24 +106,6 @@ export function SettingsScreen() {
     >
       <View style={{ gap: theme.spacing.xl, marginTop: 0 }}>
         <View style={styles.header}>{header}</View>
-        <PremiumCard
-          style={{
-            alignItems: 'center',
-            borderRadius: theme.radius.xl + theme.spacing.md,
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            minHeight: 68,
-            paddingHorizontal: theme.spacing.md,
-            paddingVertical: theme.spacing.sm,
-          }}
-        >
-          <Text
-            style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: '600' }]}
-          >
-            Liquid Glass Morph
-          </Text>
-          <NativeGlassMorphActionGroup color={theme.colors.textPrimary} />
-        </PremiumCard>
         <PremiumCard
           style={{
             borderRadius: theme.radius.xl + theme.spacing.md,

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
@@ -7,7 +7,7 @@ import {
   NativeGlassBackButton,
   useCrossScreenGlassMorph,
 } from '@/components/native';
-import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 
 export default function Teste1Screen() {
@@ -34,8 +34,15 @@ export default function Teste1Screen() {
 
   const header = (
     <NativeGlassHeader
-      includeTopSafeArea
-      leftActions={<NativeGlassBackButton onPress={handleBack} />}
+      leftActions={
+        <NativeGlassBackButton
+          accessibilityLabel="Voltar para Teste Morph"
+          color={theme.colors.textPrimary}
+          containerSize={theme.sizes.touchTargetMinimum}
+          onPress={handleBack}
+          size={theme.sizes.iconMedium}
+        />
+      }
       mode="transparent"
       rightActions={morphTarget}
       title="Teste 1"
@@ -43,49 +50,26 @@ export default function Teste1Screen() {
   );
 
   return (
-    <PremiumScreen
-      contentContainerStyle={[
-        styles.content,
-        {
-          marginTop: theme.spacing.xxxl + theme.spacing.xl,
-          paddingTop: theme.spacing.sm,
-        },
-      ]}
-      overlayHeader={header}
-      overlayHeaderUnderlay
-      progressiveBlurHeight={
-        theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
-      }
-      progressiveBlurTopOffset={0}
-      progressiveBlur
-    >
-      <View style={{ gap: theme.spacing.md, paddingHorizontal: theme.spacing.md }}>
-        <PremiumCard
-          style={{
-            borderRadius: theme.radius.xl,
-            padding: theme.spacing.md,
-          }}
-        >
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-            Tela B — Teste 1
-          </Text>
-          <Text
-            style={[
-              theme.typography.footnote,
-              { color: theme.colors.textSecondary, marginTop: theme.spacing.xs },
-            ]}
-          >
-            Destino do Liquid Glass morph (cápsula 100×44). Ao tocar no botão de voltar, o morph
-            nativo reverso para o círculo (44×44) é acionado.
-          </Text>
-        </PremiumCard>
-      </View>
+    <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
+      <GlassCard
+        style={[
+          styles.card,
+          {
+            borderRadius: theme.radius.xl + theme.spacing.sm,
+            marginTop: theme.spacing.md,
+          },
+        ]}
+      >
+        <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
+          Destino do Liquid Glass morph em cápsula (100×44). Ao tocar no botão de voltar acima, o
+          morph reverso nativo de cápsula para círculo é acionado.
+        </Text>
+      </GlassCard>
     </PremiumScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-  },
+  card: { gap: 12, padding: 16 },
+  content: { flexGrow: 1, gap: 16 },
 });

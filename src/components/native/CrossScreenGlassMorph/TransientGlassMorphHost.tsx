@@ -1,5 +1,6 @@
 import React from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
+import { Host } from '@expo/ui/swift-ui';
 import { NativeCrossScreenMorphView } from 'native-liquid-glass';
 
 import { useCrossScreenGlassMorph } from './CrossScreenGlassMorphContext';
@@ -29,14 +30,16 @@ export function TransientGlassMorphHost() {
           },
         ]}
       >
-        <NativeCrossScreenMorphView
-          animationBounce={0.06}
-          animationDuration={0.38}
-          glassIdentity={morphId}
-          onAnimationComplete={finishTransition}
-          state={isTarget ? 'capsule' : 'circle'}
-          style={styles.morphView}
-        />
+        <Host matchContents style={styles.morphView}>
+          <NativeCrossScreenMorphView
+            animationBounce={0.06}
+            animationDuration={0.38}
+            glassIdentity={morphId}
+            onAnimationComplete={finishTransition}
+            state={isTarget ? 'capsule' : 'circle'}
+            style={styles.morphView}
+          />
+        </Host>
       </View>
     </View>
   );

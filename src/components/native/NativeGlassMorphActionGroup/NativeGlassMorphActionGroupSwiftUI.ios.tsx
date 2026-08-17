@@ -8,7 +8,6 @@ import {
   frame,
   glassEffect,
   glassEffectId,
-  matchedGeometryEffect,
   padding,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
@@ -70,19 +69,21 @@ export default function NativeGlassMorphActionGroupSwiftUI({
                 shape: 'capsule',
               }),
               glassEffectId('glass-morph-surface', namespaceId),
-              matchedGeometryEffect('glass-morph-surface', namespaceId),
+              animation(Animation.spring({ bounce: 0.04, duration: 0.24 }), expanded),
             ]}
             spacing={INNER_SPACING}
           >
             {expanded ? (
               <>
                 <Button
+                  key="secondary"
                   modifiers={[...innerButtonModifiers, accessibilityLabel('Ação secundária')]}
                   onPress={onSecondaryPress}
                 >
                   <Image color={color} size={size} systemName={secondarySymbol} />
                 </Button>
                 <Button
+                  key="primary-expanded"
                   modifiers={[...innerButtonModifiers, accessibilityLabel('Fechar')]}
                   onPress={handleToggle}
                 >
@@ -91,6 +92,7 @@ export default function NativeGlassMorphActionGroupSwiftUI({
               </>
             ) : (
               <Button
+                key="primary-collapsed"
                 modifiers={[...innerButtonModifiers, accessibilityLabel('Mais opções')]}
                 onPress={handleToggle}
               >

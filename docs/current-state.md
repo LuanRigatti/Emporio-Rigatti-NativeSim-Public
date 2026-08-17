@@ -378,7 +378,8 @@ Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explo
 
 ### Commit e publicação
 
-- Alteração validada localmente; ainda não commitada.
+- Branch: `ajustes-antigravity`.
+- Mensagem: `fix(native): sincronizar animacao inicial do morph de liquid glass`.
 
 ## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
 

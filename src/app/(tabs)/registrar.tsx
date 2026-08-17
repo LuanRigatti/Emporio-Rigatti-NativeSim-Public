@@ -465,6 +465,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
       </View>
       <NativeBottomSheet
         bucketPrice={BUCKET_PRICE}
+        hostSizing="viewport"
         items={clientItems}
         onConfirm={handleConfirm}
         onSelect={handleSelectClient}

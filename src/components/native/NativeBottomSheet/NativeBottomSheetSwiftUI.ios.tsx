@@ -341,6 +341,7 @@ export default function NativeBottomSheetSwiftUI({
       alignment="leading"
       spacing={0}
       modifiers={[
+        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
         padding({ top: -38 }),
         ...(diagnosticScope === 'registrar'
           ? [
@@ -356,7 +357,7 @@ export default function NativeBottomSheetSwiftUI({
           listStyle('insetGrouped'),
           scrollDisabled(false),
           scrollContentBackground('hidden'),
-          padding({ horizontal: 0, bottom: 8 }),
+          padding({ horizontal: 0, bottom: 0 }),
           ...(diagnosticScope === 'registrar'
             ? [
                 onGeometryChange((frame) =>
@@ -413,7 +414,8 @@ export default function NativeBottomSheetSwiftUI({
       alignment="leading"
       spacing={0}
       modifiers={[
-        padding({ horizontal: 0, top: 12, bottom: 6 }),
+        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+        padding({ horizontal: 0, top: 12, bottom: 0 }),
         ...(diagnosticScope === 'registrar'
           ? [
               onGeometryChange((frame) =>
@@ -427,6 +429,7 @@ export default function NativeBottomSheetSwiftUI({
       {headerView}
       <Spacer minLength={8} />
       <NativeInteractivePager
+        fillWidth
         initialPage={0}
         onGeometry={(event) => {
           if (diagnosticScope) logNativePagerGeometry(diagnosticScope, event);

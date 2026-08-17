@@ -442,7 +442,9 @@ Criação de um laboratório experimental e isolado para testar transições con
 
 ### Commit e publicação
 
-- Alteração validada localmente; ainda não commitada.
+- Branch: `ajustes-antigravity`.
+- Commit: `1c9c078` (`feat: add native cross-screen Liquid Glass morph prototype`).
+- Status: Publicado no GitHub com sucesso.
 
 ## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
 

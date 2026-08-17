@@ -15,6 +15,7 @@ export interface FactoryReceipt {
   valorTotal: number;
   concluido: boolean;
   pagamentos: FactoryPayment[];
+  createdAt?: string;
   legacyFields?: UnknownRecord;
 }
 

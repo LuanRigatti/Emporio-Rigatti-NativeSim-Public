@@ -11,4 +11,5 @@ export type Purchase = {
   bucketUnitPrice: number;
   totalAmount: number;
   payments: PurchasePayment[];
+  createdAt?: string;
 };

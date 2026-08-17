@@ -126,6 +126,28 @@ describe('FactoryReceiptQueryService', () => {
         .map((item) => item.id),
     ).toEqual(['newer', 'older']);
   });
+
+  it('orders same-day purchases by newest createdAt first, with stable fallback for legacy records', () => {
+    const sameDay = [
+      receipt({ id: 'fab_1', data: '2026-08-17', createdAt: '2026-08-17T10:00:00.000Z' }),
+      receipt({ id: 'fab_3', data: '2026-08-17', createdAt: '2026-08-17T15:00:00.000Z' }),
+      receipt({ id: 'fab_2', data: '2026-08-17', createdAt: '2026-08-17T12:00:00.000Z' }),
+    ];
+    expect(service.filter(sameDay, { period: 'all' }).map((item) => item.id)).toEqual([
+      'fab_3',
+      'fab_2',
+      'fab_1',
+    ]);
+
+    const legacySameDay = [
+      receipt({ id: 'fab_aaa', data: '2026-08-17' }),
+      receipt({ id: 'fab_zzz', data: '2026-08-17' }),
+    ];
+    expect(service.filter(legacySameDay, { period: 'all' }).map((item) => item.id)).toEqual([
+      'fab_zzz',
+      'fab_aaa',
+    ]);
+  });
 });
 
 describe('FactoryReceiptMutationService', () => {

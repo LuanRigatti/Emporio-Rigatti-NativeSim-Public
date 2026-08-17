@@ -20,6 +20,7 @@ export interface FactoryReceiptDataSource {
   addPayment(receiptId: string, payment: FactoryPaymentDraft): Promise<FactoryReceipt>;
   removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt>;
   deleteReceipt(receiptId: string): Promise<void>;
+  subscribe(listener: () => void): () => void;
 }
 
 const MOCK_RECEIPTS: FactoryReceipt[] = [];
@@ -37,13 +38,13 @@ function cloneReceipt(receipt: FactoryReceipt): FactoryReceipt {
 
 function requiredDate(value: string): string {
   const date = normalizeLegacyDate(value);
-  if (!date) throw new Error('Informe uma data vÃ¡lida.');
+  if (!date) throw new Error('Informe uma data válida.');
   return date;
 }
 
 function requiredQuantity(value: number): number {
   if (!Number.isInteger(value) || value <= 0) {
-    throw new Error('A quantidade deve ser um nÃºmero inteiro maior que zero.');
+    throw new Error('A quantidade deve ser um número inteiro maior que zero.');
   }
   return value;
 }
@@ -51,7 +52,7 @@ function requiredQuantity(value: number): number {
 function requiredUnitPrice(value: number): number {
   const price = normalizeMoney(value);
   if (price === undefined || price <= 0) {
-    throw new Error('Informe um preÃ§o do balde maior que zero.');
+    throw new Error('Informe um preço do balde maior que zero.');
   }
   return Number(price.toFixed(2));
 }
@@ -61,12 +62,25 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
   private receipts = MOCK_RECEIPTS.map(cloneReceipt);
   private hasLocalMutation = false;
   private hydrationPromise: Promise<void> | null = null;
+  private readonly listeners = new Set<() => void>();
+
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  private publish(): void {
+    this.listeners.forEach((listener) => listener());
+  }
 
   public restore(): Promise<void> {
     if (this.hydrationPromise) return this.hydrationPromise;
 
     this.hydrationPromise = mockFactoryReceiptStorage.load().then((receipts) => {
-      if (!this.hasLocalMutation) this.receipts = receipts.map(cloneReceipt);
+      if (!this.hasLocalMutation) {
+        this.receipts = receipts.map(cloneReceipt);
+        this.publish();
+      }
     });
     return this.hydrationPromise;
   }
@@ -88,10 +102,12 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
       valorTotal: Number((quantity * unitPrice).toFixed(2)),
       concluido: false,
       pagamentos: [],
+      createdAt: new Date().toISOString(),
     };
 
     this.receipts = [receipt, ...this.receipts];
     await this.persist();
+    this.publish();
     return cloneReceipt(receipt);
   }
 
@@ -110,6 +126,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     updatedReceipt.concluido =
       factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
     await this.replaceReceipt(updatedReceipt);
+    this.publish();
     return cloneReceipt(updatedReceipt);
   }
 
@@ -117,7 +134,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     await this.restore();
     const receipt = this.findReceipt(receiptId);
     if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
-      throw new Error('Pagamento da fÃ¡brica nÃ£o encontrado.');
+      throw new Error('Pagamento da fábrica não encontrado.');
     }
 
     const updatedReceipt: FactoryReceipt = {
@@ -127,6 +144,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     updatedReceipt.concluido =
       factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
     await this.replaceReceipt(updatedReceipt);
+    this.publish();
     return cloneReceipt(updatedReceipt);
   }
 
@@ -135,11 +153,12 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     this.findReceipt(receiptId);
     this.receipts = this.receipts.filter((receipt) => receipt.id !== receiptId);
     await this.persist();
+    this.publish();
   }
 
   private findReceipt(receiptId: string): FactoryReceipt {
     const receipt = this.receipts.find((item) => item.id === receiptId);
-    if (!receipt) throw new Error('Compra nÃ£o encontrada.');
+    if (!receipt) throw new Error('Compra não encontrada.');
     return receipt;
   }
 

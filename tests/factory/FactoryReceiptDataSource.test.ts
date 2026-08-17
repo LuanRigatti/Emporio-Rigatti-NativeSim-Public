@@ -136,4 +136,34 @@ describe('MockFactoryReceiptDataSource', () => {
 
     expect(source.getReceipts()).toEqual([]);
   });
+
+  it('notifies subscribers on creation, payment and deletion', async () => {
+    const source = new MockFactoryReceiptDataSource();
+    await source.restore();
+    const listener = jest.fn();
+    const unsubscribe = source.subscribe(listener);
+
+    const created = await source.createReceipt({
+      bucketUnitPrice: 35,
+      date: '2026-08-05',
+      quantity: 10,
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(created.createdAt).toBeDefined();
+
+    await source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    await source.deleteReceipt(created.id);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    unsubscribe();
+    await source.createReceipt({
+      bucketUnitPrice: 35,
+      date: '2026-08-05',
+      quantity: 5,
+    });
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
 });

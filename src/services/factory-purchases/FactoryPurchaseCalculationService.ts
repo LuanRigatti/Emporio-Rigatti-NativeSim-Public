@@ -11,10 +11,23 @@ function roundMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 
+export function comparePurchasesDescending(left: Purchase, right: Purchase): number {
+  const dateDiff = right.date.localeCompare(left.date);
+  if (dateDiff !== 0) return dateDiff;
+  const rightTime = right.createdAt ?? '';
+  const leftTime = left.createdAt ?? '';
+  if (rightTime !== leftTime) {
+    return rightTime.localeCompare(leftTime);
+  }
+  return right.id.localeCompare(left.id);
+}
+
 export class FactoryPurchaseCalculationService {
   public filterByPeriod(purchases: readonly Purchase[], year: number, month: number): Purchase[] {
     const monthKey = `${year}-${String(month).padStart(2, '0')}-`;
-    return purchases.filter((purchase) => purchase.date.startsWith(monthKey));
+    return purchases
+      .filter((purchase) => purchase.date.startsWith(monthKey))
+      .sort(comparePurchasesDescending);
   }
 
   public paidAmount(purchase: Purchase): number {

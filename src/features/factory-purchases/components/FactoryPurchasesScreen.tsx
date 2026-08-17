@@ -44,6 +44,7 @@ export function FactoryPurchasesScreen({
   const [purchaseSheetVisible, setPurchaseSheetVisible] = useState(false);
   const [purchaseToDeleteId, setPurchaseToDeleteId] = useState<string | null>(null);
   const [blurQuantityField, setBlurQuantityField] = useState<(() => void) | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const unitPrice = normalizeMoney(factorySettings.bucketCost) ?? 0;
   const quantityValue = parseQuantity(quantity);
@@ -63,6 +64,7 @@ export function FactoryPurchasesScreen({
     setBlurQuantityField(() => blur);
   }, []);
   const handleCreatePurchase = async () => {
+    if (isRegistering) return;
     blurQuantityField?.();
     Keyboard.dismiss();
 
@@ -75,6 +77,7 @@ export function FactoryPurchasesScreen({
       return;
     }
 
+    setIsRegistering(true);
     try {
       await createPurchase({
         bucketQuantity: quantityValue,
@@ -85,10 +88,10 @@ export function FactoryPurchasesScreen({
       setError(undefined);
     } catch (createError) {
       setError(
-        createError instanceof Error
-          ? createError.message
-          : 'NÃ£o foi possÃ­vel registrar a compra.',
+        createError instanceof Error ? createError.message : 'Não foi possível registrar a compra.',
       );
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -145,6 +148,7 @@ export function FactoryPurchasesScreen({
           <View style={styles.formAction}>
             <NativeButton
               accessibilityLabel="Registrar compra"
+              disabled={isRegistering}
               haptic="light"
               label="Registrar"
               onPress={() => void handleCreatePurchase()}
@@ -215,7 +219,7 @@ export function FactoryPurchasesScreen({
               setError(
                 deleteError instanceof Error
                   ? deleteError.message
-                  : 'NÃ£o foi possÃ­vel excluir a compra.',
+                  : 'Não foi possível excluir a compra.',
               );
             });
         }}

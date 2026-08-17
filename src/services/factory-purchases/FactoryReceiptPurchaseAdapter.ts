@@ -26,6 +26,7 @@ export function factoryReceiptToPurchase(receipt: FactoryReceipt): Purchase {
       date: payment.data,
       amount: roundMoney(payment.valor),
     })),
+    ...(receipt.createdAt ? { createdAt: receipt.createdAt } : {}),
   };
 }
 
@@ -49,5 +50,6 @@ export function purchaseToFactoryReceipt(purchase: Purchase): FactoryReceipt {
     valorTotal: total,
     concluido: Math.abs(total - totalPaid(payments)) < 0.01,
     pagamentos: payments,
+    ...(purchase.createdAt ? { createdAt: purchase.createdAt } : {}),
   };
 }

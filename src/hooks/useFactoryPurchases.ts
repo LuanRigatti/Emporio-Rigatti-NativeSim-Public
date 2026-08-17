@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/providers';
 import { factoryReceiptQueryService } from '@/services/finance';
-import type { FactoryFilters, FactoryReceipt } from '@/types/data';
+import type { FactoryFilters } from '@/types/data';
 import {
   factoryReceiptDataSource,
   factoryReceiptToPurchase,
@@ -22,11 +22,21 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     }),
     [endDate, month, period, startDate],
   );
-  const readFilteredReceipts = useCallback(
+
+  const [sourceVersion, setSourceVersion] = useState(0);
+
+  useEffect(() => {
+    return factoryReceiptDataSource.subscribe(() => {
+      setSourceVersion((v) => v + 1);
+    });
+  }, []);
+
+  const receipts = useMemo(
     () => factoryReceiptQueryService.filter(factoryReceiptDataSource.getReceipts(), stableFilters),
-    [stableFilters],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stableFilters, sourceVersion],
   );
-  const [receipts, setReceipts] = useState<FactoryReceipt[]>(() => readFilteredReceipts());
+
   const filterKey = JSON.stringify(stableFilters);
   const [loadedFilterKey, setLoadedFilterKey] = useState<string | null>(null);
 
@@ -35,19 +45,17 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     let active = true;
     void factoryReceiptDataSource.restore(user?.id, stableFilters).then(() => {
       if (active) {
-        setReceipts(readFilteredReceipts());
         setLoadedFilterKey(filterKey);
       }
     });
     return () => {
       active = false;
     };
-  }, [authStatus, filterKey, readFilteredReceipts, stableFilters, user?.id]);
+  }, [authStatus, filterKey, stableFilters, user?.id]);
 
   const refresh = useCallback(async () => {
     await factoryReceiptDataSource.restore(user?.id, stableFilters);
-    setReceipts(readFilteredReceipts());
-  }, [readFilteredReceipts, stableFilters, user?.id]);
+  }, [stableFilters, user?.id]);
 
   const createPurchase = useCallback(async (input: CreatePurchaseInput) => {
     const receipt = await factoryReceiptDataSource.createReceipt({
@@ -55,14 +63,12 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
       date: input.date,
       quantity: input.bucketQuantity,
     });
-    setReceipts(factoryReceiptDataSource.getReceipts());
     return factoryReceiptToPurchase(receipt);
   }, []);
 
   const addPayment = useCallback(
     async (purchaseId: string, payment: { date: string; amount: number }) => {
       const receipt = await factoryReceiptDataSource.addPayment(purchaseId, payment);
-      setReceipts(factoryReceiptDataSource.getReceipts());
       return factoryReceiptToPurchase(receipt);
     },
     [],
@@ -70,12 +76,10 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
 
   const deletePurchase = useCallback(async (purchaseId: string) => {
     await factoryReceiptDataSource.deleteReceipt(purchaseId);
-    setReceipts(factoryReceiptDataSource.getReceipts());
   }, []);
 
   const removePayment = useCallback(async (purchaseId: string, paymentId: string) => {
     const receipt = await factoryReceiptDataSource.removePayment(purchaseId, paymentId);
-    setReceipts(factoryReceiptDataSource.getReceipts());
     return factoryReceiptToPurchase(receipt);
   }, []);
 

@@ -4,6 +4,20 @@ function currentMonth(today: Date): string {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export function compareFactoryReceiptsDescending(
+  left: FactoryReceipt,
+  right: FactoryReceipt,
+): number {
+  const dateDiff = right.data.localeCompare(left.data);
+  if (dateDiff !== 0) return dateDiff;
+  const rightTime = right.createdAt ?? '';
+  const leftTime = left.createdAt ?? '';
+  if (rightTime !== leftTime) {
+    return rightTime.localeCompare(leftTime);
+  }
+  return right.id.localeCompare(left.id);
+}
+
 export class FactoryReceiptQueryService {
   public filter(
     receipts: readonly FactoryReceipt[],
@@ -18,7 +32,7 @@ export class FactoryReceiptQueryService {
       .filter((receipt) => !filters.startDate || receipt.data >= filters.startDate)
       .filter((receipt) => !filters.endDate || receipt.data <= filters.endDate)
       .filter((receipt) => filters.period === 'all' || receipt.data.startsWith(month))
-      .sort((left, right) => right.data.localeCompare(left.data));
+      .sort(compareFactoryReceiptsDescending);
   }
 }
 

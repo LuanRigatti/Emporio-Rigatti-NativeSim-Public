@@ -108,9 +108,28 @@ async function mapReceipt(
   id: string,
   document: FirestoreFactoryReceiptDocument,
   receiptReference: DocumentReference,
+  cachedReceipt?: FactoryReceipt,
 ): Promise<FactoryReceipt> {
-  const { getDocs } = await import('firebase/firestore');
-  const paymentsSnapshot = await getDocs(await paymentsCollection(receiptReference));
+  let createdAt: string | undefined;
+  if (document.createdAt) {
+    if (typeof document.createdAt === 'string') {
+      createdAt = document.createdAt;
+    } else if (typeof (document.createdAt as { toDate?: () => Date }).toDate === 'function') {
+      createdAt = (document.createdAt as { toDate: () => Date }).toDate().toISOString();
+    }
+  }
+
+  let pagamentos: FactoryPayment[];
+  if (cachedReceipt && cachedReceipt.pagamentos && cachedReceipt.pagamentos.length > 0) {
+    pagamentos = cachedReceipt.pagamentos;
+  } else {
+    const { getDocs } = await import('firebase/firestore');
+    const paymentsSnapshot = await getDocs(await paymentsCollection(receiptReference));
+    pagamentos = paymentsSnapshot.docs.map((payment) =>
+      mapPayment(payment.id, payment.data() as FirestoreFactoryPaymentDocument),
+    );
+  }
+
   return {
     id,
     quantidade: document.quantity,
@@ -120,9 +139,12 @@ async function mapReceipt(
       : { precoUnitarioHistorico: document.historicalUnitPrice }),
     valorTotal: document.totalValue,
     concluido: document.completed,
-    pagamentos: paymentsSnapshot.docs.map((payment) =>
-      mapPayment(payment.id, payment.data() as FirestoreFactoryPaymentDocument),
-    ),
+    pagamentos,
+    ...(createdAt
+      ? { createdAt }
+      : cachedReceipt?.createdAt
+        ? { createdAt: cachedReceipt.createdAt }
+        : {}),
     ...(document.legacyFields ? { legacyFields: document.legacyFields } : {}),
   };
 }
@@ -131,7 +153,17 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
   public readonly mode = 'firebase' as const;
   public isUsingLocalFallback = false;
   private readonly receipts = new Map<string, FactoryReceipt>();
+  private readonly listeners = new Set<() => void>();
   private userId: string | undefined;
+
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  private publish(): void {
+    this.listeners.forEach((listener) => listener());
+  }
 
   public getReceipts = (): FactoryReceipt[] => [...this.receipts.values()].map(cloneReceipt);
 
@@ -149,17 +181,24 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       const { getDocs, query, where } = await import('firebase/firestore');
       const collectionReference = await receiptCollection(userId);
       const constraints: Parameters<typeof query>[1][] = [];
+      let minDate: string | undefined;
+      let maxDate: string | undefined;
+
       if (filters.completed !== undefined) {
         constraints.push(where('completed', '==', filters.completed));
       }
       if (filters.period === 'month' && filters.month) {
-        constraints.push(where('date', '>=', `${filters.month}-01`));
-        constraints.push(where('date', '<=', monthEnd(filters.month)));
+        minDate = `${filters.month}-01`;
+        maxDate = monthEnd(filters.month);
+        constraints.push(where('date', '>=', minDate));
+        constraints.push(where('date', '<=', maxDate));
       } else {
         if (filters.startDate) {
+          minDate = filters.startDate;
           constraints.push(where('date', '>=', filters.startDate));
         }
         if (filters.endDate) {
+          maxDate = filters.endDate;
           constraints.push(where('date', '<=', filters.endDate));
         }
       }
@@ -168,12 +207,37 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       );
       const mapped = await Promise.all(
         result.docs.map((item) =>
-          mapReceipt(item.id, item.data() as FirestoreFactoryReceiptDocument, item.ref),
+          mapReceipt(
+            item.id,
+            item.data() as FirestoreFactoryReceiptDocument,
+            item.ref,
+            this.receipts.get(item.id),
+          ),
         ),
       );
-      this.receipts.clear();
+
+      const returnedIds = new Set(mapped.map((r) => r.id));
+
+      if (minDate || maxDate) {
+        for (const [id, receipt] of this.receipts) {
+          const inRange =
+            (!minDate || receipt.data >= minDate) && (!maxDate || receipt.data <= maxDate);
+          if (inRange && !returnedIds.has(id)) {
+            this.receipts.delete(id);
+          }
+        }
+      } else if (
+        filters.period === 'all' &&
+        !filters.startDate &&
+        !filters.endDate &&
+        filters.completed === undefined
+      ) {
+        this.receipts.clear();
+      }
+
       mapped.forEach((receipt) => this.receipts.set(receipt.id, receipt));
       this.isUsingLocalFallback = false;
+      this.publish();
     } catch (error) {
       await this.restoreLocalFallback();
       if (__DEV__) console.warn('[FirestoreFactoryReceiptDataSource] Fallback local.', error);
@@ -184,34 +248,45 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     if (this.isUsingLocalFallback) {
       const receipt = await (await this.localSource()).createReceipt(input);
       await this.syncFromLocal();
+      this.publish();
       return receipt;
     }
     const quantity = requiredQuantity(input.quantity);
     const date = requiredDate(input.date);
     const historicalUnitPrice = requiredUnitPrice(input.bucketUnitPrice);
-    const receipt: FactoryReceipt = {
-      id: '',
+    const now = new Date().toISOString();
+    const { doc, serverTimestamp, setDoc } = await import('firebase/firestore');
+    const reference = doc(await receiptCollection(this.requireUserId()));
+    const created: FactoryReceipt = {
+      id: reference.id,
       quantidade: quantity,
       data: date,
       precoUnitarioHistorico: historicalUnitPrice,
       valorTotal: Number((quantity * historicalUnitPrice).toFixed(2)),
       concluido: false,
       pagamentos: [],
+      createdAt: now,
     };
-    const { doc, serverTimestamp, setDoc } = await import('firebase/firestore');
-    const reference = doc(await receiptCollection(this.requireUserId()));
-    const created = { ...receipt, id: reference.id };
-    await setDoc(reference, {
-      quantity: created.quantidade,
-      date: created.data,
-      historicalUnitPrice,
-      totalValue: created.valorTotal,
-      completed: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    } satisfies FirestoreFactoryReceiptDocument);
+
     this.receipts.set(created.id, created);
-    return cloneReceipt(created);
+    this.publish();
+
+    try {
+      await setDoc(reference, {
+        quantity: created.quantidade,
+        date: created.data,
+        historicalUnitPrice,
+        totalValue: created.valorTotal,
+        completed: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      } satisfies FirestoreFactoryReceiptDocument);
+      return cloneReceipt(created);
+    } catch (error) {
+      this.receipts.delete(created.id);
+      this.publish();
+      throw error;
+    }
   }
 
   public async addPayment(
@@ -221,6 +296,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     if (this.isUsingLocalFallback) {
       const receipt = await (await this.localSource()).addPayment(receiptId, payment);
       await this.syncFromLocal();
+      this.publish();
       return receipt;
     }
     const maskedReceiptId = maskReceiptId(receiptId);
@@ -262,6 +338,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       });
       await batch.commit();
       this.receipts.set(receiptId, updatedReceipt);
+      this.publish();
       logPayment('paymentWriteSucceeded', {
         balanceAfter,
         paymentId: maskReceiptId(paymentReference.id),
@@ -281,11 +358,12 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     if (this.isUsingLocalFallback) {
       const receipt = await (await this.localSource()).removePayment(receiptId, paymentId);
       await this.syncFromLocal();
+      this.publish();
       return receipt;
     }
     const receipt = await this.ensureReceipt(receiptId);
     if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
-      throw new Error('Pagamento da fÃƒÂ¡brica nÃƒÂ£o encontrado.');
+      throw new Error('Pagamento da fábrica não encontrado.');
     }
     const updatedReceipt: FactoryReceipt = {
       ...receipt,
@@ -304,6 +382,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     });
     await batch.commit();
     this.receipts.set(receiptId, updatedReceipt);
+    this.publish();
     return cloneReceipt(updatedReceipt);
   }
 
@@ -311,6 +390,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     if (this.isUsingLocalFallback) {
       await (await this.localSource()).deleteReceipt(receiptId);
       await this.syncFromLocal();
+      this.publish();
       return;
     }
     const receipt = await this.ensureReceipt(receiptId);
@@ -326,6 +406,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     batch.delete(receiptReference);
     await batch.commit();
     this.receipts.delete(receiptId);
+    this.publish();
   }
 
   private async ensureReceipt(receiptId: string): Promise<FactoryReceipt> {
@@ -333,13 +414,24 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     if (cached) return cloneReceipt(cached);
     await this.restore(this.requireUserId());
     const restored = this.receipts.get(receiptId);
-    if (!restored) throw new Error('Compra nÃƒÂ£o encontrada.');
+    if (!restored) throw new Error('Compra não encontrada.');
     return cloneReceipt(restored);
   }
 
   private requireUserId(): string {
-    if (!this.userId) throw new Error('SessÃƒÂ£o Firebase necessÃƒÂ¡ria para esta operaÃƒÂ§ÃƒÂ£o.');
-    return this.userId;
+    if (this.userId) return this.userId;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { getFirebaseAuth } = require('@/services/firebase/auth');
+      const currentUid = getFirebaseAuth()?.currentUser?.uid;
+      if (currentUid) {
+        this.userId = currentUid;
+        return currentUid;
+      }
+    } catch {
+      // ignore
+    }
+    throw new Error('Sessão Firebase necessária para esta operação.');
   }
 
   private async restoreLocalFallback(): Promise<void> {
@@ -350,6 +442,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       this.receipts.set(receipt.id, cloneReceipt(receipt));
     });
     this.isUsingLocalFallback = true;
+    this.publish();
   }
 
   private async localSource() {

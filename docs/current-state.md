@@ -438,6 +438,48 @@ Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explo
   - `c50983d` (`test(native): teste de correcao ghosting que requer compilacao`)
   - `335e619` (`test(native): Remocao de instrucoes swift, requer compilacao para testar se sumiu ghosting`)
 
+## Sincronização, Registro e Ordenação Determinística da Aba Fábrica
+
+### Funcionalidade implementada
+
+Correção de carregamento, concorrência e ordenação de compras na tela **FactoryPurchasesScreen** (`fabrica-compras`):
+
+- **Subscrição Reativa e Cache sem Invalidação Destrutiva:** Implementação de padrão `subscribe`/`publish` no `FirestoreFactoryReceiptDataSource` e `MockFactoryReceiptDataSource`. O `restore()` não executa mais `clear()` indiscriminado da memória, reconciliando apenas o período consultado e reutilizando `cachedReceipt.pagamentos`, eliminando consultas N+1 repetidas à subcoleção `/payments`.
+- **Sincronização Imediata no Hook:** `useFactoryPurchases` deriva `receipts` síncrono a partir da memória via `useMemo` na troca de filtros, exibindo os dados em cache no frame inicial sem flash ou tela vazia provisória.
+- **Proteção contra Múltiplos Registros:** Adição da trava `isRegistering` e desativação do botão "Registrar" enquanto a persistência estiver em andamento. O formulário é limpo somente após confirmação real da gravação e preserva o input em caso de falha.
+- **Ordenação Determinística Estável:** Adição do campo `createdAt?: string` em `FactoryReceipt` e `Purchase`, com gravação de timestamp no Firestore e memória. A ordenação é unificada em `right.data.localeCompare(left.data)` decrescente, com desempate por `right.createdAt.localeCompare(left.createdAt)` decrescente e fallback determinístico por `right.id.localeCompare(left.id)` para registros legados sem `createdAt`. Compras recém-criadas aparecem imediatamente no topo da lista.
+
+### Comportamento final
+
+- Ao abrir ou trocar de mês na Fábrica, os dados em cache carregam instantaneamente e atualizam em background sem travar a UI.
+- Ao tocar em Registrar, a compra entra no topo no frame seguinte e a gravação assíncrona é aguardada sem permitir duplo toque.
+- A ordem dos cards permanece idêntica após fechar e reabrir a aba Fábrica.
+
+### Arquivos principais
+
+- `src/types/data/factory.ts`
+- `src/features/factory-purchases/types.ts`
+- `src/services/factory-purchases/FactoryReceiptPurchaseAdapter.ts`
+- `src/services/finance/FactoryReceiptQueryService.ts`
+- `src/services/factory-purchases/FactoryPurchaseCalculationService.ts`
+- `src/services/factory-purchases/FactoryReceiptDataSource.ts`
+- `src/services/factory-purchases/FirestoreFactoryReceiptDataSource.ts`
+- `src/hooks/useFactoryPurchases.ts`
+- `src/features/factory-purchases/components/FactoryPurchasesScreen.tsx`
+- `tests/factory/FactoryReceiptDataSource.test.ts`
+- `tests/finance/FactoryReceiptService.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema alterado (`createdAt` já era suportado nos documentos do Firestore e agora é explicitamente mapeado no domínio).
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/factory tests/finance tests/stock tests/home`): 22 suítes / 246 testes passando.
+- `git diff --check`: passou sem erros de formatação.
+
 As telas devem reutilizar repositories/services/hooks existentes, consultar
 apenas o período ou entidade necessário e atualizar a UI imediatamente após
 uma operação confirmada.

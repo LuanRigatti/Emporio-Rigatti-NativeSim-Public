@@ -35,6 +35,7 @@ public final class NativeLiquidGlassViewProps: ExpoSwiftUI.ViewProps {
   @Field var expandedShape: String = "capsule"
 
   var onActionPress = EventDispatcher()
+  var onAnimationComplete = EventDispatcher()
 }
 
 public struct NativeLiquidGlassView: ExpoSwiftUI.View {
@@ -63,8 +64,17 @@ public struct NativeLiquidGlassView: ExpoSwiftUI.View {
     }
     .onChange(of: props.state) { newState in
       guard visualState != newState else { return }
-      withAnimation(nativeAnimation) {
-        visualState = newState
+      if #available(iOS 17.0, *) {
+        withAnimation(nativeAnimation) {
+          visualState = newState
+        } completion: {
+          props.onAnimationComplete([:])
+        }
+      } else {
+        withAnimation(nativeAnimation) {
+          visualState = newState
+        }
+        props.onAnimationComplete([:])
       }
     }
   }
@@ -88,12 +98,40 @@ public struct NativeLiquidGlassView: ExpoSwiftUI.View {
   @ViewBuilder
   private var nativeContent: some View {
     switch props.mode {
+    case "crossScreenMorph":
+      nativeCrossScreenMorph
     case "morphButton":
       nativeMorphButton
     case "actionGroup":
       nativeActionGroup
     default:
       nativeTransition
+    }
+  }
+
+  @available(iOS 26.0, *)
+  @ViewBuilder
+  private var nativeCrossScreenMorph: some View {
+    if activeState == "circle" || activeState == "collapsed" || activeState == "source" {
+      nativeButton(NativeGlassAction(id: props.glassIdentity, systemImage: props.collapsedSystemImage.isEmpty ? "ellipsis" : props.collapsedSystemImage))
+        .frame(width: 44, height: 44)
+        .glassEffect(glassMaterial(for: NativeGlassAction()), in: .circle)
+        .glassEffectID(props.glassIdentity, in: namespace)
+        .glassEffectTransition(.matchedGeometry)
+    } else {
+      HStack(spacing: 8) {
+        Image(systemName: "ellipsis")
+          .font(.body.weight(.semibold))
+          .frame(width: 44, height: 44)
+        Image(systemName: "xmark")
+          .font(.body.weight(.semibold))
+          .frame(width: 44, height: 44)
+      }
+      .foregroundStyle(props.tint ?? .primary)
+      .frame(width: 100, height: 44)
+      .glassEffect(glassMaterial(for: NativeGlassAction()), in: .capsule)
+      .glassEffectID(props.glassIdentity, in: namespace)
+      .glassEffectTransition(.matchedGeometry)
     }
   }
 
@@ -209,12 +247,35 @@ public struct NativeLiquidGlassView: ExpoSwiftUI.View {
   @ViewBuilder
   private var fallbackContent: some View {
     switch props.mode {
+    case "crossScreenMorph":
+      fallbackCrossScreenMorph
     case "morphButton":
       fallbackButton(morphAction)
     case "actionGroup":
       fallbackGroup(props.actions.filter(\.visible))
     default:
       fallbackGroup(actionsForCurrentState)
+    }
+  }
+
+  @ViewBuilder
+  private var fallbackCrossScreenMorph: some View {
+    if activeState == "circle" || activeState == "collapsed" || activeState == "source" {
+      nativeButton(NativeGlassAction(id: props.glassIdentity, systemImage: props.collapsedSystemImage.isEmpty ? "ellipsis" : props.collapsedSystemImage))
+        .frame(width: 44, height: 44)
+        .background(.ultraThinMaterial, in: Circle())
+    } else {
+      HStack(spacing: 8) {
+        Image(systemName: "ellipsis")
+          .font(.body.weight(.semibold))
+          .frame(width: 44, height: 44)
+        Image(systemName: "xmark")
+          .font(.body.weight(.semibold))
+          .frame(width: 44, height: 44)
+      }
+      .foregroundStyle(props.tint ?? .primary)
+      .frame(width: 100, height: 44)
+      .background(.ultraThinMaterial, in: Capsule())
     }
   }
 

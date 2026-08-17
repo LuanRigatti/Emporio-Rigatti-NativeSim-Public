@@ -381,6 +381,69 @@ Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explo
 - Branch: `ajustes-antigravity`.
 - Mensagem: `fix(native): sincronizar animacao inicial do morph de liquid glass`.
 
+## Laboratório Cross-Screen de Liquid Glass Morph Nativo (iOS 26 / SwiftUI)
+
+### Funcionalidade implementada
+
+Criação de um laboratório experimental e isolado para testar transições contínuas de morph de Liquid Glass entre telas distintas do app usando SwiftUI nativo e a extensão de módulo local `native-liquid-glass`:
+
+- Extensão do módulo nativo Swift `modules/native-liquid-glass` (`NativeLiquidGlassView.swift`) implementando o modo `crossScreenMorph` com `GlassEffectContainer`, `@Namespace`, `.glassEffect(in:)`, `.glassEffectID(_:in:)`, `.glassEffectTransition(.matchedGeometry)` e `withAnimation` com callback `completion:`.
+- Orquestrador de transição React Native (`CrossScreenGlassMorphContext`, `TransientGlassMorphHost`, `CrossScreenGlassMorphTarget`) desacoplado da animação do `UIViewController` / `RNSScreenStackView`.
+- Eliminação total de `setTimeout`, delays fixos e interpolação manual de geometria (width, offset, cornerRadius) no JavaScript.
+- Isolamento estrito: tela de Configurações possui apenas o item de menu `Teste Morph`; todo o fluxo de morph ocorre entre a Tela A (`src/app/teste-morph.tsx`) e a Tela B (`src/app/teste-1.tsx`).
+
+### Comportamento final
+
+1. **Tela A (`Teste Morph`)**:
+   - Cabeçalho com 1 botão circular Liquid Glass 44×44 (`ellipsis`, `morphId="test-cross-morph"`).
+   - Linha de conteúdo `Teste 1`.
+2. **Ao tocar em `Teste 1` (Ida)**:
+   - O `TransientGlassMorphHost` sobreposto à `UIWindow` (fora da pilha de navegação) assume o frame exato do botão da Tela A.
+   - O botão real da Tela A fica oculto (`opacity: 0`).
+   - A navegação normal do Expo Router é disparada por baixo.
+   - O componente nativo Swift recebe a mudança de estado (`circle` $\rightarrow$ `capsule`) e o SwiftUI executa a deformação contínua de Liquid Glass via `.glassEffectTransition(.matchedGeometry)`.
+   - Ao término do assentamento da mola física no Swift, o evento nativo `onAnimationComplete` entrega a visibilidade ao botão real da Tela B (`opacity: 1`) e destrói o Host transitório da árvore.
+3. **Tela B (`Teste 1`) e Retorno (Volta)**:
+   - Cabeçalho com 1 botão em formato de cápsula 100×44 (`ellipsis` + `xmark`).
+   - Ao tocar no botão de voltar (Back), o mesmo ciclo ocorre em sentido reverso (cápsula $\rightarrow$ círculo) com destruição orientada pelo completion nativo.
+
+### Arquivos principais
+
+- `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift`
+- `modules/native-liquid-glass/src/NativeLiquidGlass.tsx`
+- `modules/native-liquid-glass/src/index.ts`
+- `src/components/native/CrossScreenGlassMorph/CrossScreenGlassMorphContext.tsx`
+- `src/components/native/CrossScreenGlassMorph/CrossScreenGlassMorphTarget.tsx`
+- `src/components/native/CrossScreenGlassMorph/TransientGlassMorphHost.tsx`
+- `src/components/native/CrossScreenGlassMorph/index.ts`
+- `src/components/native/index.ts`
+- `src/app/teste-morph.tsx`
+- `src/app/teste-1.tsx`
+- `src/app/_layout.tsx`
+- `src/features/settings/components/SettingsScreen.tsx`
+- `tsconfig.json`
+
+### Flags e schema afetados
+
+- Nenhum schema Firestore afetado.
+- Adicionado path alias `"native-liquid-glass"` no `tsconfig.json`.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros.
+- Jest (`npm test -- tests/home`): 132 testes passando (5/5 suítes).
+- `git diff --check`: passou.
+
+### Limitações conhecidas
+
+- Requer recompilação do Development Build no Xcode para carregar o novo método `crossScreenMorph` e o callback `onAnimationComplete` adicionados ao arquivo Swift de `modules/native-liquid-glass`.
+- Swipe-back interativo por gesto de borda não implementado nesta fase (utiliza botão de voltar padrão).
+
+### Commit e publicação
+
+- Alteração validada localmente; ainda não commitada.
+
 ## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
 
 ### Funcionalidade implementada

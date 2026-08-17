@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { CrossScreenGlassMorphProvider, TransientGlassMorphHost } from '@/components/native';
 import { SessionProvider, useSession } from '@/providers';
 import { BiometricLockOverlay } from '@/components/auth/BiometricLockOverlay';
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
@@ -65,6 +66,7 @@ function AppShell() {
         showRetry={biometricUnlock.canRetry}
         visible={biometricUnlock.isPrivacyActive}
       />
+      <TransientGlassMorphHost />
     </>
   );
 }
@@ -75,7 +77,9 @@ export default function PrototypeRootLayout() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <SessionProvider>
           <ThemeProvider>
-            <AppShell />
+            <CrossScreenGlassMorphProvider>
+              <AppShell />
+            </CrossScreenGlassMorphProvider>
           </ThemeProvider>
         </SessionProvider>
       </SafeAreaProvider>

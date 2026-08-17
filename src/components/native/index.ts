@@ -78,5 +78,6 @@ export { NativeToggle } from './NativeToggle';
 export type { NativeToggleProps } from './NativeToggle';
 export { NativeGlassMorphActionGroup } from './NativeGlassMorphActionGroup';
 export type { NativeGlassMorphActionGroupProps } from './NativeGlassMorphActionGroup';
+export * from './CrossScreenGlassMorph';
 export { NativeFallback } from './NativeFallback';
 export type { NativeCapabilities, NativeRuntimeEnvironment } from '@/types/native-ui';

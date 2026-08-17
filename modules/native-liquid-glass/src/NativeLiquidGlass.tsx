@@ -3,8 +3,10 @@ import { useId } from 'react';
 import NativeLiquidGlassView from './NativeLiquidGlassView';
 
 export type NativeGlassShape = 'capsule' | 'circle' | 'roundedRectangle';
-export type NativeLiquidGlassMode = 'transition' | 'morphButton' | 'actionGroup';
-export type NativeLiquidGlassState = 'collapsed' | 'expanded' | string;
+export type NativeLiquidGlassMode =
+  'transition' | 'morphButton' | 'actionGroup' | 'crossScreenMorph';
+export type NativeLiquidGlassState =
+  'collapsed' | 'expanded' | 'circle' | 'capsule' | 'source' | 'target' | string;
 
 export type NativeGlassAction = {
   id: string;
@@ -44,12 +46,28 @@ export type NativeLiquidGlassViewProps = {
   expandedTitle?: string;
   collapsedShape?: NativeGlassShape;
   expandedShape?: NativeGlassShape;
+  style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
   onActionPress?: (event: NativeLiquidGlassActionPressEvent) => void;
+  onAnimationComplete?: () => void;
 };
 
 function useStableIdentity(prefix: string, identity?: string): string {
   const reactID = useId().replaceAll(':', '-');
   return identity ?? `${prefix}-${reactID}`;
+}
+
+export type NativeCrossScreenMorphViewProps = Omit<
+  NativeLiquidGlassViewProps,
+  'mode' | 'actions' | 'collapsedActionIDs' | 'expandedActionIDs'
+>;
+
+export function NativeCrossScreenMorphView({
+  glassIdentity,
+  ...props
+}: NativeCrossScreenMorphViewProps) {
+  const identity = useStableIdentity('cross-screen-morph', glassIdentity);
+
+  return <NativeLiquidGlassView {...props} mode="crossScreenMorph" glassIdentity={identity} />;
 }
 
 export type NativeLiquidGlassTransitionProps = Omit<

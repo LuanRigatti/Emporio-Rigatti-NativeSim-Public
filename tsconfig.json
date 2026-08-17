@@ -6,7 +6,8 @@
     "ignoreDeprecations": "6.0",
     "types": ["jest"],
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "native-liquid-glass": ["modules/native-liquid-glass/src"]
     }
   },
   "exclude": ["dist"]

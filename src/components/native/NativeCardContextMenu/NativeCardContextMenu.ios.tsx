@@ -1,4 +1,4 @@
-import { requireNativeView } from 'expo';
+import { requireNativeView, requireOptionalNativeModule } from 'expo';
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
 import type { ComponentType } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -8,12 +8,10 @@ import type {
   NativeCardContextMenuProps,
 } from './NativeCardContextMenu.types';
 
-let NativeView: ComponentType<any> | null = null;
-try {
-  NativeView = requireNativeView('NativeCardContextMenu');
-} catch {
-  NativeView = null;
-}
+const isNativeModuleAvailable = requireOptionalNativeModule('NativeCardContextMenu') !== null;
+const NativeView: ComponentType<any> | null = isNativeModuleAvailable
+  ? requireNativeView('NativeCardContextMenu')
+  : null;
 
 function toMenuAction(action: NativeCardContextMenuAction): MenuAction {
   return {

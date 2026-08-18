@@ -18,6 +18,7 @@ import {
   frame,
   foregroundStyle,
   monospacedDigit,
+  offset,
   padding,
   scrollIndicators,
   shapes,
@@ -44,6 +45,7 @@ type Props = {
 
 const asSymbol = (value: string) => value as SFSymbol;
 const monospacedLabelValues = new Set(['Início', 'Fim', 'Duração']);
+const COMPACT_TITLE_OFFSET_Y = 6;
 
 function semanticStyle(tone: HomeSearchVisualTone = 'primary') {
   if (tone === 'success') return foregroundStyle(PlatformColor('systemGreen') as unknown as string);
@@ -56,13 +58,25 @@ function semanticStyle(tone: HomeSearchVisualTone = 'primary') {
   return foregroundStyle({ type: 'hierarchical', style: 'primary' });
 }
 
-function ResultHeader({ query, result }: { query?: string; result: HomeSearchVisualResult }) {
+function ResultHeader({
+  isLarge = false,
+  query,
+  result,
+}: {
+  isLarge?: boolean;
+  query?: string;
+  result: HomeSearchVisualResult;
+}) {
   if (!result.header) return null;
   const context = result.hideQueryContext
     ? undefined
     : (result.context ?? (query !== result.header.title ? query : undefined));
   return (
-    <VStack alignment="leading" spacing={spacing.xxs}>
+    <VStack
+      alignment="leading"
+      spacing={spacing.xxs}
+      modifiers={!isLarge ? [offset({ y: COMPACT_TITLE_OFFSET_Y })] : undefined}
+    >
       {context ? (
         <Text
           modifiers={[
@@ -77,7 +91,7 @@ function ResultHeader({ query, result }: { query?: string; result: HomeSearchVis
         systemImage={asSymbol(result.header.systemImage)}
         title={result.header.title}
         modifiers={[
-          font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
+          font({ textStyle: 'headline', weight: 'bold', design: 'rounded' }),
           semanticStyle(),
         ]}
       />
@@ -240,6 +254,12 @@ function ResultState({ result }: { result: HomeSearchVisualResult }) {
   );
 }
 
+const COMPACT_EXTRA_TOP_INSET = 20;
+const COMPACT_SINGLE_DAY_ROUTE_EXTRA_INSET = 10;
+const COMPACT_ROUTE_PAGER_EXTRA_TOP_INSET = 4;
+const COMPACT_CLIENT_EXTRA_TOP_INSET = 0;
+const SEARCH_RESULT_HORIZONTAL_INSET = 16;
+
 function ResultContent({
   cardBackground,
   isLarge,
@@ -254,12 +274,12 @@ function ResultContent({
   return (
     <VStack
       alignment="leading"
-      spacing={spacing.lg}
+      spacing={result.route ? spacing.md : spacing.lg}
       modifiers={
         result.route ? [frame({ maxHeight: Infinity, alignment: 'topLeading' })] : undefined
       }
     >
-      <ResultHeader query={query} result={result} />
+      <ResultHeader isLarge={isLarge} query={query} result={result} />
       {result.metric ? <ResultMetric metric={result.metric} /> : null}
       {result.state ? <ResultState result={result} /> : null}
       {result.route ? (
@@ -277,10 +297,25 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
   const shouldEnableScroll = isLarge && model.items.length > 1 && !model.routePager;
 
+  const isSingleDayRoute = Boolean(model.singleDayRoute);
+  const isClient = Boolean(model.isClient);
+  const routeSingleDayExtra =
+    !isLarge && isSingleDayRoute ? COMPACT_SINGLE_DAY_ROUTE_EXTRA_INSET : 0;
+  const compactTopInset = model.routePager
+    ? COMPACT_ROUTE_PAGER_EXTRA_TOP_INSET
+    : isClient
+      ? COMPACT_CLIENT_EXTRA_TOP_INSET
+      : COMPACT_EXTRA_TOP_INSET + routeSingleDayExtra;
+  const topPadding = isLarge ? spacing.xxl : spacing.xxl + compactTopInset;
+
   const contentModifiers = model.routePager
     ? [frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]
     : [
-        padding({ horizontal: spacing.xl, top: spacing.xxl, bottom: spacing.xxl }),
+        padding({
+          horizontal: SEARCH_RESULT_HORIZONTAL_INSET,
+          top: topPadding,
+          bottom: spacing.xxl,
+        }),
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
       ];
 
@@ -304,7 +339,11 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
                   alignment="leading"
                   modifiers={[
                     frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-                    padding({ bottom: 0, horizontal: spacing.xl, top: spacing.xxl }),
+                    padding({
+                      bottom: 0,
+                      horizontal: SEARCH_RESULT_HORIZONTAL_INSET,
+                      top: topPadding,
+                    }),
                     scrollIndicators('hidden', 'both'),
                   ]}
                 >

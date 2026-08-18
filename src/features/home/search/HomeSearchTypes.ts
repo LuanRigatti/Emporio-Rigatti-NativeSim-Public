@@ -101,6 +101,7 @@ export type HomeSearchSourceError = {
 export type HomeSearchDataSet = {
   clients: ClientModel[];
   deliveries: Delivery[];
+  globalDeliveries?: Delivery[];
   factoryPurchases: FactoryReceipt[];
   financial?: HomeSearchFinancialData;
   routeSessions?: RouteTrackingSession[];
@@ -127,6 +128,10 @@ export type HomeSearchClientAggregation = {
   revenue: number;
   paid: number;
   pending: number;
+  currentPrice?: number;
+  netProfit: number;
+  revenueShare: number;
+  netProfitShare: number;
 };
 
 export type HomeSearchClientResult = {

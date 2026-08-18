@@ -1,3 +1,4 @@
+import { expenseCalculationService } from '@/services/expenses/ExpenseCalculationService';
 import { factoryCalculationService } from '@/services/finance/FactoryCalculationService';
 import { financialCalculationService } from '@/services/finance/FinancialCalculationService';
 import { financialFiltersForSelection } from '@/services/finance/FinancialPeriodService';
@@ -31,6 +32,7 @@ import type {
   HomeSearchFactoryReceiptSummary,
   HomeSearchFactorySummaryResult,
   HomeSearchCarSettingResult,
+  HomeSearchFinancialData,
   HomeSearchFinancialMetric,
   HomeSearchFinancialMetricResult,
   HomeSearchParsedQuery,
@@ -141,26 +143,98 @@ function relatedDeliveriesForClient(
   });
 }
 
-function aggregateClient(deliveries: readonly Delivery[]): HomeSearchClientAggregation {
-  return deliveries.reduce<HomeSearchClientAggregation>(
-    (aggregation, delivery) => {
-      const paid = normalizeHomeSearchText(delivery.status) === 'pago';
-      aggregation.deliveryIds.push(delivery.id);
-      aggregation.deliveryCount += 1;
-      aggregation.quantity += delivery.quantidade;
-      aggregation.revenue += delivery.valor;
-      aggregation.paid += paid ? delivery.valor : 0;
-      aggregation.pending += paid ? 0 : delivery.valor;
-      return aggregation;
-    },
-    { deliveryIds: [], deliveryCount: 0, quantity: 0, revenue: 0, paid: 0, pending: 0 },
+function aggregateClient(
+  client: ClientModel,
+  deliveries: readonly Delivery[],
+  globalDeliveries: readonly Delivery[] = deliveries,
+  financialData?: HomeSearchFinancialData,
+): HomeSearchClientAggregation {
+  const deliveryIds = deliveries.map((delivery) => delivery.id);
+  const deliveryCount = deliveries.length;
+  const quantity = financialCalculationService.calculateQuantidade(deliveries as Delivery[]);
+  const revenue = financialCalculationService.calculateFaturamento(deliveries as Delivery[]);
+  const paid = financialCalculationService.calculatePago(deliveries as Delivery[]);
+  const pending = financialCalculationService.calculatePendente(deliveries as Delivery[]);
+
+  const bucketCost = financialCalculationService.calculateCustoTotalBaldes(
+    deliveries as Delivery[],
   );
+  const grossProfit = financialCalculationService.calculateLucroBruto(revenue, bucketCost);
+
+  let netProfit = grossProfit;
+  if (
+    financialData &&
+    (Object.keys(financialData.dailyExpenses).length > 0 ||
+      Object.keys(financialData.monthlyExpenses).length > 0)
+  ) {
+    const allocation = expenseCalculationService.calculateClientAllocation(
+      deliveries as Delivery[],
+      globalDeliveries as Delivery[],
+      'month',
+      financialData.dailyExpenses,
+      financialData.monthlyExpenses,
+      'Todos',
+    );
+    netProfit = financialCalculationService.calculateLucroLiquido(
+      grossProfit,
+      allocation.estar,
+      allocation.combustivel,
+      allocation.luz,
+      0,
+    );
+  }
+
+  const globalRevenue = financialCalculationService.calculateFaturamento(
+    globalDeliveries as Delivery[],
+  );
+  const rawRevenueShare = globalRevenue > 0 && revenue > 0 ? (revenue / globalRevenue) * 100 : 0;
+  const revenueShare = Number.isFinite(rawRevenueShare) ? Math.max(0, rawRevenueShare) : 0;
+
+  const globalBucketCost = financialCalculationService.calculateCustoTotalBaldes(
+    globalDeliveries as Delivery[],
+  );
+  let globalNetProfit = financialCalculationService.calculateLucroBruto(
+    globalRevenue,
+    globalBucketCost,
+  );
+  if (
+    financialData &&
+    (Object.keys(financialData.dailyExpenses).length > 0 ||
+      Object.keys(financialData.monthlyExpenses).length > 0)
+  ) {
+    const globalSummary = financialCalculationService.calculateResumo({
+      deliveries: globalDeliveries as Delivery[],
+      dailyExpenses: financialData.dailyExpenses,
+      monthlyExpenses: financialData.monthlyExpenses,
+      filters: { periodo: 'todos' },
+    });
+    globalNetProfit = globalSummary.lucroLiquido;
+  }
+
+  const rawNetProfitShare =
+    globalNetProfit > 0 && netProfit > 0 ? (netProfit / globalNetProfit) * 100 : 0;
+  const netProfitShare = Number.isFinite(rawNetProfitShare) ? Math.max(0, rawNetProfitShare) : 0;
+
+  return {
+    deliveryIds,
+    deliveryCount,
+    quantity,
+    revenue,
+    paid,
+    pending,
+    ...(client.currentPrice !== undefined ? { currentPrice: client.currentPrice } : {}),
+    netProfit,
+    revenueShare,
+    netProfitShare,
+  };
 }
 
 function clientResult(
   client: ClientModel,
   matchingDeliveries: readonly Delivery[],
   query: HomeSearchParsedQuery,
+  globalDeliveries: readonly Delivery[] = matchingDeliveries,
+  financialData?: HomeSearchFinancialData,
 ): HomeSearchClientResult | undefined {
   const nameScore = textScore(client.canonicalName, query.text);
   const addressScore = textScore(client.address ?? '', query.text);
@@ -183,7 +257,7 @@ function clientResult(
     return undefined;
   }
 
-  const aggregation = aggregateClient(matchingDeliveries);
+  const aggregation = aggregateClient(client, matchingDeliveries, globalDeliveries, financialData);
   const score = directScore >= 0 ? directScore + 200 : 300;
   return {
     type: 'client',
@@ -694,9 +768,14 @@ export class HomeSearchService {
     }
 
     const data = await this.dataSource.load(query);
+    const globalDeliveries =
+      data.globalDeliveries && data.globalDeliveries.length > 0
+        ? data.globalDeliveries
+        : data.deliveries;
+
     if (query.clientField) {
       const results = data.clients
-        .map((client) => clientResult(client, [], query))
+        .map((client) => clientResult(client, [], query, globalDeliveries, data.financial))
         .filter((result): result is HomeSearchClientResult => result !== undefined)
         .sort(sortResults);
       return this.response(query, data, results, request, startedAt);
@@ -737,6 +816,8 @@ export class HomeSearchService {
         client,
         relatedDeliveriesForClient(client, matchingDeliveries),
         query,
+        globalDeliveries,
+        data.financial,
       );
       if (result) results.push(result);
     });

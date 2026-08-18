@@ -1,5 +1,6 @@
 import { createHomeSearchResultVisualModel } from '@/features/home/components/HomeSearchResultsVisualModel';
 import type {
+  HomeSearchClientResult,
   HomeSearchDeliveryResult,
   HomeSearchParsedQuery,
   HomeSearchResponse,
@@ -127,7 +128,7 @@ describe('HomeSearchResultVisualModel', () => {
       ['session-b'],
       ['session-a'],
     ]);
-    expect(model.items.every((item) => item.metric?.value === '1 rota')).toBe(true);
+    expect(model.items.every((item) => item.metric === undefined)).toBe(true);
     expect(model.items[0].header?.subtitle).toBeUndefined();
     expect(model.items[0].sections[0].rows).toEqual(
       expect.arrayContaining([
@@ -145,23 +146,57 @@ describe('HomeSearchResultVisualModel', () => {
     expect(model.sections[0].rows.every((row) => !row.value.startsWith('Início:'))).toBe(true);
   });
 
-  it('keeps single-route details compact', () => {
+  it('identifies single-day route results and keeps details compact', () => {
     const base = routeResult();
     const singleRoute: HomeSearchRouteSummaryResult = {
       ...base,
       data: {
         ...base.data,
+        period: { kind: 'dayMonth', day: 14, month: 8 },
         routeCount: 1,
         sessions: [base.data.sessions[0]],
       },
     };
     const model = createHomeSearchResultVisualModel(
-      response({ ...baseQuery, routeMetric: 'routes' }, [singleRoute]),
+      response(
+        {
+          ...baseQuery,
+          period: { kind: 'dayMonth', day: 14, month: 8 },
+          routeMetric: 'routes',
+        },
+        [singleRoute],
+      ),
     );
     const rows = model.sections[0].rows;
 
+    expect(model.singleDayRoute).toBe(true);
+    expect(model.routePager).toBeUndefined();
     expect(rows.map(({ id }) => id)).toEqual(['distance', 'start', 'end', 'duration']);
     expect(rows.find(({ id }) => id === 'start')?.value).toBe('08:00');
+  });
+
+  it('does not mark monthly route queries as single-day route', () => {
+    const base = routeResult();
+    const monthlyRoute: HomeSearchRouteSummaryResult = {
+      ...base,
+      data: {
+        ...base.data,
+        period: { kind: 'month', month: 8, year: 2026 },
+      },
+    };
+    const model = createHomeSearchResultVisualModel(
+      response(
+        {
+          ...baseQuery,
+          period: { kind: 'month', month: 8, year: 2026 },
+          routeMetric: 'routes',
+        },
+        [monthlyRoute],
+      ),
+    );
+
+    expect(model.singleDayRoute).toBeUndefined();
+    expect(model.routePager).toBe(true);
   });
 
   it('renders every concrete delivery for a multi-delivery payment query', () => {
@@ -177,5 +212,61 @@ describe('HomeSearchResultVisualModel', () => {
     expect(model.items.map((item) => item.header?.title)).toEqual(['Helder', 'Ana', 'JoÃ£o']);
     expect(model.items.every((item) => item.metric === undefined)).toBe(true);
     expect(model.items.every((item) => item.sections[0].rows.length === 4)).toBe(true);
+  });
+
+  it('marks client results with isClient, hides query context and renders all 7 summary rows', () => {
+    const clientResult: HomeSearchClientResult = {
+      type: 'client',
+      id: 'client:andre',
+      clientId: 'client:andre',
+      title: 'André',
+      score: 100,
+      data: {
+        usesInvoice: false,
+        usesBoleto: false,
+        aggregation: {
+          deliveryIds: [],
+          deliveryCount: 5,
+          quantity: 20,
+          revenue: 1000,
+          paid: 1000,
+          pending: 0,
+          currentPrice: 50,
+          netProfit: 300,
+          revenueShare: 10.5,
+          netProfitShare: 12.3,
+        },
+      },
+      relations: { deliveryIds: [] },
+    };
+
+    const model = createHomeSearchResultVisualModel(
+      response({ ...baseQuery, original: 'Andre', text: 'Andre' }, [clientResult]),
+    );
+
+    expect(model.isClient).toBe(true);
+    expect(model.hideQueryContext).toBe(true);
+    expect(model.header?.title).toBe('André');
+    expect(model.sections[0].rows).toHaveLength(7);
+    expect(model.sections[0].rows.map((row) => row.label)).toEqual([
+      'Entregas',
+      'Baldes',
+      'Valor do balde',
+      'Faturamento total',
+      'Lucro líquido total',
+      'Participação no faturamento',
+      'Participação no lucro',
+    ]);
+    expect(model.sections[0].rows.find((row) => row.id === 'bucket-price')?.value).toContain(
+      '50,00',
+    );
+    expect(model.sections[0].rows.find((row) => row.id === 'total-revenue')?.value).toContain(
+      '1.000,00',
+    );
+    expect(model.sections[0].rows.find((row) => row.id === 'total-net-profit')?.value).toContain(
+      '300,00',
+    );
+    expect(model.sections[0].rows.find((row) => row.id === 'revenue-share')?.value).toBe('10,5%');
+    expect(model.sections[0].rows.find((row) => row.id === 'profit-share')?.value).toBe('12,3%');
   });
 });

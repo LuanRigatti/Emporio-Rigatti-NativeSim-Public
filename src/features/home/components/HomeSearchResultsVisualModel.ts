@@ -63,6 +63,8 @@ export type HomeSearchResultVisualModel = HomeSearchVisualResult & {
   items: HomeSearchVisualResult[];
   query: string;
   routePager?: boolean;
+  singleDayRoute?: boolean;
+  isClient?: boolean;
 };
 
 const MONTH_NAMES = [
@@ -118,6 +120,14 @@ function formatDistance(distanceKm: number): string {
   }).format(distanceKm)} km`;
 }
 
+function formatPercentage(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0%';
+  return `${new Intl.NumberFormat('pt-BR', {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  }).format(value)}%`;
+}
+
 function resultDateContext(date: string): string {
   const [, month, day] = date.split('-');
   return `${day}/${month}`;
@@ -141,7 +151,13 @@ function row(
   value: string,
   options: Pick<HomeSearchVisualRow, 'monospaced' | 'tone'> = {},
 ): HomeSearchVisualRow {
-  return { id, label, value, ...options };
+  return {
+    id,
+    label,
+    value,
+    ...(options.monospaced ? { monospaced: true } : {}),
+    ...(options.tone ? { tone: options.tone } : {}),
+  };
 }
 
 function section(
@@ -208,6 +224,29 @@ function clientSections(
         `${aggregate.deliveryCount} ${plural(aggregate.deliveryCount, 'entrega', 'entregas')}`,
       ),
       row('bucket-quantity', 'Baldes', formatNumber(aggregate.quantity), { monospaced: true }),
+      row(
+        'bucket-price',
+        'Valor do balde',
+        aggregate.currentPrice !== undefined
+          ? formatCurrency(aggregate.currentPrice)
+          : 'Não informado',
+        { monospaced: true },
+      ),
+      row('total-revenue', 'Faturamento total', formatCurrency(aggregate.revenue), {
+        monospaced: true,
+      }),
+      row('total-net-profit', 'Lucro líquido total', formatCurrency(aggregate.netProfit), {
+        monospaced: true,
+      }),
+      row(
+        'revenue-share',
+        'Participação no faturamento',
+        formatPercentage(aggregate.revenueShare),
+        { monospaced: true },
+      ),
+      row('profit-share', 'Participação no lucro', formatPercentage(aggregate.netProfitShare), {
+        monospaced: true,
+      }),
     ]),
   ];
 }
@@ -402,13 +441,9 @@ function routeSessionVisualItems(result: HomeSearchRouteSummaryResult): HomeSear
       right.sessionId.localeCompare(left.sessionId),
   );
   return sessions.map((session) => ({
-    context: resultDateContext(session.date),
+    hideQueryContext: true,
     header: { systemImage: iconForResult(result.type), title: routeSessionTitle(session.date) },
     id: `${result.id}:${session.sessionId}`,
-    metric: {
-      monospaced: true,
-      value: `1 ${plural(1, 'rota', 'rotas')}`,
-    },
     route: { sessionIds: [session.sessionId] },
     sections: routeSessionSections(result, session),
   }));
@@ -569,15 +604,17 @@ export function createHomeSearchResultVisualModel(
   const description = unavailableDescription(result, presentation);
   const isClient = result.type === 'client';
   const isRoute = result.type === 'routeSummary';
+  const isSingleDayRoute =
+    isRoute && (result.data.period.kind === 'date' || result.data.period.kind === 'dayMonth');
   const primaryItem: HomeSearchVisualResult = {
-    ...(isRoute ? { hideQueryContext: true } : {}),
+    ...(isRoute || isClient ? { hideQueryContext: true } : {}),
     header: {
       systemImage: iconForResult(result.type),
       title: presentation.primaryTitle ?? result.title,
     },
     id: result.id,
     metric:
-      description || isClient
+      description || isClient || isRoute
         ? undefined
         : {
             monospaced: result.type !== 'delivery',
@@ -604,5 +641,7 @@ export function createHomeSearchResultVisualModel(
     items,
     query: presentation.query,
     ...(routeItems ? { routePager: true } : {}),
+    ...(isSingleDayRoute ? { singleDayRoute: true } : {}),
+    ...(isClient ? { isClient: true } : {}),
   };
 }

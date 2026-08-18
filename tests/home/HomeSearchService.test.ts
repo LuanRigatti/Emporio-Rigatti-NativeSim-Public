@@ -76,6 +76,7 @@ const clients: ClientModel[] = [
     normalizedName: 'andre',
     sources: ['custom'],
     address: 'Rua das Flores',
+    currentPrice: 50,
     hasIncompleteAddress: false,
     usesInvoice: true,
     usesBoleto: false,
@@ -1397,6 +1398,184 @@ describe('HomeSearchService', () => {
     const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
 
     expect(response.results).toEqual([]);
+  });
+
+  it('enriches client result with faturamento, lucro liquido, valor do balde and global shares', async () => {
+    const parsed = new HomeSearchQueryParser().parse('André', new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(parsed);
+
+    const clientRes = response.results.find((r) => r.type === 'client');
+    expect(clientRes).toBeDefined();
+    if (clientRes && clientRes.type === 'client') {
+      expect(clientRes.data.aggregation.deliveryCount).toBe(1);
+      expect(clientRes.data.aggregation.quantity).toBe(3);
+      expect(clientRes.data.aggregation.revenue).toBe(150);
+      expect(clientRes.data.aggregation.currentPrice).toBe(50);
+      expect(typeof clientRes.data.aggregation.netProfit).toBe('number');
+      expect(clientRes.data.aggregation.revenueShare).toBeGreaterThan(0);
+      expect(typeof clientRes.data.aggregation.netProfitShare).toBe('number');
+    }
+  });
+
+  it('calculates mathematically exact global shares for multi-client datasets (25% and 75%)', async () => {
+    const deliveryA: Delivery = {
+      id: 'del-a',
+      clientId: 'client:a',
+      cliente: 'Cliente A',
+      quantidade: 20,
+      valor: 1000,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-10',
+    };
+    const deliveryB: Delivery = {
+      id: 'del-b',
+      clientId: 'client:b',
+      cliente: 'Cliente B',
+      quantidade: 60,
+      valor: 3000,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-10',
+    };
+    const multiClientSource: HomeSearchDataSource = {
+      load: jest.fn().mockImplementation(async (query: HomeSearchParsedQuery) => {
+        const clients = [
+          {
+            clientId: 'client:a' as const,
+            canonicalName: 'Cliente A',
+            normalizedName: 'cliente a',
+            sources: ['custom'] as ('custom' | 'delivery')[],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+          {
+            clientId: 'client:b' as const,
+            canonicalName: 'Cliente B',
+            normalizedName: 'cliente b',
+            sources: ['custom'] as ('custom' | 'delivery')[],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+        ];
+        const isClientA = query.text?.includes('a');
+        const deliveries = isClientA ? [deliveryA] : [deliveryB];
+        return {
+          clients,
+          deliveries,
+          globalDeliveries: [deliveryA, deliveryB],
+          factoryPurchases: [],
+          coverage: [],
+          errors: [],
+        };
+      }),
+    };
+
+    const parsedA = new HomeSearchQueryParser().parse('Cliente A', new Date(2026, 7, 13, 12));
+    const responseA = await new HomeSearchService(multiClientSource).searchParsed(parsedA);
+    const clientA = responseA.results.find((r) => r.type === 'client' && r.clientId === 'client:a');
+
+    expect(clientA).toBeDefined();
+    if (clientA && clientA.type === 'client') {
+      expect(clientA.data.aggregation.revenue).toBe(1000);
+      expect(clientA.data.aggregation.revenueShare).toBe(25);
+      expect(clientA.data.aggregation.netProfit).toBe(300); // 1000 - (20 * 35)
+      expect(clientA.data.aggregation.netProfitShare).toBe(25); // 300 / 1200
+    }
+
+    const parsedB = new HomeSearchQueryParser().parse('Cliente B', new Date(2026, 7, 13, 12));
+    const responseB = await new HomeSearchService(multiClientSource).searchParsed(parsedB);
+    const clientB = responseB.results.find((r) => r.type === 'client' && r.clientId === 'client:b');
+
+    expect(clientB).toBeDefined();
+    if (clientB && clientB.type === 'client') {
+      expect(clientB.data.aggregation.revenue).toBe(3000);
+      expect(clientB.data.aggregation.revenueShare).toBe(75);
+      expect(clientB.data.aggregation.netProfit).toBe(900); // 3000 - (60 * 35)
+      expect(clientB.data.aggregation.netProfitShare).toBe(75); // 900 / 1200
+    }
+  });
+
+  it('only returns 100% share when the client genuinely represents 100% of global deliveries', async () => {
+    const singleDelivery: Delivery = {
+      id: 'del-single',
+      clientId: 'client:unico',
+      cliente: 'Cliente Unico',
+      quantidade: 10,
+      valor: 500,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-10',
+    };
+    const singleClientSource: HomeSearchDataSource = {
+      load: jest.fn().mockResolvedValue({
+        clients: [
+          {
+            clientId: 'client:unico',
+            canonicalName: 'Cliente Unico',
+            normalizedName: 'cliente unico',
+            sources: ['custom'],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+        ],
+        deliveries: [singleDelivery],
+        globalDeliveries: [singleDelivery],
+        factoryPurchases: [],
+        coverage: [],
+        errors: [],
+      }),
+    };
+
+    const parsed = new HomeSearchQueryParser().parse('Cliente Unico', new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(singleClientSource).searchParsed(parsed);
+    const clientRes = response.results.find((r) => r.type === 'client');
+
+    expect(clientRes).toBeDefined();
+    if (clientRes && clientRes.type === 'client') {
+      expect(clientRes.data.aggregation.revenue).toBe(500);
+      expect(clientRes.data.aggregation.revenueShare).toBe(100);
+      expect(clientRes.data.aggregation.netProfitShare).toBe(100);
+    }
+  });
+
+  it('handles client with zero deliveries and zero global denominators safely', async () => {
+    const clientOnlySource: HomeSearchDataSource = {
+      load: jest.fn().mockResolvedValue({
+        clients: [
+          {
+            clientId: 'client:novo',
+            canonicalName: 'Novo Cliente',
+            normalizedName: 'novo cliente',
+            usesInvoice: false,
+            usesBoleto: false,
+            sources: ['custom'],
+          },
+        ],
+        deliveries: [],
+        factoryPurchases: [],
+        coverage: [],
+        errors: [],
+      }),
+    };
+
+    const parsed = new HomeSearchQueryParser().parse('Novo Cliente', new Date(2026, 7, 13, 12));
+    const response = await new HomeSearchService(clientOnlySource).searchParsed(parsed);
+
+    const clientRes = response.results.find((r) => r.type === 'client');
+    expect(clientRes).toBeDefined();
+    if (clientRes && clientRes.type === 'client') {
+      expect(clientRes.data.aggregation.deliveryCount).toBe(0);
+      expect(clientRes.data.aggregation.revenue).toBe(0);
+      expect(clientRes.data.aggregation.netProfit).toBe(0);
+      expect(clientRes.data.aggregation.revenueShare).toBe(0);
+      expect(clientRes.data.aggregation.netProfitShare).toBe(0);
+      expect(Number.isNaN(clientRes.data.aggregation.revenueShare)).toBe(false);
+      expect(Number.isNaN(clientRes.data.aggregation.netProfitShare)).toBe(false);
+    }
   });
 });
 

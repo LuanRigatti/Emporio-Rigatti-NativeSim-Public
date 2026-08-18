@@ -152,10 +152,15 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
         errors,
       };
     }
+    const filters = deliveryFiltersForSearch(query, clients);
+    const hasClientFilter = Boolean(filters?.clientIds && filters.clientIds.length > 0);
     const deliveries = await this.loadDeliveries(query, clients, coverage, errors);
+    const globalDeliveries = hasClientFilter
+      ? firestoreDeliveryDataSource.getCached({ mode: 'all' })
+      : deliveries;
     const factoryPurchases = await this.loadFactoryPurchases(query, coverage, errors);
 
-    return { clients, deliveries, factoryPurchases, coverage, errors };
+    return { clients, deliveries, globalDeliveries, factoryPurchases, coverage, errors };
   }
 
   private async loadFactoryIntent(

@@ -680,7 +680,9 @@ uma operação confirmada.
 
 ### Commit e publicação
 
-- Alteração validada localmente (não commitada / sem commit).
+- Branch: `ajustes-antigravity`.
+- Commit: `1967736`.
+- Mensagem: `feat(ui): implementar modulo UIKit nativo de context menu com visiblePath arredondado para cards`.
 
 ## Flags atuais
 

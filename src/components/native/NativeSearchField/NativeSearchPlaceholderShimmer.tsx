@@ -38,11 +38,7 @@ export default function NativeSearchPlaceholderShimmer({
 }: NativeSearchPlaceholderShimmerProps) {
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const placeholderColor =
-    resolvedMode === 'light'
-      ? '#000000'
-      : Platform.OS === 'ios'
-        ? PlatformColor('placeholderText')
-        : theme.colors.textSecondary;
+    Platform.OS === 'ios' ? PlatformColor('placeholderText') : theme.colors.textSecondary;
   const [textWidth, setTextWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
   const [shimmerProgress] = useState(() => new Animated.Value(0));
@@ -116,22 +112,40 @@ export default function NativeSearchPlaceholderShimmer({
     };
   }, [containerWidth, entryKey, reduceMotionEnabled, shimmerProgress, textWidth, visible]);
 
-  const waveWidth = Math.max(28, Math.round(textWidth * 0.4));
-  const gradientColors: [ColorValue, ColorValue, ColorValue, ColorValue, ColorValue] =
+  const waveWidth = Math.max(64, Math.round(textWidth * 0.75));
+  const gradientColors: [
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+    ColorValue,
+  ] =
     resolvedMode === 'dark'
       ? [
           'rgba(255,255,255,0)',
-          'rgba(255,255,255,0.26)',
-          'rgba(255,255,255,0.92)',
-          'rgba(255,255,255,0.26)',
+          'rgba(180,185,195,0.18)',
+          'rgba(215,222,230,0.45)',
+          'rgba(240,245,250,0.72)',
+          'rgba(255,255,255,0.82)',
+          'rgba(240,245,250,0.72)',
+          'rgba(215,222,230,0.45)',
+          'rgba(180,185,195,0.18)',
           'rgba(255,255,255,0)',
         ]
       : [
-          'rgba(255,255,255,0)',
-          theme.colors.borderStrong,
-          theme.colors.borderStrong,
-          theme.colors.borderStrong,
-          'rgba(255,255,255,0)',
+          'rgba(0,0,0,0)',
+          'rgba(100,110,125,0.25)',
+          'rgba(60,70,85,0.55)',
+          'rgba(35,42,56,0.75)',
+          'rgba(25,30,42,0.85)',
+          'rgba(35,42,56,0.75)',
+          'rgba(60,70,85,0.55)',
+          'rgba(100,110,125,0.25)',
+          'rgba(0,0,0,0)',
         ];
   const translateX = shimmerProgress.interpolate({
     inputRange: [0, 1],
@@ -197,7 +211,7 @@ export default function NativeSearchPlaceholderShimmer({
               <LinearGradient
                 colors={gradientColors}
                 end={{ x: 1, y: 0.5 }}
-                locations={[0, 0.32, 0.5, 0.68, 1]}
+                locations={[0, 0.14, 0.28, 0.4, 0.5, 0.6, 0.72, 0.86, 1]}
                 start={{ x: 0, y: 0.5 }}
                 style={StyleSheet.absoluteFill}
               />

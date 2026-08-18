@@ -576,18 +576,22 @@ uma operação confirmada.
      - **Home / Dashboard:** Widgets de *Recebimentos em aberto* e *Documentos*, além do foco na barra de busca (*Search Bar*).
      - **Registrar:** Cards de *Registrar Entrega* e *Registrar Dados Diários*, e botão *Adicionar* da tela de Dados Diários.
      - **Configurações e Subtelas:** Centralização no componente `SettingItem` (cobrindo todas as 18+ linhas da raiz, Dados, Fábrica, Backup e lista de Clientes), botões de ação e rotas de histórico de localização.
-2. **Correção do Lifecycle do Shimmer no Placeholder da Home Search:**
+2. **Lifecycle e Refinamento Visual do Shimmer no Placeholder da Home Search:**
    - Eliminação da trava estática `startedEntryKey` que congelava a animação após o campo perder o foco (blur).
    - Execução de animação `Animated.timing` single-shot (2800ms) governada pelo ciclo de visibilidade (`wasVisibleRef`, `hasAnimatedForCurrentVisibilityRef` e `lastEntryKeyRef`):
      - Executa exatamente uma passagem ao abrir a Home e ao retornar de uma sessão de busca.
      - Interrompe e reseta com segurança ao focar ou digitar.
      - Re-renders com `visible === true` não reiniciam indevidamente a animação.
+   - **Degradê Metálico com 9 Stops e Núcleo Central Alargado:**
+     - Alargamento da faixa de varredura (`waveWidth` para 75% da largura do texto).
+     - Correção da cor base no Light Mode para a cor semântica do sistema (`PlatformColor('placeholderText')`).
+     - Degradê com 9 stops (`[0, 0.14, 0.28, 0.40, 0.50, 0.60, 0.72, 0.86, 1]`): transição suave de prata/cinza para núcleo central amplo de alto contraste (branco/prata no Dark Mode e cinza escuro metálico no Light Mode).
 
 ### Comportamento final
 
 - Toque nos cards e linhas de navegação aciona imediatamente um feedback tátil leve e firme, sem atrasar transições nem gerar disparos duplicados.
 - Ao entrar em foco na barra de busca da Home, o haptic dispara uma única vez no evento nativo de foco.
-- O shimmer do placeholder da Home executa uma única passagem por ciclo de visibilidade e para de forma suave, sem loop contínuo e sem congelamentos visuais.
+- O shimmer do placeholder da Home executa uma única passagem por ciclo de visibilidade e para de forma suave, sem loop contínuo, com acabamento metálico amplo e elegante em ambos os temas.
 
 ### Arquivos principais
 

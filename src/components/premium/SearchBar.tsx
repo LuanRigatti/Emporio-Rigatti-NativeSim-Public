@@ -19,6 +19,7 @@ export type PremiumSearchBarProps = Omit<
   value: string;
   onChangeText: (value: string) => void;
   onClear?: () => void;
+  onPressHelp?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -28,6 +29,7 @@ export function SearchBar({
   onChangeText,
   onFocus,
   onBlur,
+  onPressHelp,
   placeholder = 'Buscar',
   style,
   value,
@@ -87,6 +89,23 @@ export function SearchBar({
           <Ionicons
             color={theme.colors.textTertiary}
             name="close-circle"
+            size={theme.sizes.iconMedium}
+          />
+        </Pressable>
+      ) : null}
+      {focused && !value && onPressHelp ? (
+        <Pressable
+          accessibilityLabel="Ajuda da pesquisa"
+          accessibilityRole="button"
+          onPress={onPressHelp}
+          style={[
+            styles.clear,
+            { minHeight: theme.sizes.touchTargetMinimum, minWidth: theme.sizes.touchTargetMinimum },
+          ]}
+        >
+          <Ionicons
+            color={theme.colors.textTertiary}
+            name="help-circle-outline"
             size={theme.sizes.iconMedium}
           />
         </Pressable>

@@ -814,11 +814,69 @@ uma operação confirmada.
 
 - Nenhuma. O cálculo é totalmente determinístico, opera sob demanda e utiliza cache local persistente com invalidação automática em mutações.
 
+- Commit: `17a0e28` (`feat: improve client metrics and historical search scope`).
+- Status: Commit e push realizados na branch `ajustes-antigravity`.
+
+## Padronização visual dos cabeçalhos e elevação compacta na Home Search
+
+### Funcionalidade implementada
+
+- **Simplificação e padronização de cabeçalhos:** Em resultados financeiros (`financialMetric` sem cliente explícito), resumos gerais de período (`periodSummary`) e resumos da fábrica com período (`factorySummary`), foi removido o texto redundante cinza (*eyebrow context*) e o ícone anterior à data/período. O cabeçalho passa a exibir diretamente o período/data em tipografia `headline bold rounded`, seguido pelo valor principal e pelo card *"Base do cálculo"*.
+- **Elevação do bloco no Bottom Sheet compacto:** Introduzido `COMPACT_FINANCIAL_EXTRA_TOP_INSET = 4` em [HomeSearchResultsNative.ios.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/components/HomeSearchResultsNative.ios.tsx), elevando o bloco completo (período + valor + card) em 16 pt no Bottom Sheet compacto (`topPadding = 36 pt` vs `52 pt` padrão), preservando rigorosamente o layout expandido em `32 pt` (`spacing.xxl`).
+- **Preservação de outros tipos de resultado:** Resultados de cliente (`Luciano`, `André`), rotas com mapa/GPS, entregas individuais, compras da fábrica, configurações do carro e métricas com cliente explícito (`Faturamento Luciano agosto`) mantiveram suas estruturas e cabeçalhos intactos.
+
+## Botão contextual e Bottom Sheet nativo de ajuda da Home Search
+
+### Funcionalidade implementada
+
+- **Botão nativo de ajuda na Search Bar:** Adicionado botão nativo discreto (`questionmark.circle`, cor `#8B8B93`, 18 pt) integrado no canto direito de [NativeSearchFieldSwiftUI.ios.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/native/NativeSearchField/NativeSearchFieldSwiftUI.ios.tsx) (e propagado aos fallbacks). O botão é exibido **exclusivamente** quando a Search Bar possui foco e o campo de texto está vazio (`focused && !value`). Ao digitar qualquer caractere, ao perder o foco ou com a Home em repouso, o botão fica 100% oculto, preservando integralmente o layout, altura, largura, lupa e shimmer.
+- **Catálogo tipado centralizado de pesquisas:** Criado [HomeSearchHelpData.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/help/HomeSearchHelpData.ts) com 6 categorias e 23 exemplos reais auditados (Clientes, Finanças, Fábrica, Rotas e GPS, Carro, Resumos).
+- **Bottom Sheet nativo de ajuda (`HomeSearchHelpSheet`):** Apresentado via [NativeBottomSheet](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/native/NativeBottomSheet) com detents `[{ fraction: 0.65 }, 'large']` e renderização nativa SwiftUI em [HomeSearchHelpContent.ios.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/help/HomeSearchHelpContent.ios.tsx).
+- **Design e Responsividade:**
+  - Cards internos agrupadores com curvatura contínua Apple de **`36 pt`** (`roundedCornerStyle: 'continuous'`), idêntica ao card de resultados de cliente (`Luciano`);
+  - Títulos de categoria limpos (sem ícones prévios), alinhados com `padding({ leading: spacing.sm })` (12 pt) e tipografia `caption semibold` (12 pt);
+  - Respiro horizontal de **`24 pt`** (`spacing.xl`) à esquerda do texto dos exemplos;
+  - **100% da área da linha interativa** através de `<Button>` com largura total, `<HStack>` com `contentShape(shapes.rectangle())` e `<Spacer />` central;
+  - Elevação do bloco de conteúdo do sheet com `top: spacing.md` (16 pt).
+- **Integração de busca:** Ao selecionar um exemplo, o Help Sheet fecha, o texto é inserido na Search Bar e a busca é submetida exclusivamente pelo fluxo canônico `handleSearchSubmit`, abrindo o resultado correspondente no `HomeSearchResultsSheet`. Fechar o sheet sem selecionar nada não submete nenhuma busca.
+
+### Arquivos principais
+
+- `src/components/native/NativeSearchField/NativeSearchField.types.ts`
+- `src/components/native/NativeSearchField/NativeSearchFieldSwiftUI.ios.tsx`
+- `src/components/native/NativeSearchField/NativeSearchField.expo.tsx`
+- `src/components/premium/SearchBar.tsx`
+- `src/features/home/components/HomeSearchResultsVisualModel.ts`
+- `src/features/home/components/HomeSearchResultsNative.ios.tsx`
+- `src/features/home/help/HomeSearchHelpTypes.ts` (novo)
+- `src/features/home/help/HomeSearchHelpData.ts` (novo)
+- `src/features/home/help/HomeSearchHelpContent.ios.tsx` (novo)
+- `src/features/home/help/HomeSearchHelpContent.tsx` (novo)
+- `src/features/home/help/HomeSearchHelpSheet.tsx` (novo)
+- `src/app/(tabs)/dashboard.tsx`
+- `tests/home/HomeSearchResultsVisualModel.test.ts`
+- `tests/home/HomeSearchHelpData.test.ts` (novo)
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema afetado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/home tests/deliveries tests/finance tests/clients tests/routes tests/invoices tests/stock tests/costs tests/factory tests/firestore`): 49 suítes / 382 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- O catálogo de ajuda contém os 23 comandos/exemplos auditados e suportados pelo parser atual. Formatos como datas relativas ("ontem", "amanhã") e intervalos livres continuam reservados para futuras expansões do parser.
+
 ### Commit e publicação
 
 - Branch: `ajustes-antigravity`.
-- Commit anterior: `26c288a` (`feat: enrich home search client results`).
-- Status: Validado localmente com 0 erros e 376 testes passando; sem commit adicional realizado (aguardando autorização).
+- Commit anterior da sequência: `17a0e28` (`feat: improve client metrics and historical search scope`).
+- Status: Alterações validadas localmente com 0 erros e 382 testes passando; sem commit adicional realizado (aguardando autorização).
 
 ## Flags atuais
 

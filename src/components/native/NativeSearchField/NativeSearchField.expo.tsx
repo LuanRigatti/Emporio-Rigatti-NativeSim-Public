@@ -7,6 +7,7 @@ export default function NativeSearchFieldExpo({
   accessibilityLabel,
   onChangeText,
   onFocusChange,
+  onPressHelp,
   onSubmit,
   placeholder,
   value,
@@ -20,6 +21,7 @@ export default function NativeSearchFieldExpo({
         triggerLightImpactHaptic();
         onFocusChange?.(true);
       }}
+      onPressHelp={onPressHelp}
       onSubmitEditing={({ nativeEvent }) => onSubmit?.(nativeEvent.text)}
       placeholder={placeholder}
       value={value}

@@ -11,6 +11,7 @@ import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
+import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
 import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
 import {
   homeSearchPresentationReducer,
@@ -44,6 +45,7 @@ export default function Home() {
   const wasFocused = useRef(false);
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
+  const [isHelpSheetVisible, setIsHelpSheetVisible] = useState(false);
   const [searchFlow, dispatchSearchFlow] = useReducer(
     homeSearchPresentationReducer,
     initialHomeSearchPresentationState,
@@ -212,6 +214,24 @@ export default function Home() {
     [searchFlow.activeSearchId, searchFlow.presentationId],
   );
 
+  const handlePressHelp = useCallback(() => {
+    Keyboard.dismiss();
+    setIsHelpSheetVisible(true);
+  }, []);
+
+  const handleHelpSelectQuery = useCallback(
+    (selectedQuery: string) => {
+      setIsHelpSheetVisible(false);
+      setSearchText(selectedQuery);
+      handleSearchSubmit(selectedQuery);
+    },
+    [handleSearchSubmit],
+  );
+
+  const handleHelpSheetDismiss = useCallback(() => {
+    setIsHelpSheetVisible(false);
+  }, []);
+
   const handleSearchSheetDismiss = useCallback(() => {
     logHomeSearchFlow('dismiss-confirmed', {
       searchId: searchFlow.activeSearchId,
@@ -261,6 +281,7 @@ export default function Home() {
           <NativeSearchField
             accessibilityLabel="Buscar clientes, entregas e filtros"
             onChangeText={handleSearchTextChange}
+            onPressHelp={handlePressHelp}
             onSubmit={handleSearchSubmit}
             placeholder="Busque clientes, entregas e filtros"
             focusEntryKey={focusEntryKey}
@@ -385,6 +406,11 @@ export default function Home() {
         onVisibleChange={handleSearchSheetVisibleChange}
         response={searchFlow.response}
         visible={isHomeSearchSheetVisible(searchFlow)}
+      />
+      <HomeSearchHelpSheet
+        onDismiss={handleHelpSheetDismiss}
+        onSelectQuery={handleHelpSelectQuery}
+        visible={isHelpSheetVisible}
       />
     </View>
   );

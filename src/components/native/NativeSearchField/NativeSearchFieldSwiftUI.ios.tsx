@@ -1,8 +1,9 @@
-import { HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
+import { Button, HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   animation,
   Animation,
+  buttonStyle,
   frame,
   glassEffect,
   multilineTextAlignment,
@@ -36,6 +37,7 @@ export default function NativeSearchFieldSwiftUI({
   accessibilityLabel: label,
   onChangeText,
   onFocusChange,
+  onPressHelp,
   onSubmit,
   placeholder = 'Pesquisar',
   value,
@@ -99,6 +101,21 @@ export default function NativeSearchFieldSwiftUI({
           placeholder={placeholder}
           text={text}
         />
+        {focused && !value && onPressHelp ? (
+          <Button
+            modifiers={[
+              buttonStyle('plain'),
+              padding({ all: 0 }),
+              accessibilityLabel('Ajuda da pesquisa'),
+            ]}
+            onPress={() => {
+              triggerLightImpactHaptic();
+              onPressHelp();
+            }}
+          >
+            <Image color="#8B8B93" size={18} systemName="questionmark.circle" />
+          </Button>
+        ) : null}
       </HStack>
     </Host>
   );

@@ -71,11 +71,14 @@ function ResultHeader({
   const context = result.hideQueryContext
     ? undefined
     : (result.context ?? (query !== result.header.title ? query : undefined));
+  const shouldApplyCompactTitleOffset = !isLarge && !result.hideQueryContext;
   return (
     <VStack
       alignment="leading"
       spacing={spacing.xxs}
-      modifiers={!isLarge ? [offset({ y: COMPACT_TITLE_OFFSET_Y })] : undefined}
+      modifiers={
+        shouldApplyCompactTitleOffset ? [offset({ y: COMPACT_TITLE_OFFSET_Y })] : undefined
+      }
     >
       {context ? (
         <Text
@@ -87,14 +90,25 @@ function ResultHeader({
           {context}
         </Text>
       ) : null}
-      <Label
-        systemImage={asSymbol(result.header.systemImage)}
-        title={result.header.title}
-        modifiers={[
-          font({ textStyle: 'headline', weight: 'bold', design: 'rounded' }),
-          semanticStyle(),
-        ]}
-      />
+      {result.header.systemImage ? (
+        <Label
+          systemImage={asSymbol(result.header.systemImage)}
+          title={result.header.title}
+          modifiers={[
+            font({ textStyle: 'headline', weight: 'bold', design: 'rounded' }),
+            semanticStyle(),
+          ]}
+        />
+      ) : (
+        <Text
+          modifiers={[
+            font({ textStyle: 'headline', weight: 'bold', design: 'rounded' }),
+            semanticStyle(),
+          ]}
+        >
+          {result.header.title}
+        </Text>
+      )}
       {result.header.subtitle ? (
         <Text
           modifiers={[
@@ -258,6 +272,7 @@ const COMPACT_EXTRA_TOP_INSET = 20;
 const COMPACT_SINGLE_DAY_ROUTE_EXTRA_INSET = 10;
 const COMPACT_ROUTE_PAGER_EXTRA_TOP_INSET = 4;
 const COMPACT_CLIENT_EXTRA_TOP_INSET = 0;
+const COMPACT_FINANCIAL_EXTRA_TOP_INSET = 4;
 const SEARCH_RESULT_HORIZONTAL_INSET = 16;
 
 function ResultContent({
@@ -299,13 +314,16 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
 
   const isSingleDayRoute = Boolean(model.singleDayRoute);
   const isClient = Boolean(model.isClient);
+  const isFinancialLayout = Boolean(model.isFinancialLayout);
   const routeSingleDayExtra =
     !isLarge && isSingleDayRoute ? COMPACT_SINGLE_DAY_ROUTE_EXTRA_INSET : 0;
   const compactTopInset = model.routePager
     ? COMPACT_ROUTE_PAGER_EXTRA_TOP_INSET
     : isClient
       ? COMPACT_CLIENT_EXTRA_TOP_INSET
-      : COMPACT_EXTRA_TOP_INSET + routeSingleDayExtra;
+      : isFinancialLayout
+        ? COMPACT_FINANCIAL_EXTRA_TOP_INSET
+        : COMPACT_EXTRA_TOP_INSET + routeSingleDayExtra;
   const topPadding = isLarge ? spacing.xxl : spacing.xxl + compactTopInset;
 
   const contentModifiers = model.routePager

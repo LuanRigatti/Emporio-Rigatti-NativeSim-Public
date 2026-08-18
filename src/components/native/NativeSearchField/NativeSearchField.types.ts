@@ -2,6 +2,7 @@ export type NativeSearchFieldProps = {
   value: string;
   onChangeText: (value: string) => void;
   onFocusChange?: (focused: boolean) => void;
+  onPressHelp?: () => void;
   onSubmit?: (value: string) => void;
   placeholder?: string;
   accessibilityLabel?: string;

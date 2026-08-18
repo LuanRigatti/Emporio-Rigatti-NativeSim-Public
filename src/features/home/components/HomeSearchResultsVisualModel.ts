@@ -45,7 +45,7 @@ export type HomeSearchVisualResult = {
   context?: string;
   header?: {
     subtitle?: string;
-    systemImage: string;
+    systemImage?: string;
     title: string;
   };
   hideQueryContext?: boolean;
@@ -65,6 +65,7 @@ export type HomeSearchResultVisualModel = HomeSearchVisualResult & {
   routePager?: boolean;
   singleDayRoute?: boolean;
   isClient?: boolean;
+  isFinancialLayout?: boolean;
 };
 
 const MONTH_NAMES = [
@@ -604,12 +605,21 @@ export function createHomeSearchResultVisualModel(
   const description = unavailableDescription(result, presentation);
   const isClient = result.type === 'client';
   const isRoute = result.type === 'routeSummary';
+  const isFinancialMetric = result.type === 'financialMetric' && !result.data.clientName;
+  const isPeriodSummary = result.type === 'periodSummary';
+  const isFactorySummaryWithPeriod =
+    result.type === 'factorySummary' && Boolean(result.data.period);
+  const isFinancialLayout = isFinancialMetric || isPeriodSummary || isFactorySummaryWithPeriod;
+
   const isSingleDayRoute =
     isRoute && (result.data.period.kind === 'date' || result.data.period.kind === 'dayMonth');
+  const hideQueryContext = isRoute || isClient || isFinancialLayout;
+  const systemImage = isFinancialLayout ? undefined : iconForResult(result.type);
+
   const primaryItem: HomeSearchVisualResult = {
-    ...(isRoute || isClient ? { hideQueryContext: true } : {}),
+    ...(hideQueryContext ? { hideQueryContext: true } : {}),
     header: {
-      systemImage: iconForResult(result.type),
+      ...(systemImage ? { systemImage } : {}),
       title: presentation.primaryTitle ?? result.title,
     },
     id: result.id,
@@ -643,5 +653,6 @@ export function createHomeSearchResultVisualModel(
     ...(routeItems ? { routePager: true } : {}),
     ...(isSingleDayRoute ? { singleDayRoute: true } : {}),
     ...(isClient ? { isClient: true } : {}),
+    ...(isFinancialLayout ? { isFinancialLayout: true } : {}),
   };
 }

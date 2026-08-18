@@ -269,4 +269,82 @@ describe('HomeSearchResultVisualModel', () => {
     expect(model.sections[0].rows.find((row) => row.id === 'revenue-share')?.value).toBe('10,5%');
     expect(model.sections[0].rows.find((row) => row.id === 'profit-share')?.value).toBe('12,3%');
   });
+
+  it('standardizes financialMetric results with isFinancialLayout, hides query context and removes header icon', () => {
+    const financialResult: Extract<HomeSearchResult, { type: 'financialMetric' }> = {
+      type: 'financialMetric',
+      id: 'financialMetric:revenue:global:faturamento-agosto',
+      title: 'Faturamento',
+      score: 2000,
+      data: {
+        available: true,
+        metric: 'revenue',
+        period: { kind: 'month', month: 8, year: 2026 },
+        unit: 'currency',
+        value: 7271.7,
+        supportingData: {
+          bucketsSold: 150,
+          deliveryCount: 30,
+          revenue: 7271.7,
+          totalCosts: 2500,
+        },
+      },
+      relations: {},
+    };
+
+    const model = createHomeSearchResultVisualModel(
+      response(
+        {
+          ...baseQuery,
+          original: 'Faturamento agosto',
+          period: { kind: 'month', month: 8, year: 2026 },
+          financialMetric: 'revenue',
+        },
+        [financialResult],
+      ),
+    );
+
+    expect(model.isFinancialLayout).toBe(true);
+    expect(model.hideQueryContext).toBe(true);
+    expect(model.header?.systemImage).toBeUndefined();
+    expect(model.header?.title).toBe('Agosto de 2026');
+    expect(model.metric?.value).toBe('R$\u00a07.271,70');
+    expect(model.sections[0].title).toBe('Base do cálculo');
+  });
+
+  it('preserves header icon for financialMetric with explicit client scope', () => {
+    const clientFinancialResult: Extract<HomeSearchResult, { type: 'financialMetric' }> = {
+      type: 'financialMetric',
+      id: 'financialMetric:revenue:client:luciano:faturamento-luciano-agosto',
+      title: 'Luciano',
+      score: 2500,
+      data: {
+        available: true,
+        clientId: 'client:luciano',
+        clientName: 'Luciano',
+        metric: 'revenue',
+        period: { kind: 'month', month: 8, year: 2026 },
+        unit: 'currency',
+        value: 1200,
+      },
+      relations: { clientId: 'client:luciano' },
+    };
+
+    const model = createHomeSearchResultVisualModel(
+      response(
+        {
+          ...baseQuery,
+          original: 'Faturamento Luciano agosto',
+          text: 'Luciano',
+          period: { kind: 'month', month: 8, year: 2026 },
+          financialMetric: 'revenue',
+        },
+        [clientFinancialResult],
+      ),
+    );
+
+    expect(model.isFinancialLayout).toBeFalsy();
+    expect(model.header?.systemImage).toBe('chart.bar.fill');
+    expect(model.header?.title).toBe('Luciano');
+  });
 });

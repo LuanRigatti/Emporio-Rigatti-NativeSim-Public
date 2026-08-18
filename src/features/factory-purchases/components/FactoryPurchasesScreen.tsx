@@ -275,6 +275,7 @@ function PurchaseRow({
       <View style={styles.purchaseActions}>
         <NativeButton
           accessibilityLabel="Adicionar detalhes da compra"
+          haptic="light"
           label="Adicionar"
           onPress={onPress}
           variant="surface"

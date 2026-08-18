@@ -566,6 +566,63 @@ As telas devem reutilizar repositories/services/hooks existentes, consultar
 apenas o período ou entidade necessário e atualizar a UI imediatamente após
 uma operação confirmada.
 
+## Padronização de Haptic Feedback e Lifecycle do Shimmer na Home Search
+
+### Funcionalidade implementada
+
+1. **Padronização de Haptic Feedback:**
+   - Reutilização exclusiva do helper `triggerLightImpactHaptic()` de `src/utils/haptics.ts` (`Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)`) em todos os pontos de entrada de toque das abas e telas principais:
+     - **Finanças:** Cards de *Faturamento Mensal* e *Lucro Líquido Mensal*.
+     - **Home / Dashboard:** Widgets de *Recebimentos em aberto* e *Documentos*, além do foco na barra de busca (*Search Bar*).
+     - **Registrar:** Cards de *Registrar Entrega* e *Registrar Dados Diários*, e botão *Adicionar* da tela de Dados Diários.
+     - **Configurações e Subtelas:** Centralização no componente `SettingItem` (cobrindo todas as 18+ linhas da raiz, Dados, Fábrica, Backup e lista de Clientes), botões de ação e rotas de histórico de localização.
+2. **Correção do Lifecycle do Shimmer no Placeholder da Home Search:**
+   - Eliminação da trava estática `startedEntryKey` que congelava a animação após o campo perder o foco (blur).
+   - Execução de animação `Animated.timing` single-shot (2800ms) governada pelo ciclo de visibilidade (`wasVisibleRef`, `hasAnimatedForCurrentVisibilityRef` e `lastEntryKeyRef`):
+     - Executa exatamente uma passagem ao abrir a Home e ao retornar de uma sessão de busca.
+     - Interrompe e reseta com segurança ao focar ou digitar.
+     - Re-renders com `visible === true` não reiniciam indevidamente a animação.
+
+### Comportamento final
+
+- Toque nos cards e linhas de navegação aciona imediatamente um feedback tátil leve e firme, sem atrasar transições nem gerar disparos duplicados.
+- Ao entrar em foco na barra de busca da Home, o haptic dispara uma única vez no evento nativo de foco.
+- O shimmer do placeholder da Home executa uma única passagem por ciclo de visibilidade e para de forma suave, sem loop contínuo e sem congelamentos visuais.
+
+### Arquivos principais
+
+- `src/app/(tabs)/financeiro.tsx`
+- `src/app/(tabs)/dashboard.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/app/clientes.tsx`
+- `src/features/settings/components/SettingItem.tsx`
+- `src/features/factory-purchases/components/FactoryPurchasesScreen.tsx`
+- `src/features/location/components/LocationTrackingScreen.tsx`
+- `src/components/native/NativeSearchField/NativeSearchFieldSwiftUI.ios.tsx`
+- `src/components/native/NativeSearchField/NativeSearchField.expo.tsx`
+- `src/components/native/NativeSearchField/NativeSearchPlaceholderShimmer.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema alterado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado nos arquivos alterados: 0 erros.
+- Jest (`tests/finance`, `tests/invoices`, `tests/deliveries`, `tests/costs`, `tests/clients`, `tests/firestore`, `tests/routes`, `tests/home`): todos os testes passando.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- Haptic feedback físico é executado exclusivamente em dispositivos iOS/Android com suporte ao motor háptico (no web é no-op seguro).
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Commit: `58e373c`.
+- Mensagem: `feat(ui): padronizar haptic feedback no app e ajustar lifecycle do shimmer na home search`.
+
 ## Flags atuais
 
 

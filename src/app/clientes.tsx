@@ -114,7 +114,10 @@ export default function ClientsRoute() {
               color={theme.colors.textPrimary}
               fallbackIcon="refresh"
               interactiveGlass
-              onPress={() => void reload()}
+              onPress={() => {
+                triggerLightImpactHaptic();
+                void reload();
+              }}
               size={theme.sizes.iconMedium}
               systemImage="arrow.clockwise"
             />

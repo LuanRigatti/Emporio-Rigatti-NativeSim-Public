@@ -132,13 +132,13 @@ export function LocationTrackingScreen() {
   );
 
   const handleStart = useCallback(async () => {
+    triggerLightImpactHaptic();
     setBusy(true);
     setTrackingError(null);
 
     try {
       const startedRoute = await locationTrackingService.startRouteTracking(createRouteId());
       setRoute(startedRoute);
-      triggerLightImpactHaptic();
     } catch (error) {
       setTrackingError({
         code: error instanceof RouteTrackingError ? error.code : undefined,
@@ -153,6 +153,7 @@ export function LocationTrackingScreen() {
   const handleStop = useCallback(async () => {
     if (!route) return;
 
+    triggerLightImpactHaptic();
     setBusy(true);
     setTrackingError(null);
 
@@ -160,7 +161,6 @@ export function LocationTrackingScreen() {
       const finishedRoute = await locationTrackingService.stopRouteTracking(route.routeId);
       setRoute(finishedRoute ?? (await locationTrackingService.getRoute()));
       await refreshHistory(selectedPeriod);
-      triggerLightImpactHaptic();
     } catch (error) {
       setTrackingError({
         code: error instanceof RouteTrackingError ? error.code : undefined,
@@ -187,6 +187,14 @@ export function LocationTrackingScreen() {
       }
     },
     [refreshHistory, selectedPeriod],
+  );
+
+  const handleOpenRoute = useCallback(
+    (sessionId: string) => {
+      triggerLightImpactHaptic();
+      router.push(`/localizacao/${encodeURIComponent(sessionId)}`);
+    },
+    [router],
   );
 
   const routeHistoryByDay = useMemo(() => {
@@ -267,7 +275,7 @@ export function LocationTrackingScreen() {
                   <RouteHistoryCard
                     key={session.id}
                     onDelete={() => void handleDeleteRoute(session.id)}
-                    onPress={() => router.push(`/localizacao/${encodeURIComponent(session.id)}`)}
+                    onPress={() => handleOpenRoute(session.id)}
                     session={session}
                     theme={theme}
                   />

@@ -46,7 +46,10 @@ export default function NativeSearchPlaceholderShimmer({
   const [textWidth, setTextWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
   const [shimmerProgress] = useState(() => new Animated.Value(0));
-  const startedEntryKey = useRef<number | null>(null);
+  const wasVisibleRef = useRef(false);
+  const hasAnimatedForCurrentVisibilityRef = useRef(false);
+  const lastEntryKeyRef = useRef(entryKey);
+  const activeAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const handleTextLayout = (event: TextLayoutEvent) => {
     const nextWidth = Math.ceil(event.nativeEvent.lines[0]?.width ?? 0);
@@ -59,33 +62,57 @@ export default function NativeSearchPlaceholderShimmer({
   };
 
   useEffect(() => {
-    shimmerProgress.stopAnimation();
-
-    if (
-      entryKey <= 0 ||
-      textWidth <= 0 ||
-      containerWidth <= 0 ||
-      !visible ||
-      reduceMotionEnabled ||
-      startedEntryKey.current === entryKey
-    ) {
+    if (!visible || reduceMotionEnabled) {
+      if (activeAnimationRef.current) {
+        activeAnimationRef.current.stop();
+        activeAnimationRef.current = null;
+      }
+      shimmerProgress.setValue(0);
+      wasVisibleRef.current = false;
+      hasAnimatedForCurrentVisibilityRef.current = false;
       return undefined;
     }
 
-    startedEntryKey.current = entryKey;
-    shimmerProgress.setValue(0);
+    if (!wasVisibleRef.current || lastEntryKeyRef.current !== entryKey) {
+      wasVisibleRef.current = true;
+      lastEntryKeyRef.current = entryKey;
+      hasAnimatedForCurrentVisibilityRef.current = false;
+    }
 
-    const animation = Animated.timing(shimmerProgress, {
-      duration: 2800,
-      easing: Easing.inOut(Easing.quad),
-      toValue: 1,
-      useNativeDriver: true,
-    });
+    if (textWidth <= 0 || containerWidth <= 0) {
+      return undefined;
+    }
 
-    animation.start();
+    if (!hasAnimatedForCurrentVisibilityRef.current) {
+      hasAnimatedForCurrentVisibilityRef.current = true;
+
+      if (activeAnimationRef.current) {
+        activeAnimationRef.current.stop();
+      }
+
+      shimmerProgress.setValue(0);
+
+      const animation = Animated.timing(shimmerProgress, {
+        duration: 2800,
+        easing: Easing.inOut(Easing.quad),
+        toValue: 1,
+        useNativeDriver: true,
+      });
+
+      activeAnimationRef.current = animation;
+
+      animation.start(({ finished }) => {
+        if (finished) {
+          activeAnimationRef.current = null;
+        }
+      });
+    }
 
     return () => {
-      animation.stop();
+      if (activeAnimationRef.current) {
+        activeAnimationRef.current.stop();
+        activeAnimationRef.current = null;
+      }
     };
   }, [containerWidth, entryKey, reduceMotionEnabled, shimmerProgress, textWidth, visible]);
 
@@ -146,7 +173,12 @@ export default function NativeSearchPlaceholderShimmer({
             maskElement={
               <Text
                 numberOfLines={1}
-                style={[theme.typography.body, styles.searchText, styles.maskText, styles.shiftedText]}
+                style={[
+                  theme.typography.body,
+                  styles.searchText,
+                  styles.maskText,
+                  styles.shiftedText,
+                ]}
               >
                 {placeholder}
               </Text>

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme';
+import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 import SettingsIcon from './SettingsIcon';
 import type { SettingsIconProps } from './SettingsIcon.types';
@@ -26,6 +27,13 @@ export function SettingItem({
   trailingInset = 8,
 }: SettingItemProps) {
   const { theme } = useAppTheme();
+  const handlePress = onPress
+    ? () => {
+        triggerLightImpactHaptic();
+        onPress();
+      }
+    : undefined;
+
   const content = (
     <>
       <View style={styles.iconSlot}>
@@ -63,7 +71,7 @@ export function SettingItem({
       accessibilityLabel={description ? `${title}, ${description}` : title}
       accessibilityRole={onPress ? 'button' : undefined}
       disabled={!onPress}
-      onPress={onPress}
+      onPress={handlePress}
       style={({ pressed }) => [
         styles.row,
         {

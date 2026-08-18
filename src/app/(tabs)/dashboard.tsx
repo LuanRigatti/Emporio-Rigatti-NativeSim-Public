@@ -222,6 +222,16 @@ export default function Home() {
     dispatchSearchFlow({ type: 'DISMISS_COMPLETED' });
   }, [searchFlow.activeSearchId, searchFlow.presentationId]);
 
+  const handleOpenRecebimentos = () => {
+    triggerLightImpactHaptic();
+    router.push('/pagamentos-em-aberto');
+  };
+
+  const handleOpenDocumentos = () => {
+    triggerLightImpactHaptic();
+    router.push('/notas-fiscais-boletos');
+  };
+
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -317,7 +327,7 @@ export default function Home() {
         <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
           <PremiumCard
             accessibilityLabel="Abrir recebimentos em aberto"
-            onPress={() => router.push('/pagamentos-em-aberto')}
+            onPress={handleOpenRecebimentos}
             style={[
               styles.widgetCard,
               { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
@@ -337,7 +347,7 @@ export default function Home() {
           </PremiumCard>
           <PremiumCard
             accessibilityLabel="Abrir documentos"
-            onPress={() => router.push('/notas-fiscais-boletos')}
+            onPress={handleOpenDocumentos}
             style={[
               styles.widgetCard,
               {

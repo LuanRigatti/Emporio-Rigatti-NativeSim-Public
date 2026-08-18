@@ -15,6 +15,7 @@ import {
 import { PlatformColor } from 'react-native';
 import { useEffect, useState } from 'react';
 import { roundedFont } from '../nativeTypography';
+import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
@@ -88,6 +89,9 @@ export default function NativeSearchFieldSwiftUI({
             onSubmitModifier(handleNativeSubmit),
           ]}
           onFocusChange={(nextFocused) => {
+            if (nextFocused) {
+              triggerLightImpactHaptic();
+            }
             setFocused(nextFocused);
             onFocusChange?.(nextFocused);
           }}

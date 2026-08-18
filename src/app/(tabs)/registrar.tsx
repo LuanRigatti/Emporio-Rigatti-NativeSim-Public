@@ -46,6 +46,16 @@ function RegistrarModeSelection() {
   const { theme } = useAppTheme();
   const router = useRouter();
 
+  const handleOpenRegistrarEntrega = () => {
+    triggerLightImpactHaptic();
+    router.push('/registrar-entrega');
+  };
+
+  const handleOpenRegistrarDados = () => {
+    triggerLightImpactHaptic();
+    router.push('/registrar-dados-diarios');
+  };
+
   const header = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -79,7 +89,7 @@ function RegistrarModeSelection() {
           <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
             <PremiumCard
               accessibilityLabel="Abrir Registrar Entrega"
-              onPress={() => router.push('/registrar-entrega')}
+              onPress={handleOpenRegistrarEntrega}
               style={[
                 styles.widgetCard,
                 { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
@@ -107,7 +117,7 @@ function RegistrarModeSelection() {
             </PremiumCard>
             <PremiumCard
               accessibilityLabel="Abrir Registrar Dados"
-              onPress={() => router.push('/registrar-dados-diarios')}
+              onPress={handleOpenRegistrarDados}
               style={[
                 styles.widgetCard,
                 { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
@@ -184,6 +194,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   };
 
   const openDailyDataSheet = useCallback(() => {
+    triggerLightImpactHaptic();
     setDailySheetInitialValues({
       ...EMPTY_DAILY_DATA_VALUES,
       fuelPrice: getLatestDailyValue('fuelPrice'),

@@ -18,6 +18,7 @@ import { financialCalculationService } from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
+import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 function monthShortLabel(month: number): string {
   return (
@@ -135,6 +136,22 @@ export default function PrototypeFinanceiro() {
     />
   );
 
+  const handleOpenFaturamento = () => {
+    triggerLightImpactHaptic();
+    router.push({
+      pathname: '/faturamento-mensal',
+      params: { period: selectedPeriod },
+    });
+  };
+
+  const handleOpenLucroLiquido = () => {
+    triggerLightImpactHaptic();
+    router.push({
+      pathname: '/lucro-liquido-mensal',
+      params: { period: selectedPeriod },
+    });
+  };
+
   return (
     <PremiumScreen
       contentContainerStyle={[styles.content, { marginTop: 0 }]}
@@ -149,12 +166,7 @@ export default function PrototypeFinanceiro() {
       <View style={styles.header}>{header}</View>
       <PremiumCard
         accessibilityLabel="Abrir detalhes do faturamento"
-        onPress={() =>
-          router.push({
-            pathname: '/faturamento-mensal',
-            params: { period: selectedPeriod },
-          })
-        }
+        onPress={handleOpenFaturamento}
         style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
       >
         <View style={styles.heroHeader}>
@@ -179,12 +191,7 @@ export default function PrototypeFinanceiro() {
       </PremiumCard>
       <PremiumCard
         accessibilityLabel="Abrir detalhes do lucro líquido"
-        onPress={() =>
-          router.push({
-            pathname: '/lucro-liquido-mensal',
-            params: { period: selectedPeriod },
-          })
-        }
+        onPress={handleOpenLucroLiquido}
         style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
       >
         <View style={styles.heroHeader}>

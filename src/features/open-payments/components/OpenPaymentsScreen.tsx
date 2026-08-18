@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeSwipeActionsList } from '@/components/native';
+import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
@@ -116,33 +116,44 @@ export function OpenPaymentsScreen() {
               <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
                 {formatDateAsDayMonthYear(group.date)}
               </Text>
-              <GlassCard
-                style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-              >
-                <NativeSwipeActionsList
-                  action={{
-                    label: 'Concluído',
-                    systemImage: 'checkmark.circle.fill',
-                    tint: theme.colors.success,
-                  }}
-                  colors={{
-                    border: theme.colors.borderStrong,
-                    selectionContent: theme.colors.selectionContent,
-                    selectionSurface: theme.colors.selectionSurface,
-                    textPrimary: theme.colors.textPrimary,
-                    textSecondary: theme.colors.textSecondary,
-                  }}
-                  items={group.items.map((item) => ({
-                    id: item.id,
-                    subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
-                    title: item.client,
-                    trailingText: item.amount,
-                  }))}
-                  compact
-                  onDelete={handlePaymentSwipe}
-                  trailingValueAlignment="top"
-                />
-              </GlassCard>
+              {group.items.map((item) => (
+                <NativeCardContextMenu
+                  key={item.id}
+                  actions={[
+                    {
+                      id: 'complete-payment',
+                      onPress: () => handlePaymentSwipe(item.id),
+                      systemImage: 'checkmark.circle.fill',
+                      title: 'Concluído',
+                    },
+                  ]}
+                  cornerRadius={theme.radius.xl + theme.spacing.sm}
+                  style={styles.contextMenu}
+                >
+                  <GlassCard
+                    style={[
+                      styles.clientCard,
+                      { borderRadius: theme.radius.xl + theme.spacing.sm },
+                    ]}
+                  >
+                    <View style={styles.cardContent}>
+                      <View style={styles.clientInfo}>
+                        <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+                          {item.client}
+                        </Text>
+                        <Text
+                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                        >
+                          {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+                        </Text>
+                      </View>
+                      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+                        {item.amount}
+                      </Text>
+                    </View>
+                  </GlassCard>
+                </NativeCardContextMenu>
+              ))}
             </View>
           ))}
         </View>
@@ -164,7 +175,14 @@ const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
   clientList: { width: '100%' },
-  clientCard: { paddingHorizontal: 16, paddingVertical: 0 },
+  clientCard: { paddingHorizontal: 16, paddingVertical: 14 },
+  cardContent: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  clientInfo: { gap: 2 },
+  contextMenu: { width: '100%' },
   dateGroup: { gap: 10 },
   groupTitle: { marginLeft: 12 },
   totalCard: { padding: 16 },

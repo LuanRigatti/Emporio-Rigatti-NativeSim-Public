@@ -627,6 +627,61 @@ uma operação confirmada.
 - Commit: `58e373c`.
 - Mensagem: `feat(ui): padronizar haptic feedback no app e ajustar lifecycle do shimmer na home search`.
 
+## Context Menu Nativo e Preview sem Rebarbas em Recebimentos em Aberto
+
+### Funcionalidade implementada
+
+1. **Transformação dos itens em cards individuais com Context Menu Nativo:**
+   - Substituição do container de swipe por cards `GlassCard` independentes para cada entrega pendente na tela **Recebimentos em aberto** (`OpenPaymentsScreen.tsx`).
+   - O long-press agora responde em 100% da área física do card (nome, quantidade, valor, bordas e espaço vazio), sem reflow de layout ou salto de textos.
+2. **Criação do módulo nativo UIKit `modules/native-card-context-menu`:**
+   - Implementação de `NativeCardContextMenuView` (`ExpoView`) com `UIContextMenuInteraction` e `UIContextMenuInteractionDelegate` direto no UIKit.
+   - Fornecimento de `UITargetedPreview` com `UIPreviewParameters` configurado com `visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius)` e `backgroundColor = .clear` tanto para o highlight inicial (`contextMenuInteraction(_:previewForHighlightingMenuWithConfiguration:)`) quanto para o fechamento (`contextMenuInteraction(_:previewForDismissingMenuWithConfiguration:)`).
+   - Eliminação completa das rebarbas e cantos retos (90º) causados pelo snapshot retangular padrão do UIKit nos primeiros frames da animação de lift.
+3. **Ponte React Native e Fallback:**
+   - Componente `NativeCardContextMenu.ios.tsx` consome o módulo nativo com suporte a `cornerRadius`, repassa as ações nativas do iOS (SF Symbol `checkmark.circle.fill` / "Concluído") e provê fallback gracioso para `@expo/ui` caso o Development Build ainda não tenha sido recompilado.
+
+### Comportamento final
+
+- Toque longo em qualquer ponto do card aciona imediatamente o lift nativo do iOS com haptic do sistema operacional.
+- O preview do card mantém a geometria com cantos perfeitamente arredondados desde o frame 0 do lift até o fechamento.
+- A ação "Concluído" aciona o callback `handlePaymentSwipe(deliveryId)` preservando a mutação no Firestore, o total em aberto e os agrupamentos por data.
+
+### Arquivos principais
+
+- `modules/native-card-context-menu/package.json`
+- `modules/native-card-context-menu/expo-module.config.json`
+- `modules/native-card-context-menu/ios/NativeCardContextMenu.podspec`
+- `modules/native-card-context-menu/ios/NativeCardContextMenuModule.swift`
+- `modules/native-card-context-menu/ios/NativeCardContextMenuView.swift`
+- `modules/native-card-context-menu/src/NativeCardContextMenuView.ios.tsx`
+- `modules/native-card-context-menu/src/NativeCardContextMenuView.tsx`
+- `modules/native-card-context-menu/src/index.ts`
+- `modules/native-card-context-menu/index.ts`
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.types.ts`
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.ios.tsx`
+- `src/features/open-payments/components/OpenPaymentsScreen.tsx`
+- `tsconfig.json`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema afetado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado nos arquivos criados e modificados: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/deliveries tests/invoices`): 3 suítes / 23 testes passando.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- A ativação do `UIContextMenuInteractionDelegate` customizado no UIKit com `visiblePath` arredondado passa a surtir efeito no iPhone após a recompilação do Development Build no Mac/Xcode. Antes da recompilação, a aplicação opera através do fallback em `@expo/ui`.
+
+### Commit e publicação
+
+- Alteração validada localmente (não commitada / sem commit).
+
 ## Flags atuais
 
 

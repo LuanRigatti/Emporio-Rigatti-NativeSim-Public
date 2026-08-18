@@ -1,10 +1,19 @@
+import { requireNativeView } from 'expo';
 import { MenuView, type MenuAction } from '@expo/ui/community/menu';
+import type { ComponentType } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import type {
   NativeCardContextMenuAction,
   NativeCardContextMenuProps,
 } from './NativeCardContextMenu.types';
+
+let NativeView: ComponentType<any> | null = null;
+try {
+  NativeView = requireNativeView('NativeCardContextMenu');
+} catch {
+  NativeView = null;
+}
 
 function toMenuAction(action: NativeCardContextMenuAction): MenuAction {
   return {
@@ -21,9 +30,34 @@ function toMenuAction(action: NativeCardContextMenuAction): MenuAction {
 export default function NativeCardContextMenu({
   actions,
   children,
+  cornerRadius = 0,
   style,
   title,
 }: NativeCardContextMenuProps) {
+  if (NativeView) {
+    const rawActions = actions.map((action) => ({
+      id: action.id,
+      title: action.title,
+      systemImage: action.systemImage,
+      destructive: action.destructive ?? false,
+      disabled: action.disabled ?? false,
+    }));
+
+    return (
+      <NativeView
+        actions={rawActions}
+        cornerRadius={cornerRadius}
+        onAction={({ nativeEvent }: { nativeEvent: { id: string } }) => {
+          actions.find((action) => action.id === nativeEvent.id)?.onPress();
+        }}
+        style={style}
+        title={title}
+      >
+        {children}
+      </NativeView>
+    );
+  }
+
   return (
     <MenuView
       actions={actions.map(toMenuAction)}

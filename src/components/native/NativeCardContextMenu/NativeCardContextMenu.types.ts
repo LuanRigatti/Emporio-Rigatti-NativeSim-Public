@@ -16,4 +16,5 @@ export type NativeCardContextMenuProps = {
   actions: readonly NativeCardContextMenuAction[];
   style?: StyleProp<ViewStyle>;
   title?: string;
+  cornerRadius?: number;
 };

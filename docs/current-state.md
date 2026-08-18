@@ -684,6 +684,64 @@ uma operação confirmada.
 - Commit: `1967736`.
 - Mensagem: `feat(ui): implementar modulo UIKit nativo de context menu com visiblePath arredondado para cards`.
 
+## Padronização de Context Menu (NativeCardContextMenu) e Exclusão Sincronizada de Dados Diários
+
+### Funcionalidade implementada
+
+1. **Padronização completa de Context Menu em todas as áreas de cards:**
+   - **Histórico (`HistoryScreen` / `DeliveryCard`):** Card individual consome `NativeCardContextMenu` com ação `Excluir` (`trash`, destrutiva) e `cornerRadius` ajustado ao layout.
+   - **Home (`TodayDeliveriesCard`):** Cada linha de entrega de hoje opera com `NativeCardContextMenu` cobrindo 100% da área física de toque com ação `Excluir`.
+   - **Documentos (`InvoicesScreen`):** Substituição de `NativeSwipeActionsList` por cards com `NativeCardContextMenu`, disponibilizando a ação `Emitido` (`checkmark.seal.fill`) em cada nota fiscal e boleto.
+   - **Registrar (`RegistrarDeliveryScreen`):** Substituição de `NativeSwipeActionsList` por itens de entrega com `NativeCardContextMenu` e ação `Excluir` (`trash`).
+2. **Exclusão Completa e Sincronizada de Dados Diários (`RegistrarDailyDataScreen`):**
+   - Adição de `NativeCardContextMenu` no card de Dados Diários com ação `Excluir` (`trash`, destrutiva).
+   - Implementação de `deleteDaily(uid, date)` no `FirestoreDailyMonthlyDataSource` com `deleteDoc` no caminho `users/{uid}/dailyData/{date}`, remoção do mapa em memória e invalidação de cache de snapshot financeiro.
+   - Atualização de `saveSettingsDiff` para reconciliar chaves deletadas entre `previous` e `next`.
+   - Implementação de `deleteDailyData` no hook `useCostSettings` com atualização otimista local, persistência em `AsyncStorage`, exclusão no Firestore e rollback automático de estado em caso de falha remota com alerta amigável e trava `isDeleting` contra duplo toque.
+3. **Aprimoramento do Fallback Nativo com `<ContextMenu.Preview>` (`@expo/ui/swift-ui`):**
+   - Atualização de `NativeCardContextMenu.ios.tsx` para renderizar `<ContextMenu>` com `<ContextMenu.Trigger>`, `<ContextMenu.Items>` e `<ContextMenu.Preview>`, eliminando o escurecimento indesejado de linhas transparentes e recortes quadrados.
+   - **Home (`TodayDeliveriesCard`):** Fornecimento de preview opaco com `backgroundColor: theme.colors.surfaceElevated` e `borderRadius: theme.radius.lg`.
+   - **Registrar (`RegistrarDeliveryScreen`):** Manutenção do recorte arredondado real do card de entrega no preview.
+   - **Histórico (`DeliveryCard`):** Fornecimento de preview dedicado e individualizado para a linha selecionada com `backgroundColor: surfaceElevated`, `borderRadius: xl + sm` e largura integral, mantendo o `GlassCard` pai da lista agrupada intacto no fundo.
+
+### Comportamento final
+
+- Toque longo em qualquer ponto dos cards nas 5 áreas aciona o menu de contexto nativo com haptic nativo e sem reflow de texto.
+- Durante o long press, o card/linha selecionado permanece opaco, arredondado e destacado contra o fundo escurecido.
+- Exclusão de Dados Diários remove o registro da persistência real e local, sem reaparecer ao reabrir a tela ou o app.
+
+### Arquivos principais
+
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.types.ts`
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.ios.tsx`
+- `src/features/home/components/TodayDeliveriesCard.tsx`
+- `src/features/history/components/DeliveryCard.tsx`
+- `src/features/invoices/components/InvoicesScreen.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/hooks/useCostSettings.ts`
+- `src/services/costs/FirestoreDailyMonthlyDataSource.ts`
+- `tests/costs/FirestoreDailyMonthlyDataSource.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema alterado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/costs tests/deliveries tests/invoices tests/history tests/home tests/finance tests/factory`): 29 suítes / 286 testes passando.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- No Development Build atual (antes da recompilação do módulo UIKit no Mac/Xcode), a apresentação opera através do fallback SwiftUI (`@expo/ui/swift-ui`) com `<ContextMenu.Preview>`. A aplicação da máscara UIKit com `visiblePath` pré-cortado desde o frame 0 do lift entrará em vigor automaticamente após o próximo build nativo.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Status: Validado localmente com 0 erros e 286 testes passando; aguardando autorização para commit.
+
 ## Flags atuais
 
 

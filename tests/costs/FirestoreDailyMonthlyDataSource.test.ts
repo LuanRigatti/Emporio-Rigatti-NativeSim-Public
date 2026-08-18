@@ -9,6 +9,15 @@ import {
 } from '@/services/costs/FirestoreDailyMonthlyDataSource';
 import { expenseQueryForFinancialSelection } from '@/services/costs/financialExpenseQuery';
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn(() => Promise.resolve(null)),
+    setItem: jest.fn(() => Promise.resolve()),
+    removeItem: jest.fn(() => Promise.resolve()),
+  },
+}));
+
 const values = {
   estar: '10',
   fuel: '20',

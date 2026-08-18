@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeSwipeActionsList } from '@/components/native';
+import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -178,31 +178,59 @@ function DocumentTypeCard({
             <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
               {formatDateAsDayMonthYear(group.date)}
             </Text>
-            <NativeSwipeActionsList
-              action={{
-                label: 'Emitido',
-                systemImage: 'checkmark.seal.fill',
-                tint: theme.colors.success,
-              }}
-              colors={{
-                border: theme.colors.borderStrong,
-                selectionContent: theme.colors.selectionContent,
-                selectionSurface: theme.colors.selectionSurface,
-                textPrimary: theme.colors.textPrimary,
-                textSecondary: theme.colors.textSecondary,
-              }}
-              items={group.items.map((item) => ({
-                id: item.id,
-                subtitle: `${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`,
-                title: item.client,
-                trailingSystemImage: 'exclamationmark.circle',
-                trailingSystemImageColor: theme.colors.warning,
-                trailingText: item.amount,
-              }))}
-              compact
-              onDelete={onDelete}
-              trailingValueAlignment="top"
-            />
+            <View style={[styles.documentItemGroup, { gap: theme.spacing.xs }]}>
+              {group.items.map((item) => (
+                <NativeCardContextMenu
+                  actions={[
+                    {
+                      id: 'emit-document',
+                      onPress: () => onDelete(item.id),
+                      systemImage: 'checkmark.seal.fill',
+                      title: 'Emitido',
+                    },
+                  ]}
+                  cornerRadius={theme.radius.lg}
+                  key={item.id}
+                  style={styles.contextMenu}
+                >
+                  <View
+                    style={[
+                      styles.documentItemRow,
+                      {
+                        backgroundColor: theme.colors.surfaceElevated,
+                        borderRadius: theme.radius.lg,
+                        paddingHorizontal: theme.spacing.md,
+                        paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                      },
+                    ]}
+                  >
+                    <View style={styles.documentItemCopy}>
+                      <Text
+                        style={[
+                          theme.typography.callout,
+                          { color: theme.colors.textPrimary, fontWeight: '700' },
+                        ]}
+                      >
+                        {item.client}
+                      </Text>
+                      <Text
+                        style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                      >
+                        {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        theme.typography.body,
+                        { color: theme.colors.textPrimary, fontWeight: '600' },
+                      ]}
+                    >
+                      {item.amount}
+                    </Text>
+                  </View>
+                </NativeCardContextMenu>
+              ))}
+            </View>
           </View>
         ))
       ) : (
@@ -229,4 +257,13 @@ const styles = StyleSheet.create({
   typeTitle: { fontSize: 18, fontWeight: '700' },
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },
+  documentItemGroup: { width: '100%' },
+  contextMenu: { width: '100%' },
+  documentItemRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  documentItemCopy: { flex: 1, gap: 2 },
 });

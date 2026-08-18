@@ -306,6 +306,14 @@ export class FirestoreDailyMonthlyDataSource {
     return expense;
   }
 
+  public async deleteDaily(uid: string, date: string): Promise<void> {
+    const normalizedDate = normalizeDate(date);
+    const { deleteDoc, doc } = await import('firebase/firestore');
+    await deleteDoc(doc(await dailyCollectionFor(uid), normalizedDate));
+    this.daily.delete(normalizedDate);
+    void financialPeriodSnapshotCache.invalidate(uid, normalizedDate.slice(0, 7));
+  }
+
   public async loadAllAsCostSettings(uid: string): Promise<CostSettings> {
     return snapshotToCostSettings(await this.load(uid, { loadAll: true }));
   }
@@ -322,7 +330,9 @@ export class FirestoreDailyMonthlyDataSource {
     for (const date of dayKeys) {
       const before = previous.periods.day[date];
       const after = next.periods.day[date];
-      if (JSON.stringify(before) !== JSON.stringify(after) && after) {
+      if (before && !after) {
+        await this.deleteDaily(uid, date);
+      } else if (JSON.stringify(before) !== JSON.stringify(after) && after) {
         await this.saveDaily(uid, date, after);
       }
     }

@@ -178,8 +178,44 @@ export function useCostSettings() {
     [],
   );
 
+  const deleteDailyData = useCallback(
+    async (date: string): Promise<boolean> => {
+      const previousValue = settings.periods.day[date];
+      if (!previousValue) return true;
+
+      const nextSettings: CostSettings = {
+        periods: {
+          ...settings.periods,
+          day: Object.fromEntries(Object.entries(settings.periods.day).filter(([d]) => d !== date)),
+        },
+      };
+
+      setSettings(nextSettings);
+
+      try {
+        if (ENABLE_FIRESTORE_DAILY_MONTHLY && user && remoteActive) {
+          await firestoreDailyMonthlyDataSource.deleteDaily(user.id, date);
+        }
+        await localDailyDataDataSource.save(nextSettings);
+        previousSettings.current = nextSettings;
+        return true;
+      } catch (error) {
+        if (__DEV__) {
+          console.warn(
+            '[useCostSettings] Falha ao excluir dados diários no Firestore. Executando rollback.',
+            error,
+          );
+        }
+        setSettings(settings);
+        throw error;
+      }
+    },
+    [remoteActive, settings, user],
+  );
+
   return {
     addFieldValue,
+    deleteDailyData,
     getMonthlySum,
     getLatestDailyValue,
     getValues,

@@ -69,6 +69,21 @@ export function DeliveryCard({
     </GlassCard>
   );
 
+  const preview = (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+          width: '100%',
+        },
+      ]}
+    >
+      {content}
+    </View>
+  );
+
   return onDelete ? (
     <NativeCardContextMenu
       actions={[
@@ -80,6 +95,8 @@ export function DeliveryCard({
           title: 'Excluir',
         },
       ]}
+      cornerRadius={theme.radius.xl + theme.spacing.sm}
+      preview={preview}
     >
       {card}
     </NativeCardContextMenu>

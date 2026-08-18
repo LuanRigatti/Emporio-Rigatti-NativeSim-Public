@@ -13,6 +13,7 @@ export type NativeCardContextMenuAction = {
 
 export type NativeCardContextMenuProps = {
   children: ReactNode;
+  preview?: ReactNode;
   actions: readonly NativeCardContextMenuAction[];
   style?: StyleProp<ViewStyle>;
   title?: string;

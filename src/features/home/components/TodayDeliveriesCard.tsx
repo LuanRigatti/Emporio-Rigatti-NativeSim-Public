@@ -44,23 +44,28 @@ export function TodayDeliveriesCard({
 
       <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         <View style={{ gap: theme.spacing.xs }}>
-          {deliveries.map((delivery) => (
-            <NativeCardContextMenu
-              actions={[
-                {
-                  destructive: true,
-                  id: 'delete-delivery',
-                  onPress: () => onDelete(delivery.id),
-                  systemImage: 'trash',
-                  title: 'Excluir',
-                },
-              ]}
-              key={delivery.id}
-              style={{ width: '100%' }}
-            >
-              <View style={[styles.row, { padding: theme.spacing.md }]}>
+          {deliveries.map((delivery) => {
+            const rowContent = (isPreview: boolean) => (
+              <View
+                style={[
+                  styles.row,
+                  {
+                    backgroundColor: isPreview ? theme.colors.surfaceElevated : undefined,
+                    borderRadius: isPreview ? theme.radius.lg : undefined,
+                    padding: theme.spacing.md,
+                  },
+                ]}
+              >
                 <View style={styles.copy}>
-                  <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
+                  <Text
+                    style={[
+                      theme.typography.callout,
+                      {
+                        color: theme.colors.textPrimary,
+                        fontWeight: isPreview ? '700' : '400',
+                      },
+                    ]}
+                  >
                     {delivery.cliente}
                   </Text>
                   <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
@@ -72,8 +77,28 @@ export function TodayDeliveriesCard({
                   status={delivery.status}
                 />
               </View>
-            </NativeCardContextMenu>
-          ))}
+            );
+
+            return (
+              <NativeCardContextMenu
+                actions={[
+                  {
+                    destructive: true,
+                    id: 'delete-delivery',
+                    onPress: () => onDelete(delivery.id),
+                    systemImage: 'trash',
+                    title: 'Excluir',
+                  },
+                ]}
+                cornerRadius={theme.radius.lg}
+                key={delivery.id}
+                preview={rowContent(true)}
+                style={{ width: '100%' }}
+              >
+                {rowContent(false)}
+              </NativeCardContextMenu>
+            );
+          })}
         </View>
       </PremiumCard>
     </View>

@@ -1,22 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Alert, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
+  NativeCardContextMenu,
   NativeDailyDataSheet,
   NativeGlassBackButton,
   NativeGlassIconButton,
-  NativeSwipeActionsList,
 } from '@/components/native';
 import type {
   NativeBottomSheetConfirmation,
   NativeBottomSheetItem,
   NativeDailyDataValues,
-  NativeSwipeActionsListItem,
 } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
@@ -153,8 +152,15 @@ function RegistrarModeSelection() {
 export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
-  const { addFieldValue, getLatestDailyValue, getValues, isHydrated, setFieldValue } =
-    useCostSettings();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const {
+    addFieldValue,
+    deleteDailyData,
+    getLatestDailyValue,
+    getValues,
+    isHydrated,
+    setFieldValue,
+  } = useCostSettings();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [dailySheetInitialValues, setDailySheetInitialValues] = useState(EMPTY_DAILY_DATA_VALUES);
   const [routeDistance, setRouteDistance] = useState<RouteDistanceSummary | null>(null);
@@ -193,6 +199,18 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
     setFieldValue('day', dailyDate, 'fuelPrice', values.fuelPrice);
   };
 
+  const handleDeleteDailyData = useCallback(async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteDailyData(dailyDate);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível excluir os dados diários. Tente novamente.');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [dailyDate, deleteDailyData, isDeleting]);
+
   const openDailyDataSheet = useCallback(() => {
     triggerLightImpactHaptic();
     setDailySheetInitialValues({
@@ -230,25 +248,42 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
       >
         {hasDailyData ? (
           <View style={[styles.dailyDataList, { gap: theme.spacing.sm }]}>
-            <PremiumCard
-              style={[styles.dailyDataCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+            <NativeCardContextMenu
+              actions={[
+                {
+                  destructive: true,
+                  disabled: isDeleting,
+                  id: 'delete-daily-data',
+                  onPress: () => {
+                    void handleDeleteDailyData();
+                  },
+                  systemImage: 'trash',
+                  title: 'Excluir',
+                },
+              ]}
+              cornerRadius={theme.radius.xl + theme.spacing.sm}
+              style={styles.dailyDataContextWrapper}
             >
-              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                {formatDeliveryDate(dailyDate)}
-              </Text>
-              <View style={styles.dailyDataRows}>
-                <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
-                <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
-                <DailyDataRow
-                  label="Km"
-                  value={`${formatStoredNumber(String(totalKilometers))} km`}
-                />
-                <DailyDataRow
-                  label="Preço do combustível"
-                  value={formatStoredCost(dailyValues.fuelPrice)}
-                />
-              </View>
-            </PremiumCard>
+              <PremiumCard
+                style={[styles.dailyDataCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              >
+                <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                  {formatDeliveryDate(dailyDate)}
+                </Text>
+                <View style={styles.dailyDataRows}>
+                  <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
+                  <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
+                  <DailyDataRow
+                    label="Km"
+                    value={`${formatStoredNumber(String(totalKilometers))} km`}
+                  />
+                  <DailyDataRow
+                    label="Preço do combustível"
+                    value={formatStoredCost(dailyValues.fuelPrice)}
+                  />
+                </View>
+              </PremiumCard>
+            </NativeCardContextMenu>
           </View>
         ) : null}
       </PremiumScreen>
@@ -351,13 +386,6 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     });
     setSheetVisible(false);
   };
-  const handleDeleteBySwipe = useCallback(
-    (deliveryId: string) => {
-      triggerLightImpactHaptic();
-      void removeDelivery(deliveryId);
-    },
-    [removeDelivery],
-  );
   const handleSelectClient = useCallback(
     (item: NativeBottomSheetItem) => {
       const currentClient = clients.find((client) => client.clientId === item.id);
@@ -372,17 +400,6 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     setSheetVisible(visible);
     if (!visible) setSelectedClient(null);
   }, []);
-  const nativeDeliveryItems = useMemo<NativeSwipeActionsListItem[]>(
-    () =>
-      [...todayDeliveries].reverse().map((delivery) => ({
-        id: delivery.id,
-        subtitle: `${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`,
-        title: delivery.cliente,
-        titleBold: true,
-        trailingText: delivery.valor,
-      })),
-    [todayDeliveries],
-  );
 
   const header = (
     <NativeGlassHeader
@@ -421,7 +438,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                 styles.deliveryCard,
                 {
                   borderRadius: theme.radius.xl + theme.spacing.xl,
-                  paddingVertical: 0,
+                  padding: theme.spacing.md,
                   position: 'relative',
                 },
               ]}
@@ -435,20 +452,67 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
               >
                 Hoje
               </Text>
-              <NativeSwipeActionsList
-                colors={{
-                  border: theme.colors.borderStrong,
-                  selectionContent: theme.colors.selectionContent,
-                  selectionSurface: theme.colors.selectionSurface,
-                  textPrimary: theme.colors.textPrimary,
-                  textSecondary: theme.colors.textSecondary,
-                }}
-                compact
-                items={nativeDeliveryItems}
-                onDelete={handleDeleteBySwipe}
-                rowSpacing={theme.spacing.sm}
-                trailingValueAlignment="top"
-              />
+              <View
+                style={[
+                  styles.todayDeliveriesGroup,
+                  { gap: theme.spacing.xs, marginTop: theme.spacing.xl },
+                ]}
+              >
+                {[...todayDeliveries].reverse().map((delivery) => (
+                  <NativeCardContextMenu
+                    actions={[
+                      {
+                        destructive: true,
+                        id: 'delete-delivery',
+                        onPress: () => {
+                          void removeDelivery(delivery.id);
+                        },
+                        systemImage: 'trash',
+                        title: 'Excluir',
+                      },
+                    ]}
+                    cornerRadius={theme.radius.lg}
+                    key={delivery.id}
+                    style={styles.deliveryContextMenu}
+                  >
+                    <View
+                      style={[
+                        styles.deliveryItemRow,
+                        {
+                          backgroundColor: theme.colors.surfaceElevated,
+                          borderRadius: theme.radius.lg,
+                          paddingHorizontal: theme.spacing.md,
+                          paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                        },
+                      ]}
+                    >
+                      <View style={styles.deliveryItemCopy}>
+                        <Text
+                          style={[
+                            theme.typography.callout,
+                            { color: theme.colors.textPrimary, fontWeight: '700' },
+                          ]}
+                        >
+                          {delivery.cliente}
+                        </Text>
+                        <Text
+                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                        >
+                          {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          theme.typography.body,
+                          { color: theme.colors.textPrimary, fontWeight: '600' },
+                        ]}
+                      >
+                        {delivery.valor}
+                      </Text>
+                    </View>
+                  </NativeCardContextMenu>
+                ))}
+              </View>
             </PremiumCard>
           ) : null}
         </View>
@@ -534,6 +598,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   dailyDataList: { paddingHorizontal: 16, paddingTop: 28 },
+  dailyDataContextWrapper: { width: '100%' },
   dailyDataCard: { gap: 16 },
   dailyDataRows: { gap: 12 },
   dailyDataRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
@@ -543,4 +608,13 @@ const styles = StyleSheet.create({
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8 },
   deliveryDayTitle: { left: 0, position: 'absolute', right: 0, textAlign: 'center', top: 8 },
+  todayDeliveriesGroup: { width: '100%' },
+  deliveryContextMenu: { width: '100%' },
+  deliveryItemRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  deliveryItemCopy: { flex: 1, gap: 2 },
 });

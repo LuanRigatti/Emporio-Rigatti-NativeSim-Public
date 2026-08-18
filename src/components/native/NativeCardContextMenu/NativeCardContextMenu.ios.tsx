@@ -1,6 +1,6 @@
 import { requireNativeView, requireOptionalNativeModule } from 'expo';
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
-import type { ComponentType } from 'react';
+import { Button, ContextMenu, Host, RNHostView, Section } from '@expo/ui/swift-ui';
+import type { ComponentType, ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import type {
@@ -13,22 +13,23 @@ const NativeView: ComponentType<any> | null = isNativeModuleAvailable
   ? requireNativeView('NativeCardContextMenu')
   : null;
 
-function toMenuAction(action: NativeCardContextMenuAction): MenuAction {
-  return {
-    id: action.id,
-    image: action.systemImage,
-    title: action.title,
-    attributes: {
-      destructive: action.destructive,
-      disabled: action.disabled,
-    },
-  };
+function renderAction(action: NativeCardContextMenuAction): ReactNode {
+  return (
+    <Button
+      key={action.id}
+      label={action.title}
+      onPress={action.onPress}
+      role={action.destructive ? 'destructive' : undefined}
+      systemImage={action.systemImage}
+    />
+  );
 }
 
 export default function NativeCardContextMenu({
   actions,
   children,
   cornerRadius = 0,
+  preview,
   style,
   title,
 }: NativeCardContextMenuProps) {
@@ -56,17 +57,28 @@ export default function NativeCardContextMenu({
     );
   }
 
+  const items = actions.map(renderAction);
+  const body = title ? <Section title={title}>{items}</Section> : items;
+
+  const trigger = (
+    <RNHostView matchContents>
+      <>{children}</>
+    </RNHostView>
+  );
+
+  const previewNode = (
+    <RNHostView matchContents>
+      <>{preview ?? children}</>
+    </RNHostView>
+  );
+
   return (
-    <MenuView
-      actions={actions.map(toMenuAction)}
-      onPressAction={({ nativeEvent }) => {
-        actions.find((action) => action.id === nativeEvent.event)?.onPress();
-      }}
-      shouldOpenOnLongPress
-      style={style as StyleProp<ViewStyle>}
-      title={title}
-    >
-      {children}
-    </MenuView>
+    <Host ignoreSafeArea="all" matchContents style={style as StyleProp<ViewStyle>}>
+      <ContextMenu>
+        <ContextMenu.Trigger>{trigger}</ContextMenu.Trigger>
+        <ContextMenu.Items>{body}</ContextMenu.Items>
+        <ContextMenu.Preview>{previewNode}</ContextMenu.Preview>
+      </ContextMenu>
+    </Host>
   );
 }

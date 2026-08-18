@@ -768,14 +768,17 @@ export class HomeSearchService {
     }
 
     const data = await this.dataSource.load(query);
-    const globalDeliveries =
+    const rawGlobalDeliveries =
       data.globalDeliveries && data.globalDeliveries.length > 0
         ? data.globalDeliveries
         : data.deliveries;
+    const scopedGlobalDeliveries = rawGlobalDeliveries.filter((delivery) =>
+      matchesPeriod(delivery.data, query.period),
+    );
 
     if (query.clientField) {
       const results = data.clients
-        .map((client) => clientResult(client, [], query, globalDeliveries, data.financial))
+        .map((client) => clientResult(client, [], query, scopedGlobalDeliveries, data.financial))
         .filter((result): result is HomeSearchClientResult => result !== undefined)
         .sort(sortResults);
       return this.response(query, data, results, request, startedAt);
@@ -816,7 +819,7 @@ export class HomeSearchService {
         client,
         relatedDeliveriesForClient(client, matchingDeliveries),
         query,
-        globalDeliveries,
+        scopedGlobalDeliveries,
         data.financial,
       );
       if (result) results.push(result);

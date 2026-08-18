@@ -41,6 +41,7 @@ jest.mock('@/services/deliveries', () => ({
   firestoreDeliveryDataSource: {
     getCached: jest.fn(),
     load: jest.fn(),
+    loadAllHistorical: jest.fn().mockResolvedValue([]),
   },
 }));
 
@@ -527,6 +528,38 @@ describe('AppHomeSearchDataSource', () => {
     expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
     expect(mockedFactoryDataSource.restore).not.toHaveBeenCalled();
     expect(mockedRouteRepository.getRouteHistory).not.toHaveBeenCalled();
+  });
+
+  it('loads globalDeliveries through loadAllHistorical when a client is searched', async () => {
+    const historicalDeliveries = [
+      ...deliveries,
+      {
+        id: 'del-old-other-client',
+        clientId: 'client:andre' as const,
+        cliente: 'André',
+        data: '2025-01-10',
+        quantidade: 10,
+        valor: 500,
+        status: 'Pago' as const,
+        entregue: true,
+      },
+    ];
+    mockedDeliveryDataSource.load.mockResolvedValueOnce(
+      deliveries.filter((d) => d.cliente === 'Luciano'),
+    );
+    mockedDeliveryDataSource.loadAllHistorical.mockResolvedValueOnce(historicalDeliveries);
+    const query = new HomeSearchQueryParser().parse('Luciano');
+
+    const data = await new AppHomeSearchDataSource('uid').load(query);
+
+    expect(mockedDeliveryDataSource.loadAllHistorical).toHaveBeenCalledWith('uid');
+    expect(data.globalDeliveries).toEqual(historicalDeliveries);
+    expect(data.deliveries).toEqual(deliveries.filter((d) => d.cliente === 'Luciano'));
+    expect(data.coverage).toContainEqual({
+      source: 'deliveries',
+      mode: 'remote',
+      reason: 'historicalDeliveries',
+    });
   });
 
   it('uses a bounded factory query and treats the period as the purchase date', async () => {
@@ -1575,6 +1608,168 @@ describe('HomeSearchService', () => {
       expect(clientRes.data.aggregation.netProfitShare).toBe(0);
       expect(Number.isNaN(clientRes.data.aggregation.revenueShare)).toBe(false);
       expect(Number.isNaN(clientRes.data.aggregation.netProfitShare)).toBe(false);
+    }
+  });
+
+  it('scopes both client and global metrics to the requested month (e.g. Cliente A agosto)', async () => {
+    const deliveryClientAug: Delivery = {
+      id: 'del-a-aug',
+      clientId: 'client:a',
+      cliente: 'Cliente A',
+      quantidade: 10,
+      valor: 500,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-10',
+    };
+    const deliveryOtherAug: Delivery = {
+      id: 'del-b-aug',
+      clientId: 'client:b',
+      cliente: 'Cliente B',
+      quantidade: 30,
+      valor: 1500,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-12',
+    };
+    const deliveryOtherOld: Delivery = {
+      id: 'del-b-old',
+      clientId: 'client:b',
+      cliente: 'Cliente B',
+      quantidade: 160,
+      valor: 8000,
+      status: 'Pago',
+      entregue: true,
+      data: '2025-01-10',
+    };
+    const datasetWithHistory: HomeSearchDataSource = {
+      load: jest.fn().mockResolvedValue({
+        clients: [
+          {
+            clientId: 'client:a',
+            canonicalName: 'Cliente A',
+            normalizedName: 'cliente a',
+            sources: ['custom'],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+          {
+            clientId: 'client:b',
+            canonicalName: 'Cliente B',
+            normalizedName: 'cliente b',
+            sources: ['custom'],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+        ],
+        deliveries: [deliveryClientAug],
+        globalDeliveries: [deliveryClientAug, deliveryOtherAug, deliveryOtherOld],
+        factoryPurchases: [],
+        coverage: [],
+        errors: [],
+      }),
+    };
+
+    const parsedMonth = new HomeSearchQueryParser().parse(
+      'Cliente A agosto',
+      new Date(2026, 7, 13, 12),
+    );
+    const response = await new HomeSearchService(datasetWithHistory).searchParsed(parsedMonth);
+    const clientRes = response.results.find((r) => r.type === 'client');
+
+    expect(clientRes).toBeDefined();
+    if (clientRes && clientRes.type === 'client') {
+      expect(clientRes.data.aggregation.deliveryCount).toBe(1);
+      expect(clientRes.data.aggregation.quantity).toBe(10);
+      expect(clientRes.data.aggregation.revenue).toBe(500);
+      expect(clientRes.data.aggregation.netProfit).toBe(150); // 500 - (10 * 35)
+      // Global August revenue = 500 + 1500 = 2000. Share = 500 / 2000 = 25% (NOT 500 / 10000 = 5%)
+      expect(clientRes.data.aggregation.revenueShare).toBe(25);
+      // Global August net profit = (500 - 350) + (1500 - 1050) = 150 + 450 = 600. Share = 150 / 600 = 25%
+      expect(clientRes.data.aggregation.netProfitShare).toBe(25);
+    }
+  });
+
+  it('scopes both client and global metrics to the requested exact day (e.g. Cliente A 14/08)', async () => {
+    const deliveryClientDay: Delivery = {
+      id: 'del-a-day',
+      clientId: 'client:a',
+      cliente: 'Cliente A',
+      quantidade: 2,
+      valor: 100,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-14',
+    };
+    const deliveryOtherDay: Delivery = {
+      id: 'del-b-day',
+      clientId: 'client:b',
+      cliente: 'Cliente B',
+      quantidade: 6,
+      valor: 300,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-14',
+    };
+    const deliveryOtherDifferentDay: Delivery = {
+      id: 'del-b-diff-day',
+      clientId: 'client:b',
+      cliente: 'Cliente B',
+      quantidade: 100,
+      valor: 5000,
+      status: 'Pago',
+      entregue: true,
+      data: '2026-08-15',
+    };
+    const datasetWithDays: HomeSearchDataSource = {
+      load: jest.fn().mockResolvedValue({
+        clients: [
+          {
+            clientId: 'client:a',
+            canonicalName: 'Cliente A',
+            normalizedName: 'cliente a',
+            sources: ['custom'],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+          {
+            clientId: 'client:b',
+            canonicalName: 'Cliente B',
+            normalizedName: 'cliente b',
+            sources: ['custom'],
+            currentPrice: 50,
+            usesInvoice: false,
+            usesBoleto: false,
+          },
+        ],
+        deliveries: [deliveryClientDay],
+        globalDeliveries: [deliveryClientDay, deliveryOtherDay, deliveryOtherDifferentDay],
+        factoryPurchases: [],
+        coverage: [],
+        errors: [],
+      }),
+    };
+
+    const parsedDay = new HomeSearchQueryParser().parse(
+      'Cliente A 14/08',
+      new Date(2026, 7, 13, 12),
+    );
+    const response = await new HomeSearchService(datasetWithDays).searchParsed(parsedDay);
+    const clientRes = response.results.find((r) => r.type === 'client');
+
+    expect(clientRes).toBeDefined();
+    if (clientRes && clientRes.type === 'client') {
+      expect(clientRes.data.aggregation.deliveryCount).toBe(1);
+      expect(clientRes.data.aggregation.quantity).toBe(2);
+      expect(clientRes.data.aggregation.revenue).toBe(100);
+      expect(clientRes.data.aggregation.netProfit).toBe(30); // 100 - (2 * 35)
+      // Global 14/08 revenue = 100 + 300 = 400. Share = 100 / 400 = 25% (NOT 100 / 5400)
+      expect(clientRes.data.aggregation.revenueShare).toBe(25);
+      // Global 14/08 net profit = 30 + 90 = 120. Share = 30 / 120 = 25%
+      expect(clientRes.data.aggregation.netProfitShare).toBe(25);
     }
   });
 });

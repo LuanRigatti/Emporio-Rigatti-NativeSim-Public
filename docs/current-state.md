@@ -742,47 +742,58 @@ uma operação confirmada.
 - Branch: `ajustes-antigravity`.
 - Status: Validado localmente com 0 erros e 286 testes passando; aguardando autorização para commit.
 
-## Enriquecimento do Resultado de Cliente na Home Search com Métricas Financeiras e Participações Globais
+## Enriquecimento do Resultado de Cliente na Home Search com Histórico Global Paginado, Cache Local e Escopo Temporal Unificado
 
 ### Funcionalidade implementada
 
 1. **Enriquecimento completo do card Resumo de Cliente:**
-   - Ampliação do resultado de busca por cliente na Home Search para exibir 7 métricas reais calculadas sobre todo o histórico disponível:
+   - Ampliação do resultado de busca por cliente na Home Search para exibir 7 métricas reais formatadas em padrão monetário e percentual (`pt-BR`):
      - `Entregas` (ex: `12 entregas`)
      - `Baldes` (ex: `23`)
      - `Valor do balde` (ex: `R$ 49,80`)
      - `Faturamento total` (ex: `R$ 1.145,40`)
      - `Lucro líquido total` (ex: `R$ 327,20`)
-     - `Participação no faturamento` (ex: `4,8%`)
-     - `Participação no lucro` (ex: `5,2%`)
+     - `Participação no faturamento` (ex: `16,2%`)
+     - `Participação no lucro` (ex: `14,8%`)
 2. **Reutilização canônica de regras financeiras e preços:**
    - **Valor do balde:** Exclusivamente `client.currentPrice` de `ClientModel` (sem multiplicar por baldes para receita).
-   - **Faturamento total:** `FinancialCalculationService.calculateFaturamento(clientDeliveries)` com a soma real de cada entrega válida no histórico.
+   - **Faturamento total:** `FinancialCalculationService.calculateFaturamento` com a soma real de cada entrega válida no período.
    - **Lucro líquido total:** Dedução do custo histórico de baldes via `ExpenseCalculationService.calculateBucketCost` (cortes R$ 32 vs R$ 35) e rateio proporcional de custos (combustível, estar, luz) via `ExpenseCalculationService.calculateClientAllocation` e `FinancialCalculationService.calculateLucroLiquido`.
-3. **Cálculo de Participações com Denominador Global Real:**
-   - **Participação no faturamento (%):** `(faturamento do cliente / faturamento global de todos os clientes no histórico) * 100`.
-   - **Participação no lucro (%):** `(lucro líquido do cliente / lucro líquido global de todos os clientes no histórico) * 100`.
-   - Correção do denominador global em `HomeSearchDataSource` / `HomeSearchService` para não limitar o total global às entregas do cliente filtrado (`globalDeliveries` derivado de `firestoreDeliveryDataSource.getCached({ mode: 'all' })`).
-   - Proteções determinísticas contra divisão por zero, `NaN` e `Infinity` (`0%`).
-4. **Padronização visual e elevação de layout:**
+3. **Histórico Global Paginado no Firestore e Cache Local Persistente:**
+   - Implementado método paginado `FirestoreDeliveryDataSource.loadAllHistorical(uid)` com lotes determinísticos de 250 documentos (`orderBy('date', 'desc')`, `limit(250)`, `startAfter(lastDoc)`).
+   - Novo serviço `FirestoreHistoricalDeliveryCache` persistindo o histórico completo em `AsyncStorage` sob a chave `@pareact/historical-deliveries-cache-v1:${uid}` com camada em memória e isolamento estrito por `uid`.
+   - Invalidação automática do cache histórico em todas as mutações (`create`, `update`, `remove`, `toggleDelivered`, `updateInvoiceStatus`, `updateBoletoStatus`, `settle`, `editMany`).
+   - 0 leituras ao Firestore em buscas subsequentes com cache válido.
+4. **Escopo Temporal Unificado para Numerador e Denominador:**
+   - Aplicação da função canônica `matchesPeriod(delivery.data, query.period)` em memória tanto para `scopedClientDeliveries` quanto para `scopedGlobalDeliveries`.
+   - **Busca sem período (ex: `Luciano`):** cliente e global utilizam todo o histórico disponível.
+   - **Busca por mês (ex: `Luciano agosto`):** numerador e denominador utilizam estritamente as entregas de agosto de 2026.
+   - **Busca por dia (ex: `Luciano 14/08`):** numerador e denominador utilizam estritamente as entregas da data correspondente.
+   - Proteções determinísticas contra divisão por zero, `NaN`, `Infinity` e `-Infinity` (`0%`).
+5. **Padronização visual e elevação de layout:**
    - Alinhamento de largura horizontal padronizado em 16 pt (`SEARCH_RESULT_HORIZONTAL_INSET = 16`).
    - Remoção do label secundário duplicado em cinza (`hideQueryContext: true`) mantendo apenas o título principal com ícone (ex: `◉ André`).
    - Elevação compacta com `COMPACT_CLIENT_EXTRA_TOP_INSET = 0` (`topPadding = 32 pt`).
-   - Zero novas consultas ao Firestore (execução 100% em memória/cache).
+   - Zero cálculos financeiros ou acessos a Firestore no JSX.
 
 ### Comportamento final
 
-- Ao pesquisar o nome de qualquer cliente na Home Search, o Bottom Sheet exibe imediatamente no estado compacto e expandido o card "Resumo" com as 7 métricas financeiras reais formatadas em padrão monetário e percentual (`pt-BR`).
-- As participações refletem com exatidão a fatia do cliente em relação a todo o faturamento e lucro acumulado de todos os clientes cadastrados.
-- Zero cálculos financeiros ou acessos a Firestore no JSX.
+- Ao pesquisar o nome de qualquer cliente na Home Search (com ou sem período temporal), o Bottom Sheet exibe imediatamente nos estados compacto e expandido o card "Resumo" com as 7 métricas financeiras reais formatadas.
+- O escopo temporal é estritamente simétrico: a busca sem período compara o cliente contra todo o histórico global, enquanto buscas com mês ou dia comparam o cliente contra o faturamento e lucro de todos os clientes no mesmo período solicitado.
+- A alternância entre buscas (`Luciano` $\rightarrow$ `Luciano agosto` $\rightarrow$ `Luciano 14/08`) executa o recorte temporal 100% em memória, reutilizando o cache local sem novas consultas de rede ao Firestore.
 
 ### Arquivos principais
 
+- `src/services/deliveries/FirestoreHistoricalDeliveryCache.ts` (novo)
+- `src/services/deliveries/FirestoreDeliveryDataSource.ts`
+- `src/services/deliveries/index.ts`
 - `src/features/home/search/HomeSearchTypes.ts`
 - `src/features/home/search/HomeSearchDataSource.ts`
 - `src/features/home/search/HomeSearchService.ts`
 - `src/features/home/components/HomeSearchResultsVisualModel.ts`
 - `src/features/home/components/HomeSearchResultsNative.ios.tsx`
+- `tests/deliveries/FirestoreHistoricalDeliveryCache.test.ts` (novo)
+- `tests/deliveries/FirestoreDeliveryDataSource.test.ts` (novo)
 - `tests/home/HomeSearchService.test.ts`
 - `tests/home/HomeSearchResultsVisualModel.test.ts`
 - `tests/home/HomeSearchPresentationFlow.test.ts`
@@ -795,18 +806,19 @@ uma operação confirmada.
 ### Validações executadas
 
 - TypeScript (`npx tsc --noEmit`): 0 erros.
-- ESLint direcionado: 0 erros e 0 warnings.
-- Jest (`npm test -- tests/home tests/finance tests/deliveries tests/clients tests/invoices tests/routes tests/settings`): 29 suítes / 288 testes passando.
+- ESLint: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/deliveries tests/home tests/finance tests/clients tests/routes tests/invoices tests/stock tests/costs tests/factory tests/firestore`): 48 suítes / 376 testes passando com 100% de sucesso.
 - `git diff --check`: limpo.
 
 ### Limitações conhecidas
 
-- Nenhuma. O cálculo é totalmente reativo e independente de conexão de rede adicional.
+- Nenhuma. O cálculo é totalmente determinístico, opera sob demanda e utiliza cache local persistente com invalidação automática em mutações.
 
 ### Commit e publicação
 
 - Branch: `ajustes-antigravity`.
-- Status: Validado localmente com 0 erros e 288 testes passando; sem commit realizado (aguardando autorização).
+- Commit anterior: `26c288a` (`feat: enrich home search client results`).
+- Status: Validado localmente com 0 erros e 376 testes passando; sem commit adicional realizado (aguardando autorização).
 
 ## Flags atuais
 

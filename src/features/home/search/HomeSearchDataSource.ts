@@ -5,7 +5,13 @@ import { factoryReceiptDataSource } from '@/services/factory-purchases';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import { routeTrackingRepository } from '@/services/routes/RouteTrackingRepository';
 import { carSettingsStorage, firestoreCarSettingsDataSource } from '@/services/car';
-import type { ClientId, ClientModel, DeliveryFilters, FactoryFilters } from '@/types/data';
+import type {
+  ClientId,
+  ClientModel,
+  Delivery,
+  DeliveryFilters,
+  FactoryFilters,
+} from '@/types/data';
 
 import { normalizeHomeSearchText } from './HomeSearchQueryParser';
 import type {
@@ -155,9 +161,16 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
     const filters = deliveryFiltersForSearch(query, clients);
     const hasClientFilter = Boolean(filters?.clientIds && filters.clientIds.length > 0);
     const deliveries = await this.loadDeliveries(query, clients, coverage, errors);
-    const globalDeliveries = hasClientFilter
-      ? firestoreDeliveryDataSource.getCached({ mode: 'all' })
-      : deliveries;
+    let globalDeliveries: Delivery[] = deliveries;
+    if (hasClientFilter) {
+      try {
+        globalDeliveries = await firestoreDeliveryDataSource.loadAllHistorical(this.userId);
+        coverage.push({ source: 'deliveries', mode: 'remote', reason: 'historicalDeliveries' });
+      } catch (error) {
+        errors.push(sourceError('deliveries', error));
+        globalDeliveries = firestoreDeliveryDataSource.getCached({ mode: 'all' });
+      }
+    }
     const factoryPurchases = await this.loadFactoryPurchases(query, coverage, errors);
 
     return { clients, deliveries, globalDeliveries, factoryPurchases, coverage, errors };

@@ -12,6 +12,10 @@ export {
   FirestoreDeliveryDataSource,
   firestoreDeliveryDataSource,
 } from './FirestoreDeliveryDataSource';
+export {
+  FirestoreHistoricalDeliveryCache,
+  firestoreHistoricalDeliveryCache,
+} from './FirestoreHistoricalDeliveryCache';
 export type { DeliveryDataSource, DeliveryRegistrationInput } from './DeliveryDataSource';
 export { deliveryPricingService, DeliveryPricingService } from './DeliveryPricingService';
 export { deliveryQueryService, DeliveryQueryService } from './DeliveryQueryService';

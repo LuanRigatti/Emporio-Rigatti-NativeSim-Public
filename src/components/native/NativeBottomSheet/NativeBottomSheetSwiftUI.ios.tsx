@@ -44,7 +44,6 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { useAppTheme } from '@/theme';
 
-import { NativeInteractivePager, NativeInteractivePagerPage } from '../NativeInteractivePager';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { roundedFont } from '../nativeTypography';
 
@@ -54,7 +53,6 @@ export default function NativeBottomSheetSwiftUI({
   content,
   detents,
   onSelect,
-  onPageSettled,
   onDismiss,
   onVisibleChange,
   title,
@@ -71,7 +69,6 @@ export default function NativeBottomSheetSwiftUI({
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
-  const [pageRequestID, setPageRequestID] = useState(0);
   const selectedItem = controlledSelectedItem ?? null;
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
 
@@ -81,7 +78,6 @@ export default function NativeBottomSheetSwiftUI({
       setBucketQuantity(1);
       setQuantityDirection('up');
       setSelectedDate(new Date());
-      setPageRequestID(0);
     }
   }, [visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -94,18 +90,8 @@ export default function NativeBottomSheetSwiftUI({
   }, [initialQuantity, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!visible) return;
-    setPageRequestID((requestID) => requestID + 1);
-  }, [controlledSelectedItem?.id, visible]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   const handleSelect = (item: (typeof items)[number]) => {
     onSelect?.(item);
-    if (selectedItem?.id === item.id) {
-      setPageRequestID((requestID) => requestID + 1);
-    }
   };
 
   const titleView = (
@@ -355,16 +341,7 @@ export default function NativeBottomSheetSwiftUI({
       <Spacer minLength={8} />
       {headerView}
       <Spacer minLength={8} />
-      <NativeInteractivePager
-        fillWidth
-        initialPage={0}
-        onPageSettled={({ nativeEvent: { page } }) => onPageSettled?.(page)}
-        requestID={pageRequestID}
-        requestedPage={selectedItem ? 1 : 0}
-      >
-        <NativeInteractivePagerPage page={0}>{listView}</NativeInteractivePagerPage>
-        <NativeInteractivePagerPage page={1}>{detailView}</NativeInteractivePagerPage>
-      </NativeInteractivePager>
+      {selectedItem ? detailView : listView}
     </VStack>
   );
 

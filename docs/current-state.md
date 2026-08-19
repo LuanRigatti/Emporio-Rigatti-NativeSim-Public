@@ -1173,6 +1173,49 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 
 ### Commit e publicação
 
+- Branch: `ajustes-antigravity`.
+- Commit: `004ee00`.
+- Mensagem: `fix: resolve Search Bar Bottom Sheet ghosting and refine route results`.
+- Status: Validado e publicado na branch `ajustes-antigravity`.
+
+## Registro de Entrega: Correção de Ghosting no Bottom Sheet
+
+### Funcionalidade implementada
+
+Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da aba de Registrar entrega:
+
+- **Eliminação do `NativeInteractivePager` / `TabView`**: Identificado que o container de paginação horizontal SwiftUI `NativeInteractivePager` causava retenção de frames durante scroll da lista de clientes e arraste do sheet.
+- **Renderização direta de etapas**: O fluxo foi unificado para renderizar diretamente a etapa ativa (`{selectedItem ? detailView : listView}`) dentro do container do sheet.
+- **Preservação integral do fluxo de registro**: A seleção de cliente no `listView` continua abrindo o formulário de entrega (`detailView`) e a desmarcação retorna à lista de clientes sem perda de estado.
+- **Limpeza de código**: Removidos imports de `NativeInteractivePager`, `NativeInteractivePagerPage` e estados/efeitos vinculados a IDs de requisição de página (`pageRequestID`).
+
+### Comportamento final
+
+- **Lista de clientes**: Rolagem fluida da `List` SwiftUI nativa e arraste entre detents (pequeno e grande) com zero ghosting, zero duplicação de texto e zero travamentos visuais.
+- **Formulário de entrega (`detailView`)**: Exibição limpa do `DatePicker`, stepper de quantidade de baldes, `Button` nativo e cálculo de valor sem interferência de paginação ou artefatos gráficos.
+
+### Arquivos principais
+
+- `src/components/native/NativeBottomSheet/NativeBottomSheetSwiftUI.ios.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de funcionalidade ou schema do Cloud Firestore alterado. Modificação estritamente de UI nativa e orquestração de transição de telas no Bottom Sheet.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros e 0 warnings.
+- Testes Jest (`tests/deliveries`, `tests/clients`, `tests/home`): 15 suítes e 206 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+- Teste interativo via Fast Refresh no iPhone em Development Build: validada rolagem da lista de clientes, seleção de cliente, abertura do formulário e arraste entre detents com zero ghosting.
+
+### Limitações conhecidas
+
+- Nenhuma. A transição entre seleção de cliente e formulário de entrega é instantânea e nativa.
+
+### Commit e publicação
+
 - Status: Alteração local validada via Fast Refresh no dispositivo físico; aguardando autorização para commit/push.
 
 ## Flags atuais

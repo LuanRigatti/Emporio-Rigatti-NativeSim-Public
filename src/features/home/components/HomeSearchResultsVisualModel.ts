@@ -345,13 +345,25 @@ function baseRouteSummarySections(result: HomeSearchRouteSummaryResult): HomeSea
     result.data.period.kind === 'date' || result.data.period.kind === 'dayMonth'
       ? 'Km considerado no dia'
       : 'Km considerado no período';
-  return [
-    section('route-summary', 'Resumo da rota', 'map', [
-      row('distance', 'Distância', formatDistance(result.data.distanceKm), { monospaced: true }),
-      row('start', 'Início', formatDateTime(result.data.startTimestamp)),
-      row('end', 'Fim', formatDateTime(result.data.endTimestamp)),
-      row('duration', 'Duração', formatDuration(result.data.durationSeconds)),
+  const rows: HomeSearchVisualRow[] = [
+    row('distance', 'Distância', formatDistance(result.data.distanceKm), { monospaced: true }),
+  ];
+  if (result.data.startTimestamp > 0) {
+    rows.push(row('start', 'Início', formatDateTime(result.data.startTimestamp)));
+  }
+  if (result.data.endTimestamp > 0) {
+    rows.push(row('end', 'Fim', formatDateTime(result.data.endTimestamp)));
+  }
+  if (result.data.durationSeconds > 0) {
+    rows.push(row('duration', 'Duração', formatDuration(result.data.durationSeconds)));
+  }
+  if (result.data.pointsCount > 0) {
+    rows.push(
       row('points', 'Pontos GPS', formatNumber(result.data.pointsCount), { monospaced: true }),
+    );
+  }
+  if (result.data.consideredDistanceKm > 0) {
+    rows.push(
       row(
         consideredLabel.toLowerCase().replaceAll(' ', '-'),
         consideredLabel,
@@ -360,8 +372,9 @@ function baseRouteSummarySections(result: HomeSearchRouteSummaryResult): HomeSea
           monospaced: true,
         },
       ),
-    ]),
-  ];
+    );
+  }
+  return [section('route-summary', 'Resumo da rota', 'map', rows)];
 }
 
 function baseRouteSessionSections(
@@ -498,7 +511,7 @@ function periodSummarySections(result: HomeSearchPeriodSummaryResult): HomeSearc
         tone: factory.openValue > 0 ? 'warning' : 'success',
       }),
       row('routes', 'Rotas', formatNumber(routes.routeCount), { monospaced: true }),
-      row('distance', 'Distância das rotas', formatDistance(routes.distanceKm), {
+      row('distance', 'Quilometragem total', formatDistance(routes.distanceKm), {
         monospaced: true,
       }),
     ]),

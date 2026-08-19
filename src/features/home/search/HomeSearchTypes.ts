@@ -16,6 +16,7 @@ export type HomeSearchDetectedType =
   | 'dayMonth'
   | 'month'
   | 'year'
+  | 'range'
   | 'quantity'
   | 'money'
   | 'paymentStatus'
@@ -31,7 +32,8 @@ export type HomeSearchPeriod =
   | { kind: 'date'; date: string }
   | { kind: 'dayMonth'; day: number; month: number }
   | { kind: 'month'; month: number; year?: number }
-  | { kind: 'year'; year: number };
+  | { kind: 'year'; year: number }
+  | { kind: 'range'; startDate: string; endDate: string; label?: string };
 
 export type HomeSearchPaymentStatus = 'paid' | 'open';
 export type HomeSearchDocumentType = 'invoice' | 'boleto';

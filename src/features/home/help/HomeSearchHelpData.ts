@@ -19,6 +19,12 @@ export const HOME_SEARCH_HELP_CATEGORIES: readonly SearchHelpCategory[] = [
         description: 'Resumo e participações em agosto',
       },
       {
+        id: 'client-relative-month',
+        label: 'Luciano mês passado',
+        query: 'Luciano mês passado',
+        description: 'Resumo e participações do mês anterior',
+      },
+      {
         id: 'client-date',
         label: 'Luciano 14/08',
         query: 'Luciano 14/08',
@@ -48,6 +54,18 @@ export const HOME_SEARCH_HELP_CATEGORIES: readonly SearchHelpCategory[] = [
         label: 'Faturamento agosto',
         query: 'faturamento agosto',
         description: 'Total faturado e base do cálculo',
+      },
+      {
+        id: 'finance-yesterday',
+        label: 'Faturamento ontem',
+        query: 'faturamento ontem',
+        description: 'Total faturado no dia anterior',
+      },
+      {
+        id: 'finance-range',
+        label: 'Faturamento 01/08 a 15/08',
+        query: 'faturamento 01/08 a 15/08',
+        description: 'Total faturado no intervalo de datas',
       },
       {
         id: 'finance-net-profit',
@@ -166,6 +184,12 @@ export const HOME_SEARCH_HELP_CATEGORIES: readonly SearchHelpCategory[] = [
         label: 'Resumo hoje',
         query: 'resumo hoje',
         description: 'Finanças e operação do dia',
+      },
+      {
+        id: 'summary-last-week',
+        label: 'Resumo semana passada',
+        query: 'resumo semana passada',
+        description: 'Visão consolidada da semana anterior',
       },
       {
         id: 'summary-month',

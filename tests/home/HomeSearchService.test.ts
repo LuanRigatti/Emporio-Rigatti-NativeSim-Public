@@ -615,10 +615,15 @@ describe('AppHomeSearchDataSource', () => {
     expect(mockedRouteRepository.getRouteHistory).not.toHaveBeenCalled();
   });
 
-  it('keeps route searches strictly local-only', async () => {
+  it('loads route sessions and financial data for route searches', async () => {
     mockedRouteRepository.getRouteHistory.mockResolvedValue([
       routeSession('route-12', '2026-08-12', 12_500),
     ]);
+    mockedCostDataSource.load.mockResolvedValue({
+      gastosDiarios: {},
+      gastosMensais: {},
+    });
+    mockedDeliveryDataSource.load.mockResolvedValue([]);
     const query = new HomeSearchQueryParser().parse('km 12/08', new Date(2026, 7, 13, 12));
 
     const data = await new AppHomeSearchDataSource('uid').load(query);
@@ -626,9 +631,7 @@ describe('AppHomeSearchDataSource', () => {
     expect(data.routeSessions).toHaveLength(1);
     expect(data.coverage).toContainEqual({ source: 'routeHistory', mode: 'local' });
     expect(mockedClientDataSource.load).not.toHaveBeenCalled();
-    expect(mockedDeliveryDataSource.load).not.toHaveBeenCalled();
     expect(mockedFactoryDataSource.restore).not.toHaveBeenCalled();
-    expect(mockedCostDataSource.load).not.toHaveBeenCalled();
     expect(mockedRouteRepository.getRouteHistory).toHaveBeenCalledWith('2026-08-12');
   });
 
@@ -1253,6 +1256,10 @@ describe('HomeSearchService', () => {
   it('aggregates finalized route sessions by day and month without coordinates', async () => {
     const routeData = {
       ...dataSet,
+      financial: {
+        ...dataSet.financial,
+        dailyExpenses: {},
+      },
       routeSessions: [
         routeSession('route-1', '2026-08-12', 12_500),
         routeSession('route-2', '2026-08-12', 7_500),
@@ -1289,6 +1296,10 @@ describe('HomeSearchService', () => {
     const service = new HomeSearchService({
       load: async () => ({
         ...dataSet,
+        financial: {
+          ...dataSet.financial,
+          dailyExpenses: {},
+        },
         routeSessions: [
           routeSession('route-today', '2026-08-13', 10_000),
           routeSession('route-other-day', '2026-08-14', 20_000),
@@ -1314,7 +1325,14 @@ describe('HomeSearchService', () => {
     async (query) => {
       const session = routeSession('route-13', '2026-08-13', 13_250);
       const service = new HomeSearchService({
-        load: async () => ({ ...dataSet, routeSessions: [session] }),
+        load: async () => ({
+          ...dataSet,
+          financial: {
+            ...dataSet.financial,
+            dailyExpenses: {},
+          },
+          routeSessions: [session],
+        }),
       });
       const response = await service.searchParsed(
         new HomeSearchQueryParser().parse(query, new Date(2026, 7, 13, 12)),
@@ -1348,7 +1366,14 @@ describe('HomeSearchService', () => {
   it('returns empty when the selected period has no local route', async () => {
     const parsed = new HomeSearchQueryParser().parse('km 12/08', new Date(2026, 7, 13, 12));
     const response = await new HomeSearchService({
-      load: async () => ({ ...dataSet, routeSessions: [] }),
+      load: async () => ({
+        ...dataSet,
+        financial: {
+          ...dataSet.financial,
+          dailyExpenses: {},
+        },
+        routeSessions: [],
+      }),
     }).searchParsed(parsed);
 
     expect(response.results).toEqual([]);
@@ -1396,7 +1421,7 @@ describe('HomeSearchService', () => {
         data: {
           financial: expect.objectContaining({ faturamento: expect.any(Number) }),
           factory: expect.objectContaining({ totalBuckets: expect.any(Number) }),
-          routes: { distanceKm: 12.5, routeCount: 1 },
+          routes: { distanceKm: 86.5, routeCount: 1 },
         },
         relations: expect.objectContaining({ sessionIds: ['route-1'] }),
       });
@@ -1771,6 +1796,671 @@ describe('HomeSearchService', () => {
       // Global 14/08 net profit = 30 + 90 = 120. Share = 30 / 120 = 25%
       expect(clientRes.data.aggregation.netProfitShare).toBe(25);
     }
+  });
+
+  describe('HomeSearchParser & Service - Relative Dates & Date Ranges', () => {
+    const parser = new HomeSearchQueryParser();
+    const refDate = new Date(2026, 7, 18, 12); // Tuesday, August 18, 2026
+
+    it('1. parses "ontem" as referenceDate - 1 day', () => {
+      const parsed = parser.parse('ontem', refDate);
+      expect(parsed.period).toEqual({ kind: 'date', date: '2026-08-17' });
+      expect(parsed.detectedTypes).toContain('date');
+    });
+
+    it('2. parses "amanha" and "amanhã" as referenceDate + 1 day', () => {
+      const parsed1 = parser.parse('amanha', refDate);
+      expect(parsed1.period).toEqual({ kind: 'date', date: '2026-08-19' });
+      const parsed2 = parser.parse('amanhã', refDate);
+      expect(parsed2.period).toEqual({ kind: 'date', date: '2026-08-19' });
+    });
+
+    it('3. parses "este mês" / "mês atual" as current calendar month', () => {
+      const parsed1 = parser.parse('este mês', refDate);
+      expect(parsed1.period).toEqual({ kind: 'month', month: 8, year: 2026 });
+      const parsed2 = parser.parse('mes atual', refDate);
+      expect(parsed2.period).toEqual({ kind: 'month', month: 8, year: 2026 });
+    });
+
+    it('4. parses "mês passado" / "último mês" as previous calendar month', () => {
+      const parsed1 = parser.parse('mês passado', refDate);
+      expect(parsed1.period).toEqual({ kind: 'month', month: 7, year: 2026 });
+      const parsed2 = parser.parse('ultimo mes', refDate);
+      expect(parsed2.period).toEqual({ kind: 'month', month: 7, year: 2026 });
+    });
+
+    it('5. parses "próximo mês" as next calendar month', () => {
+      const parsed = parser.parse('próximo mês', refDate);
+      expect(parsed.period).toEqual({ kind: 'month', month: 9, year: 2026 });
+    });
+
+    it('6. parses "esta semana" as current week Monday to Sunday', () => {
+      const parsed = parser.parse('esta semana', refDate);
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-17',
+        endDate: '2026-08-23',
+      });
+      expect(parsed.detectedTypes).toContain('range');
+    });
+
+    it('7. parses "semana passada" / "última semana" as previous week Monday to Sunday', () => {
+      const parsed1 = parser.parse('semana passada', refDate);
+      expect(parsed1.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-10',
+        endDate: '2026-08-16',
+      });
+      const parsed2 = parser.parse('ultima semana', refDate);
+      expect(parsed2.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-10',
+        endDate: '2026-08-16',
+      });
+    });
+
+    it('8. parses "próxima semana" as next week Monday to Sunday', () => {
+      const parsed = parser.parse('próxima semana', refDate);
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-24',
+        endDate: '2026-08-30',
+      });
+    });
+
+    it('9. parses date range "01/08 a 15/08"', () => {
+      const parsed = parser.parse('01/08 a 15/08', refDate);
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+    });
+
+    it('10. parses date range "01/08 até 15/08"', () => {
+      const parsed = parser.parse('01/08 até 15/08', refDate);
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+    });
+
+    it('11. parses date range "de 01/08 a 15/08" and "de 01/08 ate 15/08"', () => {
+      const parsed1 = parser.parse('de 01/08 a 15/08', refDate);
+      expect(parsed1.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+      expect(parsed1.text).toBe('');
+      const parsed2 = parser.parse('de 01/08 ate 15/08', refDate);
+      expect(parsed2.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+      expect(parsed2.text).toBe('');
+    });
+
+    it('12. parses date range with explicit full years "20/12/2025 a 10/01/2026"', () => {
+      const parsed = parser.parse('20/12/2025 a 10/01/2026', refDate);
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2025-12-20',
+        endDate: '2026-01-10',
+      });
+    });
+
+    it('13. handles year rollover for "mês passado" when current date is in January', () => {
+      const janRef = new Date(2026, 0, 15, 12); // January 15, 2026
+      const parsed = parser.parse('mês passado', janRef);
+      expect(parsed.period).toEqual({ kind: 'month', month: 12, year: 2025 });
+    });
+
+    it('14. handles year rollover for "próximo mês" when current date is in December', () => {
+      const decRef = new Date(2026, 11, 10, 12); // December 10, 2026
+      const parsed = parser.parse('próximo mês', decRef);
+      expect(parsed.period).toEqual({ kind: 'month', month: 1, year: 2027 });
+    });
+
+    it('15. parses client + relative day "Luciano ontem"', async () => {
+      const parsed = parser.parse('Luciano ontem', refDate);
+      expect(parsed.text).toBe('luciano');
+      expect(parsed.period).toEqual({ kind: 'date', date: '2026-08-17' });
+
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [clients[2]], // Luciano
+          deliveries: [
+            {
+              id: 'del-1',
+              cliente: 'Luciano',
+              clientId: 'client:luciano',
+              data: '2026-08-17',
+              quantidade: 5,
+              valor: 249,
+              status: 'Pago',
+            },
+            {
+              id: 'del-2',
+              cliente: 'Luciano',
+              clientId: 'client:luciano',
+              data: '2026-08-18',
+              quantidade: 5,
+              valor: 249,
+              status: 'Pago',
+            },
+          ],
+          globalDeliveries: [
+            {
+              id: 'del-1',
+              cliente: 'Luciano',
+              clientId: 'client:luciano',
+              data: '2026-08-17',
+              quantidade: 5,
+              valor: 249,
+              status: 'Pago',
+            },
+            {
+              id: 'del-global',
+              cliente: 'Outro',
+              clientId: 'client:outro',
+              data: '2026-08-17',
+              quantidade: 5,
+              valor: 251,
+              status: 'Pago',
+            },
+          ],
+          factoryPurchases: [],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const response = await new HomeSearchService(ds).searchParsed(parsed);
+      const clientResult = response.results.find((r) => r.type === 'client');
+      expect(clientResult).toBeDefined();
+      if (clientResult && clientResult.type === 'client') {
+        expect(clientResult.data.aggregation.deliveryCount).toBe(1);
+        expect(clientResult.data.aggregation.revenue).toBe(249);
+        // Total global 17/08 = 249 + 251 = 500. Share = 249 / 500 = 49.8%
+        expect(clientResult.data.aggregation.revenueShare).toBeCloseTo(49.8, 1);
+      }
+    });
+
+    it('16. parses client + relative week "Luciano semana passada"', async () => {
+      const parsed = parser.parse('Luciano semana passada', refDate);
+      expect(parsed.text).toBe('luciano');
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-10',
+        endDate: '2026-08-16',
+      });
+    });
+
+    it('17. parses client + date range "Luciano 01/08 a 15/08"', async () => {
+      const parsed = parser.parse('Luciano 01/08 a 15/08', refDate);
+      expect(parsed.text).toBe('luciano');
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+    });
+
+    it('18. parses financial metric + relative day "faturamento ontem"', () => {
+      const parsed = parser.parse('faturamento ontem', refDate);
+      expect(parsed.financialMetric).toBe('revenue');
+      expect(parsed.period).toEqual({ kind: 'date', date: '2026-08-17' });
+      expect(parsed.text).toBe('');
+    });
+
+    it('19. parses financial metric + date range "faturamento 01/08 a 15/08"', () => {
+      const parsed = parser.parse('faturamento 01/08 a 15/08', refDate);
+      expect(parsed.financialMetric).toBe('revenue');
+      expect(parsed.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+      expect(parsed.text).toBe('');
+    });
+
+    it('20. non-positional parsing handles inverted word orders correctly', () => {
+      const inv1 = parser.parse('ontem faturamento', refDate);
+      expect(inv1.financialMetric).toBe('revenue');
+      expect(inv1.period).toEqual({ kind: 'date', date: '2026-08-17' });
+
+      const inv2 = parser.parse('semana passada Luciano', refDate);
+      expect(inv2.text).toBe('luciano');
+      expect(inv2.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-10',
+        endDate: '2026-08-16',
+      });
+
+      const inv3 = parser.parse('01/08 a 15/08 faturamento', refDate);
+      expect(inv3.financialMetric).toBe('revenue');
+      expect(inv3.period).toEqual({
+        kind: 'range',
+        startDate: '2026-08-01',
+        endDate: '2026-08-15',
+      });
+    });
+
+    it('21. safeguards against invalid dates and inverted yearless ranges', () => {
+      // 32/08 is an invalid day
+      const invalidDay = parser.parse('32/08 a 15/08', refDate);
+      expect(invalidDay.period?.kind).not.toBe('range');
+
+      // 20/12 a 10/01 without year resolves both to currentYear (2026-12-20 > 2026-01-10) and is safely rejected
+      const invertedRange = parser.parse('20/12 a 10/01', refDate);
+      expect(invertedRange.period?.kind).not.toBe('range');
+    });
+
+    it('22. regression preserves all existing temporal formats', () => {
+      const today = parser.parse('hoje', refDate);
+      expect(today.period).toEqual({ kind: 'date', date: '2026-08-18' });
+
+      const monthNamed = parser.parse('agosto', refDate);
+      expect(monthNamed.period).toEqual({ kind: 'month', month: 8, year: 2026 });
+
+      const monthYearNamed = parser.parse('agosto 2026', refDate);
+      expect(monthYearNamed.period).toEqual({ kind: 'month', month: 8, year: 2026 });
+
+      const dayMonth = parser.parse('14/08', refDate);
+      expect(dayMonth.period).toEqual({ kind: 'date', date: '2026-08-14' });
+
+      const fullSlash = parser.parse('14/08/2026', refDate);
+      expect(fullSlash.period).toEqual({ kind: 'date', date: '2026-08-14' });
+
+      const slashMonth = parser.parse('08/2026', refDate);
+      expect(slashMonth.period).toEqual({ kind: 'month', month: 8, year: 2026 });
+
+      const yearOnly = parser.parse('2026', refDate);
+      expect(yearOnly.period).toEqual({ kind: 'year', year: 2026 });
+    });
+  });
+
+  describe('HomeSearch - Consolidated Kilometers (GPS + Manual)', () => {
+    const refDate = new Date(2026, 7, 18, 12); // Tuesday, Aug 18, 2026
+
+    it('1. calculates total when there is only GPS (GPS = 100, manual = 0 -> 100 km)', async () => {
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {},
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [
+            {
+              id: 'sess-1',
+              date: '2026-08-14',
+              distanceMeters: 100_000, // 100 km
+              durationSeconds: 3600,
+              pointsCount: 50,
+              startTimestamp: 1000,
+              endTimestamp: 2000,
+            },
+          ],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const resSummary = await service.search('resumo 14/08', refDate);
+      const summaryResult = resSummary.results.find((r) => r.type === 'periodSummary');
+      expect(summaryResult).toBeDefined();
+      if (summaryResult && summaryResult.type === 'periodSummary') {
+        expect(summaryResult.data.routes.distanceKm).toBe(100);
+        expect(summaryResult.data.routes.routeCount).toBe(1);
+      }
+
+      const resKm = await service.search('km 14/08', refDate);
+      const routeResult = resKm.results.find((r) => r.type === 'routeSummary');
+      expect(routeResult).toBeDefined();
+      if (routeResult && routeResult.type === 'routeSummary') {
+        expect(routeResult.data.distanceKm).toBe(100);
+        expect(routeResult.data.routeCount).toBe(1);
+      }
+    });
+
+    it('2. calculates total when there is only manual km (GPS = 0, manual = 40 -> 40 km)', async () => {
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {
+              '2026-08-14': {
+                data: '2026-08-14',
+                km: 40,
+              },
+            },
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const resSummary = await service.search('resumo 14/08', refDate);
+      const summaryResult = resSummary.results.find((r) => r.type === 'periodSummary');
+      expect(summaryResult).toBeDefined();
+      if (summaryResult && summaryResult.type === 'periodSummary') {
+        expect(summaryResult.data.routes.distanceKm).toBe(40);
+        expect(summaryResult.data.routes.routeCount).toBe(0); // 0 GPS sessions
+      }
+
+      const resKm = await service.search('km 14/08', refDate);
+      const routeResult = resKm.results.find((r) => r.type === 'routeSummary');
+      expect(routeResult).toBeDefined();
+      if (routeResult && routeResult.type === 'routeSummary') {
+        expect(routeResult.data.distanceKm).toBe(40);
+        expect(routeResult.data.routeCount).toBe(0);
+      }
+    });
+
+    it('3. calculates total when both GPS and manual km are present (GPS = 100, manual = 40 -> 140 km)', async () => {
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {
+              '2026-08-14': {
+                data: '2026-08-14',
+                km: 40,
+              },
+            },
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [
+            {
+              id: 'sess-1',
+              date: '2026-08-14',
+              distanceMeters: 100_000, // 100 km
+              durationSeconds: 3600,
+              pointsCount: 50,
+              startTimestamp: 1000,
+              endTimestamp: 2000,
+            },
+          ],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const resSummary = await service.search('resumo 14/08', refDate);
+      const summaryResult = resSummary.results.find((r) => r.type === 'periodSummary');
+      expect(summaryResult).toBeDefined();
+      if (summaryResult && summaryResult.type === 'periodSummary') {
+        expect(summaryResult.data.routes.distanceKm).toBe(140);
+        expect(summaryResult.data.routes.routeCount).toBe(1);
+      }
+
+      const resKm = await service.search('km 14/08', refDate);
+      const routeResult = resKm.results.find((r) => r.type === 'routeSummary');
+      expect(routeResult).toBeDefined();
+      if (routeResult && routeResult.type === 'routeSummary') {
+        expect(routeResult.data.distanceKm).toBe(140);
+        expect(routeResult.data.routeCount).toBe(1);
+      }
+    });
+
+    it('4. ignores GPS and manual km outside of the requested period', async () => {
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {
+              '2026-08-14': { data: '2026-08-14', km: 25 },
+              '2026-08-20': { data: '2026-08-20', km: 50 }, // outside
+            },
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [
+            {
+              id: 'sess-1',
+              date: '2026-08-14',
+              distanceMeters: 30_000, // 30 km
+              durationSeconds: 1800,
+              pointsCount: 25,
+              startTimestamp: 1000,
+              endTimestamp: 2000,
+            },
+            {
+              id: 'sess-outside',
+              date: '2026-08-20',
+              distanceMeters: 70_000, // outside
+              durationSeconds: 1800,
+              pointsCount: 25,
+              startTimestamp: 3000,
+              endTimestamp: 4000,
+            },
+          ],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const res = await service.search('resumo 14/08', refDate);
+      const summary = res.results.find((r) => r.type === 'periodSummary');
+      expect(summary).toBeDefined();
+      if (summary && summary.type === 'periodSummary') {
+        expect(summary.data.routes.distanceKm).toBe(55); // 30 + 25
+        expect(summary.data.routes.routeCount).toBe(1);
+      }
+    });
+
+    it('5. consolidates kilometers for date range 01/08 a 15/08', async () => {
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {
+              '2026-08-05': { data: '2026-08-05', km: 15 },
+              '2026-08-12': { data: '2026-08-12', km: 20 },
+              '2026-08-25': { data: '2026-08-25', km: 100 }, // outside
+            },
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [
+            {
+              id: 'sess-1',
+              date: '2026-08-05',
+              distanceMeters: 25_000, // 25 km
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 100,
+              endTimestamp: 200,
+            },
+            {
+              id: 'sess-2',
+              date: '2026-08-12',
+              distanceMeters: 40_000, // 40 km
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 300,
+              endTimestamp: 400,
+            },
+            {
+              id: 'sess-outside',
+              date: '2026-08-25',
+              distanceMeters: 50_000, // outside
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 500,
+              endTimestamp: 600,
+            },
+          ],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const res = await service.search('resumo 01/08 a 15/08', refDate);
+      const summary = res.results.find((r) => r.type === 'periodSummary');
+      expect(summary).toBeDefined();
+      if (summary && summary.type === 'periodSummary') {
+        // GPS in range: 25 + 40 = 65 km. Manual in range: 15 + 20 = 35 km. Total: 100 km.
+        expect(summary.data.routes.distanceKm).toBe(100);
+        expect(summary.data.routes.routeCount).toBe(2);
+      }
+    });
+
+    it('6. consolidates kilometers for relative week (semana passada: 10/08 a 16/08)', async () => {
+      // refDate is Tuesday 2026-08-18 -> last week is Monday 2026-08-10 to Sunday 2026-08-16
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {
+              '2026-08-10': { data: '2026-08-10', km: 10 },
+              '2026-08-12': { data: '2026-08-12', km: 15 },
+              '2026-08-14': { data: '2026-08-14', km: 10 },
+              '2026-08-18': { data: '2026-08-18', km: 50 }, // this week (outside)
+            },
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [
+            {
+              id: 'sess-1',
+              date: '2026-08-10',
+              distanceMeters: 30_000,
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 100,
+              endTimestamp: 200,
+            },
+            {
+              id: 'sess-2',
+              date: '2026-08-12',
+              distanceMeters: 31_850,
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 300,
+              endTimestamp: 400,
+            },
+            {
+              id: 'sess-3',
+              date: '2026-08-14',
+              distanceMeters: 30_000,
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 500,
+              endTimestamp: 600,
+            },
+          ],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const res = await service.search('resumo semana passada', refDate);
+      const summary = res.results.find((r) => r.type === 'periodSummary');
+      expect(summary).toBeDefined();
+      if (summary && summary.type === 'periodSummary') {
+        // GPS: 30 + 31.85 + 30 = 91.85 km. Manual: 10 + 15 + 10 = 35 km. Total: 126.85 km.
+        expect(summary.data.routes.distanceKm).toBeCloseTo(126.85, 2);
+        expect(summary.data.routes.routeCount).toBe(3);
+      }
+    });
+
+    it('7. verifies km agosto and resumo agosto produce identical consolidated kilometers', async () => {
+      const ds: HomeSearchDataSource = {
+        load: jest.fn().mockResolvedValue({
+          clients: [],
+          deliveries: [],
+          factoryPurchases: [],
+          financial: {
+            costsAvailable: true,
+            dailyExpenses: {
+              '2026-08-10': { data: '2026-08-10', km: 20 },
+              '2026-08-14': { data: '2026-08-14', km: 30 },
+            },
+            deliveries: [],
+            monthlyExpenses: {},
+          },
+          routeSessions: [
+            {
+              id: 'sess-1',
+              date: '2026-08-10',
+              distanceMeters: 45_000,
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 100,
+              endTimestamp: 200,
+            },
+            {
+              id: 'sess-2',
+              date: '2026-08-14',
+              distanceMeters: 55_000,
+              durationSeconds: 1000,
+              pointsCount: 10,
+              startTimestamp: 300,
+              endTimestamp: 400,
+            },
+          ],
+          coverage: [],
+          errors: [],
+        }),
+      };
+
+      const service = new HomeSearchService(ds);
+      const summaryRes = await service.search('resumo agosto', refDate);
+      const summary = summaryRes.results.find((r) => r.type === 'periodSummary');
+
+      const kmRes = await service.search('km agosto', refDate);
+      const kmRoute = kmRes.results.find((r) => r.type === 'routeSummary');
+
+      expect(summary && summary.type === 'periodSummary').toBe(true);
+      expect(kmRoute && kmRoute.type === 'routeSummary').toBe(true);
+
+      if (
+        summary &&
+        summary.type === 'periodSummary' &&
+        kmRoute &&
+        kmRoute.type === 'routeSummary'
+      ) {
+        // GPS: 45 + 55 = 100 km. Manual: 20 + 30 = 50 km. Total: 150 km.
+        expect(summary.data.routes.distanceKm).toBe(150);
+        expect(kmRoute.data.distanceKm).toBe(150);
+        expect(summary.data.routes.routeCount).toBe(2);
+        expect(kmRoute.data.routeCount).toBe(2);
+      }
+    });
   });
 });
 

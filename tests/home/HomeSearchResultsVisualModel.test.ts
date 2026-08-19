@@ -347,4 +347,75 @@ describe('HomeSearchResultVisualModel', () => {
     expect(model.header?.systemImage).toBe('chart.bar.fill');
     expect(model.header?.title).toBe('Luciano');
   });
+
+  it('renders "Quilometragem total" and "Rotas" in the Operação section of periodSummary', () => {
+    const periodSummaryResult: Extract<HomeSearchResult, { type: 'periodSummary' }> = {
+      type: 'periodSummary',
+      id: 'periodSummary:agosto',
+      title: 'Resumo do período',
+      score: 2000,
+      data: {
+        period: { kind: 'month', month: 8, year: 2026 },
+        financial: {
+          faturamento: 1000,
+          valoresPagos: 800,
+          valoresPendentes: 200,
+          quantidadeBaldes: 20,
+          custoTotalBaldes: 400,
+          custoCombustivel: 200,
+          custoEstar: 50,
+          custoOutros: 20,
+          custoLuz: 30,
+          custoTotal: 700,
+          lucroBruto: 600,
+          lucroLiquido: 300,
+          margemBruta: 60,
+          margemLiquida: 30,
+          custoMedioBalde: 20,
+          precoMedioBalde: 50,
+          lucroLiquidoPorBalde: 15,
+          quantidadeEntregas: 5,
+          custoMedioCombustivelPorEntrega: 40,
+        },
+        factory: {
+          openValue: 0,
+          receiptCount: 1,
+          totalBuckets: 10,
+          totalPaid: 350,
+          totalValue: 350,
+          paymentCount: 1,
+          progress: 100,
+        },
+        routes: {
+          routeCount: 3,
+          distanceKm: 126.85,
+        },
+      },
+      relations: {
+        deliveryIds: [],
+        paymentIds: [],
+        receiptIds: [],
+        sessionIds: [],
+      },
+    };
+
+    const model = createHomeSearchResultVisualModel(
+      response(
+        {
+          ...baseQuery,
+          original: 'resumo agosto',
+          period: { kind: 'month', month: 8, year: 2026 },
+          periodSummary: true,
+        },
+        [periodSummaryResult],
+      ),
+    );
+
+    const opSection = model.sections.find((s) => s.id === 'period-operations');
+    expect(opSection).toBeDefined();
+    expect(opSection?.rows.find((r) => r.id === 'routes')?.label).toBe('Rotas');
+    expect(opSection?.rows.find((r) => r.id === 'routes')?.value).toBe('3');
+    expect(opSection?.rows.find((r) => r.id === 'distance')?.label).toBe('Quilometragem total');
+    expect(opSection?.rows.find((r) => r.id === 'distance')?.value).toBe('126,85 km');
+  });
 });

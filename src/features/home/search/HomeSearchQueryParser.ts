@@ -41,11 +41,177 @@ function isoDate(day: number, month: number, year: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, 12);
+}
+
+function formatDateISO(date: Date): string {
+  return isoDate(date.getDate(), date.getMonth() + 1, date.getFullYear());
+}
+
+function getWeekRange(
+  referenceDate: Date,
+  offsetWeeks = 0,
+): { startDate: string; endDate: string } {
+  const dayOfWeek = referenceDate.getDay() === 0 ? 7 : referenceDate.getDay();
+  const mondayOffset = -(dayOfWeek - 1) + offsetWeeks * 7;
+  const sundayOffset = 7 - dayOfWeek + offsetWeeks * 7;
+  const monday = addDays(referenceDate, mondayOffset);
+  const sunday = addDays(referenceDate, sundayOffset);
+  return {
+    startDate: formatDateISO(monday),
+    endDate: formatDateISO(sunday),
+  };
+}
+
+function parseSlashDate(
+  dateStr: string,
+  fallbackYear: number,
+): { day: number; month: number; year: number } | undefined {
+  const parts = dateStr.split('/').map(Number);
+  if (parts.length === 2) {
+    const [day, month] = parts;
+    return validDateParts(day, month, fallbackYear)
+      ? { day, month, year: fallbackYear }
+      : undefined;
+  }
+  if (parts.length === 3) {
+    const [day, month, year] = parts;
+    return validDateParts(day, month, year) ? { day, month, year } : undefined;
+  }
+  return undefined;
+}
+
 function parsePeriod(
   normalized: string,
   currentYear: number,
   referenceDate = new Date(),
 ): { period?: HomeSearchPeriod; matched?: string } {
+  const isoRangeMatch = /\b(\d{4}-\d{2}-\d{2})\s+(?:a|ate)\s+(\d{4}-\d{2}-\d{2})\b/.exec(
+    normalized,
+  );
+  if (isoRangeMatch) {
+    const [, startStr, endStr] = isoRangeMatch;
+    const [sY, sM, sD] = startStr.split('-').map(Number);
+    const [eY, eM, eD] = endStr.split('-').map(Number);
+    if (validDateParts(sD, sM, sY) && validDateParts(eD, eM, eY) && startStr <= endStr) {
+      return {
+        period: { kind: 'range', startDate: startStr, endDate: endStr },
+        matched: isoRangeMatch[0],
+      };
+    }
+  }
+
+  const slashRangeMatch =
+    /\b(?:de\s+)?(\d{1,2}\/\d{1,2}(?:\/\d{4})?)\s+(?:a|ate)\s+(\d{1,2}\/\d{1,2}(?:\/\d{4})?)\b/.exec(
+      normalized,
+    );
+  if (slashRangeMatch) {
+    const [, leftStr, rightStr] = slashRangeMatch;
+    const rightParts = rightStr.split('/').map(Number);
+    const leftParts = leftStr.split('/').map(Number);
+    const explicitYear =
+      rightParts.length === 3 ? rightParts[2] : leftParts.length === 3 ? leftParts[2] : currentYear;
+
+    const left = parseSlashDate(leftStr, explicitYear);
+    const right = parseSlashDate(rightStr, explicitYear);
+
+    if (left && right) {
+      const startDate = isoDate(left.day, left.month, left.year);
+      const endDate = isoDate(right.day, right.month, right.year);
+      if (startDate <= endDate) {
+        return {
+          period: { kind: 'range', startDate, endDate },
+          matched: slashRangeMatch[0],
+        };
+      }
+    }
+  }
+
+  const currentWeek = /\b(?:esta\s+semana|semana\s+atual)\b/.exec(normalized);
+  if (currentWeek) {
+    return {
+      period: { kind: 'range', ...getWeekRange(referenceDate, 0) },
+      matched: currentWeek[0],
+    };
+  }
+
+  const lastWeek = /\b(?:semana\s+passada|ultima\s+semana)\b/.exec(normalized);
+  if (lastWeek) {
+    return {
+      period: { kind: 'range', ...getWeekRange(referenceDate, -1) },
+      matched: lastWeek[0],
+    };
+  }
+
+  const nextWeek = /\b(?:proxima\s+semana)\b/.exec(normalized);
+  if (nextWeek) {
+    return {
+      period: { kind: 'range', ...getWeekRange(referenceDate, 1) },
+      matched: nextWeek[0],
+    };
+  }
+
+  const currentMonthMatch = /\b(?:este\s+mes|mes\s+atual)\b/.exec(normalized);
+  if (currentMonthMatch) {
+    return {
+      period: {
+        kind: 'month',
+        month: referenceDate.getMonth() + 1,
+        year: referenceDate.getFullYear(),
+      },
+      matched: currentMonthMatch[0],
+    };
+  }
+
+  const lastMonthMatch = /\b(?:mes\s+passado|ultimo\s+mes)\b/.exec(normalized);
+  if (lastMonthMatch) {
+    const refMonth = referenceDate.getMonth() + 1;
+    const refYear = referenceDate.getFullYear();
+    const month = refMonth === 1 ? 12 : refMonth - 1;
+    const year = refMonth === 1 ? refYear - 1 : refYear;
+    return {
+      period: { kind: 'month', month, year },
+      matched: lastMonthMatch[0],
+    };
+  }
+
+  const nextMonthMatch = /\b(?:proximo\s+mes)\b/.exec(normalized);
+  if (nextMonthMatch) {
+    const refMonth = referenceDate.getMonth() + 1;
+    const refYear = referenceDate.getFullYear();
+    const month = refMonth === 12 ? 1 : refMonth + 1;
+    const year = refMonth === 12 ? refYear + 1 : refYear;
+    return {
+      period: { kind: 'month', month, year },
+      matched: nextMonthMatch[0],
+    };
+  }
+
+  const today = /\bhoje\b/.exec(normalized);
+  if (today) {
+    return {
+      period: { kind: 'date', date: formatDateISO(referenceDate) },
+      matched: today[0],
+    };
+  }
+
+  const yesterday = /\bontem\b/.exec(normalized);
+  if (yesterday) {
+    return {
+      period: { kind: 'date', date: formatDateISO(addDays(referenceDate, -1)) },
+      matched: yesterday[0],
+    };
+  }
+
+  const tomorrow = /\bamanha\b/.exec(normalized);
+  if (tomorrow) {
+    return {
+      period: { kind: 'date', date: formatDateISO(addDays(referenceDate, 1)) },
+      matched: tomorrow[0],
+    };
+  }
+
   const isoDateMatch = /\b(\d{4})-(\d{2})-(\d{2})\b/.exec(normalized);
   if (isoDateMatch) {
     const [, yearValue, monthValue, dayValue] = isoDateMatch;
@@ -121,14 +287,6 @@ function parsePeriod(
         matched: dayMonth[0],
       };
     }
-  }
-
-  const today = /\bhoje\b/.exec(normalized);
-  if (today) {
-    const year = referenceDate.getFullYear();
-    const month = referenceDate.getMonth() + 1;
-    const day = referenceDate.getDate();
-    return { period: { kind: 'date', date: isoDate(day, month, year) }, matched: today[0] };
   }
 
   const year = /\b(20\d{2})\b/.exec(normalized);

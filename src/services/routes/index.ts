@@ -17,5 +17,13 @@ export { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
 export { RouteTrackingRepository, routeTrackingRepository } from './RouteTrackingRepository';
 export { appendValidLocationSamples, calculateDistanceMeters } from './routeTrackingMath';
 export { formatRouteDateKey, getRouteDateKey } from './routeTrackingDates';
-export { summarizeRouteDistance, summarizeRouteKilometersByDate } from './routeTrackingDistance';
-export type { RouteDistanceSummary, RouteKilometersByDate } from './routeTrackingDistance';
+export {
+  summarizeConsolidatedKilometers,
+  summarizeRouteDistance,
+  summarizeRouteKilometersByDate,
+} from './routeTrackingDistance';
+export type {
+  ConsolidatedDistanceSummary,
+  RouteDistanceSummary,
+  RouteKilometersByDate,
+} from './routeTrackingDistance';

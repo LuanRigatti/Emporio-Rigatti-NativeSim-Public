@@ -59,6 +59,19 @@ function formatPeriod(period: HomeSearchPeriod): string {
     return period.year ? `${month} de ${period.year}` : month;
   }
 
+  if (period.kind === 'range') {
+    if (period.label) return period.label;
+    const [startYear, startMonth, startDay] = period.startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = period.endDate.split('-').map(Number);
+    if (startYear === endYear && startMonth === endMonth) {
+      return `${startDay} a ${endDay} de ${MONTH_NAMES[startMonth - 1]} de ${startYear}`;
+    }
+    if (startYear === endYear) {
+      return `${startDay} de ${MONTH_NAMES[startMonth - 1]} a ${endDay} de ${MONTH_NAMES[endMonth - 1]} de ${startYear}`;
+    }
+    return `${startDay} de ${MONTH_NAMES[startMonth - 1]} de ${startYear} a ${endDay} de ${MONTH_NAMES[endMonth - 1]} de ${endYear}`;
+  }
+
   return String(period.year);
 }
 
@@ -225,6 +238,24 @@ function baseRouteDetails(
     result.data.period.kind === 'date' || result.data.period.kind === 'dayMonth'
       ? 'Km considerado no dia'
       : 'Km considerados no período';
+  const details: string[] = [];
+  if (result.data.startTimestamp > 0) {
+    details.push(`Início: ${formatRouteTime(result.data.startTimestamp)}`);
+  }
+  if (result.data.endTimestamp > 0) {
+    details.push(`Fim: ${formatRouteTime(result.data.endTimestamp)}`);
+  }
+  if (result.data.durationSeconds > 0) {
+    details.push(`Duração: ${formatRouteDuration(result.data.durationSeconds)}`);
+  }
+  details.push(`Distância: ${formatRouteDistance(result.data.distanceKm)}`);
+  if (result.data.pointsCount > 0) {
+    details.push(`Pontos GPS: ${result.data.pointsCount}`);
+  }
+  if (result.data.consideredDistanceKm > 0) {
+    details.push(`${consideredLabel}: ${formatRouteDistance(result.data.consideredDistanceKm)}`);
+  }
+
   return {
     primaryTitle: formatPeriod(result.data.period),
     relatedCount:
@@ -232,14 +263,7 @@ function baseRouteDetails(
         ? `${result.data.routeCount} ${plural(result.data.routeCount, 'rota', 'rotas')}`
         : formatCompactRouteDistance(result.data.distanceKm),
     typeLabel: 'Rota',
-    details: [
-      `Início: ${formatRouteTime(result.data.startTimestamp)}`,
-      `Fim: ${formatRouteTime(result.data.endTimestamp)}`,
-      `Duração: ${formatRouteDuration(result.data.durationSeconds)}`,
-      `Distância: ${formatRouteDistance(result.data.distanceKm)}`,
-      `Pontos GPS: ${result.data.pointsCount}`,
-      `${consideredLabel}: ${formatRouteDistance(result.data.consideredDistanceKm)}`,
-    ],
+    details,
   };
 }
 

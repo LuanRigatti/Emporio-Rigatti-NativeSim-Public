@@ -874,9 +874,87 @@ uma operação confirmada.
 
 ### Commit e publicação
 
-- Branch: `ajustes-antigravity`.
-- Commit anterior da sequência: `17a0e28` (`feat: improve client metrics and historical search scope`).
-- Status: Alterações validadas localmente com 0 erros e 382 testes passando; sem commit adicional realizado (aguardando autorização).
+- Commit: `189f293` (`feat: add home search native help sheet and header styling`).
+- Status: Commit e push realizados na branch `ajustes-antigravity`.
+
+## Expansão canônica do parser temporal da Home Search
+
+### Funcionalidade implementada
+
+- **Dias relativos:** Suporte nativo e determinístico para `ontem` (data atual - 1 dia) e `amanhã` (data atual + 1 dia), preservando `hoje`.
+- **Meses relativos:** Suporte para `este mês`/`mês atual`, `mês passado`/`último mês` e `próximo mês`, com transição segura de ano (ex: janeiro -> mês passado = dezembro do ano anterior).
+- **Semanas relativas:** Suporte para `esta semana`/`semana atual`, `semana passada`/`última semana` e `próxima semana`, calculando o intervalo fechado canônico de Segunda-feira (`startDate`) a Domingo (`endDate`).
+- **Intervalos de datas explícitos:** Suporte para formatos de range como `01/08 a 15/08`, `01/08 até 15/08`, `de 01/08 a 15/08`, `20/12/2025 a 10/01/2026` e `2026-08-01 a 2026-08-15`, com resolução para o ano de referência quando não especificado e validação estrita anti-inversão (`startDate <= endDate`).
+- **Tipo canônico `range`:** Estendido `HomeSearchPeriod` com `{ kind: 'range', startDate: string, endDate: string }` e `matchesPeriod` canônico utilizado de ponta a ponta em clientes, métricas financeiras, fábrica, resumos e rotas.
+- **Catálogo de ajuda atualizado:** Adicionados 4 exemplos de períodos relativos e ranges no catálogo [HomeSearchHelpData.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/help/HomeSearchHelpData.ts) (totalizando 27 exemplos auditados).
+
+### Arquivos principais
+
+- `src/features/home/search/HomeSearchTypes.ts`
+- `src/features/home/search/HomeSearchQueryParser.ts`
+- `src/features/home/search/HomeSearchDataSource.ts`
+- `src/features/home/search/HomeSearchService.ts`
+- `src/features/home/components/HomeSearchResultsPresentation.ts`
+- `src/features/home/help/HomeSearchHelpData.ts`
+- `tests/home/HomeSearchHelpData.test.ts`
+- `tests/home/HomeSearchService.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema afetado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros e 0 warnings.
+- Jest (`npm test`): 49 suítes / 404 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- Nenhuma. O parser opera em $O(1)$, com expressões regulares estritas e testes de regressão temporal.
+
+## Consolidação canônica de quilometragem (GPS + Manual) na Home Search
+
+### Funcionalidade implementada
+
+- **Unificação canônica de quilometragem:** Centralizada a regra de composição aditiva do app através da função `summarizeConsolidatedKilometers(sessions, dailyExpenses, isDateInPeriod)` em [routeTrackingDistance.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/services/routes/routeTrackingDistance.ts):
+  $$\text{totalKilometers} = \text{manualKilometers (gastosDiarios.km)} + \text{automaticKilometers (GPS)}$$
+- **Resumos por período (`periodSummary`):** A distância exibida em `resumo hoje`, `resumo ontem`, `resumo semana passada`, `resumo agosto`, `resumo 01/08 a 15/08`, etc. consolida a quilometragem do GPS com os lançamentos manuais de `gastosDiarios` do período.
+- **Consultas diretas de km (`routeMetric`):** Consultas como `km 14/08`, `quilometragem agosto`, `km semana passada` e `km 01/08 a 15/08` utilizam exatamente a mesma consolidação unificada.
+- **Carregamento otimizado de dados:** Em `AppHomeSearchDataSource.load`, consultas de `routeMetric` carregam em paralelo as rotas locais e os dados financeiros/gastos diários com cache em memória/disco (`financialPeriodSnapshotCache`) e consulta Firestore delimitada sem N+1.
+- **Preservação estrita da contagem de rotas:** A linha `Rotas` (`routeCount`) preserva estritamente a quantidade de sessões GPS gravadas (`sessions.length`). Lançamentos manuais de km em Dados do Dia não inflam a quantidade de rotas.
+- **Padronização do rótulo da métrica:** No card *Operação* dos resumos, o rótulo foi atualizado de `Distância das rotas` para **`Quilometragem total`** em [HomeSearchResultsVisualModel.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/components/HomeSearchResultsVisualModel.ts).
+
+### Arquivos principais
+
+- `src/services/routes/routeTrackingDistance.ts`
+- `src/services/routes/index.ts`
+- `src/features/home/search/HomeSearchDataSource.ts`
+- `src/features/home/search/HomeSearchService.ts`
+- `src/features/home/components/HomeSearchResultsPresentation.ts`
+- `src/features/home/components/HomeSearchResultsVisualModel.ts`
+- `tests/home/HomeSearchService.test.ts`
+- `tests/home/HomeSearchResultsVisualModel.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema afetado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros e 0 warnings.
+- Jest (`npm test`): 49 suítes / 412 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- Nenhuma. O cálculo é determinístico, compartilhado entre todas as telas e protegido contra dupla contagem ou ausência de rotas GPS.
+
+### Commit e publicação
+
+- Status: Commit e push realizados na branch `ajustes-antigravity`.
 
 ## Flags atuais
 

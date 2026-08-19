@@ -19,12 +19,12 @@ describe('HomeSearchHelpData', () => {
     });
   });
 
-  it('contains exactly 23 audited search examples across 6 categories', () => {
+  it('contains exactly 27 audited search examples across 6 categories', () => {
     const totalExamples = HOME_SEARCH_HELP_CATEGORIES.reduce(
       (total, cat) => total + cat.examples.length,
       0,
     );
-    expect(totalExamples).toBe(23);
+    expect(totalExamples).toBe(27);
   });
 
   it('verifies that every help example query parses successfully in HomeSearchQueryParser', () => {

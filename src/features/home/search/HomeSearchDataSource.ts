@@ -29,6 +29,7 @@ type DateBounds = Pick<DeliveryFilters, 'date' | 'startDate' | 'endDate'>;
 
 function routeMatchesPeriod(date: string, period: HomeSearchPeriod): boolean {
   if (period.kind === 'date') return date === period.date;
+  if (period.kind === 'range') return date >= period.startDate && date <= period.endDate;
   if (period.kind === 'year') return date.startsWith(`${period.year}-`);
   if (period.kind === 'dayMonth') {
     return (
@@ -48,6 +49,7 @@ export function dateBoundsForSearch(query: HomeSearchParsedQuery): DateBounds | 
   const period = query.period;
   if (!period) return undefined;
   if (period.kind === 'date') return { date: period.date };
+  if (period.kind === 'range') return { startDate: period.startDate, endDate: period.endDate };
   if (period.kind === 'year') {
     return { startDate: `${period.year}-01-01`, endDate: `${period.year}-12-31` };
   }
@@ -112,8 +114,19 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       return { clients: [], deliveries: [], factoryPurchases: [], coverage, errors };
     }
     if (query.routeMetric) {
-      const routeSessions = await this.loadRoutes(query, coverage, errors);
-      return { clients: [], deliveries: [], factoryPurchases: [], routeSessions, coverage, errors };
+      const [routeSessions, financial] = await Promise.all([
+        this.loadRoutes(query, coverage, errors),
+        this.loadFinancialData(query, coverage, errors),
+      ]);
+      return {
+        clients: [],
+        deliveries: financial.deliveries,
+        factoryPurchases: [],
+        financial,
+        routeSessions,
+        coverage,
+        errors,
+      };
     }
     if (query.carMetric) {
       const carSettings = await this.loadCarSettings(coverage, errors);
@@ -404,6 +417,9 @@ function financialCacheMonth(query: HomeSearchParsedQuery): string | undefined {
   if (period.kind === 'date') return period.date.slice(0, 7);
   if (period.kind === 'month' && period.year) {
     return `${period.year}-${String(period.month).padStart(2, '0')}`;
+  }
+  if (period.kind === 'range' && period.startDate.slice(0, 7) === period.endDate.slice(0, 7)) {
+    return period.startDate.slice(0, 7);
   }
   return undefined;
 }

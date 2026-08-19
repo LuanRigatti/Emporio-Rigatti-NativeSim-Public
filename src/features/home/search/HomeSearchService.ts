@@ -4,6 +4,7 @@ import { financialCalculationService } from '@/services/finance/FinancialCalcula
 import { financialFiltersForSelection } from '@/services/finance/FinancialPeriodService';
 import { parseKmPerLiter } from '@/services/expenses/FuelCostCalculationService';
 import {
+  summarizeConsolidatedKilometers,
   summarizeRouteDistance,
   summarizeRouteKilometersByDate,
 } from '@/services/routes/routeTrackingDistance';
@@ -57,6 +58,7 @@ const EMPTY_COUNTS: HomeSearchDomainCounts = {
 function matchesPeriod(date: string, period: HomeSearchPeriod | undefined): boolean {
   if (!period) return true;
   if (period.kind === 'date') return date === period.date;
+  if (period.kind === 'range') return date >= period.startDate && date <= period.endDate;
   if (period.kind === 'year') return date.startsWith(`${period.year}-`);
   if (period.kind === 'dayMonth') {
     return (
@@ -474,28 +476,33 @@ function routeSummaryResults(
 ): HomeSearchRouteSummaryResult[] {
   const period = query.period;
   const metric = query.routeMetric;
-  const sessions = (data.routeSessions ?? []).filter((session) =>
-    matchesPeriod(session.date, period),
+  const rawSessions = data.routeSessions ?? [];
+  const dailyExpenses = data.financial?.dailyExpenses ?? {};
+  const consolidated = summarizeConsolidatedKilometers(rawSessions, dailyExpenses, (date) =>
+    matchesPeriod(date, period),
   );
-  if (!period || !metric || sessions.length === 0) return [];
-  const distance = summarizeRouteDistance(sessions);
+  const sessions = rawSessions.filter((session) => matchesPeriod(session.date, period));
+  if (!period || !metric || (sessions.length === 0 && consolidated.manualKilometers === 0)) {
+    return [];
+  }
   const dailySummaries = new Map(
     [...new Set(sessions.map((session) => session.date))].map((date) => [
       date,
       summarizeRouteDistance(sessions.filter((session) => session.date === date)),
     ]),
   );
-  const startTimestamp = Math.min(...sessions.map((session) => session.startTimestamp));
-  const endTimestamp = Math.max(...sessions.map((session) => session.endTimestamp));
+  const startTimestamp =
+    sessions.length > 0 ? Math.min(...sessions.map((session) => session.startTimestamp)) : 0;
+  const endTimestamp =
+    sessions.length > 0 ? Math.max(...sessions.map((session) => session.endTimestamp)) : 0;
   const durationSeconds = sessions.reduce(
     (total, session) => total + Math.max(0, session.durationSeconds),
     0,
   );
   const pointsCount = sessions.reduce((total, session) => total + session.pointsCount, 0);
-  const consideredDistanceKm = [...dailySummaries.values()].reduce(
-    (total, summary) => total + summary.totalKilometers,
-    0,
-  );
+  const consideredDistanceKm =
+    [...dailySummaries.values()].reduce((total, summary) => total + summary.totalKilometers, 0) +
+    consolidated.manualKilometers;
   return [
     {
       type: 'routeSummary',
@@ -505,8 +512,8 @@ function routeSummaryResults(
       data: {
         period,
         metric,
-        distanceKm: distance.totalKilometers,
-        routeCount: distance.routeCount,
+        distanceKm: consolidated.totalKilometers,
+        routeCount: consolidated.routeCount,
         durationSeconds,
         pointsCount,
         startTimestamp,
@@ -568,21 +575,33 @@ function periodSummaryResults(
   const dailyDates = Object.keys(financial.dailyExpenses).filter((date) =>
     matchesPeriod(date, period),
   );
-  const monthlyKeys = Object.keys(financial.monthlyExpenses).filter((month) =>
-    period.kind === 'year'
-      ? month.startsWith(`${period.year}-`)
-      : period.kind === 'month'
-        ? month === `${period.year}-${String(period.month).padStart(2, '0')}`
-        : false,
-  );
+  const monthlyKeys = Object.keys(financial.monthlyExpenses).filter((month) => {
+    if (period.kind === 'year') return month.startsWith(`${period.year}-`);
+    if (period.kind === 'month') {
+      return month === `${period.year}-${String(period.month).padStart(2, '0')}`;
+    }
+    if (period.kind === 'range') {
+      const startMonth = period.startDate.slice(0, 7);
+      const endMonth = period.endDate.slice(0, 7);
+      return month >= startMonth && month <= endMonth;
+    }
+    return false;
+  });
   const receipts = data.factoryPurchases.filter((receipt) => matchesPeriod(receipt.data, period));
-  const sessions = data.routeSessions ?? [];
+  const rawSessions = data.routeSessions ?? [];
+  const sessions = rawSessions.filter((session) => matchesPeriod(session.date, period));
+  const consolidatedRoutes = summarizeConsolidatedKilometers(
+    rawSessions,
+    financial.dailyExpenses,
+    (date) => matchesPeriod(date, period),
+  );
   if (
     deliveries.length === 0 &&
     dailyDates.length === 0 &&
     monthlyKeys.length === 0 &&
     receipts.length === 0 &&
-    sessions.length === 0
+    sessions.length === 0 &&
+    consolidatedRoutes.manualKilometers === 0
   )
     return [];
   const financialSummary = financialCalculationService.calculateResumo({
@@ -592,7 +611,6 @@ function periodSummaryResults(
     monthlyExpenses: financial.monthlyExpenses,
     automaticKilometersByDate: summarizeRouteKilometersByDate(sessions),
   });
-  const routeSummary = summarizeRouteDistance(sessions);
   return [
     {
       type: 'periodSummary',
@@ -604,8 +622,8 @@ function periodSummaryResults(
         financial: financialSummary,
         factory: factoryAggregate(receipts),
         routes: {
-          routeCount: routeSummary.routeCount,
-          distanceKm: routeSummary.totalKilometers,
+          routeCount: consolidatedRoutes.routeCount,
+          distanceKm: consolidatedRoutes.totalKilometers,
         },
       },
       relations: {
@@ -621,6 +639,8 @@ function periodSummaryResults(
 function financialSelection(period: HomeSearchPeriod): FinancialPeriodSelection {
   if (period.kind === 'date') return { kind: 'day', date: period.date };
   if (period.kind === 'year') return { kind: 'year', year: String(period.year) };
+  if (period.kind === 'range')
+    return { kind: 'range', start: period.startDate, end: period.endDate };
   if (period.kind === 'dayMonth') {
     const year = new Date().getFullYear();
     return {
@@ -666,7 +686,13 @@ function financialResults(
     if (period.kind === 'month') {
       return month === `${period.year}-${String(period.month).padStart(2, '0')}`;
     }
-    return period.kind === 'year' ? month.startsWith(`${period.year}-`) : false;
+    if (period.kind === 'year') return month.startsWith(`${period.year}-`);
+    if (period.kind === 'range') {
+      const startMonth = period.startDate.slice(0, 7);
+      const endMonth = period.endDate.slice(0, 7);
+      return month >= startMonth && month <= endMonth;
+    }
+    return false;
   });
   const hasPeriodData = periodDeliveries.length > 0 || hasDailyData || hasMonthlyData;
   if (!hasPeriodData) return [];
@@ -748,8 +774,8 @@ export class HomeSearchService {
 
   public constructor(private readonly dataSource: HomeSearchDataSource) {}
 
-  public async search(original: string): Promise<HomeSearchResponse> {
-    return this.searchParsed(homeSearchQueryParser.parse(original));
+  public async search(original: string, referenceDate = new Date()): Promise<HomeSearchResponse> {
+    return this.searchParsed(homeSearchQueryParser.parse(original, referenceDate));
   }
 
   public async searchParsed(query: HomeSearchParsedQuery): Promise<HomeSearchResponse> {

@@ -10,6 +10,7 @@ import { NativeSearchField } from '@/components/native';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
+import { LastRouteCard } from '@/features/home/components/LastRouteCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
 import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
@@ -19,6 +20,7 @@ import {
   isHomeSearchSheetVisible,
 } from '@/features/home/hooks/HomeSearchPresentationFlow';
 import { useHomeSearch } from '@/features/home/hooks/useHomeSearch';
+import { useLatestCompletedRoute } from '@/features/home/hooks/useLatestCompletedRoute';
 import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoices';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -55,6 +57,7 @@ export default function Home() {
   const lastSubmitAt = useRef<number | null>(null);
   const lastTextChangeAt = useRef<number | null>(null);
   const { search: runHomeSearch } = useHomeSearch();
+  const latestCompletedRoute = useLatestCompletedRoute();
   const {
     deliveries: dailyDeliveries,
     remove: removeDelivery,
@@ -252,6 +255,11 @@ export default function Home() {
     router.push('/notas-fiscais-boletos');
   };
 
+  const handleOpenLastRoute = () => {
+    triggerLightImpactHaptic();
+    router.push('/localizacao');
+  };
+
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -393,6 +401,8 @@ export default function Home() {
             </View>
           </PremiumCard>
         </View>
+
+        <LastRouteCard onPress={handleOpenLastRoute} session={latestCompletedRoute} />
 
         <TodayDeliveriesCard
           deliveries={todayDeliveries}

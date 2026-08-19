@@ -99,6 +99,10 @@ export class LocationTrackingService {
     return routeTrackingRepository.getRouteHistory(date);
   }
 
+  public getLatestCompletedRoute(): Promise<RouteTrackingSession | null> {
+    return routeTrackingRepository.getLatestCompletedRoute();
+  }
+
   public getRouteSessionById(routeId: string): Promise<RouteTrackingSession | null> {
     return routeTrackingRepository.getRouteSessionById(routeId);
   }

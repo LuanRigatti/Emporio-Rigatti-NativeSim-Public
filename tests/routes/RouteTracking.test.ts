@@ -275,4 +275,42 @@ describe('route distance by day', () => {
     expect(await routeTrackingRepository.getTotalDistanceForDate('2026-08-06')).toBe(8.6);
     await expect(routeTrackingRepository.removeRouteSession(first.id)).resolves.toBe(false);
   });
+
+  it('returns the latest finalized route even with 0 km or few samples', async () => {
+    const zeroKmSession: RouteTrackingSession = {
+      date: '2026-08-16',
+      distanceMeters: 0,
+      durationSeconds: 5,
+      endTimestamp: 205_000,
+      id: 'session-zero',
+      pointsCount: 1,
+      samples: [
+        {
+          accuracy: 10,
+          latitude: -25.4296,
+          longitude: -49.2719,
+          timestamp: 200_000,
+        },
+      ],
+      startTimestamp: 200_000,
+      status: 'finalized',
+    };
+
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([...sessions, zeroKmSession]),
+    );
+
+    const latest = await routeTrackingRepository.getLatestCompletedRoute();
+    expect(latest).toEqual(zeroKmSession);
+    expect(routeTrackingRepository.getMemoryLatestCompletedRoute()).toEqual(zeroKmSession);
+  });
+
+  it('returns null when there are no finalized routes', async () => {
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify([]));
+
+    const latest = await routeTrackingRepository.getLatestCompletedRoute();
+    expect(latest).toBeNull();
+    expect(routeTrackingRepository.getMemoryLatestCompletedRoute()).toBeNull();
+  });
 });

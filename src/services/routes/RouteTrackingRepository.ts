@@ -140,6 +140,11 @@ export class RouteTrackingRepository {
       : this.memoryHistory;
   }
 
+  public getMemoryLatestCompletedRoute(): RouteTrackingSession | null {
+    if (!this.memoryHistory || this.memoryHistory.length === 0) return null;
+    return this.memoryHistory[this.memoryHistory.length - 1];
+  }
+
   public clearMemoryCache(): void {
     this.memoryHistory = null;
   }
@@ -161,6 +166,11 @@ export class RouteTrackingRepository {
     this.memoryHistory = history;
 
     return date ? history.filter((session) => session.date === date) : history;
+  }
+
+  public async getLatestCompletedRoute(): Promise<RouteTrackingSession | null> {
+    const history = await this.getRouteHistory();
+    return history.length > 0 ? history[history.length - 1] : null;
   }
 
   public async getRouteSessionById(routeId: string): Promise<RouteTrackingSession | null> {

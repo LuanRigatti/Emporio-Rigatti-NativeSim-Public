@@ -1015,6 +1015,67 @@ uma operação confirmada.
 
 - Status: Validado localmente com 0 erros; aguardando autorização para commit.
 
+## Card Última Rota na Home (Atalho com Preview de Mapa Apple Maps)
+
+### Funcionalidade implementada
+
+- **Criação do card de atalho `Última rota` na Home:**
+  - Posicionado estrategicamente abaixo dos widgets *Recebimentos em aberto* e *Documentos* e acima de *Entregas de hoje* em [dashboard.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/app/(tabs)/dashboard.tsx).
+  - Reutilização integral do componente de mapa nativo [NativeTrackedRouteMap](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/routes/NativeTrackedRouteMap.native.tsx) (`AppleMaps.View` no iOS Development Build com polyline nativa, marcadores início/fim, enquadramento automático de câmera e fallback gracioso).
+  - Apresentação em [GlassCard](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/premium/GlassCard.tsx) elevado com curvatura Apple de `theme.radius.xl + theme.spacing.sm`, altura de prévia de 180 pt e cantos arredondados contínuos.
+  - Formatação tipográfica em duas linhas: linha 1 com data por extenso (`16 de agosto de 2026` via `Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })`) e linha 2 com distância formatada (`91,85 km` ou `0,00 km` em `pt-BR`).
+  - Header da seção com título `Última rota` e chevron discreto à direita (`chevron-forward`), com margens horizontais idênticas a `TodayDeliveriesCard` (`16 pt`).
+  - Navegação instantânea: toque em qualquer ponto do card ou header aciona `triggerLightImpactHaptic()` e `router.push('/localizacao')`.
+- **Seleção canônica da última sessão finalizada:**
+  - Adição dos métodos `getLatestCompletedRoute()` e `getMemoryLatestCompletedRoute()` em [RouteTrackingRepository.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/services/routes/RouteTrackingRepository.ts) e [LocationTrackingService.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/services/routes/LocationTrackingService.ts).
+  - Seleção estrita da última sessão finalizada da ordenação canônica por data/horário (`history[history.length - 1]`).
+  - Sem filtros destrutivos por distância, duração ou quantidade de pontos: sessões com `0,00 km`, curta duração ou apenas o ponto inicial são exibidas normalmente como a última sessão real.
+  - Rotas ativas em andamento nunca substituem a última rota finalizada.
+  - Na ausência total de rotas finalizadas no histórico (`history.length === 0`), a seção retorna `null` e a Home não reserva nenhum espaço em branco.
+- **Performance e Zero Firestore:**
+  - Hidratação de frame 0 instantânea a partir da memória via hook [useLatestCompletedRoute.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/hooks/useLatestCompletedRoute.ts), sem flash e sem layout shift.
+  - Sincronização em segundo plano no ciclo de foco (`useFocusEffect`).
+  - 0 consultas ao Firestore (rotas são 100% locais via `AsyncStorage` + memória).
+
+### Comportamento final
+
+- Usuário abre a Home: o card `Última rota` aparece imediatamente abaixo dos widgets de recebimentos/documentos, exibindo a rota finalizada mais recente.
+- Caso o usuário inicie uma nova rota, o card continua exibindo a rota finalizada anterior até que a nova rota seja parada e concluída.
+- Ao tocar no card ou no cabeçalho, o app vibra suavemente e navega diretamente para a tela de Localização.
+- Se o usuário não tiver nenhuma rota gravada, a seção não é renderizada e a Home permanece minimalista.
+
+### Arquivos principais
+
+- `src/features/home/components/LastRouteCard.tsx` (novo)
+- `src/features/home/utils/lastRouteFormatUtils.ts` (novo)
+- `src/features/home/hooks/useLatestCompletedRoute.ts` (novo)
+- `src/services/routes/RouteTrackingRepository.ts`
+- `src/services/routes/LocationTrackingService.ts`
+- `src/app/(tabs)/dashboard.tsx`
+- `tests/home/LastRouteCard.test.ts` (novo)
+- `tests/routes/RouteTracking.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema do Cloud Firestore alterado. Persistência local e tracking GPS preservados integralmente.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado nos arquivos afetados: 0 erros e 0 warnings.
+- Jest: 69 suítes e 515 testes passando.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- Nesta etapa, o toque navega para a tela principal de Localização (`/localizacao`). O foco ou abertura direta de uma rota específica na lista fica reservado para expansões futuras da navegação.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Mensagem: `feat(home): adicionar card ultima rota com preview de mapa nativo`.
+- Status: Validado e publicado na branch `ajustes-antigravity`.
+
 ## Flags atuais
 
 

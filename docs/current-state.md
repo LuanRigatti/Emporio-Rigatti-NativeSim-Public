@@ -956,6 +956,65 @@ uma operação confirmada.
 
 - Status: Commit e push realizados na branch `ajustes-antigravity`.
 
+## Botão Nativo de Status de Rastreamento (NativeTrackingStatusButton) com Liquid Glass e Animação Breathe
+
+### Funcionalidade implementada
+
+- **Criação do componente nativo reutilizável `NativeTrackingStatusButton`:**
+  - Substituição do `NativeGlassIconButton` pelo novo controle nativo de cápsula na tela de **Localização e Rotas** ([LocationTrackingScreen.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/location/components/LocationTrackingScreen.tsx)).
+  - **SwiftUI nativo com Liquid Glass:** Renderização via `@expo/ui/swift-ui` com `Host`, `Button`, `HStack`, `Image`, `Text`, `buttonStyle('plain')` e `glassEffect({ glass: { interactive: true, variant: 'regular' }, shape: 'capsule' })`.
+  - **Sincronização reativa de estado nativo:** Binding direto e transparente entre `route?.active` (do `locationTrackingService.getRoute()`) e o `ObservableState<boolean>` nativo via `useNativeState`, sem duplicação de estado nem polling extra.
+  - **Animação Apple Nativa (Breathe):** Aplicação do modificador nativo `symbolEffect({ effect: 'breathe' }, { isActive: isTrackingActive })` exclusivamente no indicador circular à esquerda. A cápsula do botão permanece com geometria e dimensões 100% estáveis (não pulsa nem escala).
+  - **Refinamento visual iOS:** Tipografia `18 pt` semibold SF Pro Rounded, indicador circular ampliado (`16 pt` / frame `18 x 18 pt`), espaçamento balanceado de 9 pt e largura de cápsula em `132 pt` com altura fixa em `56 pt`.
+  - **Cores semânticas do sistema:** Uso de `PlatformColor('secondaryLabel')` para o indicador inativo (`circle` ○) e `PlatformColor('systemGreen')` para o indicador ativo (`circle.fill` ●).
+  - **Fallback robusto:** `GlassSurface` e `Animated.loop` suave com easing para Web, Android e Expo Go.
+
+### Comportamento final
+
+- **Estado Parado / Inativo (`active = false`):**
+  - Exibe `○ Iniciar` com círculo discreto e texto semibold.
+  - Nenhuma animação em execução.
+- **Ao Iniciar Rastreamento:**
+  - `route?.active` passa para `true`;
+  - O indicador alterna instantaneamente para `● Ao vivo` em verde nativo (`systemGreen`) e inicia a animação suave de respiração (`breathe`) acelerada por GPU a 120fps.
+  - O botão é protegido contra duplo toque via trava `busy`.
+- **Durante Rastreamento Ativo:**
+  - A respiração do indicador continua contínua e estável enquanto a gravação de rota estiver ativa.
+- **Ao Parar Rastreamento:**
+  - `route?.active` passa para `false`;
+  - A animação cessa imediatamente e o botão retorna ao estado `○ Iniciar`.
+
+### Arquivos principais
+
+- `src/components/native/NativeTrackingStatusButton/NativeTrackingStatusButton.types.ts` (novo)
+- `src/components/native/NativeTrackingStatusButton/NativeTrackingStatusButtonSwiftUI.ios.tsx` (novo)
+- `src/components/native/NativeTrackingStatusButton/NativeTrackingStatusButtonFallback.tsx` (novo)
+- `src/components/native/NativeTrackingStatusButton/NativeTrackingStatusButton.native.tsx` (novo)
+- `src/components/native/NativeTrackingStatusButton/NativeTrackingStatusButton.tsx` (novo)
+- `src/components/native/NativeTrackingStatusButton/index.ts` (novo)
+- `src/components/native/index.ts`
+- `src/features/location/components/LocationTrackingScreen.tsx`
+- `tests/home/HomeSearchService.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema do Cloud Firestore alterado. Toda a camada de persistência local (`RouteTrackingRepository`), permissões e background GPS foi preservada integralmente.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/routes tests/native tests/home tests/history`): 15 suítes / 219 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- A animação nativa `symbolEffect('breathe')` requer iOS 18+ / iOS 26 (presente no Development Build iOS SDK 57 atual). Em ambientes de fallback (Android/Web/Expo Go), utiliza-se o loop animado JS do fallback.
+
+### Commit e publicação
+
+- Status: Validado localmente com 0 erros; aguardando autorização para commit.
+
 ## Flags atuais
 
 

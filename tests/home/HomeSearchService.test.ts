@@ -1257,7 +1257,7 @@ describe('HomeSearchService', () => {
     const routeData = {
       ...dataSet,
       financial: {
-        ...dataSet.financial,
+        ...financialData,
         dailyExpenses: {},
       },
       routeSessions: [
@@ -1297,7 +1297,7 @@ describe('HomeSearchService', () => {
       load: async () => ({
         ...dataSet,
         financial: {
-          ...dataSet.financial,
+          ...financialData,
           dailyExpenses: {},
         },
         routeSessions: [
@@ -1328,7 +1328,7 @@ describe('HomeSearchService', () => {
         load: async () => ({
           ...dataSet,
           financial: {
-            ...dataSet.financial,
+            ...financialData,
             dailyExpenses: {},
           },
           routeSessions: [session],
@@ -1369,7 +1369,7 @@ describe('HomeSearchService', () => {
       load: async () => ({
         ...dataSet,
         financial: {
-          ...dataSet.financial,
+          ...financialData,
           dailyExpenses: {},
         },
         routeSessions: [],

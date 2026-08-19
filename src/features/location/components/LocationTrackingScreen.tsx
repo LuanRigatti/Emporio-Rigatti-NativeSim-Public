@@ -7,8 +7,8 @@ import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeCardContextMenu,
   NativeGlassBackButton,
-  NativeGlassIconButton,
   NativePeriodActionGroup,
+  NativeTrackingStatusButton,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { NativeTrackedRouteMap } from '@/components/routes';
@@ -304,16 +304,13 @@ export function LocationTrackingScreen() {
             },
           ]}
         >
-          <NativeGlassIconButton
+          <NativeTrackingStatusButton
             accessibilityLabel={route?.active ? 'Parar rastreamento' : 'Iniciar rastreamento'}
+            active={Boolean(route?.active)}
+            busy={busy}
             color={theme.colors.textPrimary}
-            containerSize={56}
-            containerWidth={116}
             disabled={busy}
-            interactiveGlass
-            label={route?.active ? 'Parar' : 'Iniciar'}
             onPress={() => void (route?.active ? handleStop() : handleStart())}
-            shape="capsule"
           />
         </View>
       </View>

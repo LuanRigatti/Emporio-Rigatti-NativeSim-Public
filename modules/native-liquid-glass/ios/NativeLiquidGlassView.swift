@@ -113,19 +113,30 @@ public struct NativeLiquidGlassView: ExpoSwiftUI.View {
   @ViewBuilder
   private var nativeCrossScreenMorph: some View {
     if activeState == "circle" || activeState == "collapsed" || activeState == "source" {
-      nativeButton(NativeGlassAction(id: props.glassIdentity, systemImage: props.collapsedSystemImage.isEmpty ? "ellipsis" : props.collapsedSystemImage))
-        .frame(width: 44, height: 44)
-        .glassEffect(glassMaterial(for: NativeGlassAction()), in: .circle)
-        .glassEffectID(props.glassIdentity, in: namespace)
-        .glassEffectTransition(.matchedGeometry)
+      nativeButton(NativeGlassAction(
+        id: "primary",
+        systemImage: props.collapsedSystemImage.isEmpty ? "ellipsis" : props.collapsedSystemImage,
+        accessibilityLabel: props.collapsedTitle ?? "Mais opções"
+      ))
+      .frame(width: 44, height: 44)
+      .glassEffect(glassMaterial(for: NativeGlassAction()), in: .circle)
+      .glassEffectID(props.glassIdentity, in: namespace)
+      .glassEffectTransition(.matchedGeometry)
     } else {
       HStack(spacing: 8) {
-        Image(systemName: "ellipsis")
-          .font(.body.weight(.semibold))
-          .frame(width: 44, height: 44)
-        Image(systemName: "xmark")
-          .font(.body.weight(.semibold))
-          .frame(width: 44, height: 44)
+        nativeButton(NativeGlassAction(
+          id: "secondary",
+          systemImage: "plus",
+          accessibilityLabel: "Ação secundária"
+        ))
+        .frame(width: 44, height: 44)
+
+        nativeButton(NativeGlassAction(
+          id: "primary",
+          systemImage: props.expandedSystemImage.isEmpty ? "xmark" : props.expandedSystemImage,
+          accessibilityLabel: props.expandedTitle ?? "Fechar"
+        ))
+        .frame(width: 44, height: 44)
       }
       .foregroundStyle(props.tint ?? .primary)
       .frame(width: 100, height: 44)

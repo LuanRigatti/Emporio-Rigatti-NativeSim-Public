@@ -386,71 +386,62 @@ Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explo
 
 ### Funcionalidade implementada
 
-Criação de um laboratório experimental e isolado para testar transições contínuas de morph de Liquid Glass entre telas distintas do app usando SwiftUI nativo e a extensão de módulo local `native-liquid-glass`:
+Evolução e consolidação do laboratório experimental de Liquid Glass Morph cross-screen entre telas distintas (`/teste-morph` ⇄ `/teste-1`), eliminando intermediários frágeis e integrando a deformação contínua de malha do SwiftUI/Metal:
 
-- Extensão do módulo nativo Swift `modules/native-liquid-glass` (`NativeLiquidGlassView.swift`) implementando o modo `crossScreenMorph` com `GlassEffectContainer`, `@Namespace`, `.glassEffect(in:)`, `.glassEffectID(_:in:)`, `.glassEffectTransition(.matchedGeometry)` e `withAnimation` com callback `completion:`.
-- Orquestrador de transição React Native (`CrossScreenGlassMorphContext`, `TransientGlassMorphHost`, `CrossScreenGlassMorphTarget`) desacoplado da animação do `UIViewController` / `RNSScreenStackView`.
-- Envolvimento do `NativeCrossScreenMorphView` com `<Host matchContents>` no `TransientGlassMorphHost.tsx`, assegurando a montagem correta de views SwiftUI no UIKit sem RedBox.
-- Eliminação total de `setTimeout`, delays fixos e interpolação manual de geometria (width, offset, cornerRadius) no JavaScript.
-- Centralização dos testes de Liquid Glass: remoção do card visual de Configurações (`SettingsScreen.tsx`), mantendo nela apenas a linha `Teste Morph`.
-- A tela `Teste Morph` organiza os dois testes de vidro: Card 1 (`Teste 1` para o morph cross-screen) e Card 2 (`Liquid Glass Morph` reutilizando o componente validado `NativeGlassMorphActionGroup` para morph local).
-- Padronização canônica dos cabeçalhos em `teste-morph.tsx` e `teste-1.tsx` com `NativeGlassHeader` transparente, `NativeGlassBackButton` com hit-target padrão de 44×44 e remoção de títulos duplicados.
+- **Host Persistente Único no Shell:** Centralização de um único container persistente no layout raiz (`TransientGlassMorphHost.tsx` em `_layout.tsx`), mantendo uma única árvore SwiftUI com `@Namespace` e `GlassEffectContainer(spacing: 8)` ativa durante toda a navegação.
+- **Implementação Swift Canônica com `matchedGeometry`:** No módulo local `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift` (`nativeCrossScreenMorph`), aplicação do padrão oficial Apple com `.glassEffect(glassMaterial, in: .circle / .capsule)`, `glassEffectID(props.glassIdentity, in: namespace)` compartilhado e `.glassEffectTransition(.matchedGeometry)`.
+- **Eliminação de Hacks:** Removidas medições manuais de coordenadas no JS, temporizadores artificiais, delays e manipulações de `opacity` para ocultar nós de origem/destino.
+- **Botões Interativos com Material `.regular.interactive()`:** Ambos os ramos (círculo 44×44 com `ellipsis` e cápsula 100×44 com `plus` + `xmark`) utilizam botões nativos que respondem a toques e transmitem eventos à aplicação.
+- **Mola Nativa Apple com Overshoot Orgânico:** Animação governada por `.spring(duration: 0.46, bounce: 0.36)` dentro de `withAnimation` no Swift, produzindo estiramento contínuo com refração, leve overshoot elástico na expansão e acomodação fluida no retorno.
+- **Timing Imediato e Sincronizado:** O início do morph ocorre no mesmo tick de execução do `router.push('/teste-1')` e `router.back()`, transformando a geometria no topo enquanto a tela desliza por baixo.
 
 ### Comportamento final
 
-1. **Configurações (`SettingsScreen.tsx`)**:
-   - Totalmente limpa de cards experimentais extras; possui somente a linha `Teste Morph` na seção de itens.
-2. **Tela A (`Teste Morph`)**:
-   - Cabeçalho canônico com botão Back nativo e 1 botão circular Liquid Glass 44×44 (`ellipsis`, `morphId="test-cross-morph"`).
-   - **Card 1 (Superior)**: `Teste 1` para disparar a navegação com morph cross-screen.
-   - **Card 2 (Inferior)**: `Liquid Glass Morph` com o componente `NativeGlassMorphActionGroup` para teste de morph local (1 círculo ⇄ 2 botões em pílula).
-3. **Ao tocar em `Teste 1` (Ida)**:
-   - O `TransientGlassMorphHost` sobreposto à `UIWindow` (fora da pilha de navegação) assume o frame exato do botão da Tela A.
-   - O botão real da Tela A fica oculto (`opacity: 0`).
-   - A navegação normal do Expo Router é disparada por baixo.
-   - O componente nativo Swift recebe a mudança de estado (`circle` $\rightarrow$ `capsule`) e o SwiftUI executa a deformação contínua de Liquid Glass via `.glassEffectTransition(.matchedGeometry)`.
-   - Ao término do assentamento da mola física no Swift, o evento nativo `onAnimationComplete` entrega a visibilidade ao botão real da Tela B (`opacity: 1`) e destrói o Host transitório da árvore.
-4. **Tela B (`Teste 1`) e Retorno (Volta)**:
-   - Cabeçalho canônico com botão Back nativo e 1 botão em formato de cápsula 100×44 (`ellipsis` + `xmark`).
-   - Ao tocar no botão de voltar (Back), o mesmo ciclo ocorre em sentido reverso (cápsula $\rightarrow$ círculo) com destruição orientada pelo completion nativo.
+1. **Tela A (`Teste Morph`)**:
+   - Cabeçalho canônico com botão Back nativo e o botão circular Liquid Glass 44×44 no topo direito (`ellipsis`).
+   - Placeholder transparente no cabeçalho para garantir alinhamento e respiro sem renderizar Hosts conflitantes.
+2. **Ao tocar em `Teste 1` (Ida)**:
+   - `setMorphState('capsule')` e `router.push('/teste-1')` disparam instantaneamente.
+   - O botão de vidro deforma organicamente de círculo (44×44) para cápsula (100×44) com refração líquida, overshoot elástico e transição de ícones (`ellipsis` ⇄ `xmark` + `plus`).
+   - A tela `/teste-1` desliza suavemente por baixo sem cortar ou piscar o vidro.
+3. **Tela B (`Teste 1`) e Retorno (Volta)**:
+   - Exibe a cápsula de vidro ativa (100×44).
+   - Ao tocar no botão de voltar (Back), `setMorphState('circle')` e `router.back()` disparam no mesmo tick.
+   - O vidro executa o morph reverso (cápsula $\rightarrow$ círculo) com undershoot elástico suave.
 
 ### Arquivos principais
 
 - `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift`
 - `modules/native-liquid-glass/src/NativeLiquidGlass.tsx`
-- `modules/native-liquid-glass/src/index.ts`
 - `src/components/native/CrossScreenGlassMorph/CrossScreenGlassMorphContext.tsx`
 - `src/components/native/CrossScreenGlassMorph/CrossScreenGlassMorphTarget.tsx`
 - `src/components/native/CrossScreenGlassMorph/TransientGlassMorphHost.tsx`
 - `src/components/native/CrossScreenGlassMorph/index.ts`
-- `src/components/native/index.ts`
 - `src/app/teste-morph.tsx`
 - `src/app/teste-1.tsx`
 - `src/app/_layout.tsx`
 - `src/features/settings/components/SettingsScreen.tsx`
-- `tsconfig.json`
 
 ### Flags e schema afetados
 
 - Nenhum schema Firestore afetado.
-- Adicionado path alias `"native-liquid-glass"` no `tsconfig.json`.
+- Nenhuma flag alterada.
 
 ### Validações executadas
 
 - TypeScript (`npx tsc --noEmit`): 0 erros.
-- ESLint: 0 erros.
-- Jest (`npm test -- tests/home`): 132 testes passando (5/5 suítes).
-- `git diff --check`: passou.
+- ESLint direcionado: 0 erros e 0 warnings.
+- Jest (`npm test`): 39 suítes e 374 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
 
 ### Limitações conhecidas
 
-- Requer recompilação do Development Build no Xcode para carregar o novo método `crossScreenMorph` e o callback `onAnimationComplete` adicionados ao arquivo Swift de `modules/native-liquid-glass`.
-- Swipe-back interativo por gesto de borda não implementado nesta fase (utiliza botão de voltar padrão).
+- Requer recompilação do Development Build no Mac/Xcode (`npx expo run:ios` ou EAS Build) para carregar o módulo Swift local com `.glassEffectTransition(.matchedGeometry)`.
+- Swipe-back interativo por gesto contínuo do UIKit requer interceptação do progresso nativo (`onTransitionProgress`), operando atualmente no disparo determinístico de navegação e foco.
 
 ### Commit e publicação
 
-- Base commit: `1c9c078` (`feat: add native cross-screen Liquid Glass morph prototype`).
-- Ajustes de layout, `<Host>` e organização da tela `Teste Morph` validados localmente via Fast Refresh; aguardando autorização para novo commit.
+- Alterações validadas localmente; aguardando autorização para commit/push.
 
 ## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
 

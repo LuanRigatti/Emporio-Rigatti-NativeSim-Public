@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -9,28 +10,28 @@ import {
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
+import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 export default function Teste1Screen() {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { startBackTransition } = useCrossScreenGlassMorph();
+  const { setMorphState } = useCrossScreenGlassMorph();
+
+  useEffect(() => {
+    setMorphState('capsule');
+  }, [setMorphState]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setMorphState('capsule');
+    }, [setMorphState]),
+  );
 
   const handleBack = () => {
-    startBackTransition('test-cross-morph', () => {
-      router.back();
-    });
+    triggerLightImpactHaptic();
+    setMorphState('circle');
+    router.back();
   };
-
-  const morphTarget = (
-    <CrossScreenGlassMorphTarget
-      color={theme.colors.textPrimary}
-      height={44}
-      morphId="test-cross-morph"
-      shape="capsule"
-      symbols={['ellipsis', 'xmark']}
-      width={100}
-    />
-  );
 
   const header = (
     <NativeGlassHeader
@@ -44,7 +45,7 @@ export default function Teste1Screen() {
         />
       }
       mode="transparent"
-      rightActions={morphTarget}
+      rightActions={<CrossScreenGlassMorphTarget shape="capsule" width={90} />}
       title="Teste 1"
     />
   );

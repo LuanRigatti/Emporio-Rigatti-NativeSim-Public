@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -15,25 +16,26 @@ import { triggerLightImpactHaptic } from '@/utils/haptics';
 export default function TesteMorphScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { startTransition } = useCrossScreenGlassMorph();
+  const { setMorphState } = useCrossScreenGlassMorph();
+
+  useEffect(() => {
+    setMorphState('circle');
+    return () => {
+      setMorphState(null);
+    };
+  }, [setMorphState]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setMorphState('circle');
+    }, [setMorphState]),
+  );
 
   const handleOpenTeste1 = () => {
     triggerLightImpactHaptic();
-    startTransition('test-cross-morph', () => {
-      router.push('/teste-1');
-    });
+    setMorphState('capsule');
+    router.push('/teste-1');
   };
-
-  const morphOrigin = (
-    <CrossScreenGlassMorphTarget
-      color={theme.colors.textPrimary}
-      height={44}
-      morphId="test-cross-morph"
-      shape="circle"
-      symbols={['ellipsis']}
-      width={44}
-    />
-  );
 
   const header = (
     <NativeGlassHeader
@@ -42,12 +44,15 @@ export default function TesteMorphScreen() {
           accessibilityLabel="Voltar para Configurações"
           color={theme.colors.textPrimary}
           containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
+          onPress={() => {
+            setMorphState(null);
+            router.back();
+          }}
           size={theme.sizes.iconMedium}
         />
       }
       mode="transparent"
-      rightActions={morphOrigin}
+      rightActions={<CrossScreenGlassMorphTarget shape="circle" width={90} />}
       title="Teste Morph"
     />
   );

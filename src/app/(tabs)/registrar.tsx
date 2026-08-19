@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,8 +21,6 @@ import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
-import { dailyDataQueryService } from '@/services/costs';
-import type { RouteDistanceSummary } from '@/services/routes';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
@@ -151,61 +149,49 @@ function RegistrarModeSelection() {
 
 export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const [isDeleting, setIsDeleting] = useState(false);
-  const {
-    addFieldValue,
-    deleteDailyData,
-    getLatestDailyValue,
-    getValues,
-    isHydrated,
-    setFieldValue,
-  } = useCostSettings();
+  const { addFieldValue, deleteDailyData, getLatestDailyValue, getValues, setFieldValue } =
+    useCostSettings();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [dailySheetInitialValues, setDailySheetInitialValues] = useState(EMPTY_DAILY_DATA_VALUES);
-  const [routeDistance, setRouteDistance] = useState<RouteDistanceSummary | null>(null);
-  const dailyDate = useMemo(() => todayIso(), []);
-  const dailyValues = getValues('day', dailyDate);
-  const manualKilometers = normalizeMoney(dailyValues.kilometers) ?? 0;
-  const totalKilometers = manualKilometers + (routeDistance?.totalKilometers ?? 0);
-  const hasDailyData =
-    isHydrated &&
-    Boolean(
-      dailyValues.estar.trim() ||
-      dailyValues.other.trim() ||
-      dailyValues.kilometers.trim() ||
-      dailyValues.fuelPrice.trim() ||
-      routeDistance?.routeCount,
-    );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
-      void dailyDataQueryService.getRouteDistanceForDate(dailyDate).then((summary) => {
-        if (!cancelled) setRouteDistance(summary);
-      });
-
-      return () => {
-        cancelled = true;
-      };
-    }, [dailyDate]),
+  const dailyDate = todayIso();
+  const dailyValues = useMemo(
+    () => getValues('day', dailyDate) ?? EMPTY_DAILY_DATA_VALUES,
+    [dailyDate, getValues],
+  );
+  const totalKilometers = dailyValues.kilometers ? Number(dailyValues.kilometers) : 0;
+  const hasDailyData = useMemo(
+    () =>
+      Boolean(
+        dailyValues.estar ||
+        dailyValues.fuelPrice ||
+        dailyValues.kilometers ||
+        dailyValues.other ||
+        totalKilometers > 0,
+      ),
+    [dailyValues, totalKilometers],
   );
 
-  const handleDailyDataSubmit = (values: NativeDailyDataValues) => {
-    addFieldValue('day', dailyDate, 'estar', values.estar);
-    addFieldValue('day', dailyDate, 'other', values.other);
-    addFieldValue('day', dailyDate, 'kilometers', values.kilometers);
-    setFieldValue('day', dailyDate, 'fuelPrice', values.fuelPrice);
-  };
+  const handleDailyDataSubmit = useCallback(
+    async (values: NativeDailyDataValues) => {
+      await Promise.all([
+        addFieldValue('day', dailyDate, 'estar', values.estar),
+        addFieldValue('day', dailyDate, 'other', values.other),
+        addFieldValue('day', dailyDate, 'kilometers', values.kilometers),
+        setFieldValue('day', dailyDate, 'fuelPrice', values.fuelPrice),
+      ]);
+    },
+    [addFieldValue, setFieldValue, dailyDate],
+  );
 
   const handleDeleteDailyData = useCallback(async () => {
     if (isDeleting) return;
+
     setIsDeleting(true);
+    triggerLightImpactHaptic();
     try {
       await deleteDailyData(dailyDate);
-    } catch {
-      Alert.alert('Erro', 'Não foi possível excluir os dados diários. Tente novamente.');
     } finally {
       setIsDeleting(false);
     }
@@ -235,7 +221,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
       }
       mode="transparent"
       rightActions={<View style={styles.headerTrailingActions} />}
-      title={'Dados Di\u00e1rios'}
+      title={'Dados Diários'}
     />
   );
 
@@ -261,11 +247,21 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
                   title: 'Excluir',
                 },
               ]}
-              cornerRadius={theme.radius.xl + theme.spacing.sm}
-              style={styles.dailyDataContextWrapper}
+              style={[
+                styles.dailyDataContextWrapper,
+                { borderRadius: theme.radius.xl + theme.spacing.sm },
+              ]}
             >
               <PremiumCard
-                style={[styles.dailyDataCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+                style={[
+                  styles.dailyDataCard,
+                  {
+                    backgroundColor:
+                      resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+                    borderRadius: theme.radius.xl + theme.spacing.sm,
+                    width: '100%',
+                  },
+                ]}
               >
                 <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
                   {formatDeliveryDate(dailyDate)}
@@ -471,18 +467,21 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                         title: 'Excluir',
                       },
                     ]}
-                    cornerRadius={theme.radius.lg}
                     key={delivery.id}
-                    style={styles.deliveryContextMenu}
+                    style={[
+                      styles.deliveryContextMenu,
+                      { borderRadius: theme.radius.xl + theme.spacing.sm },
+                    ]}
                   >
                     <View
                       style={[
                         styles.deliveryItemRow,
                         {
-                          backgroundColor: theme.colors.surfaceElevated,
-                          borderRadius: theme.radius.lg,
+                          backgroundColor: theme.colors.surface,
+                          borderRadius: theme.radius.xl + theme.spacing.sm,
                           paddingHorizontal: theme.spacing.md,
                           paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                          width: '100%',
                         },
                       ]}
                     >
@@ -606,7 +605,7 @@ const styles = StyleSheet.create({
   headerTrailingActions: { width: 104 },
   deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
-  deliveryCard: { gap: 8 },
+  deliveryCard: { gap: 8, overflow: 'hidden' },
   deliveryDayTitle: { left: 0, position: 'absolute', right: 0, textAlign: 'center', top: 8 },
   todayDeliveriesGroup: { width: '100%' },
   deliveryContextMenu: { width: '100%' },

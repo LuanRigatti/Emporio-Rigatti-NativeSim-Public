@@ -127,8 +127,7 @@ export function OpenPaymentsScreen() {
                       title: 'Concluído',
                     },
                   ]}
-                  cornerRadius={theme.radius.xl + theme.spacing.sm}
-                  style={styles.contextMenu}
+                  style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
                 >
                   <GlassCard
                     style={[
@@ -175,11 +174,12 @@ const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { gap: 24 },
   clientList: { width: '100%' },
-  clientCard: { paddingHorizontal: 16, paddingVertical: 14 },
+  clientCard: { paddingHorizontal: 16, paddingVertical: 14, width: '100%' },
   cardContent: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    width: '100%',
   },
   clientInfo: { gap: 2 },
   contextMenu: { width: '100%' },

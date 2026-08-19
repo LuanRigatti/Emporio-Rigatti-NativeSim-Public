@@ -169,6 +169,8 @@ function DocumentTypeCard({
   theme: ReturnType<typeof useAppTheme>['theme'];
   title: string;
 }) {
+  const { resolvedMode } = useAppTheme();
+
   return (
     <GlassCard style={[styles.typeCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
       <Text style={[styles.typeTitle, { color: theme.colors.textPrimary }]}>{title}</Text>
@@ -189,18 +191,19 @@ function DocumentTypeCard({
                       title: 'Emitido',
                     },
                   ]}
-                  cornerRadius={theme.radius.lg}
                   key={item.id}
-                  style={styles.contextMenu}
+                  style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
                 >
                   <View
                     style={[
                       styles.documentItemRow,
                       {
-                        backgroundColor: theme.colors.surfaceElevated,
-                        borderRadius: theme.radius.lg,
+                        backgroundColor:
+                          resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+                        borderRadius: theme.radius.xl + theme.spacing.sm,
                         paddingHorizontal: theme.spacing.md,
                         paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                        width: '100%',
                       },
                     ]}
                   >
@@ -253,7 +256,7 @@ function formatCurrency(value: number): string {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   typeList: { width: '100%' },
-  typeCard: { gap: 12, padding: 16 },
+  typeCard: { gap: 12, overflow: 'hidden', padding: 16 },
   typeTitle: { fontSize: 18, fontWeight: '700' },
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },

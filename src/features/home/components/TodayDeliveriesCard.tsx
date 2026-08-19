@@ -44,28 +44,33 @@ export function TodayDeliveriesCard({
 
       <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         <View style={{ gap: theme.spacing.xs }}>
-          {deliveries.map((delivery) => {
-            const rowContent = (isPreview: boolean) => (
+          {deliveries.map((delivery) => (
+            <NativeCardContextMenu
+              actions={[
+                {
+                  destructive: true,
+                  id: 'delete-delivery',
+                  onPress: () => onDelete(delivery.id),
+                  systemImage: 'trash',
+                  title: 'Excluir',
+                },
+              ]}
+              key={delivery.id}
+              style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+            >
               <View
                 style={[
                   styles.row,
                   {
-                    backgroundColor: isPreview ? theme.colors.surfaceElevated : undefined,
-                    borderRadius: isPreview ? theme.radius.lg : undefined,
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.xl + theme.spacing.sm,
                     padding: theme.spacing.md,
+                    width: '100%',
                   },
                 ]}
               >
                 <View style={styles.copy}>
-                  <Text
-                    style={[
-                      theme.typography.callout,
-                      {
-                        color: theme.colors.textPrimary,
-                        fontWeight: isPreview ? '700' : '400',
-                      },
-                    ]}
-                  >
+                  <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
                     {delivery.cliente}
                   </Text>
                   <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
@@ -77,28 +82,8 @@ export function TodayDeliveriesCard({
                   status={delivery.status}
                 />
               </View>
-            );
-
-            return (
-              <NativeCardContextMenu
-                actions={[
-                  {
-                    destructive: true,
-                    id: 'delete-delivery',
-                    onPress: () => onDelete(delivery.id),
-                    systemImage: 'trash',
-                    title: 'Excluir',
-                  },
-                ]}
-                cornerRadius={theme.radius.lg}
-                key={delivery.id}
-                preview={rowContent(true)}
-                style={{ width: '100%' }}
-              >
-                {rowContent(false)}
-              </NativeCardContextMenu>
-            );
-          })}
+            </NativeCardContextMenu>
+          ))}
         </View>
       </PremiumCard>
     </View>
@@ -106,11 +91,12 @@ export function TodayDeliveriesCard({
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 0 },
+  card: { overflow: 'hidden', padding: 0 },
+  contextMenu: { width: '100%' },
   copy: { flex: 1, gap: 2, marginLeft: 8 },
   container: { width: '100%' },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   quantity: { marginRight: 16 },
-  row: { alignItems: 'center', flexDirection: 'row' },
+  row: { alignItems: 'center', flexDirection: 'row', width: '100%' },
   title: { marginLeft: 16 },
 });

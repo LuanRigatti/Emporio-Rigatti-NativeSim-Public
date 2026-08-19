@@ -48,11 +48,11 @@ public final class NativeCardContextMenuView: ExpoView, UIContextMenuInteraction
   }
 
   private func makeTargetedPreview() -> UITargetedPreview? {
-    guard bounds.width > 0, bounds.height > 0 else {
+    guard bounds.width > 0, bounds.height > 0, let superview = self.superview else {
       return nil
     }
 
-    let target = UIPreviewTarget(container: self, center: CGPoint(x: bounds.midX, y: bounds.midY))
+    let target = UIPreviewTarget(container: superview, center: self.center)
     let parameters = UIPreviewParameters()
 
     if cornerRadius > 0 {

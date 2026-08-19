@@ -1076,6 +1076,56 @@ uma operação confirmada.
 - Mensagem: `feat(home): adicionar card ultima rota com preview de mapa nativo`.
 - Status: Validado e publicado na branch `ajustes-antigravity`.
 
+## Padronização do Long Press e Context Menu nos Cards
+
+### Funcionalidade implementada
+
+Padronização e polimento visual do Long Press / Context Menu nativo com `@expo/ui/community/menu` (`MenuView` nativo + `shouldOpenOnLongPress`), eliminando platters quadrados, flashes e atrasos de interação:
+
+- Propagação de `borderRadius: theme.radius.xl + theme.spacing.sm` (~36 pt) e `width: '100%'` tanto no wrapper `<NativeCardContextMenu>` (`MenuView`) quanto na `View` filha capturada.
+- Ajuste de `backgroundColor` nas linhas internas para coincidir perfeitamente com os containers pais (`theme.colors.surface` no `PremiumCard` e `#131417` / `glassSurface` no `GlassCard`), garantindo que listas agrupadas permaneçam visualmente unificadas quando estáticas.
+- Adição de `overflow: 'hidden'` nos containers pais de listas agrupadas (`TodayDeliveriesCard`, `RegistrarDeliveryScreen`, `InvoicesScreen`), impedindo que o fundo opaco das linhas filhas vaze sobre os cantos arredondados externos.
+- Preservação da arquitetura 100% nativa sem dependência do módulo Swift customizado regressivo nem de nós artificiais `ContextMenu.Preview`.
+
+### Comportamento final
+
+- **Estado Normal (Parado)**: Os grandes containers externos (Home, Registro, Documentos, Recebimentos) mantêm seu acabamento original com cantos arredondados contínuos de 36 pt. As linhas internas permanecem integradas e visualmente indistinguíveis do bloco principal.
+- **Durante o Long Press (Lift)**: A resposta ao toque longo é instantânea em toda a largura da linha (`width: '100%'`). Apenas o item tocado levanta com corpo opaco e cantos arredondados suaves (~36 pt), sem piscar e sem distorcer o container que permanece ao fundo.
+- **Fechamento**: Ao soltar ou cancelar, a tela retorna com fluidez total ao estado estático original.
+
+### Arquivos principais
+
+- `src/features/history/components/DeliveryCard.tsx` (referência canônica)
+- `src/features/home/components/TodayDeliveriesCard.tsx`
+- `src/app/(tabs)/registrar.tsx` (`RegistrarDeliveryScreen` e `RegistrarDailyDataScreen`)
+- `src/features/open-payments/components/OpenPaymentsScreen.tsx`
+- `src/features/invoices/components/InvoicesScreen.tsx`
+- `src/features/location/components/LocationTrackingScreen.tsx`
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.ios.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de funcionalidade ou schema do Cloud Firestore alterado. Modificação estritamente de UI e integração de eventos nativos iOS.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado nos arquivos afetados: 0 erros e 0 warnings.
+- Jest: 19 suítes e 240 testes passando nas áreas de histórico, home, entregas, faturas e custos.
+- `git diff --check`: limpo.
+- Teste visual interativo: validado via Fast Refresh no iPhone em Development Build.
+
+### Limitações conhecidas
+
+- O snapshot de platter e lift com cantos arredondados contínuos é uma característica nativa do `UIContextMenuInteraction` no iOS. Plataformas com fallback (Web/Android) utilizam seus respectivos diálogos e menus contextuais padrão.
+
+### Commit e publicação
+
+- Branch: `ajustes-antigravity`.
+- Commit: `5f8e18c`.
+- Mensagem: `revert: reversao para estado anterior ao segurar para apagar`.
+- Status: Validado e publicado na branch `ajustes-antigravity`.
+
 ## Flags atuais
 
 

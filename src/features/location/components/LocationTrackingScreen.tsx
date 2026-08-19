@@ -340,11 +340,13 @@ function RouteHistoryCard({
           title: 'Excluir rota',
         },
       ]}
+      style={{ borderRadius: theme.radius.xl + theme.spacing.xs, width: '100%' }}
     >
       <Pressable
         accessibilityLabel="Abrir detalhes da rota"
         accessibilityRole="button"
         onPress={onPress}
+        style={{ width: '100%' }}
       >
         <GlassCard
           elevated

@@ -51,7 +51,18 @@ export function DeliveryCard({
   );
 
   const card = contained ? (
-    <View style={styles.card}>{content}</View>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+          width: '100%',
+        },
+      ]}
+    >
+      {content}
+    </View>
   ) : (
     <GlassCard
       accessibilityLabel={`Entrega para ${delivery.cliente}, ${statusLabel(delivery.status)}`}
@@ -69,21 +80,6 @@ export function DeliveryCard({
     </GlassCard>
   );
 
-  const preview = (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
-          borderRadius: theme.radius.xl + theme.spacing.sm,
-          width: '100%',
-        },
-      ]}
-    >
-      {content}
-    </View>
-  );
-
   return onDelete ? (
     <NativeCardContextMenu
       actions={[
@@ -95,8 +91,12 @@ export function DeliveryCard({
           title: 'Excluir',
         },
       ]}
-      cornerRadius={theme.radius.xl + theme.spacing.sm}
-      preview={preview}
+      style={[
+        styles.contextMenu,
+        {
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+        },
+      ]}
     >
       {card}
     </NativeCardContextMenu>
@@ -106,10 +106,11 @@ export function DeliveryCard({
 }
 
 const styles = StyleSheet.create({
-  card: { paddingLeft: 20, paddingRight: 14, paddingVertical: 18 },
-  cardRow: { alignItems: 'stretch', flexDirection: 'row', gap: 10 },
+  card: { paddingLeft: 20, paddingRight: 14, paddingVertical: 18, width: '100%' },
+  cardRow: { alignItems: 'stretch', flexDirection: 'row', gap: 10, width: '100%' },
   cardContent: { flex: 1, gap: 8 },
   cardHeaderRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  contextMenu: { width: '100%' },
   primaryInfo: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 8 },
   statusInset: { marginRight: 8 },
 });

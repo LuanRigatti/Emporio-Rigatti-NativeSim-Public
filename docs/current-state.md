@@ -50,6 +50,7 @@ Finanças, Estoque, gráficos ou outros dados derivados.
 - Dados diários/mensais e Finanças (com sincronização de prontidão e cache de rotas);
 - Estoque derivado de compras menos entregas;
 - FactorySettings, CarSettings e CompanyProfile;
+- Home Search (busca universal, resumos de rotas, preview de mapas e suporte a múltiplas rotas sem ghosting);
 - Backup, validação/dry-run e Restore seguro.
 
 ## Sincronização e Prontidão de Lucro Líquido Mensal
@@ -1125,6 +1126,54 @@ Padronização e polimento visual do Long Press / Context Menu nativo com `@expo
 - Commit: `5f8e18c`.
 - Mensagem: `revert: reversao para estado anterior ao segurar para apagar`.
 - Status: Validado e publicado na branch `ajustes-antigravity`.
+
+## Home Search: Correção de Ghosting e Paginação Horizontal de Múltiplas Rotas
+
+### Funcionalidade implementada
+
+Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da Home Search e restauração da navegação horizontal entre múltiplas rotas:
+
+- **Eliminação do ghosting em buscas individuais e clientes**: Identificado que o caminho condicional `!shouldEnableScroll` baseado em `ZStack` com `clipped()` e `Spacer` sem `ScrollView` causava retenção de frames durante o arraste da sheet. Unificada a hierarquia para utilizar `<ScrollView axes="vertical">` diretamente em todos os resultados padrão.
+- **Isolamento e eliminação do ghosting em rotas**: Identificado que o `NativeInteractivePager` / `TabView` do SwiftUI retinha frames durante rolagem/arraste do Bottom Sheet no iOS. O pager SwiftUI foi descontinuado nesse fluxo.
+- **Restauração da paginação horizontal (`HomeSearchRoutePagerRN`)**: Para buscas com 2 ou mais rotas (ex.: `rotas agosto`), criado componente com `<ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} nestedScrollEnabled>` em React Native, hospedado via `<RNHostView matchContents={false}>`.
+- **Ajustes de layout no detent compacto**:
+  - No detent compacto (`isLarge === false`), o `topPadding` para rotas individuais e múltiplas rotas foi ajustado para 20pt (`COMPACT_ROUTE_PAGER_TOP_PADDING`), elevando o bloco completo (título, mapa, dados/seções) mais próximo do topo do sheet.
+  - A tipografia do título de rota foi ajustada para `subheadline` (15pt negrito arredondado no SwiftUI) e `headline` (17pt negrito no pager React Native), mantendo peso, cor e ícones proporcionais.
+  - No detent expandido (`isLarge === true`), layout e espaçamentos permanecem 100% inalterados (32pt).
+
+### Comportamento final
+
+- **Buscas sem rota (clientes, métricas, finanças, entregas)**: Renderização vertical estável em `<ScrollView axes="vertical">` nativo com zero ghosting.
+- **Rotas individuais (`rota hoje`, `rota ontem`, `rota 13/08`)**: Renderização vertical fluida com preview do mapa nativo (`NativeTrackedRoutesMap`), título compacto no detent inicial e zero ghosting.
+- **Múltiplas rotas (`rotas agosto`)**: Swipe horizontal fluido entre sessões de rota com snap de página e visualização de mapa nativo por página, permitindo rolagem vertical do conteúdo e arraste do sheet sem interferência ou rastros visuais.
+
+### Arquivos principais
+
+- `src/features/home/components/HomeSearchResultsNative.ios.tsx`
+- `src/features/home/components/HomeSearchRoutePagerRN.tsx`
+- `src/features/home/components/HomeSearchRoutePreview.ios.tsx`
+- `src/features/home/components/HomeSearchResultsContent.ios.tsx`
+- `src/features/home/components/HomeSearchResultsVisualModel.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema do Cloud Firestore alterado. Modificações estritamente de UI nativa e orquestração de scroll/pager.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint: 0 erros e 0 warnings.
+- Testes Jest (`tests/home`): 7 suítes e 180 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+- Teste interativo via Fast Refresh no iPhone em Development Build: validada ausência de ghosting em 1 rota, 2+ rotas, buscas de cliente, mapa e arraste entre detents.
+
+### Limitações conhecidas
+
+- A paginação horizontal de rotas utiliza `ScrollView` com `pagingEnabled` do React Native encapsulado via `RNHostView` dentro da hierarquia SwiftUI do Bottom Sheet, mantendo isolamento de contexto de toque entre eixos vertical e horizontal.
+
+### Commit e publicação
+
+- Status: Alteração local validada via Fast Refresh no dispositivo físico; aguardando autorização para commit/push.
 
 ## Flags atuais
 

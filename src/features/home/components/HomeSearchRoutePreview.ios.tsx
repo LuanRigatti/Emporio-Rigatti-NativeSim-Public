@@ -1,5 +1,5 @@
 import { RNHostView, VStack } from '@expo/ui/swift-ui';
-import { clipped, frame, onGeometryChange } from '@expo/ui/swift-ui/modifiers';
+import { clipped, frame } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -115,21 +115,7 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
   return (
     <VStack
       alignment="leading"
-      modifiers={[
-        frame({ height, maxWidth: Infinity, alignment: 'topLeading' }),
-        clipped(),
-        onGeometryChange((frame) => {
-          if (!__DEV__) return;
-          console.log('[bottom-sheet-geometry]', {
-            height: frame.height,
-            layer: 'route-preview',
-            scope: isLarge ? 'home-large' : 'home-small',
-            width: frame.width,
-            x: frame.x,
-            y: frame.y,
-          });
-        }),
-      ]}
+      modifiers={[frame({ height, maxWidth: Infinity, alignment: 'topLeading' }), clipped()]}
     >
       <RNHostView matchContents={false}>
         <View

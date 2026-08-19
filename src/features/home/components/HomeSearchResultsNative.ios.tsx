@@ -3,32 +3,29 @@ import {
   Image,
   Label,
   LabeledContent,
+  RNHostView,
   ScrollView,
-  Spacer,
   Text,
   VStack,
-  ZStack,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityElement,
   accessibilityLabel,
   background,
-  clipped,
   font,
   frame,
   foregroundStyle,
   monospacedDigit,
   offset,
   padding,
-  scrollIndicators,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { PlatformColor } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { spacing, useAppTheme } from '@/theme';
-import { NativeInteractivePager, NativeInteractivePagerPage } from '@/components/native';
 
+import HomeSearchRoutePagerRN from './HomeSearchRoutePagerRN';
 import HomeSearchRoutePreview from './HomeSearchRoutePreview.ios';
 import type {
   HomeSearchResultVisualModel,
@@ -95,14 +92,22 @@ function ResultHeader({
           systemImage={asSymbol(result.header.systemImage)}
           title={result.header.title}
           modifiers={[
-            font({ textStyle: 'headline', weight: 'bold', design: 'rounded' }),
+            font({
+              textStyle: result.route ? 'subheadline' : 'headline',
+              weight: 'bold',
+              design: 'rounded',
+            }),
             semanticStyle(),
           ]}
         />
       ) : (
         <Text
           modifiers={[
-            font({ textStyle: 'headline', weight: 'bold', design: 'rounded' }),
+            font({
+              textStyle: result.route ? 'subheadline' : 'headline',
+              weight: 'bold',
+              design: 'rounded',
+            }),
             semanticStyle(),
           ]}
         >
@@ -269,8 +274,6 @@ function ResultState({ result }: { result: HomeSearchVisualResult }) {
 }
 
 const COMPACT_EXTRA_TOP_INSET = 20;
-const COMPACT_SINGLE_DAY_ROUTE_EXTRA_INSET = 10;
-const COMPACT_ROUTE_PAGER_EXTRA_TOP_INSET = 4;
 const COMPACT_CLIENT_EXTRA_TOP_INSET = 0;
 const COMPACT_FINANCIAL_EXTRA_TOP_INSET = 4;
 const SEARCH_RESULT_HORIZONTAL_INSET = 16;
@@ -307,75 +310,62 @@ function ResultContent({
   );
 }
 
+const COMPACT_ROUTE_PAGER_TOP_PADDING = 20;
+
 export default function HomeSearchResultsNative({ isLarge = false, model }: Props) {
   const { resolvedMode, theme } = useAppTheme();
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
-  const shouldEnableScroll = isLarge && model.items.length > 1 && !model.routePager;
 
-  const isSingleDayRoute = Boolean(model.singleDayRoute);
+  const isRouteResult =
+    Boolean(model.singleDayRoute) || model.items.some((item) => Boolean(item.route));
   const isClient = Boolean(model.isClient);
   const isFinancialLayout = Boolean(model.isFinancialLayout);
-  const routeSingleDayExtra =
-    !isLarge && isSingleDayRoute ? COMPACT_SINGLE_DAY_ROUTE_EXTRA_INSET : 0;
-  const compactTopInset = model.routePager
-    ? COMPACT_ROUTE_PAGER_EXTRA_TOP_INSET
-    : isClient
-      ? COMPACT_CLIENT_EXTRA_TOP_INSET
-      : isFinancialLayout
-        ? COMPACT_FINANCIAL_EXTRA_TOP_INSET
-        : COMPACT_EXTRA_TOP_INSET + routeSingleDayExtra;
-  const topPadding = isLarge ? spacing.xxl : spacing.xxl + compactTopInset;
+  const compactTopInset = isClient
+    ? COMPACT_CLIENT_EXTRA_TOP_INSET
+    : isFinancialLayout
+      ? COMPACT_FINANCIAL_EXTRA_TOP_INSET
+      : COMPACT_EXTRA_TOP_INSET;
+  const topPadding = isLarge
+    ? spacing.xxl
+    : isRouteResult
+      ? COMPACT_ROUTE_PAGER_TOP_PADDING
+      : spacing.xxl + compactTopInset;
 
-  const contentModifiers = model.routePager
-    ? [frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]
-    : [
+  if (model.routePager && model.items.length > 1) {
+    const pagerTopPadding = isLarge ? spacing.xxl : COMPACT_ROUTE_PAGER_TOP_PADDING;
+    return (
+      <VStack
+        alignment="leading"
+        modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}
+      >
+        <RNHostView matchContents={false}>
+          <HomeSearchRoutePagerRN
+            cardBackground={cardBackground}
+            isLarge={isLarge}
+            items={model.items}
+            query={model.query}
+            topPadding={pagerTopPadding}
+          />
+        </RNHostView>
+      </VStack>
+    );
+  }
+
+  const content = (
+    <VStack
+      alignment="leading"
+      spacing={spacing.xxl}
+      modifiers={[
         padding({
           horizontal: SEARCH_RESULT_HORIZONTAL_INSET,
           top: topPadding,
           bottom: spacing.xxl,
         }),
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-      ];
-
-  const content = (
-    <VStack
-      alignment="leading"
-      spacing={model.routePager ? 0 : spacing.xxl}
-      modifiers={contentModifiers}
+      ]}
     >
       {model.empty ? (
         <ResultState result={model} />
-      ) : model.routePager ? (
-        <VStack
-          alignment="leading"
-          modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}
-        >
-          <NativeInteractivePager fillWidth>
-            {model.items.map((result, index) => (
-              <NativeInteractivePagerPage key={result.id} page={index}>
-                <VStack
-                  alignment="leading"
-                  modifiers={[
-                    frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-                    padding({
-                      bottom: 0,
-                      horizontal: SEARCH_RESULT_HORIZONTAL_INSET,
-                      top: topPadding,
-                    }),
-                    scrollIndicators('hidden', 'both'),
-                  ]}
-                >
-                  <ResultContent
-                    cardBackground={cardBackground}
-                    isLarge={isLarge}
-                    query={model.query}
-                    result={result}
-                  />
-                </VStack>
-              </NativeInteractivePagerPage>
-            ))}
-          </NativeInteractivePager>
-        </VStack>
       ) : (
         model.items.map((result) => (
           <ResultContent
@@ -389,21 +379,6 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
       )}
     </VStack>
   );
-
-  if (!shouldEnableScroll) {
-    return (
-      <ZStack
-        alignment="topLeading"
-        modifiers={[
-          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-          clipped(),
-        ]}
-      >
-        <Spacer />
-        {content}
-      </ZStack>
-    );
-  }
 
   return (
     <ScrollView

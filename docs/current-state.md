@@ -290,28 +290,36 @@ sem criar uma segunda fonte de verdade:
 - Commit: `d806c32ac95a89950c8e2e85fc607e2c0cad0af7`.
 - Mensagem: `feat: expand Home Search metrics and route summaries`.
 
-## Gráfico Diário de Finanças: Scrubbing Contínuo e Interpolação de Curva
+## Gráfico Diário de Finanças: Scrubbing Nativo (Gesture.Pan), Isolamento de Swipe-Back e Números Animados
 
 ### Funcionalidade implementada
 
-Interação contínua por arraste e toque livre no gráfico de linha da tela **MonthlyFinancialDetailScreen** (`FinancialSeriesChart`), separando o movimento contínuo do gesto da seleção discreta de dias:
-
-- Captura contínua de toque e arraste horizontal via `PanResponder` sem interferência ou roubo de gesto da `ScrollView` pai (`onPanResponderTerminationRequest: () => false`).
-- Desacoplamento arquitetural entre a posição contínua de arraste (`scrubX`, `scrubY` em `SharedValue` no UI thread) e o dia selecionado (`selectedIndex` em React state).
-- Interpolação matemática contínua da altura $Y$ ao longo dos segmentos da curva (`interpolateYOnCoordinates`).
-- Renderização da linha vertical pontilhada e do marcador em overlay nativo acelerado por hardware (`Animated.View` com `transform: [{ translateX }, { translateY }]`), rodando a 120fps/60fps na GPU sem re-renderizar o SVG.
-- Feedback tátil sutil (`triggerSelectionHaptic`) e atualização de dados no cabeçalho/card inferior acionados exclusivamente ao cruzar o limiar de um novo dia (`nearestIndex !== selectedIndex`).
-- Snap suave com curva easing (`withTiming`, 160ms) em direção ao ponto selecionado ao soltar o dedo (`release`/`terminate`).
+1. **Priorização e Isolamento de Gestos com `Gesture.Pan()` (`react-native-gesture-handler`):**
+   - Substituição do `PanResponder` JavaScript por `Gesture.Pan()` nativo encapsulado em `<GestureDetector>` no [FinancialSeriesChart](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/Charts/index.tsx).
+   - Configuração de ativação imediata no eixo horizontal com `minDistance(0)`, `activeOffsetX([-2, 2])` e `cancelsTouchesInView(true)`.
+   - Eliminação completa do conflito de gestos onde o arraste horizontal esquerda $\leftrightarrow$ direita da linha do gráfico disparava concorrentemente o `interactivePopGestureRecognizer` (swipe-back) da navegação nativa UIKit (`react-native-screens` / Expo Router).
+   - Preservação estrita do swipe-back nativo do iOS em 100% da área externa aos limites físicos do gráfico.
+2. **Integração de `NativeAnimatedNumber` no Cabeçalho de Detalhes:**
+   - Substituição do `<Text>` estático em [MonthlyFinancialDetailScreen.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/finance/components/MonthlyFinancialDetailScreen.tsx) pelo componente reutilizável [NativeAnimatedNumber](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/native/NativeAnimatedNumber/NativeAnimatedNumberSwiftUI.ios.tsx).
+   - Reutilização canônica da mesma transição fluida do SwiftUI (`contentTransition('numericText')` + easing `0.18s`) já empregada nos cards principais da aba Finanças ao alternar dias no gráfico ou trocar o período (mês/ano).
+3. **Interpolação de Curva e Snap na UI Thread:**
+   - Desacoplamento arquitetural entre a posição contínua de arraste (`scrubX`, `scrubY` em `SharedValue` na UI thread) e o dia selecionado (`selectedIndex` em React state).
+   - Interpolação matemática contínua da altura $Y$ ao longo dos segmentos da curva (`interpolateYOnCoordinates`).
+   - Renderização da linha vertical pontilhada e do marcador em overlay nativo acelerado por hardware (`Animated.View` com `transform: [{ translateX }, { translateY }]`), rodando a 120fps/60fps na GPU sem re-renderizar o SVG.
+   - Feedback tátil sutil (`triggerSelectionHaptic`) e atualização de dados no cabeçalho/card inferior acionados exclusivamente ao cruzar o limiar de um novo dia (`nearestIndex !== selectedIndex`).
+   - Snap suave com curva easing (`withTiming`, 160ms) em direção ao ponto selecionado ao soltar o dedo (`onEnd`/`onFinalize`).
 
 ### Comportamento final
 
-- O usuário pode tocar em qualquer parte do gráfico ou arrastar continuamente o dedo na horizontal para percorrer os dias do mês de forma suave e contínua.
-- A linha pontilhada e o marcador de vidro acompanham o dedo pixel a pixel sem saltos bruscos, enquanto os valores e cards refletem instantaneamente os dados discretos reais do dia correspondente.
+- O usuário pode tocar em qualquer parte do gráfico ou arrastar livremente o dedo na horizontal (incluindo da esquerda para a direita a partir do início da curva) para percorrer os dias do mês: o gesto pertence 100% ao gráfico e não inicia o retorno de tela.
+- Fora da área do gráfico (cabeçalho, cards de resumo, margens e rodapé), o gesto de swipe-back do iOS permanece totalmente funcional e nativo.
+- O valor de Faturamento ou Lucro Líquido no cabeçalho do gráfico transiciona suavemente com blur e animação numérica no mesmo timing e física visual dos cards de Finanças.
 
 ### Arquivos principais
 
 - `src/components/Charts/index.tsx`
 - `src/features/finance/components/MonthlyFinancialDetailScreen.tsx`
+- `src/components/native/NativeAnimatedNumber/NativeAnimatedNumberSwiftUI.ios.tsx`
 - `src/utils/haptics.ts`
 
 ### Flags e schema afetados
@@ -321,17 +329,20 @@ Interação contínua por arraste e toque livre no gráfico de linha da tela **M
 ### Validações executadas
 
 - TypeScript (`npx tsc --noEmit`): 0 erros.
-- ESLint: 0 erros.
-- Jest (`npm test -- tests/finance`): 12 suítes / 87 testes passando.
-- `git diff --check`: passou.
+- ESLint: 0 erros e 0 warnings.
+- Jest (`npm test -- tests/finance`): 12 suítes / 88 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+- Teste interativo via Fast Refresh no iPhone em Development Build.
 
 ### Limitações conhecidas
 
-- Em telas web ou ambientes sem Reanimated UI thread nativo, o layout utiliza fallback síncrono.
+- Nenhuma. O gesto é tratado diretamente pelo subsistema de `UIGestureRecognizer` do RNGH no iOS e a animação numérica utiliza a API oficial SwiftUI no iOS com fallback síncrono para Web/Android.
 
 ### Commit e publicação
 
-- Alteração validada localmente; ainda não commitada.
+- Branch: `ajustes-antigravity`.
+- Commit: `8059cdb`.
+- Mensagem: `feat(finance): isolar gesto do grafico de financas e animar valores numericos no detalhe`.
 
 ## Morph e Fusão Nativa de Liquid Glass (@expo/ui)
 

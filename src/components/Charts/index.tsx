@@ -8,7 +8,8 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -146,42 +147,36 @@ export function FinancialSeriesChart({
     [containerWidth, coordinates, onSelectPoint, scrubX, scrubY, selectedIndex, width],
   );
 
-  const panResponder = useMemo(
+  const panGesture = useMemo(
     () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => Boolean(onSelectPoint),
-        onStartShouldSetPanResponderCapture: () => Boolean(onSelectPoint),
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return (
-            Boolean(onSelectPoint) &&
-            (Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1)
-          );
-        },
-        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-          return Boolean(onSelectPoint) && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        },
-        onPanResponderGrant: (event) => {
-          runOnUI(setSharedFlag)(isInteracting, true);
-          handleTouchAt(event.nativeEvent.locationX);
-        },
-        onPanResponderMove: (event) => {
-          handleTouchAt(event.nativeEvent.locationX);
-        },
-        onPanResponderRelease: () => {
-          runOnUI(setSharedFlag)(isInteracting, false);
+      Gesture.Pan()
+        .enabled(Boolean(onSelectPoint))
+        .minDistance(0)
+        .activeOffsetX([-2, 2])
+        .cancelsTouchesInView(true)
+        .onBegin((event) => {
+          'worklet';
+          setSharedFlag(isInteracting, true);
+          runOnJS(handleTouchAt)(event.x);
+        })
+        .onUpdate((event) => {
+          'worklet';
+          runOnJS(handleTouchAt)(event.x);
+        })
+        .onEnd(() => {
+          'worklet';
+          setSharedFlag(isInteracting, false);
           if (selectedPoint) {
-            runOnUI(snapScrubPosition)(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
+            snapScrubPosition(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
           }
-        },
-        onPanResponderTerminate: () => {
-          runOnUI(setSharedFlag)(isInteracting, false);
+        })
+        .onFinalize(() => {
+          'worklet';
+          setSharedFlag(isInteracting, false);
           if (selectedPoint) {
-            runOnUI(snapScrubPosition)(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
+            snapScrubPosition(scrubX, scrubY, selectedPoint.x, selectedPoint.y);
           }
-        },
-        onPanResponderTerminationRequest: () => false,
-        onShouldBlockNativeResponder: () => true,
-      }),
+        }),
     [handleTouchAt, isInteracting, onSelectPoint, scrubX, scrubY, selectedPoint],
   );
 
@@ -203,87 +198,88 @@ export function FinancialSeriesChart({
   });
 
   return (
-    <View
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="image"
-      onLayout={(event) => {
-        const measured = Math.max(1, event.nativeEvent.layout.width);
-        setContainerWidth(measured);
-        containerWidthShared.value = measured;
-      }}
-      style={styles.root}
-      {...panResponder.panHandlers}
-    >
-      <Svg height={height} viewBox={`0 0 ${width} ${height}`} width="100%">
-        <Defs>
-          <LinearGradient id="financialChartAreaFill" x1="0" x2="0" y1="0" y2="1">
-            <Stop offset="0" stopColor={areaColor} stopOpacity={0.14} />
-            <Stop offset="1" stopColor={areaColor} stopOpacity={0.02} />
-          </LinearGradient>
-        </Defs>
-        {[0, 0.5, 1].map((fraction) => {
-          const y = paddingTop + fraction * chartHeight;
-          return (
-            <Line
-              key={fraction}
-              stroke={gridColor}
-              strokeDasharray="4 5"
-              strokeWidth={1}
-              x1={paddingX}
-              x2={width - paddingX}
-              y1={y}
-              y2={y}
-            />
-          );
-        })}
-        {areaPath ? <Path d={areaPath} fill="url(#financialChartAreaFill)" /> : null}
-        <Path
-          d={linePath}
-          fill="none"
-          stroke={strokeColor}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={lineWidth}
-        />
-        {coordinates.map((point, index) =>
-          index <= getLastVisibleMarkerIndex(coordinates.length, visibleProgress) ? (
-            <Fragment key={`${point.x}-${point.y}`}>
-              <Circle cx={point.x} cy={point.y} fill={strokeColor} r={3.5} />
-            </Fragment>
-          ) : null,
-        )}
-        {labelIndexes.map((index) => {
-          const point = points[index];
-          return (
-            <SvgText
-              fill={textColor}
-              fontSize={11}
-              key={point.key}
-              textAnchor="middle"
-              x={coordinates[index].x}
-              y={height - 12}
-            >
-              {point.label}
-            </SvgText>
-          );
-        })}
-      </Svg>
-      <View pointerEvents="none" style={styles.overlay}>
-        <Animated.View
-          style={[styles.indicatorLine, { borderColor: strokeColor }, animatedLineStyle]}
-        />
-        <Animated.View
-          style={[
-            styles.markerDot,
-            {
-              backgroundColor: strokeColor,
-              borderColor: theme.colors.surface,
-            },
-            animatedMarkerStyle,
-          ]}
-        />
+    <GestureDetector gesture={panGesture}>
+      <View
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="image"
+        onLayout={(event) => {
+          const measured = Math.max(1, event.nativeEvent.layout.width);
+          setContainerWidth(measured);
+          containerWidthShared.value = measured;
+        }}
+        style={styles.root}
+      >
+        <Svg height={height} viewBox={`0 0 ${width} ${height}`} width="100%">
+          <Defs>
+            <LinearGradient id="financialChartAreaFill" x1="0" x2="0" y1="0" y2="1">
+              <Stop offset="0" stopColor={areaColor} stopOpacity={0.14} />
+              <Stop offset="1" stopColor={areaColor} stopOpacity={0.02} />
+            </LinearGradient>
+          </Defs>
+          {[0, 0.5, 1].map((fraction) => {
+            const y = paddingTop + fraction * chartHeight;
+            return (
+              <Line
+                key={fraction}
+                stroke={gridColor}
+                strokeDasharray="4 5"
+                strokeWidth={1}
+                x1={paddingX}
+                x2={width - paddingX}
+                y1={y}
+                y2={y}
+              />
+            );
+          })}
+          {areaPath ? <Path d={areaPath} fill="url(#financialChartAreaFill)" /> : null}
+          <Path
+            d={linePath}
+            fill="none"
+            stroke={strokeColor}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={lineWidth}
+          />
+          {coordinates.map((point, index) =>
+            index <= getLastVisibleMarkerIndex(coordinates.length, visibleProgress) ? (
+              <Fragment key={`${point.x}-${point.y}`}>
+                <Circle cx={point.x} cy={point.y} fill={strokeColor} r={3.5} />
+              </Fragment>
+            ) : null,
+          )}
+          {labelIndexes.map((index) => {
+            const point = points[index];
+            return (
+              <SvgText
+                fill={textColor}
+                fontSize={11}
+                key={point.key}
+                textAnchor="middle"
+                x={coordinates[index].x}
+                y={height - 12}
+              >
+                {point.label}
+              </SvgText>
+            );
+          })}
+        </Svg>
+        <View pointerEvents="none" style={styles.overlay}>
+          <Animated.View
+            style={[styles.indicatorLine, { borderColor: strokeColor }, animatedLineStyle]}
+          />
+          <Animated.View
+            style={[
+              styles.markerDot,
+              {
+                backgroundColor: strokeColor,
+                borderColor: theme.colors.surface,
+              },
+              animatedMarkerStyle,
+            ]}
+          />
+        </View>
       </View>
-    </View>
+    </GestureDetector>
   );
 }
 
@@ -339,7 +335,6 @@ function setScrubPosition(
   scrubX.value = x;
   scrubY.value = y;
 }
-
 function setSharedFlag(flag: { value: boolean }, value: boolean) {
   'worklet';
 

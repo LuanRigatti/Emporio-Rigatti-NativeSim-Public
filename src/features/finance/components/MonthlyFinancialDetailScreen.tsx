@@ -3,7 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativePeriodActionGroup } from '@/components/native';
+import {
+  NativeAnimatedNumber,
+  NativeGlassBackButton,
+  NativePeriodActionGroup,
+} from '@/components/native';
 import { FinancialSeriesChart } from '@/components/Charts';
 import { EmptyState } from '@/components/feedback';
 import { PremiumCard, PremiumScreen, Skeleton } from '@/components/premium';
@@ -200,9 +204,15 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
                     {formatPtBrDate(selectedDetail.date)}
                   </Text>
                 </View>
-                <Text style={[theme.typography.metricMedium, { color: theme.colors.textPrimary }]}>
-                  {formatCurrency(financialMetricValue(selectedDetail.summary, metric))}
-                </Text>
+                <NativeAnimatedNumber
+                  animationEnabled={isDataReady}
+                  color={theme.colors.textPrimary}
+                  fontSize={theme.typography.metricMedium.fontSize}
+                  fontWeight="bold"
+                  lineHeight={theme.typography.metricMedium.lineHeight}
+                  text={formatCurrency(financialMetricValue(selectedDetail.summary, metric))}
+                  value={financialMetricValue(selectedDetail.summary, metric)}
+                />
               </View>
               <FinancialSeriesChart
                 accessibilityLabel={`Gráfico de ${copy.title}`}

@@ -103,7 +103,7 @@ export function RouteDetailsScreen() {
         ) : (
           <View style={[styles.contentGroup, { marginTop: theme.spacing.xl }]}>
             <GlassCard
-              style={[styles.mapCard, { borderRadius: theme.radius.xl + theme.spacing.xs }]}
+              style={[styles.mapCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
               <NativeTrackedRouteMap
                 routeId={session.id}

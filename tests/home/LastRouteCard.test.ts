@@ -5,10 +5,11 @@ import {
 import type { RouteTrackingSession } from '@/types/routeTracking';
 
 describe('LastRouteCard formatting', () => {
-  it('formats dates in full Brazilian Portuguese format', () => {
-    expect(formatRouteDateLabel('2026-08-14')).toBe('14 de agosto de 2026');
-    expect(formatRouteDateLabel('2026-08-16')).toBe('16 de agosto de 2026');
-    expect(formatRouteDateLabel('2025-12-01')).toBe('1 de dezembro de 2025');
+  it('formats dates in DD/MM format', () => {
+    expect(formatRouteDateLabel('2026-08-14')).toBe('14/08');
+    expect(formatRouteDateLabel('2026-08-16')).toBe('16/08');
+    expect(formatRouteDateLabel('2026-08-19')).toBe('19/08');
+    expect(formatRouteDateLabel('2025-12-01')).toBe('01/12');
   });
 
   it('formats distance with standard pt-BR formatting', () => {
@@ -38,7 +39,7 @@ describe('LastRouteCard formatting', () => {
       status: 'finalized',
     };
 
-    expect(formatRouteDateLabel(session.date)).toBe('16 de agosto de 2026');
+    expect(formatRouteDateLabel(session.date)).toBe('16/08');
     expect(formatRouteDistanceLabel(session.distanceMeters)).toBe('0,00 km');
   });
 });

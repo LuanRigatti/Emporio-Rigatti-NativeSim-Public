@@ -3,12 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GlassCard } from '@/components/premium';
 import { NativeTrackedRouteMap } from '@/components/routes';
+import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
 import { useAppTheme } from '@/theme';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import {
-  formatRouteDateLabel,
-  formatRouteDistanceLabel,
-} from '../utils/lastRouteFormatUtils';
+import { formatCurrency } from '@/utils/data';
+import { formatRouteDateLabel, formatRouteDistanceLabel } from '../utils/lastRouteFormatUtils';
 
 export { formatRouteDateLabel, formatRouteDistanceLabel };
 
@@ -19,6 +18,7 @@ export type LastRouteCardProps = {
 
 export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
   const { theme } = useAppTheme();
+  const fuelCost = useRouteFuelCost(session);
 
   if (!session) return null;
 
@@ -63,9 +63,14 @@ export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
             {formatRouteDateLabel(session.date)}
           </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {formatRouteDistanceLabel(session.distanceMeters)}
-          </Text>
+          <View style={styles.routeStatsRow}>
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              {formatRouteDistanceLabel(session.distanceMeters)}
+            </Text>
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              {formatCurrency(fuelCost)}
+            </Text>
+          </View>
         </View>
       </GlassCard>
     </View>
@@ -80,5 +85,10 @@ const styles = StyleSheet.create({
   routeMeta: { gap: 4, padding: 16 },
   routePreview: { height: 180, overflow: 'hidden' },
   routePreviewMap: { flex: 1 },
+  routeStatsRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   title: { marginLeft: 16 },
 });

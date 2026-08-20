@@ -17,6 +17,8 @@ import type { LocationTrackingService } from '@/services/routes';
 import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { formatCurrency } from '@/utils/data';
+import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
 import {
   HISTORY_MONTH_ITEMS,
   getHistoryYearItems,
@@ -329,6 +331,8 @@ function RouteHistoryCard({
   session: RouteTrackingSession;
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
+  const fuelCost = useRouteFuelCost(session);
+
   return (
     <NativeCardContextMenu
       actions={[
@@ -365,9 +369,14 @@ function RouteHistoryCard({
             <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
               {formatTime(session.startTimestamp)} → {formatTime(session.endTimestamp)}
             </Text>
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {formatDistance(session.distanceMeters)}
-            </Text>
+            <View style={styles.routeStatsRow}>
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                {formatDistance(session.distanceMeters)}
+              </Text>
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                {formatCurrency(fuelCost)}
+              </Text>
+            </View>
           </View>
         </GlassCard>
       </Pressable>
@@ -384,6 +393,11 @@ const styles = StyleSheet.create({
   routeMeta: { gap: 4, padding: 16 },
   routePreview: { height: 180, overflow: 'hidden' },
   routePreviewMap: { flex: 1 },
+  routeStatsRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   floatingAction: {
     alignItems: 'center',
     left: 0,

@@ -257,7 +257,11 @@ export default function Home() {
 
   const handleOpenLastRoute = () => {
     triggerLightImpactHaptic();
-    router.push('/localizacao');
+    if (latestCompletedRoute?.id) {
+      router.push(`/localizacao/${encodeURIComponent(latestCompletedRoute.id)}`);
+    } else {
+      router.push('/localizacao');
+    }
   };
 
   const homeHeader = (

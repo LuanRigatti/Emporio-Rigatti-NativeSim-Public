@@ -2,11 +2,7 @@ export function formatRouteDateLabel(dateIso: string): string {
   const [year, month, day] = dateIso.split('-').map(Number);
   if (!year || !month || !day) return dateIso;
 
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(year, month - 1, day, 12));
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}`;
 }
 
 export function formatRouteDistanceLabel(meters: number): string {

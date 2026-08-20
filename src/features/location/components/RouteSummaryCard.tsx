@@ -2,8 +2,10 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { GlassCard } from '@/components/premium';
 import HistorySymbolIcon from '@/features/history/components/HistorySymbolIcon';
+import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
 import { useAppTheme } from '@/theme';
 import type { RouteTrackingSession } from '@/types/routeTracking';
+import { formatCurrency } from '@/utils/data';
 
 type Props = {
   dailyDistanceKilometers?: number;
@@ -11,7 +13,12 @@ type Props = {
 };
 
 function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(timestamp);
+  const date = new Date(timestamp);
+  const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(date);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  return `${weekday} ${day}/${month}/${year}`;
 }
 
 function formatTime(timestamp: number): string {
@@ -40,6 +47,7 @@ function formatDistance(meters: number): string {
 
 export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
   const { theme } = useAppTheme();
+  const fuelCost = useRouteFuelCost(session);
   const sessionDistanceKilometers = session.distanceMeters / 1000;
   const showDailyDistance =
     dailyDistanceKilometers !== undefined &&
@@ -54,7 +62,11 @@ export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
       label: 'Distância',
       value: formatDistance(session.distanceMeters),
     },
-    { icon: 'mappin.and.ellipse', label: 'Pontos GPS', value: String(session.pointsCount) },
+    {
+      icon: 'fuelpump',
+      label: 'Valor gasto',
+      value: formatCurrency(fuelCost),
+    },
     ...(!showDailyDistance
       ? []
       : [

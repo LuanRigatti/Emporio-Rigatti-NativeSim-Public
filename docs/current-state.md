@@ -1210,6 +1210,58 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 
 - Status: Alteração local validada via Fast Refresh no dispositivo físico; aguardando autorização para commit/push.
 
+## Custo de Combustível nos Cards de Rota e Ajustes na Tela de Detalhes da Rota
+
+### Funcionalidade implementada
+
+- Integração do cálculo canônico de custo de combustível nos cards de rota da Home (`LastRouteCard`) e da aba Localização (`RouteHistoryCard`), reutilizando exclusivamente o serviço `FuelCostCalculationService` (`useRouteFuelCost`).
+- Exibição do valor gasto (`R$ 00,00`) na mesma linha dos quilômetros percorridos, alinhado à direita no rodapé dos cards, mantendo rigorosamente a mesma tipografia, cor secundária e altura dos cards.
+- Simplificação do formato da data no card `Última rota` da Home para `DD/MM` (ex: `19/08`).
+- Navegação direta do toque no card `Última rota` da Home para a tela de detalhes `/localizacao/[routeId]` quando houver uma rota finalizada.
+- Na tela de detalhes da rota (`RouteDetailsScreen` e `RouteSummaryCard`):
+  - Inclusão da linha `Valor gasto` com o valor canônico formatado (`formatCurrency(fuelCost)`) e SF Symbol `fuelpump`.
+  - Atualização do formato da linha `Data` para `${weekday} ${day}/${month}/${year}` (ex: `quarta-feira 19/08/26`).
+  - Remoção completa da linha `Pontos GPS`.
+  - Aumento refinado do arredondamento dos cantos do mapa para `theme.radius.xl + theme.spacing.sm` (34pt), harmonizado ao design system.
+
+### Comportamento final
+
+- **Card Última rota (Home):** exibe data em formato compacto `19/08` no título e no rodapé `26,37 km` à esquerda com `R$ 18,42` à direita na mesma linha.
+- **Cards de rotas (Localização):** cada card do histórico do mês exibe os horários de início/fim e no rodapé `26,37 km` à esquerda com `R$ 18,42` à direita.
+- **Tela de detalhes da rota:** exibe o mapa com cantos arredondados suaves (34pt) e o card de resumo com Data (`quarta-feira 19/08/26`), Início, Fim, Duração, Distância, Valor gasto e Km considerado no dia (quando aplicável), sem a linha de Pontos GPS.
+- Todos os cálculos utilizam os dados reais da sessão (`session.distanceMeters / 1000`), a autonomia configurada do carro (`useCarSettings`) e o preço/tipo de combustível correspondente à data da rota (`useCostSettings`), sem duplicar lógica matemática nem usar km consolidado.
+
+### Arquivos principais
+
+- `src/hooks/useRouteFuelCost.ts`
+- `src/features/home/components/LastRouteCard.tsx`
+- `src/features/home/utils/lastRouteFormatUtils.ts`
+- `src/features/location/components/LocationTrackingScreen.tsx`
+- `src/features/location/components/RouteDetailsScreen.tsx`
+- `src/features/location/components/RouteSummaryCard.tsx`
+- `src/app/(tabs)/dashboard.tsx`
+- `tests/home/LastRouteCard.test.ts`
+- `tests/routes/useRouteFuelCost.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag ou schema do Cloud Firestore alterado.
+
+### Validações executadas
+
+- TypeScript (`npx tsc --noEmit`): 0 erros.
+- ESLint direcionado: 0 erros e 0 warnings.
+- Testes automatizados Jest (`tests/home`, `tests/routes`, `tests/costs`, `tests/finance`): 29 suítes e 323 testes passando com 100% de sucesso.
+- `git diff --check`: limpo.
+
+### Limitações conhecidas
+
+- Se a rota não possuir preço de combustível registrado na data e nenhum preço anterior tiver sido configurado, o valor exibido permanece `R$ 0,00`.
+
+### Commit e publicação
+
+- Status: Alterações validadas localmente via Fast Refresh no dispositivo físico; sem commit/push realizado.
+
 ## Flags atuais
 
 

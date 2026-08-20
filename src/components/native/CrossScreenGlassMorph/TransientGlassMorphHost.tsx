@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Host } from '@expo/ui/swift-ui';
 import { NativeCrossScreenMorphView } from 'native-liquid-glass';
 
 import { useAppTheme } from '@/theme';
@@ -32,24 +33,25 @@ export function TransientGlassMorphHost() {
       ]}
     >
       <View style={styles.hostContainer}>
-        <NativeCrossScreenMorphView
-          animationBounce={0.36}
-          animationDuration={0.46}
-          collapsedSystemImage="ellipsis"
-          expandedSystemImage="xmark"
-          glassIdentity="cross-screen-glass-surface"
-          onActionPress={(event) => {
-            if (event.nativeEvent.id === 'secondary') {
-              setMorphState('circle');
-            } else if (event.nativeEvent.id === 'primary') {
-              setMorphState(isExpanded ? 'circle' : 'capsule');
-            }
-          }}
-          spacing={8}
-          state={isExpanded ? 'capsule' : 'circle'}
-          style={styles.morphView}
-          tint={theme.colors.textPrimary}
-        />
+        <Host matchContents style={styles.morphView}>
+          <NativeCrossScreenMorphView
+            animationBounce={0.36}
+            animationDuration={0.46}
+            collapsedSystemImage="ellipsis"
+            expandedSystemImage="xmark"
+            glassIdentity="cross-screen-glass-surface"
+            onActionPress={(event) => {
+              if (event.nativeEvent.id === 'secondary') {
+                setMorphState('circle');
+              } else if (event.nativeEvent.id === 'primary') {
+                setMorphState(isExpanded ? 'circle' : 'capsule');
+              }
+            }}
+            spacing={8}
+            state={isExpanded ? 'capsule' : 'circle'}
+            style={styles.morphView}
+          />
+        </Host>
       </View>
     </View>
   );

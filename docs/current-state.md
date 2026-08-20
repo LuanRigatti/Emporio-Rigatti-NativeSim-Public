@@ -388,9 +388,9 @@ Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explo
 
 Evolução e consolidação do laboratório experimental de Liquid Glass Morph cross-screen entre telas distintas (`/teste-morph` ⇄ `/teste-1`), eliminando intermediários frágeis e integrando a deformação contínua de malha do SwiftUI/Metal:
 
-- **Host Persistente Único no Shell:** Centralização de um único container persistente no layout raiz (`TransientGlassMorphHost.tsx` em `_layout.tsx`), mantendo uma única árvore SwiftUI com `@Namespace` e `GlassEffectContainer(spacing: 8)` ativa durante toda a navegação.
+- **Host Persistente Único no Shell:** Centralização de um único container persistente no layout raiz (`TransientGlassMorphHost.tsx` em `_layout.tsx`), encapsulando o `NativeCrossScreenMorphView` em `<Host matchContents>` de `@expo/ui/swift-ui` para montagem UIKit válida no Expo SDK 57, mantendo uma única árvore SwiftUI com `@Namespace` e `GlassEffectContainer(spacing: 8)` ativa durante toda a navegação.
 - **Implementação Swift Canônica com `matchedGeometry`:** No módulo local `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift` (`nativeCrossScreenMorph`), aplicação do padrão oficial Apple com `.glassEffect(glassMaterial, in: .circle / .capsule)`, `glassEffectID(props.glassIdentity, in: namespace)` compartilhado e `.glassEffectTransition(.matchedGeometry)`.
-- **Eliminação de Hacks:** Removidas medições manuais de coordenadas no JS, temporizadores artificiais, delays e manipulações de `opacity` para ocultar nós de origem/destino.
+- **Eliminação de Hacks e Tint Branco:** Removidas medições manuais de coordenadas no JS, delays e manipulações de `opacity`. Removido `tint` explícito da lâmina de vidro no TSX para preservar o material `Glass.regular.interactive()` neutro e translúcido (sem fundo branco opaco).
 - **Botões Interativos com Material `.regular.interactive()`:** Ambos os ramos (círculo 44×44 com `ellipsis` e cápsula 100×44 com `plus` + `xmark`) utilizam botões nativos que respondem a toques e transmitem eventos à aplicação.
 - **Mola Nativa Apple com Overshoot Orgânico:** Animação governada por `.spring(duration: 0.46, bounce: 0.36)` dentro de `withAnimation` no Swift, produzindo estiramento contínuo com refração, leve overshoot elástico na expansão e acomodação fluida no retorno.
 - **Timing Imediato e Sincronizado:** O início do morph ocorre no mesmo tick de execução do `router.push('/teste-1')` e `router.back()`, transformando a geometria no topo enquanto a tela desliza por baixo.
@@ -398,14 +398,14 @@ Evolução e consolidação do laboratório experimental de Liquid Glass Morph c
 ### Comportamento final
 
 1. **Tela A (`Teste Morph`)**:
-   - Cabeçalho canônico com botão Back nativo e o botão circular Liquid Glass 44×44 no topo direito (`ellipsis`).
+   - Cabeçalho canônico com botão Back nativo e o botão circular Liquid Glass 44×44 no topo direito (`ellipsis`) translúcido.
    - Placeholder transparente no cabeçalho para garantir alinhamento e respiro sem renderizar Hosts conflitantes.
 2. **Ao tocar em `Teste 1` (Ida)**:
    - `setMorphState('capsule')` e `router.push('/teste-1')` disparam instantaneamente.
    - O botão de vidro deforma organicamente de círculo (44×44) para cápsula (100×44) com refração líquida, overshoot elástico e transição de ícones (`ellipsis` ⇄ `xmark` + `plus`).
    - A tela `/teste-1` desliza suavemente por baixo sem cortar ou piscar o vidro.
 3. **Tela B (`Teste 1`) e Retorno (Volta)**:
-   - Exibe a cápsula de vidro ativa (100×44).
+   - Exibe a cápsula de vidro ativa (100×44) translúcida.
    - Ao tocar no botão de voltar (Back), `setMorphState('circle')` e `router.back()` disparam no mesmo tick.
    - O vidro executa o morph reverso (cápsula $\rightarrow$ círculo) com undershoot elástico suave.
 
@@ -441,7 +441,8 @@ Evolução e consolidação do laboratório experimental de Liquid Glass Morph c
 
 ### Commit e publicação
 
-- Alterações validadas localmente; aguardando autorização para commit/push.
+- Base commit: `cae55af` (`feat: add native Liquid Glass matched geometry morph`).
+- Ajustes de `<Host matchContents>` e remoção de `tint` validados localmente via Fast Refresh; aguardando autorização para novo commit.
 
 ## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
 

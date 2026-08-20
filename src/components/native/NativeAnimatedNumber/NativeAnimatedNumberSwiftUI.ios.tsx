@@ -13,11 +13,13 @@ import { useEffect, useState } from 'react';
 import type { NativeAnimatedNumberProps } from './NativeAnimatedNumber.types';
 
 export default function NativeAnimatedNumberSwiftUI({
+  alignment = 'leading',
   animationEnabled = true,
   color,
   fontSize = 32,
   fontWeight = 'bold',
   lineHeight = 38,
+  style,
   text,
   value,
 }: NativeAnimatedNumberProps) {
@@ -31,14 +33,23 @@ export default function NativeAnimatedNumberSwiftUI({
   }, [animationEnabled, animationReady, value]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const isTrailing = alignment === 'trailing';
+
   return (
-    <Host style={{ minHeight: lineHeight, width: '100%' }}>
+    <Host
+      matchContents={isTrailing}
+      style={[{ minHeight: lineHeight, width: isTrailing ? undefined : '100%' }, style]}
+    >
       <Text
         modifiers={[
           font({ design: 'rounded', size: fontSize, weight: fontWeight }),
           monospacedDigit(),
           foregroundColor(color),
-          frame({ maxWidth: Infinity, minHeight: lineHeight, alignment: 'leading' }),
+          frame({
+            maxWidth: isTrailing ? undefined : Infinity,
+            minHeight: lineHeight,
+            alignment,
+          }),
           contentTransition('numericText'),
           ...(animationEnabled && animationReady
             ? [animation(Animation.easeInOut({ duration: 0.18 }), value ?? 0)]

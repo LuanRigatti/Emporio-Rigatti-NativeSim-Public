@@ -299,10 +299,14 @@ sem criar uma segunda fonte de verdade:
    - Configuração de ativação imediata no eixo horizontal com `minDistance(0)`, `activeOffsetX([-2, 2])` e `cancelsTouchesInView(true)`.
    - Eliminação completa do conflito de gestos onde o arraste horizontal esquerda $\leftrightarrow$ direita da linha do gráfico disparava concorrentemente o `interactivePopGestureRecognizer` (swipe-back) da navegação nativa UIKit (`react-native-screens` / Expo Router).
    - Preservação estrita do swipe-back nativo do iOS em 100% da área externa aos limites físicos do gráfico.
-2. **Integração de `NativeAnimatedNumber` no Cabeçalho de Detalhes:**
-   - Substituição do `<Text>` estático em [MonthlyFinancialDetailScreen.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/finance/components/MonthlyFinancialDetailScreen.tsx) pelo componente reutilizável [NativeAnimatedNumber](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/native/NativeAnimatedNumber/NativeAnimatedNumberSwiftUI.ios.tsx).
-   - Reutilização canônica da mesma transição fluida do SwiftUI (`contentTransition('numericText')` + easing `0.18s`) já empregada nos cards principais da aba Finanças ao alternar dias no gráfico ou trocar o período (mês/ano).
-3. **Interpolação de Curva e Snap na UI Thread:**
+2. **Integração de `NativeAnimatedNumber` no Cabeçalho e Linhas de Métricas:**
+   - **Cabeçalho:** Substituição do `<Text>` estático em [MonthlyFinancialDetailScreen.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/finance/components/MonthlyFinancialDetailScreen.tsx) pelo componente reutilizável [NativeAnimatedNumber](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/native/NativeAnimatedNumber/NativeAnimatedNumberSwiftUI.ios.tsx).
+   - **Extensão Canônica:** Adição de suporte a `alignment?: 'leading' | 'trailing' | 'center'` (padrão `'leading'`) e dimensionamento intrínseco `<Host matchContents>` em `NativeAnimatedNumber`.
+   - **Linhas do Card Diário:** Em [FinancialDayDetailCard.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/finance/components/FinancialDayDetailCard.tsx), todos os valores à direita (Faturamento, Lucro Líquido, Baldes, Entregas, Km total/automático/manual, Estar, Combustível, Outros, Luz) utilizam `NativeAnimatedNumber alignment="trailing"`, animando a troca numérica com `contentTransition('numericText')` do SwiftUI.
+3. **Animação de Altura Contínua e Transição de Linhas no Card Diário:**
+   - **Altura do Card:** Transição de layout estritamente monótona e desacelerada via `LinearTransition.duration(200).easing(Easing.out(Easing.quad))` no container do card, eliminando totalmente qualquer bounce ou overshoot na expansão/contração de altura entre dias com quantidades diferentes de métricas.
+   - **Entrada e Saída das Linhas:** Linhas inseridas entram suavemente com `FadeInDown.duration(200).springify().damping(30).stiffness(220)` e linhas removidas saem com `FadeOutUp.duration(180)`.
+4. **Interpolação de Curva e Snap na UI Thread:**
    - Desacoplamento arquitetural entre a posição contínua de arraste (`scrubX`, `scrubY` em `SharedValue` na UI thread) e o dia selecionado (`selectedIndex` em React state).
    - Interpolação matemática contínua da altura $Y$ ao longo dos segmentos da curva (`interpolateYOnCoordinates`).
    - Renderização da linha vertical pontilhada e do marcador em overlay nativo acelerado por hardware (`Animated.View` com `transform: [{ translateX }, { translateY }]`), rodando a 120fps/60fps na GPU sem re-renderizar o SVG.
@@ -313,13 +317,19 @@ sem criar uma segunda fonte de verdade:
 
 - O usuário pode tocar em qualquer parte do gráfico ou arrastar livremente o dedo na horizontal (incluindo da esquerda para a direita a partir do início da curva) para percorrer os dias do mês: o gesto pertence 100% ao gráfico e não inicia o retorno de tela.
 - Fora da área do gráfico (cabeçalho, cards de resumo, margens e rodapé), o gesto de swipe-back do iOS permanece totalmente funcional e nativo.
-- O valor de Faturamento ou Lucro Líquido no cabeçalho do gráfico transiciona suavemente com blur e animação numérica no mesmo timing e física visual dos cards de Finanças.
+- O valor principal no cabeçalho e todos os valores numéricos das linhas do card inferior realizam transição fluida com blur suave e troca de dígitos numéricos sincronizados.
+- A altura do card inferior expande e contrai de forma perfeitamente suave e contínua sem balanço residual ou overshoot.
 
 ### Arquivos principais
 
 - `src/components/Charts/index.tsx`
 - `src/features/finance/components/MonthlyFinancialDetailScreen.tsx`
+- `src/features/finance/components/FinancialDayDetailCard.tsx`
+- `src/components/native/NativeAnimatedNumber/NativeAnimatedNumber.types.ts`
 - `src/components/native/NativeAnimatedNumber/NativeAnimatedNumberSwiftUI.ios.tsx`
+- `src/components/native/NativeAnimatedNumber/NativeAnimatedNumber.native.tsx`
+- `src/components/native/NativeAnimatedNumber/NativeAnimatedNumber.tsx`
+- `src/components/native/index.ts`
 - `src/utils/haptics.ts`
 
 ### Flags e schema afetados
@@ -340,9 +350,7 @@ sem criar uma segunda fonte de verdade:
 
 ### Commit e publicação
 
-- Branch: `ajustes-antigravity`.
-- Commit: `8059cdb`.
-- Mensagem: `feat(finance): isolar gesto do grafico de financas e animar valores numericos no detalhe`.
+- Alterações validadas localmente via Fast Refresh no dispositivo físico; sem commit/push realizado.
 
 ## Morph e Fusão Nativa de Liquid Glass (@expo/ui)
 

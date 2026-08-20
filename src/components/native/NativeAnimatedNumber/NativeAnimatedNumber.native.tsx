@@ -5,6 +5,7 @@ import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import type { NativeAnimatedNumberProps } from './NativeAnimatedNumber.types';
 
 export default function NativeAnimatedNumberNative({
+  alignment = 'leading',
   color,
   animationEnabled = true,
   fontSize = 32,
@@ -21,16 +22,29 @@ export default function NativeAnimatedNumberNative({
   if (NativeImplementation) {
     return (
       <NativeImplementation
+        alignment={alignment}
         color={color}
         animationEnabled={animationEnabled}
         fontSize={fontSize}
         fontWeight={fontWeight}
         lineHeight={lineHeight}
+        style={style}
         text={text}
         value={value}
       />
     );
   }
+
+  const rnFontWeight =
+    fontWeight === 'regular'
+      ? '400'
+      : fontWeight === 'medium'
+        ? '500'
+        : fontWeight === 'semibold'
+          ? '600'
+          : '700';
+
+  const textAlign = alignment === 'trailing' ? 'right' : alignment === 'center' ? 'center' : 'left';
 
   return (
     <RNText
@@ -39,8 +53,9 @@ export default function NativeAnimatedNumberNative({
           color,
           fontSize,
           fontVariant: ['tabular-nums'],
-          fontWeight: fontWeight === 'semibold' ? '600' : '700',
+          fontWeight: rnFontWeight,
           lineHeight,
+          textAlign,
         },
         style,
       ]}

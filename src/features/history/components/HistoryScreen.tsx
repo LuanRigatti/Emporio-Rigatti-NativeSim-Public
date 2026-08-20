@@ -4,6 +4,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
+import { AppLogo } from '@/components/branding/AppLogo';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeDatePicker,
@@ -252,9 +253,28 @@ export function HistoryScreen() {
   const header = (
     <NativeGlassHeader
       includeTopSafeArea={false}
+      leftActions={
+        <View
+          style={[
+            styles.headerLogoSlot,
+            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
+          ]}
+        >
+          <View
+            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
+          >
+            <AppLogo size={200} variant="splash" />
+          </View>
+        </View>
+      }
       largeTitle
       mode="transparent"
-      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 32,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
       title="Histórico"
     />
   );
@@ -311,6 +331,13 @@ export function HistoryScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  headerLogoSlot: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    overflow: 'visible',
+    width: 44,
+  },
   screenContent: { flex: 1 },
   dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
   deliveryGroup: { padding: 0 },

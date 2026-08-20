@@ -1281,6 +1281,62 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 
 - Status: Alterações validadas localmente via Fast Refresh no dispositivo físico; sem commit/push realizado.
 
+## Padronização do Cabeçalho com Logo nas Abas Principais
+
+### Funcionalidade implementada
+
+- Padronização visual dos cabeçalhos principais de **Finanças**, **Registrar**, **Histórico** e **Configurações** usando a Home como referência canônica.
+- Reutilização de `NativeGlassHeader.leftActions` com `AppLogo variant="splash"`, preservando a seleção automática dos assets Light/Dark já existente no `AppLogo`.
+- Cópia dos valores finais da Home:
+  - logo `size={200}`;
+  - slot fixo de `44×44`, centralizado e com `overflow: 'visible'`;
+  - `marginLeft: -theme.spacing.xs`;
+  - `marginRight: theme.spacing.xl`;
+  - deslocamento vertical `theme.spacing.xs + theme.spacing.xxs`;
+  - título `System`, `32pt`, `fontWeight: '700'` e `marginLeft: -(theme.spacing.xxs * 2)`.
+- Preservação do `includeTopSafeArea` e da estrutura própria de cada tela.
+- Alteração restrita aos cabeçalhos principais; subcabeçalhos, filtros, menus, cards, listas, navegação, handlers e lógica permaneceram intactos.
+
+### Comportamento final
+
+- Finanças, Registrar, Histórico e Configurações exibem logo à esquerda do título, na mesma linha, com alinhamento vertical central e espaçamento consistente com a Home.
+- A logo acompanha automaticamente Light/Dark por meio do `AppLogo` existente.
+- O slot mantém a altura do cabeçalho em `44pt`, sem criar deslocamento vertical desnecessário no conteúdo abaixo.
+- Safe Area continua sendo controlada pela configuração original de cada cabeçalho.
+
+### Arquivos principais
+
+- `src/app/(tabs)/dashboard.tsx` (referência visual canônica)
+- `src/app/(tabs)/financeiro.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/features/history/components/HistoryScreen.tsx`
+- `src/features/settings/components/SettingsScreen.tsx`
+- `src/components/layout/NativeGlassHeader/NativeGlassHeader.tsx` (abstração reutilizada, sem alteração)
+- `src/components/branding/AppLogo.tsx` (seleção Light/Dark reutilizada, sem alteração)
+
+### Flags e schema afetados
+
+- Nenhuma flag alterada.
+- Nenhum schema, documento ou coleção do Cloud Firestore alterado.
+- Nenhum asset, tema ou dependência alterado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou com 0 erros.
+- ESLint direcionado nos cinco arquivos de cabeçalho: passou com 0 erros usando as regras de lint; `prettier/prettier` foi desativado na execução por avisos CRLF preexistentes do checkout.
+- `git diff --check`: passou; apenas avisos de normalização LF/CRLF foram emitidos pelo Git.
+
+### Limitações conhecidas
+
+- A confirmação visual final de alinhamento, overflow do símbolo e Safe Area em diferentes modelos de iPhone ainda depende de teste no iPhone Development Build.
+- O cabeçalho mantém `includeTopSafeArea` específico de cada tela; diferenças estruturais existentes entre as abas permanecem intencionais.
+
+### Commit e publicação
+
+- Alteração não commitada.
+- `HEAD` atual: `614ab2b` (`feat: refine finance chart interactions and metric animations`), commit anterior.
+- Nenhum commit ou push adicional realizado.
+
 ## Flags atuais
 
 

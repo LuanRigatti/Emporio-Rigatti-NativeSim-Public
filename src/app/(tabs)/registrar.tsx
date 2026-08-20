@@ -4,6 +4,7 @@ import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppLogo } from '@/components/branding/AppLogo';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
@@ -56,9 +57,28 @@ function RegistrarModeSelection() {
   const header = (
     <NativeGlassHeader
       includeTopSafeArea={false}
+      leftActions={
+        <View
+          style={[
+            styles.headerLogoSlot,
+            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
+          ]}
+        >
+          <View
+            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
+          >
+            <AppLogo size={200} variant="splash" />
+          </View>
+        </View>
+      }
       largeTitle
       mode="transparent"
-      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 32,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
       title="Registrar"
     />
   );
@@ -582,6 +602,13 @@ function DailyDataRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  headerLogoSlot: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    overflow: 'visible',
+    width: 44,
+  },
   header: { minHeight: 44 },
   modeSelectionContent: { flexGrow: 1 },
   modeSelection: { flex: 1 },

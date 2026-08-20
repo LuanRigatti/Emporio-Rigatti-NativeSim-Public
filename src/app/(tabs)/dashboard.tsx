@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
+import { AppLogo } from '@/components/branding/AppLogo';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeSearchField } from '@/components/native';
@@ -267,10 +268,29 @@ export default function Home() {
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
+      leftActions={
+        <View
+          style={[
+            styles.headerLogoSlot,
+            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
+          ]}
+        >
+          <View
+            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
+          >
+            <AppLogo size={200} variant="splash" />
+          </View>
+        </View>
+      }
       mode="transparent"
       largeTitle
       title="Home"
-      titleStyle={{ fontFamily: 'System', marginLeft: -(theme.spacing.xxs * 2) }}
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 32,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
     />
   );
 
@@ -432,6 +452,13 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  headerLogoSlot: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    overflow: 'visible',
+    width: 44,
+  },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
   pageTitle: { textAlign: 'center' },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

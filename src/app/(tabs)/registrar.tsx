@@ -205,7 +205,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
     triggerLightImpactHaptic();
     setDailySheetInitialValues({
       ...EMPTY_DAILY_DATA_VALUES,
-      fuelPrice: getLatestDailyValue('fuelPrice'),
+      fuelPrice: getLatestDailyValue('fuelPrice') || '6,59',
     });
     setSheetVisible(true);
   }, [getLatestDailyValue]);

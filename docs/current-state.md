@@ -1559,3 +1559,50 @@ agora separa o card real do elemento capturado pelo menu:
 - HEAD de referência: `448683a` (`fix(home): filter open payments by delivered status`).
 - Alteração ainda não commitada.
 - Nenhum commit ou push adicional realizado.
+
+## Alinhamento vertical do título e cards de Finanças
+
+### Funcionalidade implementada
+
+Restaurado o offset vertical do conteúdo principal da aba Finanças para
+`marginTop: -theme.spacing.md`, recuperando o posicionamento aprovado do
+cabeçalho e dos cards em relação à Home e às demais abas principais.
+
+### Comportamento final
+
+- O título **Finanças** fica alinhado verticalmente com o título **Home**.
+- Os cards de Faturamento, Lucro Líquido e demais resumos sobem junto com o
+  conteúdo, sem alterar seus tamanhos, cálculos, filtros ou navegação.
+- O cabeçalho de período e o progressive blur permanecem inalterados.
+
+### Arquivos principais
+
+- `src/app/(tabs)/financeiro.tsx`
+- `src/components/layout/NativeGlassHeader/NativeGlassHeader.tsx` (referência,
+  sem alteração)
+- `src/components/premium/PremiumScreen.tsx` (referência, sem alteração)
+
+### Flags e schema afetados
+
+- Nenhuma flag alterada.
+- Nenhum schema, documento, coleção ou regra do Cloud Firestore alterado.
+- Nenhuma lógica financeira ou fonte de dados alterada.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou com 0 erros.
+- ESLint direcionado em `financeiro.tsx`: passou.
+- `git diff --check`: passou; apenas avisos de normalização LF/CRLF foram
+  emitidos pelo Git.
+
+### Limitações conhecidas
+
+- A confirmação visual precisa ser feita no iPhone Development Build para
+  verificar o alinhamento exato em diferentes tamanhos de tela.
+
+### Commit e publicação
+
+- Branch: `ajustes-codex`.
+- HEAD de referência: `427a364` (`fix(ui): remove context menu platter flicker on cards`).
+- Esta alteração ainda não foi commitada.
+- Nenhum commit ou push adicional realizado.

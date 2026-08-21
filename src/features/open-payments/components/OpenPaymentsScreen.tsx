@@ -74,7 +74,9 @@ export function OpenPaymentsScreen() {
           {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
         </Text>
       </View>
-      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+      <Text
+        style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: 'bold' }]}
+      >
         {item.amount}
       </Text>
     </View>
@@ -109,7 +111,7 @@ export function OpenPaymentsScreen() {
         />
       }
       mode="transparent"
-      title="Recebimentos em aberto"
+      title="Em aberto"
     />
   );
 

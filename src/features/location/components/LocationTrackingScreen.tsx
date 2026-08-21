@@ -208,7 +208,12 @@ export function LocationTrackingScreen() {
       groups.set(session.date, sessions);
     });
 
-    return Array.from(groups.entries()).sort(([left], [right]) => left.localeCompare(right));
+    return Array.from(groups.entries())
+      .map(([date, sessions]) => [
+        date,
+        [...sessions].sort((left, right) => right.startTimestamp - left.startTimestamp),
+      ] as const)
+      .sort(([left], [right]) => right.localeCompare(left));
   }, [routeHistory]);
 
   const visibleErrorMessage =
@@ -254,14 +259,7 @@ export function LocationTrackingScreen() {
         progressiveBlur
       >
         <View style={styles.historySection}>
-          <Text
-            style={[
-              theme.typography.headline,
-              { color: theme.colors.textPrimary, textAlign: 'center' },
-            ]}
-          >
-            Rotas do mês
-          </Text>
+          <View style={{ height: theme.typography.headline.lineHeight }} />
           {visibleErrorMessage ? (
             <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
               {visibleErrorMessage}
@@ -270,7 +268,12 @@ export function LocationTrackingScreen() {
           {routeHistoryByDay.length > 0 ? (
             routeHistoryByDay.map(([date, sessions]) => (
               <View key={date} style={styles.dayGroup}>
-                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                <Text
+                  style={[
+                    theme.typography.headline,
+                    { color: theme.colors.textPrimary, marginLeft: theme.spacing.sm },
+                  ]}
+                >
                   {formatRouteDayLabel(date)}
                 </Text>
                 {sessions.map((session) => (

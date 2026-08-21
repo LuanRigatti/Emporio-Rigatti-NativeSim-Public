@@ -308,49 +308,47 @@ function PurchaseRow({
   );
   return (
     <View
-      style={[
-        styles.contextContainer,
-        purchaseCardStyle,
-        resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
-      ]}
+      style={[{ width: '100%' }, resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated]}
     >
-      <NativeCardContextMenu
-        actions={[
-          {
-            destructive: true,
-            id: 'delete-factory-purchase',
-            onPress: onDelete,
-            systemImage: 'trash',
-            title: 'Excluir',
-          },
-        ]}
-        style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-        preview={
+      <View style={[styles.contextContainer, purchaseCardStyle]}>
+        <NativeCardContextMenu
+          actions={[
+            {
+              destructive: true,
+              id: 'delete-factory-purchase',
+              onPress: onDelete,
+              systemImage: 'trash',
+              title: 'Excluir',
+            },
+          ]}
+          style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          preview={
+            <View
+              style={[
+                styles.purchaseCard,
+                purchaseCardStyle,
+                { overflow: 'hidden', padding: theme.spacing.lg },
+              ]}
+            >
+              {renderPurchaseContent()}
+            </View>
+          }
+        >
           <View
             style={[
               styles.purchaseCard,
-              purchaseCardStyle,
-              { overflow: 'hidden', padding: theme.spacing.lg },
+              {
+                backgroundColor: 'transparent',
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                padding: theme.spacing.lg,
+                width: '100%',
+              },
             ]}
           >
             {renderPurchaseContent()}
           </View>
-        }
-      >
-        <View
-          style={[
-            styles.purchaseCard,
-            {
-              backgroundColor: 'transparent',
-              borderRadius: theme.radius.xl + theme.spacing.sm,
-              padding: theme.spacing.lg,
-              width: '100%',
-            },
-          ]}
-        >
-          {renderPurchaseContent()}
-        </View>
-      </NativeCardContextMenu>
+        </NativeCardContextMenu>
+      </View>
     </View>
   );
 }

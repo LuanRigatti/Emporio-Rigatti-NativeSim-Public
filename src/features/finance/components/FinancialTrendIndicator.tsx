@@ -37,6 +37,11 @@ export function FinancialTrendIndicator({
   const difference = effectiveComparison?.diferenca ?? 0;
   const isPositive = difference > 0;
   const isNegative = difference < 0;
+  const trendColors = isPositive
+    ? { background: theme.colors.successSurface, foreground: theme.colors.success }
+    : isNegative
+      ? { background: theme.colors.dangerSurface, foreground: theme.colors.danger }
+      : { background: 'transparent', foreground: theme.colors.textPrimary };
 
   const systemName = isPositive ? 'arrow.up.right' : isNegative ? 'arrow.down.right' : 'minus';
 
@@ -57,15 +62,24 @@ export function FinancialTrendIndicator({
           ? `Tendência: ${isPositive ? 'alta de' : isNegative ? 'queda de' : 'estável em'} ${percentageText}`
           : undefined
       }
-      style={[styles.container, { opacity: isReady ? 1 : 0 }]}
+      style={[
+        styles.container,
+        {
+          backgroundColor: trendColors.background,
+          borderRadius: theme.radius.pill,
+          opacity: isReady ? 1 : 0,
+          paddingHorizontal: theme.spacing.xs,
+          paddingVertical: theme.spacing.xxs,
+        },
+      ]}
     >
       <HistorySymbolIcon
-        color={theme.colors.textPrimary}
+        color={trendColors.foreground}
         fallbackIcon={fallbackIcon}
         size={9.5}
         systemName={systemName}
       />
-      <Text style={[styles.text, { color: theme.colors.textPrimary }]}>{percentageText}</Text>
+      <Text style={[styles.text, { color: trendColors.foreground }]}>{percentageText}</Text>
     </View>
   );
 }

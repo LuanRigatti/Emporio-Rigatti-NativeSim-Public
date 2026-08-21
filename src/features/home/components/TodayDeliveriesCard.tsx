@@ -59,7 +59,12 @@ export function TodayDeliveriesCard({
                 ]}
               >
                 <View style={styles.copy}>
-                  <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
+                  <Text
+                    style={[
+                      theme.typography.callout,
+                      { color: theme.colors.textPrimary, fontWeight: 'bold' },
+                    ]}
+                  >
                     {delivery.cliente}
                   </Text>
                   <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>

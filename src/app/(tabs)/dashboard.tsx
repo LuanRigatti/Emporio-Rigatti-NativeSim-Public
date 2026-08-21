@@ -11,7 +11,6 @@ import { NativeSearchField } from '@/components/native';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
-import { LastRouteCard } from '@/features/home/components/LastRouteCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
 import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
@@ -21,7 +20,6 @@ import {
   isHomeSearchSheetVisible,
 } from '@/features/home/hooks/HomeSearchPresentationFlow';
 import { useHomeSearch } from '@/features/home/hooks/useHomeSearch';
-import { useLatestCompletedRoute } from '@/features/home/hooks/useLatestCompletedRoute';
 import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoices';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -61,7 +59,6 @@ export default function Home() {
   const lastSubmitAt = useRef<number | null>(null);
   const lastTextChangeAt = useRef<number | null>(null);
   const { search: runHomeSearch } = useHomeSearch();
-  const latestCompletedRoute = useLatestCompletedRoute();
   const {
     deliveries: dailyDeliveries,
     remove: removeDelivery,
@@ -267,15 +264,6 @@ export default function Home() {
     router.push('/fabrica-compras');
   };
 
-  const handleOpenLastRoute = () => {
-    triggerLightImpactHaptic();
-    if (latestCompletedRoute?.id) {
-      router.push(`/localizacao/${encodeURIComponent(latestCompletedRoute.id)}`);
-    } else {
-      router.push('/localizacao');
-    }
-  };
-
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -432,7 +420,7 @@ export default function Home() {
               {
                 borderRadius: theme.radius.xl + theme.spacing.sm,
                 paddingHorizontal: theme.spacing.lg,
-                paddingVertical: theme.spacing.md,
+                paddingVertical: theme.spacing.lg,
               },
             ]}
           >
@@ -458,7 +446,7 @@ export default function Home() {
               {
                 borderRadius: theme.radius.xl + theme.spacing.sm,
                 paddingHorizontal: theme.spacing.lg,
-                paddingVertical: theme.spacing.md,
+                paddingVertical: theme.spacing.lg,
               },
             ]}
           >
@@ -484,9 +472,6 @@ export default function Home() {
           onToggleStatus={handleTodayStatusToggle}
         />
 
-        <View style={[styles.lowerHomeContent, { gap: theme.spacing.lg }]}>
-          <LastRouteCard onPress={handleOpenLastRoute} session={latestCompletedRoute} />
-        </View>
       </PremiumScreen>
       <HomeSearchResultsSheet
         onDismiss={handleSearchSheetDismiss}
@@ -509,7 +494,6 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
   pageTitle: { textAlign: 'center' },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  lowerHomeContent: { width: '100%' },
   shortcutCards: { width: '100%' },
   shortcutCard: {},
   shortcutLabel: { alignItems: 'center', flexDirection: 'row' },

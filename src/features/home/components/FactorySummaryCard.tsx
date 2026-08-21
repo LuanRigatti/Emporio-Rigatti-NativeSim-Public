@@ -36,8 +36,9 @@ export function FactorySummaryCard({
   const recentPurchases = useMemo<PurchaseSummary[]>(
     () =>
       [...purchases]
+        .filter((purchase) => !factoryPurchaseCalculationService.isPaid(purchase))
         .sort(comparePurchasesDescending)
-        .slice(0, 2)
+        .slice(0, 1)
         .map((purchase) => ({
           purchase,
           status: getPurchaseStatus(purchase),
@@ -54,7 +55,11 @@ export function FactorySummaryCard({
         style={styles.header}
       >
         <Text
-          style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}
+          style={[
+            theme.typography.headline,
+            styles.title,
+            { color: theme.colors.textPrimary, marginLeft: theme.spacing.md },
+          ]}
         >
           Fábrica
         </Text>
@@ -132,11 +137,11 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     width: '100%',
   },
   amountColumn: { alignItems: 'flex-end' },
   purchaseRow: { width: '100%' },
   row: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { textAlign: 'center' },
+  title: { textAlign: 'left' },
 });

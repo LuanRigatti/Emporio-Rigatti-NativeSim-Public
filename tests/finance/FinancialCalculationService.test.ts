@@ -123,6 +123,20 @@ describe('FinancialCalculationService', () => {
     );
   });
 
+  it('uses the resolved combined fuel cost when the route has no daily expense record', () => {
+    const result = service.calculateResumo({
+      deliveries: [delivery({ data: '2026-07-01' })],
+      dailyExpenses: {},
+      fuelCostByDate: { '2026-07-01': 12 },
+      monthlyExpenses: {},
+      filters: { periodo: 'dia', diaSelecionado: '2026-07-01' },
+      today,
+    });
+
+    expect(result.custoCombustivel).toBe(12);
+    expect(result.lucroLiquido).toBe(result.lucroBruto - result.custoEstar - 12 - result.custoLuz);
+  });
+
   it('returns zero light allocation when the selected period has no deliveries', () => {
     expect(service.calculateLuzDoPeriodo([], monthlyExpenses, false, today)).toBe(0);
     const result = service.calculateResumo({

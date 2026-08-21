@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Keyboard, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import {
   NativeButton,
@@ -256,71 +256,102 @@ function PurchaseRow({
   onPress: () => void;
   purchase: Purchase;
 }) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const paidAmount = factoryPurchaseCalculationService.paidAmount(purchase);
   const remainingAmount = factoryPurchaseCalculationService.remainingAmount(purchase);
   const isPaid = factoryPurchaseCalculationService.isPaid(purchase);
-
+  const purchaseCardStyle: ViewStyle = {
+    backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+    borderRadius: theme.radius.xl + theme.spacing.sm,
+    width: '100%',
+  };
+  const renderPurchaseContent = () => (
+    <>
+      <View style={styles.purchaseHeader}>
+        <View style={styles.purchaseCopy}>
+          <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+            {formatPtBrDate(purchase.date)}
+          </Text>
+        </View>
+        <Text
+          style={[
+            theme.typography.footnote,
+            { color: isPaid ? theme.colors.paid : theme.colors.unpaid },
+          ]}
+        >
+          {isPaid ? 'Pago' : 'Em aberto'}
+        </Text>
+      </View>
+      <View style={[styles.purchaseDetails, { marginTop: theme.spacing.sm }]}>
+        <View style={[styles.purchaseDetailsLeft, { gap: theme.spacing.xs }]}>
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            {purchase.bucketQuantity} baldes · {formatCurrency(purchase.totalAmount)}
+          </Text>
+          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+            Pago {formatCurrency(paidAmount)}
+          </Text>
+        </View>
+        <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+          Saldo {formatCurrency(remainingAmount)}
+        </Text>
+      </View>
+      <View style={styles.purchaseActions}>
+        <NativeButton
+          accessibilityLabel="Adicionar detalhes da compra"
+          haptic="light"
+          label="Adicionar"
+          onPress={onPress}
+          variant="primary"
+        />
+      </View>
+    </>
+  );
   return (
-    <NativeCardContextMenu
-      actions={[
-        {
-          destructive: true,
-          id: 'delete-factory-purchase',
-          onPress: onDelete,
-          systemImage: 'trash',
-          title: 'Excluir',
-        },
-      ]}
+    <View
       style={[
-        styles.contextMenu,
-        {
-          borderRadius: theme.radius.xl + theme.spacing.sm,
-        },
+        styles.contextContainer,
+        purchaseCardStyle,
+        resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
       ]}
     >
-      <GlassCard
-        style={[styles.purchaseCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-      >
-        <View style={styles.purchaseHeader}>
-          <View style={styles.purchaseCopy}>
-            <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-              {formatPtBrDate(purchase.date)}
-            </Text>
-          </View>
-          <Text
+      <NativeCardContextMenu
+        actions={[
+          {
+            destructive: true,
+            id: 'delete-factory-purchase',
+            onPress: onDelete,
+            systemImage: 'trash',
+            title: 'Excluir',
+          },
+        ]}
+        style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+        preview={
+          <View
             style={[
-              theme.typography.footnote,
-              { color: isPaid ? theme.colors.paid : theme.colors.unpaid },
+              styles.purchaseCard,
+              purchaseCardStyle,
+              { overflow: 'hidden', padding: theme.spacing.lg },
             ]}
           >
-            {isPaid ? 'Pago' : 'Em aberto'}
-          </Text>
-        </View>
-        <View style={[styles.purchaseDetails, { marginTop: theme.spacing.sm }]}>
-          <View style={[styles.purchaseDetailsLeft, { gap: theme.spacing.xs }]}>
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {purchase.bucketQuantity} baldes · {formatCurrency(purchase.totalAmount)}
-            </Text>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              Pago {formatCurrency(paidAmount)}
-            </Text>
+            {renderPurchaseContent()}
           </View>
-          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            Saldo {formatCurrency(remainingAmount)}
-          </Text>
+        }
+      >
+        <View
+          style={[
+            styles.purchaseCard,
+            {
+              backgroundColor: 'transparent',
+              borderRadius: theme.radius.xl + theme.spacing.sm,
+              padding: theme.spacing.lg,
+              width: '100%',
+            },
+          ]}
+        >
+          {renderPurchaseContent()}
         </View>
-        <View style={styles.purchaseActions}>
-          <NativeButton
-            accessibilityLabel="Adicionar detalhes da compra"
-            haptic="light"
-            label="Adicionar"
-            onPress={onPress}
-            variant="primary"
-          />
-        </View>
-      </GlassCard>
-    </NativeCardContextMenu>
+      </NativeCardContextMenu>
+    </View>
   );
 }
 
@@ -353,6 +384,7 @@ const styles = StyleSheet.create({
   purchasesTitle: { alignItems: 'center', width: '100%' },
   purchasesTitleText: { textAlign: 'center', width: '100%' },
   purchaseList: { gap: 14 },
+  contextContainer: { overflow: 'hidden' },
   contextMenu: { width: '100%' },
   emptyStateText: { textAlign: 'center', width: '100%' },
   purchaseCard: { gap: 12 },

@@ -1,40 +1,49 @@
-import { MenuView, type MenuAction } from '@expo/ui/community/menu';
+import { Button, ContextMenu, Host, RNHostView, Section } from '@expo/ui/swift-ui';
+import { disabled as disabledModifier } from '@expo/ui/swift-ui/modifiers';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import type {
-  NativeCardContextMenuAction,
-  NativeCardContextMenuProps,
-} from './NativeCardContextMenu.types';
-
-function toMenuAction(action: NativeCardContextMenuAction): MenuAction {
-  return {
-    id: action.id,
-    image: action.systemImage,
-    title: action.title,
-    attributes: {
-      destructive: action.destructive,
-      disabled: action.disabled,
-    },
-  };
-}
+import type { NativeCardContextMenuProps } from './NativeCardContextMenu.types';
 
 export default function NativeCardContextMenu({
   actions,
   children,
+  preview,
   style,
   title,
 }: NativeCardContextMenuProps) {
+  const actionButtons = actions.map((action) => (
+    <Button
+      key={action.id}
+      label={action.title}
+      modifiers={action.disabled ? [disabledModifier(true)] : undefined}
+      onPress={action.onPress}
+      role={action.destructive ? 'destructive' : undefined}
+      systemImage={action.systemImage}
+    />
+  ));
   return (
-    <MenuView
-      actions={actions.map(toMenuAction)}
-      onPressAction={({ nativeEvent }) => {
-        actions.find((action) => action.id === nativeEvent.event)?.onPress();
-      }}
-      shouldOpenOnLongPress
+    <Host
+      ignoreSafeArea="all"
+      matchContents
       style={style as StyleProp<ViewStyle>}
-      title={title}
     >
-      {children}
-    </MenuView>
+      <ContextMenu>
+        <ContextMenu.Trigger>
+          <RNHostView matchContents>
+            <>{children}</>
+          </RNHostView>
+        </ContextMenu.Trigger>
+        {preview ? (
+          <ContextMenu.Preview>
+            <RNHostView matchContents>
+              <>{preview}</>
+            </RNHostView>
+          </ContextMenu.Preview>
+        ) : null}
+        <ContextMenu.Items>
+          {title ? <Section title={title}>{actionButtons}</Section> : actionButtons}
+        </ContextMenu.Items>
+      </ContextMenu>
+    </Host>
   );
 }

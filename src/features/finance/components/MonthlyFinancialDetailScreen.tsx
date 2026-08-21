@@ -12,6 +12,7 @@ import { FinancialSeriesChart } from '@/components/Charts';
 import { EmptyState } from '@/components/feedback';
 import { PremiumCard, PremiumScreen, Skeleton } from '@/components/premium';
 import { useFinancialData } from '@/hooks/useFinancialData';
+import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
 import { expenseQueryForFinancialSelection } from '@/services/costs';
 import {
   financialDailyDetailService,
@@ -83,6 +84,10 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedMonthKey }),
     { displayMonth: selectedMonthKey },
   );
+  const { fuelCostByDate, isReady: fuelCostsReady } = useFinancialFuelCosts(
+    snapshot?.gastosDiarios ?? {},
+    routeSessions,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -112,7 +117,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
     }, [refresh]),
   );
 
-  const isDataReady = !loading && routesLoaded;
+  const isDataReady = !loading && routesLoaded && fuelCostsReady;
 
   const details = useMemo(
     () =>
@@ -123,11 +128,12 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
               deliveries: snapshot.entregas,
               monthlyExpenses: snapshot.gastosMensais,
               routeSessions,
+              fuelCostByDate,
             },
             selectedMonthKey,
           )
         : [],
-    [isDataReady, routeSessions, selectedMonthKey, snapshot],
+    [fuelCostByDate, isDataReady, routeSessions, selectedMonthKey, snapshot],
   );
 
   const points = useMemo(() => buildDailyPoints(details, metric), [details, metric]);

@@ -13,6 +13,7 @@ import {
 } from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
+import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
 import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
@@ -73,8 +74,19 @@ export default function PrototypeFinanceiro() {
     () => (routesLoaded ? summarizeRouteKilometersByDate(routeSessions) : {}),
     [routesLoaded, routeSessions],
   );
+  const fuelExpenses = useMemo(
+    () => ({
+      ...(comparisonSnapshot?.gastosDiarios ?? {}),
+      ...(snapshot?.gastosDiarios ?? {}),
+    }),
+    [comparisonSnapshot?.gastosDiarios, snapshot?.gastosDiarios],
+  );
+  const { fuelCostByDate, isReady: fuelCostsReady } = useFinancialFuelCosts(
+    fuelExpenses,
+    routeSessions,
+  );
 
-  const isNetProfitReady = !loading && routesLoaded;
+  const isNetProfitReady = !loading && routesLoaded && fuelCostsReady;
 
   const summary = useMemo(
     () =>
@@ -85,9 +97,10 @@ export default function PrototypeFinanceiro() {
             filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
             monthlyExpenses: snapshot.gastosMensais,
             automaticKilometersByDate,
+            fuelCostByDate,
           })
         : undefined,
-    [automaticKilometersByDate, selectedPeriod, snapshot],
+    [automaticKilometersByDate, fuelCostByDate, selectedPeriod, snapshot],
   );
   const comparison = useMemo(
     () =>
@@ -98,9 +111,10 @@ export default function PrototypeFinanceiro() {
             filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
             monthlyExpenses: comparisonSnapshot?.gastosMensais ?? snapshot.gastosMensais,
             automaticKilometersByDate,
+            fuelCostByDate,
           })
         : undefined,
-    [automaticKilometersByDate, comparisonSnapshot, selectedPeriod, snapshot],
+    [automaticKilometersByDate, comparisonSnapshot, fuelCostByDate, selectedPeriod, snapshot],
   );
 
   const periodActions = (

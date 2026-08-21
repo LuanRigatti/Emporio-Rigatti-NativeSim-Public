@@ -72,6 +72,8 @@ export interface FinancialCalculationInput {
   filters: FinancialCalculationFilters;
   /** Kilometers recorded by local route tracking, grouped by calendar date. */
   automaticKilometersByDate?: Readonly<Record<string, number>>;
+  /** Resolved fuel costs by date, including manual and local route kilometers. */
+  fuelCostByDate?: Readonly<Record<string, number>>;
   today?: Date;
   fullLightInterval?: boolean;
 }

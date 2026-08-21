@@ -84,7 +84,7 @@ export function FinancialDayDetailCard({ detail, metric }: Props) {
           },
         ]
       : []),
-    ...(summary.custoCombustivel > 0
+    ...(detail.totalKilometers > 0
       ? [
           {
             icon: 'flame-outline' as const,

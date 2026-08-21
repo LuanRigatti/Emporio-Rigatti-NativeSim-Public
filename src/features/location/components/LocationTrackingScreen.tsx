@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -10,7 +10,7 @@ import {
   NativePeriodActionGroup,
   NativeTrackingStatusButton,
 } from '@/components/native';
-import { GlassCard, PremiumScreen } from '@/components/premium';
+import { PremiumScreen } from '@/components/premium';
 import { NativeTrackedRouteMap } from '@/components/routes';
 import { locationTrackingService, RouteTrackingError } from '@/services/routes';
 import type { LocationTrackingService } from '@/services/routes';
@@ -332,55 +332,92 @@ function RouteHistoryCard({
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
   const fuelCost = useRouteFuelCost(session);
+  const { resolvedMode } = useAppTheme();
+  const routeCardStyle: ViewStyle = {
+    backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+    borderRadius: theme.radius.xl + theme.spacing.xs,
+    width: '100%',
+  };
+  const renderRouteCardContent = () => (
+    <>
+      <View pointerEvents="none" style={styles.routePreview}>
+        <NativeTrackedRouteMap
+          animate={false}
+          interactive={false}
+          routeId={session.id}
+          samples={session.samples}
+          style={styles.routePreviewMap}
+        />
+      </View>
+      <View style={styles.routeMeta}>
+        <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+          {formatTime(session.startTimestamp)} → {formatTime(session.endTimestamp)}
+        </Text>
+        <View style={styles.routeStatsRow}>
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            {formatDistance(session.distanceMeters)}
+          </Text>
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            {formatCurrency(fuelCost)}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+  const routePreview = (
+    <View
+      style={[
+        styles.historyCard,
+        routeCardStyle,
+        { overflow: 'hidden' },
+      ]}
+    >
+      {renderRouteCardContent()}
+    </View>
+  );
 
   return (
-    <NativeCardContextMenu
-      actions={[
-        {
-          destructive: true,
-          id: 'delete-route',
-          onPress: onDelete,
-          systemImage: 'trash',
-          title: 'Excluir rota',
-        },
+    <View
+      style={[
+        styles.routeContextContainer,
+        routeCardStyle,
+        resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated,
       ]}
-      style={{ borderRadius: theme.radius.xl + theme.spacing.xs, width: '100%' }}
     >
-      <Pressable
-        accessibilityLabel="Abrir detalhes da rota"
-        accessibilityRole="button"
-        onPress={onPress}
-        style={{ width: '100%' }}
+      <NativeCardContextMenu
+        actions={[
+          {
+            destructive: true,
+            id: 'delete-route',
+            onPress: onDelete,
+            systemImage: 'trash',
+            title: 'Excluir rota',
+          },
+        ]}
+        preview={routePreview}
+        style={{ borderRadius: theme.radius.xl + theme.spacing.xs, width: '100%' }}
       >
-        <GlassCard
-          elevated
-          style={[styles.historyCard, { borderRadius: theme.radius.xl + theme.spacing.xs }]}
+        <View
+          style={[
+            styles.historyCard,
+            {
+              backgroundColor: 'transparent',
+              borderRadius: theme.radius.xl + theme.spacing.xs,
+              width: '100%',
+            },
+          ]}
         >
-          <View pointerEvents="none" style={styles.routePreview}>
-            <NativeTrackedRouteMap
-              animate={false}
-              interactive={false}
-              routeId={session.id}
-              samples={session.samples}
-              style={styles.routePreviewMap}
-            />
-          </View>
-          <View style={styles.routeMeta}>
-            <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-              {formatTime(session.startTimestamp)} → {formatTime(session.endTimestamp)}
-            </Text>
-            <View style={styles.routeStatsRow}>
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                {formatDistance(session.distanceMeters)}
-              </Text>
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                {formatCurrency(fuelCost)}
-              </Text>
-            </View>
-          </View>
-        </GlassCard>
-      </Pressable>
-    </NativeCardContextMenu>
+          <Pressable
+            accessibilityLabel="Abrir detalhes da rota"
+            accessibilityRole="button"
+            onPress={onPress}
+            style={{ width: '100%' }}
+          >
+            {renderRouteCardContent()}
+          </Pressable>
+        </View>
+      </NativeCardContextMenu>
+    </View>
   );
 }
 
@@ -388,6 +425,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flexGrow: 1, paddingBottom: 120 },
   historyCard: { overflow: 'hidden', padding: 0 },
+  routeContextContainer: { overflow: 'hidden' },
   dayGroup: { gap: 12 },
   historySection: { gap: 12 },
   routeMeta: { gap: 4, padding: 16 },

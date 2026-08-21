@@ -25,6 +25,7 @@ export type FinancialDailyDetail = {
 export type FinancialDailyDetailInput = {
   deliveries: Delivery[];
   dailyExpenses: DailyExpenses;
+  fuelCostByDate?: Readonly<Record<string, number>>;
   monthlyExpenses: MonthlyExpenses;
   routeSessions: readonly RouteTrackingSession[];
   today?: Date;
@@ -83,6 +84,7 @@ export class FinancialDailyDetailService {
           filters: { diaSelecionado: date, periodo: 'dia' },
           monthlyExpenses: input.monthlyExpenses,
           automaticKilometersByDate,
+          fuelCostByDate: input.fuelCostByDate,
           today: input.today,
         });
 

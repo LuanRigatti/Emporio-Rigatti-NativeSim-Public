@@ -274,6 +274,7 @@ export class FinancialCalculationService {
       ...new Set([
         ...Object.keys(input.dailyExpenses),
         ...Object.keys(input.automaticKilometersByDate ?? {}),
+        ...Object.keys(input.fuelCostByDate ?? {}),
       ]),
     ].filter((date) => matchesPeriod(date, input.filters, today));
     let custoEstar = this.calculateEstar(input.dailyExpenses, input.filters, today);
@@ -287,6 +288,9 @@ export class FinancialCalculationService {
         input.automaticKilometersByDate?.[normalizedDate] ??
         input.automaticKilometersByDate?.[date] ??
         0;
+      const resolvedFuelCost =
+        input.fuelCostByDate?.[normalizedDate] ?? input.fuelCostByDate?.[date];
+      if (resolvedFuelCost !== undefined) return total + Math.max(0, resolvedFuelCost);
       return (
         total + expenseCalculationService.calculateFuelCost(date, expense, automaticKilometers)
       );

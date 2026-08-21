@@ -228,6 +228,41 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
       title={'Dados Diários'}
     />
   );
+  const renderDailyDataContent = () => (
+    <>
+      <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+        {formatDeliveryDate(dailyDate)}
+      </Text>
+      <View style={styles.dailyDataRows}>
+        <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
+        <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
+        <DailyDataRow
+          label="Km"
+          value={`${formatStoredNumber(String(totalKilometers))} km`}
+        />
+        <DailyDataRow
+          label="Preço do combustível"
+          value={formatStoredCost(dailyValues.fuelPrice)}
+        />
+      </View>
+    </>
+  );
+  const dailyDataPreview = (
+    <View
+      style={[
+        styles.dailyDataCard,
+        {
+          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+          overflow: 'hidden',
+          padding: theme.spacing.lg,
+          width: '100%',
+        },
+      ]}
+    >
+      {renderDailyDataContent()}
+    </View>
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -238,52 +273,53 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
       >
         {hasDailyData ? (
           <View style={[styles.dailyDataList, { gap: theme.spacing.sm }]}>
-            <NativeCardContextMenu
-              actions={[
-                {
-                  destructive: true,
-                  disabled: isDeleting,
-                  id: 'delete-daily-data',
-                  onPress: () => {
-                    void handleDeleteDailyData();
-                  },
-                  systemImage: 'trash',
-                  title: 'Excluir',
-                },
-              ]}
+            <View
               style={[
                 styles.dailyDataContextWrapper,
-                { borderRadius: theme.radius.xl + theme.spacing.sm },
+                {
+                  backgroundColor:
+                    resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+                  borderRadius: theme.radius.xl + theme.spacing.sm,
+                  overflow: 'hidden',
+                  width: '100%',
+                },
+                resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
               ]}
             >
-              <PremiumCard
-                style={[
-                  styles.dailyDataCard,
+              <NativeCardContextMenu
+                actions={[
                   {
-                    backgroundColor:
-                      resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
-                    borderRadius: theme.radius.xl + theme.spacing.sm,
-                    width: '100%',
+                    destructive: true,
+                    disabled: isDeleting,
+                    id: 'delete-daily-data',
+                    onPress: () => {
+                      void handleDeleteDailyData();
+                    },
+                    systemImage: 'trash',
+                    title: 'Excluir',
                   },
                 ]}
+                style={[
+                  styles.dailyDataContextWrapper,
+                  { borderRadius: theme.radius.xl + theme.spacing.sm },
+                ]}
+                preview={dailyDataPreview}
               >
-                <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                  {formatDeliveryDate(dailyDate)}
-                </Text>
-                <View style={styles.dailyDataRows}>
-                  <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
-                  <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
-                  <DailyDataRow
-                    label="Km"
-                    value={`${formatStoredNumber(String(totalKilometers))} km`}
-                  />
-                  <DailyDataRow
-                    label="Preço do combustível"
-                    value={formatStoredCost(dailyValues.fuelPrice)}
-                  />
+                <View
+                  style={[
+                    styles.dailyDataCard,
+                    {
+                      backgroundColor: 'transparent',
+                      borderRadius: theme.radius.xl + theme.spacing.sm,
+                      padding: theme.spacing.lg,
+                      width: '100%',
+                    },
+                  ]}
+                >
+                  {renderDailyDataContent()}
                 </View>
-              </PremiumCard>
-            </NativeCardContextMenu>
+              </NativeCardContextMenu>
+            </View>
           </View>
         ) : null}
       </PremiumScreen>
@@ -461,31 +497,15 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                   { gap: theme.spacing.xs, marginTop: theme.spacing.xl },
                 ]}
               >
-                {[...todayDeliveries].reverse().map((delivery) => (
-                  <NativeCardContextMenu
-                    actions={[
-                      {
-                        destructive: true,
-                        id: 'delete-delivery',
-                        onPress: () => {
-                          void removeDelivery(delivery.id);
-                        },
-                        systemImage: 'trash',
-                        title: 'Excluir',
-                      },
-                    ]}
-                    key={delivery.id}
-                    style={[
-                      styles.deliveryContextMenu,
-                      { borderRadius: theme.radius.xl + theme.spacing.sm },
-                    ]}
-                  >
+                {[...todayDeliveries].reverse().map((delivery) => {
+                  const renderDeliveryItemRow = (preview = false) => (
                     <View
                       style={[
                         styles.deliveryItemRow,
                         {
-                          backgroundColor: theme.colors.surface,
+                          backgroundColor: preview ? theme.colors.surface : 'transparent',
                           borderRadius: theme.radius.xl + theme.spacing.sm,
+                          overflow: preview ? 'hidden' : undefined,
                           paddingHorizontal: theme.spacing.md,
                           paddingVertical: theme.spacing.sm + theme.spacing.xs,
                           width: '100%',
@@ -516,8 +536,44 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                         {delivery.valor}
                       </Text>
                     </View>
-                  </NativeCardContextMenu>
-                ))}
+                  );
+
+                  return (
+                    <View
+                      key={delivery.id}
+                      style={[
+                        styles.deliveryContextMenu,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderRadius: theme.radius.xl + theme.spacing.sm,
+                          overflow: 'hidden',
+                          width: '100%',
+                        },
+                      ]}
+                    >
+                      <NativeCardContextMenu
+                        actions={[
+                          {
+                            destructive: true,
+                            id: 'delete-delivery',
+                            onPress: () => {
+                              void removeDelivery(delivery.id);
+                            },
+                            systemImage: 'trash',
+                            title: 'Excluir',
+                          },
+                        ]}
+                        preview={renderDeliveryItemRow(true)}
+                        style={[
+                          styles.deliveryContextMenu,
+                          { borderRadius: theme.radius.xl + theme.spacing.sm },
+                        ]}
+                      >
+                        {renderDeliveryItemRow()}
+                      </NativeCardContextMenu>
+                    </View>
+                  );
+                })}
               </View>
             </PremiumCard>
           ) : null}

@@ -30,7 +30,11 @@ export function OpenClientsSummaryCard({ clients, onPress }: OpenClientsSummaryC
       >
         <View style={styles.header}>
           <Text
-            style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}
+            style={[
+              theme.typography.headline,
+              styles.title,
+              { color: theme.colors.textPrimary, marginLeft: theme.spacing.md },
+            ]}
           >
             Em aberto
           </Text>
@@ -76,7 +80,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     width: '100%',
   },
   list: { width: '100%' },
@@ -86,5 +90,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
   },
-  title: { textAlign: 'center' },
+  title: { textAlign: 'left' },
 });

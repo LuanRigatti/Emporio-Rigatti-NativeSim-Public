@@ -31,7 +31,11 @@ export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
       >
         <View style={styles.header}>
           <Text
-            style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}
+            style={[
+              theme.typography.headline,
+              styles.title,
+              { color: theme.colors.textPrimary, marginLeft: theme.spacing.md },
+            ]}
           >
             Última rota
           </Text>
@@ -86,7 +90,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     width: '100%',
   },
   routeMeta: { gap: 4, padding: 16 },
@@ -97,5 +101,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  title: { textAlign: 'center' },
+  title: { textAlign: 'left' },
 });

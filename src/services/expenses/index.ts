@@ -16,6 +16,11 @@ export {
 } from './FuelCostCalculationService';
 export type { FuelConsumption, FuelCostInput, FuelType } from './FuelCostCalculationService';
 export {
+  calculateFinancialFuelCostsByDate,
+  type FinancialFuelSettings,
+  type FinancialFuelValues,
+} from './FinancialFuelCostService';
+export {
   expenseFiltersForSelection,
   expenseQueryService,
   ExpenseQueryService,

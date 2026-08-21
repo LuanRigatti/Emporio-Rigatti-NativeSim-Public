@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
@@ -79,27 +79,32 @@ export function DeliveryCard({
       {content}
     </GlassCard>
   );
+  const contextCardStyle: ViewStyle = {
+    backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+    borderRadius: theme.radius.xl + theme.spacing.sm,
+    width: '100%',
+  };
 
   return onDelete ? (
-    <NativeCardContextMenu
-      actions={[
-        {
-          destructive: true,
-          id: 'delete-delivery',
-          onPress: onDelete,
-          systemImage: 'trash',
-          title: 'Excluir',
-        },
-      ]}
-      style={[
-        styles.contextMenu,
-        {
-          borderRadius: theme.radius.xl + theme.spacing.sm,
-        },
-      ]}
-    >
-      {card}
-    </NativeCardContextMenu>
+    <View style={[styles.contextContainer, contextCardStyle]}>
+      <NativeCardContextMenu
+        actions={[
+          {
+            destructive: true,
+            id: 'delete-delivery',
+            onPress: onDelete,
+            systemImage: 'trash',
+            title: 'Excluir',
+          },
+        ]}
+        style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+        preview={
+          <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>{content}</View>
+        }
+      >
+        <View style={[styles.card, { backgroundColor: 'transparent' }]}>{content}</View>
+      </NativeCardContextMenu>
+    </View>
   ) : (
     card
   );
@@ -110,6 +115,7 @@ const styles = StyleSheet.create({
   cardRow: { alignItems: 'stretch', flexDirection: 'row', gap: 10, width: '100%' },
   cardContent: { flex: 1, gap: 8 },
   cardHeaderRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  contextContainer: { overflow: 'hidden' },
   contextMenu: { width: '100%' },
   primaryInfo: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 8 },
   statusInset: { marginRight: 8 },

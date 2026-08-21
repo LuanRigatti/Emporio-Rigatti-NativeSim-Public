@@ -33,7 +33,7 @@ function toOpenPaymentItem(delivery: Delivery): OpenPaymentPreview {
 
 export function OpenPaymentsScreen() {
   const router = useRouter();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const {
     deliveries,
     editMany,
@@ -49,6 +49,35 @@ export function OpenPaymentsScreen() {
   const totalOpenAmount = useMemo(
     () => paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
     [paymentItems],
+  );
+  const renderPaymentRow = (item: OpenPaymentPreview, preview = false) => (
+    <View
+      style={[
+        styles.cardContent,
+        {
+          ...(preview
+            ? {
+                backgroundColor:
+                  resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+              }
+            : {}),
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+          padding: theme.spacing.md,
+        },
+      ]}
+    >
+      <View style={styles.clientInfo}>
+        <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+          {item.client}
+        </Text>
+        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+          {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+        </Text>
+      </View>
+      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+        {item.amount}
+      </Text>
+    </View>
   );
 
   useFocusEffect(
@@ -100,44 +129,29 @@ export function OpenPaymentsScreen() {
               <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
                 {formatDateAsDayMonthYear(group.date)}
               </Text>
-              <NativeCardContextMenu
-                actions={group.items.map((item) => ({
-                  id: `complete-payment-${item.id}`,
-                  onPress: () => handlePaymentSwipe(item.id),
-                  systemImage: 'checkmark.circle.fill' as const,
-                  title: `Concluído — ${item.client}`,
-                }))}
-                style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              <GlassCard
+                style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
               >
-                <GlassCard
-                  style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-                >
-                  <View style={[styles.dayItems, { gap: theme.spacing.lg }]}>
-                    {group.items.map((item) => (
-                      <View key={item.id} style={styles.cardContent}>
-                        <View style={styles.clientInfo}>
-                          <Text
-                            style={[theme.typography.body, { color: theme.colors.textPrimary }]}
-                          >
-                            {item.client}
-                          </Text>
-                          <Text
-                            style={[
-                              theme.typography.footnote,
-                              { color: theme.colors.textSecondary },
-                            ]}
-                          >
-                            {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
-                          </Text>
-                        </View>
-                        <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                          {item.amount}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </GlassCard>
-              </NativeCardContextMenu>
+                <View style={[styles.dayItems, { gap: theme.spacing.lg }]}>
+                  {group.items.map((item) => (
+                    <NativeCardContextMenu
+                      actions={[
+                        {
+                          id: `complete-payment-${item.id}`,
+                          onPress: () => handlePaymentSwipe(item.id),
+                          systemImage: 'checkmark.circle.fill' as const,
+                          title: 'Pago',
+                        },
+                      ]}
+                      key={item.id}
+                      style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+                      preview={renderPaymentRow(item, true)}
+                    >
+                      {renderPaymentRow(item)}
+                    </NativeCardContextMenu>
+                  ))}
+                </View>
+              </GlassCard>
             </View>
           ))}
           <Text

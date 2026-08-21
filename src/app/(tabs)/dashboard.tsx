@@ -12,11 +12,6 @@ import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { LastRouteCard } from '@/features/home/components/LastRouteCard';
-import { FactorySummaryCard } from '@/features/home/components/FactorySummaryCard';
-import {
-  OpenClientsSummaryCard,
-  type OpenClientSummary,
-} from '@/features/home/components/OpenClientsSummaryCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
 import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
@@ -30,20 +25,21 @@ import { useLatestCompletedRoute } from '@/features/home/hooks/useLatestComplete
 import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoices';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
-import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 
 function PreviewIcon({
   color,
   name,
+  size,
 }: {
   color: string;
   name: ComponentProps<typeof Ionicons>['name'];
+  size?: number;
 }) {
   const { theme } = useAppTheme();
 
-  return <Ionicons color={color} name={name} size={theme.sizes.iconMedium} />;
+  return <Ionicons color={color} name={name} size={size ?? theme.sizes.iconMedium} />;
 }
 
 export default function Home() {
@@ -71,14 +67,6 @@ export default function Home() {
     remove: removeDelivery,
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
-  const { deliveries: pendingDeliveries } = useDeliveries({
-    deliveryStatus: 'Entregue',
-    mode: 'all',
-    status: 'Não Pago',
-  });
-  const { loading: factoryPurchasesLoading, purchases: factoryPurchases } = useFactoryPurchases({
-    period: 'all',
-  });
   const { clients } = useClients();
   const eligibleClientIds = useMemo(
     () =>
@@ -101,26 +89,6 @@ export default function Home() {
   }, []);
 
   const todayDeliveries = useMemo(() => historyDeliveries, [historyDeliveries]);
-  const openClientSummaries = useMemo<OpenClientSummary[]>(() => {
-    const grouped = new Map<string, OpenClientSummary>();
-
-    for (const delivery of pendingDeliveries) {
-      const clientName = delivery.cliente.trim();
-      if (!clientName) continue;
-
-      const id = delivery.clientId ?? clientName.toLocaleLowerCase('pt-BR');
-      const current = grouped.get(id);
-      grouped.set(id, {
-        amount: (current?.amount ?? 0) + delivery.valor,
-        clientName: current?.clientName ?? clientName,
-        id,
-      });
-    }
-
-    return [...grouped.values()].sort((first, second) =>
-      first.clientName.localeCompare(second.clientName, 'pt-BR'),
-    );
-  }, [pendingDeliveries]);
   const openDocumentsCount = useMemo(
     () => countOpenDocuments(invoiceDeliveries, clients),
     [invoiceDeliveries, clients],
@@ -455,27 +423,69 @@ export default function Home() {
           </PremiumCard>
         </View>
 
+        <View style={[styles.shortcutCards, { gap: theme.spacing.sm }]}>
+          <PremiumCard
+            accessibilityLabel="Abrir recebimentos em aberto"
+            onPress={handleOpenRecebimentos}
+            style={[
+              styles.shortcutCard,
+              {
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                paddingHorizontal: theme.spacing.lg,
+                paddingVertical: theme.spacing.md,
+              },
+            ]}
+          >
+            <View style={styles.shortcutRow}>
+              <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
+                <PreviewIcon
+                  color={theme.colors.textSecondary}
+                  name="logo-usd"
+                  size={theme.sizes.iconSmall}
+                />
+                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                  Em aberto
+                </Text>
+              </View>
+              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+            </View>
+          </PremiumCard>
+          <PremiumCard
+            accessibilityLabel="Abrir Fábrica"
+            onPress={handleOpenFactory}
+            style={[
+              styles.shortcutCard,
+              {
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                paddingHorizontal: theme.spacing.lg,
+                paddingVertical: theme.spacing.md,
+              },
+            ]}
+          >
+            <View style={styles.shortcutRow}>
+              <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
+                <PreviewIcon
+                  color={theme.colors.textSecondary}
+                  name="business-outline"
+                  size={theme.sizes.iconSmall}
+                />
+                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                  Fábrica
+                </Text>
+              </View>
+              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+            </View>
+          </PremiumCard>
+        </View>
+
+        <TodayDeliveriesCard
+          deliveries={todayDeliveries}
+          onDelete={handleTodayDeliveryDelete}
+          onToggleStatus={handleTodayStatusToggle}
+        />
+
         <View style={[styles.lowerHomeContent, { gap: theme.spacing.lg }]}>
           <LastRouteCard onPress={handleOpenLastRoute} session={latestCompletedRoute} />
-
-          <View style={[styles.openHomeContent, { gap: theme.spacing.lg }]}>
-            <OpenClientsSummaryCard
-              clients={openClientSummaries}
-              onPress={handleOpenRecebimentos}
-            />
-
-            <FactorySummaryCard
-              loading={factoryPurchasesLoading}
-              onPress={handleOpenFactory}
-              purchases={factoryPurchases}
-            />
-
-            <TodayDeliveriesCard
-              deliveries={todayDeliveries}
-              onDelete={handleTodayDeliveryDelete}
-              onToggleStatus={handleTodayStatusToggle}
-            />
-          </View>
         </View>
       </PremiumScreen>
       <HomeSearchResultsSheet
@@ -500,7 +510,10 @@ const styles = StyleSheet.create({
   pageTitle: { textAlign: 'center' },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   lowerHomeContent: { width: '100%' },
-  openHomeContent: { width: '100%' },
+  shortcutCards: { width: '100%' },
+  shortcutCard: {},
+  shortcutLabel: { alignItems: 'center', flexDirection: 'row' },
+  shortcutRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
   widgetCard: { width: 178 },
   widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

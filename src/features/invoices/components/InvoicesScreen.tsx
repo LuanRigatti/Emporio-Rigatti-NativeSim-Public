@@ -181,26 +181,19 @@ function DocumentTypeCard({
               {formatDateAsDayMonthYear(group.date)}
             </Text>
             <View style={[styles.documentItemGroup, { gap: theme.spacing.xs }]}>
-              {group.items.map((item) => (
-                <NativeCardContextMenu
-                  actions={[
-                    {
-                      id: 'emit-document',
-                      onPress: () => onDelete(item.id),
-                      systemImage: 'checkmark.seal.fill',
-                      title: 'Emitido',
-                    },
-                  ]}
-                  key={item.id}
-                  style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-                >
+              {group.items.map((item) => {
+                const renderDocumentItemRow = (preview = false) => (
                   <View
                     style={[
                       styles.documentItemRow,
                       {
-                        backgroundColor:
-                          resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+                        backgroundColor: preview
+                          ? resolvedMode === 'dark'
+                            ? '#131417'
+                            : theme.colors.glassSurface
+                          : 'transparent',
                         borderRadius: theme.radius.xl + theme.spacing.sm,
+                        overflow: preview ? 'hidden' : undefined,
                         paddingHorizontal: theme.spacing.md,
                         paddingVertical: theme.spacing.sm + theme.spacing.xs,
                         width: '100%',
@@ -231,8 +224,39 @@ function DocumentTypeCard({
                       {item.amount}
                     </Text>
                   </View>
-                </NativeCardContextMenu>
-              ))}
+                );
+
+                return (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.contextContainer,
+                      {
+                        backgroundColor:
+                          resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+                        borderRadius: theme.radius.xl + theme.spacing.sm,
+                        overflow: 'hidden',
+                        width: '100%',
+                      },
+                    ]}
+                  >
+                    <NativeCardContextMenu
+                      actions={[
+                        {
+                          id: 'emit-document',
+                          onPress: () => onDelete(item.id),
+                          systemImage: 'checkmark.seal.fill',
+                          title: 'Emitido',
+                        },
+                      ]}
+                      preview={renderDocumentItemRow(true)}
+                      style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+                    >
+                      {renderDocumentItemRow()}
+                    </NativeCardContextMenu>
+                  </View>
+                );
+              })}
             </View>
           </View>
         ))
@@ -261,6 +285,7 @@ const styles = StyleSheet.create({
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },
   documentItemGroup: { width: '100%' },
+  contextContainer: { overflow: 'hidden' },
   contextMenu: { width: '100%' },
   documentItemRow: {
     alignItems: 'center',

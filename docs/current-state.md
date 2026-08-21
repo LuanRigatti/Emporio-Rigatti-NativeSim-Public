@@ -1493,3 +1493,69 @@ Finanças, Estoque, gráficos ou resumos calculados.
 As regras atuais permitem acesso somente quando `request.auth.uid` é igual ao
 `{uid}` do caminho `users/{uid}`. Não criar caminhos fora dessa hierarquia sem
 atualizar a auditoria de segurança e as regras de forma explícita.
+
+## Padronização de Long Press e Context Menu dos Cards
+
+### Funcionalidade implementada
+
+Padronização dos cards com Long Press/Context Menu usando como referência o
+card funcional de **Em aberto** (`OpenPaymentsScreen`). A composição visual
+agora separa o card real do elemento capturado pelo menu:
+
+- container externo opaco, com largura, radius, padding e clipping do card;
+- Trigger interno transparente;
+- Preview explícito, opaco e arredondado, com o mesmo conteúdo visual e
+  dimensões do card real.
+
+### Comportamento final
+
+- O lift do Context Menu preserva o formato arredondado do card.
+- A transição de início e encerramento do long press não exibe a rebarba
+  retangular perceptível observada anteriormente.
+- Ações existentes de excluir, pagar e concluir permanecem inalteradas,
+  incluindo handlers, haptics, SF Symbols e regras de negócio.
+- O padrão foi aplicado aos cards de Fábrica, Rotas, Registrar, Invoices e
+  Entregas de hoje.
+- `DeliveryCard` permanece como referência validada; `OpenPaymentsScreen`
+  permanece como referência canônica.
+
+### Arquivos principais
+
+- `src/features/factory-purchases/components/FactoryPurchasesScreen.tsx`
+- `src/features/location/components/LocationTrackingScreen.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/features/invoices/components/InvoicesScreen.tsx`
+- `src/features/home/components/TodayDeliveriesCard.tsx`
+- `src/features/history/components/DeliveryCard.tsx` (referência validada)
+- `src/features/open-payments/components/OpenPaymentsScreen.tsx` (referência
+  canônica)
+
+### Flags e schema afetados
+
+- Nenhuma flag alterada.
+- Nenhum schema, documento, coleção ou regra do Cloud Firestore alterado.
+- Nenhum asset, dependência, Swift, UIKit ou módulo nativo alterado.
+- `NativeCardContextMenu.ios.tsx` não foi alterado nesta padronização.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou com 0 erros.
+- ESLint direcionado nos arquivos envolvidos: passou com 0 erros.
+- `git diff --check`: passou; apenas avisos de normalização LF/CRLF foram
+  emitidos pelo Git.
+- A validação visual final nos demais cards ainda depende do teste no iPhone
+  Development Build.
+
+### Limitações conhecidas
+
+- A confirmação de ausência de flash em todos os modelos e estados do iPhone
+  requer validação visual no Development Build.
+- `clientes.tsx` mantém seu `SettingItem` contextual, pois não é um card visual
+  equivalente aos cards padronizados nesta alteração.
+
+### Commit e publicação
+
+- Branch: `ajustes-codex`.
+- HEAD de referência: `448683a` (`fix(home): filter open payments by delivered status`).
+- Alteração ainda não commitada.
+- Nenhum commit ou push adicional realizado.

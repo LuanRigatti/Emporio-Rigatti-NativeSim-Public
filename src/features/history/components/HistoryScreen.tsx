@@ -134,20 +134,14 @@ export function HistoryScreen() {
               <GlassCard
                 style={[styles.deliveryGroup, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
               >
-                {visibleDeliveries.map((delivery, index) => (
-                  <Animated.View
-                    entering={FadeIn.delay(reduceMotionEnabled ? 0 : index * 40).duration(
-                      reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-                    )}
+                {visibleDeliveries.map((delivery) => (
+                  <DeliveryCard
+                    contained
+                    delivery={delivery}
                     key={delivery.id}
-                  >
-                    <DeliveryCard
-                      contained
-                      delivery={delivery}
-                      onDelete={() => handleDeleteDelivery(delivery.id)}
-                      onToggleStatus={() => handleToggleStatus(delivery.id)}
-                    />
-                  </Animated.View>
+                    onDelete={() => handleDeleteDelivery(delivery.id)}
+                    onToggleStatus={() => handleToggleStatus(delivery.id)}
+                  />
                 ))}
               </GlassCard>
             ) : (

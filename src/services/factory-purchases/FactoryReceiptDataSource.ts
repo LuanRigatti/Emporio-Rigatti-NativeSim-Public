@@ -63,6 +63,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
   private hasLocalMutation = false;
   private hydrationPromise: Promise<void> | null = null;
   private readonly listeners = new Set<() => void>();
+  private readonly paymentMutationQueues = new Map<string, Promise<unknown>>();
 
   public subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -115,37 +116,44 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     receiptId: string,
     payment: FactoryPaymentDraft,
   ): Promise<FactoryReceipt> {
-    await this.restore();
-    const receipt = this.findReceipt(receiptId);
-    const date = requiredDate(payment.date);
-    const amount = factoryCalculationService.assertPaymentWithinBalance(receipt, payment.amount);
-    const updatedReceipt: FactoryReceipt = {
-      ...receipt,
-      pagamentos: [...receipt.pagamentos, { id: createId('pay'), data: date, valor: amount }],
-    };
-    updatedReceipt.concluido =
-      factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-    await this.replaceReceipt(updatedReceipt);
-    this.publish();
-    return cloneReceipt(updatedReceipt);
+    return this.enqueuePaymentMutation(receiptId, async () => {
+      await this.restore();
+      const receipt = this.findReceipt(receiptId);
+      const date = requiredDate(payment.date);
+      const amount = factoryCalculationService.assertPaymentWithinBalance(
+        receipt,
+        payment.amount,
+      );
+      const updatedReceipt: FactoryReceipt = {
+        ...receipt,
+        pagamentos: [...receipt.pagamentos, { id: createId('pay'), data: date, valor: amount }],
+      };
+      updatedReceipt.concluido =
+        factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
+      await this.replaceReceipt(updatedReceipt);
+      this.publish();
+      return cloneReceipt(updatedReceipt);
+    });
   }
 
   public async removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt> {
-    await this.restore();
-    const receipt = this.findReceipt(receiptId);
-    if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
-      throw new Error('Pagamento da fábrica não encontrado.');
-    }
+    return this.enqueuePaymentMutation(receiptId, async () => {
+      await this.restore();
+      const receipt = this.findReceipt(receiptId);
+      if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
+        throw new Error('Pagamento da fábrica não encontrado.');
+      }
 
-    const updatedReceipt: FactoryReceipt = {
-      ...receipt,
-      pagamentos: receipt.pagamentos.filter((payment) => payment.id !== paymentId),
-    };
-    updatedReceipt.concluido =
-      factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-    await this.replaceReceipt(updatedReceipt);
-    this.publish();
-    return cloneReceipt(updatedReceipt);
+      const updatedReceipt: FactoryReceipt = {
+        ...receipt,
+        pagamentos: receipt.pagamentos.filter((payment) => payment.id !== paymentId),
+      };
+      updatedReceipt.concluido =
+        factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
+      await this.replaceReceipt(updatedReceipt);
+      this.publish();
+      return cloneReceipt(updatedReceipt);
+    });
   }
 
   public async deleteReceipt(receiptId: string): Promise<void> {
@@ -172,6 +180,22 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
   private async persist(): Promise<void> {
     this.hasLocalMutation = true;
     await mockFactoryReceiptStorage.save(this.receipts);
+  }
+
+  private enqueuePaymentMutation<T>(
+    receiptId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.paymentMutationQueues.get(receiptId) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(operation);
+    this.paymentMutationQueues.set(receiptId, next);
+    const cleanup = () => {
+      if (this.paymentMutationQueues.get(receiptId) === next) {
+        this.paymentMutationQueues.delete(receiptId);
+      }
+    };
+    void next.then(cleanup, cleanup);
+    return next;
   }
 }
 

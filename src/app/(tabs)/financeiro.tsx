@@ -3,7 +3,6 @@ import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { AppLogo } from '@/components/branding/AppLogo';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeAnimatedNumber, NativePeriodActionGroup } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
@@ -122,20 +121,6 @@ export default function PrototypeFinanceiro() {
   const header = (
     <NativeGlassHeader
       includeTopSafeArea
-      leftActions={
-        <View
-          style={[
-            styles.headerLogoSlot,
-            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
-          ]}
-        >
-          <View
-            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
-          >
-            <AppLogo size={200} variant="splash" />
-          </View>
-        </View>
-      }
       largeTitle
       mode="transparent"
       titleStyle={{
@@ -174,7 +159,7 @@ export default function PrototypeFinanceiro() {
 
   return (
     <PremiumScreen
-      contentContainerStyle={[styles.content, { marginTop: 0 }]}
+      contentContainerStyle={[styles.content, { marginTop: -theme.spacing.md }]}
       overlayHeader={filterHeader}
       overlayHeaderUnderlay
       progressiveBlurHeight={
@@ -310,13 +295,6 @@ function formatCurrency(value: number): string {
 
 const styles = StyleSheet.create({
   content: { gap: 24 },
-  headerLogoSlot: {
-    alignItems: 'center',
-    height: 44,
-    justifyContent: 'center',
-    overflow: 'visible',
-    width: 44,
-  },
   header: { minHeight: 44 },
   heroCard: { gap: 8, padding: 24 },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

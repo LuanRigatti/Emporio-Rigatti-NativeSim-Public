@@ -38,8 +38,11 @@ export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
           <Ionicons
             color={theme.colors.textSecondary}
             name="chevron-forward"
-            size={theme.sizes.iconSmall}
-            style={styles.chevron}
+            size={theme.sizes.iconSmall - 2}
+            style={{
+              marginLeft: theme.spacing.xxs / 2,
+              transform: [{ translateY: theme.spacing.xxs / 4 }],
+            }}
           />
         </View>
       </Pressable>
@@ -79,9 +82,13 @@ export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
 
 const styles = StyleSheet.create({
   card: { overflow: 'hidden', padding: 0 },
-  chevron: { marginRight: 16 },
   container: { width: '100%' },
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  header: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+  },
   routeMeta: { gap: 4, padding: 16 },
   routePreview: { height: 180, overflow: 'hidden' },
   routePreviewMap: { flex: 1 },
@@ -90,5 +97,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  title: { marginLeft: 16 },
+  title: { textAlign: 'center' },
 });

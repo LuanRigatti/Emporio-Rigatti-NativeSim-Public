@@ -2,7 +2,12 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
-import { NativeButton, NativeDatePicker, NativeTextField } from '@/components/native';
+import {
+  NativeButton,
+  NativeCardContextMenu,
+  NativeDatePicker,
+  NativeTextField,
+} from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
@@ -24,10 +29,12 @@ function parseQuantity(value: string): number {
 
 export function FactoryPurchasesScreen({
   header,
+  mode = 'all',
   selectedMonth,
   selectedYear,
 }: {
   header: ReactNode;
+  mode?: 'all' | 'purchases' | 'register';
   selectedMonth: number;
   selectedYear: number;
 }) {
@@ -103,96 +110,106 @@ export function FactoryPurchasesScreen({
         overlayHeaderSpacing={theme.spacing.md}
         scrollViewProps={{ scrollEventThrottle: 16 }}
       >
-        <GlassCard style={styles.summaryCard}>
-          <SummaryMetric label="Total pago" value={formatCurrency(summary.totalPaid)} />
-          <SummaryMetric label="Valor em aberto" value={formatCurrency(summary.openValue)} />
-          <SummaryMetric label="Total de baldes" value={String(summary.totalBuckets)} />
-        </GlassCard>
-
-        <GlassCard style={styles.formCard}>
-          <View style={styles.formHeadingRow}>
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              Registrar compra
-            </Text>
-            <NativeDatePicker
-              accessibilityLabel="Data da compra"
-              mode="date"
-              onChange={setPurchaseDate}
-              style="compact"
-              value={purchaseDate}
-            />
-          </View>
-          <View style={styles.formTopRow}>
-            <View style={styles.quantityField}>
-              <NativeTextField
-                accessibilityLabel="Quantidade de baldes"
-                keyboardType="number-pad"
-                onChangeText={setQuantity}
-                onBlurReady={handleQuantityBlurReady}
-                placeholder="Quantidade de baldes"
-                value={quantity}
+        {mode !== 'purchases' ? (
+          <GlassCard style={[styles.formCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+            <View style={styles.formHeadingRow}>
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                Registrar compra
+              </Text>
+              <NativeDatePicker
+                accessibilityLabel="Data da compra"
+                mode="date"
+                onChange={setPurchaseDate}
+                style="compact"
+                value={purchaseDate}
               />
             </View>
-          </View>
-          {error ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
-          ) : null}
-          <View style={styles.totalRow}>
-            <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
-              Valor total estimado
-            </Text>
-            <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-              {formatCurrency(estimatedTotal)}
-            </Text>
-          </View>
-          <View style={styles.formAction}>
-            <NativeButton
-              accessibilityLabel="Registrar compra"
-              disabled={isRegistering}
-              haptic="light"
-              label="Registrar"
-              onPress={() => void handleCreatePurchase()}
-              variant="primary"
-            />
-          </View>
-        </GlassCard>
-
-        <View style={styles.purchasesTitle}>
-          <Text
-            style={[
-              theme.typography.footnote,
-              styles.purchasesTitleText,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            Compras
-          </Text>
-        </View>
-        {visiblePurchases.length > 0 ? (
-          <View style={styles.purchaseList}>
-            {visiblePurchases.map((purchase) => (
-              <PurchaseRow
-                key={purchase.id}
-                onDelete={() => setPurchaseToDeleteId(purchase.id)}
-                onPress={() => {
-                  setSelectedPurchaseId(purchase.id);
-                  setPurchaseSheetVisible(true);
-                }}
-                purchase={purchase}
+            <View style={styles.formTopRow}>
+              <View style={styles.quantityField}>
+                <NativeTextField
+                  accessibilityLabel="Quantidade de baldes"
+                  keyboardType="number-pad"
+                  onChangeText={setQuantity}
+                  onBlurReady={handleQuantityBlurReady}
+                  placeholder="Quantidade de baldes"
+                  value={quantity}
+                />
+              </View>
+            </View>
+            {error ? (
+              <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
+                {error}
+              </Text>
+            ) : null}
+            <View style={styles.totalRow}>
+              <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
+                Valor total estimado
+              </Text>
+              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                {formatCurrency(estimatedTotal)}
+              </Text>
+            </View>
+            <View style={styles.formAction}>
+              <NativeButton
+                accessibilityLabel="Registrar compra"
+                disabled={isRegistering}
+                haptic="light"
+                label="Registrar"
+                onPress={() => void handleCreatePurchase()}
+                variant="primary"
               />
-            ))}
-          </View>
-        ) : (
-          <Text
-            style={[
-              theme.typography.body,
-              styles.emptyStateText,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            Nenhuma compra registrada.
-          </Text>
-        )}
+            </View>
+          </GlassCard>
+        ) : null}
+
+        {mode !== 'register' ? (
+          <>
+            <GlassCard
+              style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+            >
+              <SummaryMetric label="Total pago" value={formatCurrency(summary.totalPaid)} />
+              <SummaryMetric label="Valor em aberto" value={formatCurrency(summary.openValue)} />
+              <SummaryMetric label="Total de baldes" value={String(summary.totalBuckets)} />
+            </GlassCard>
+
+            <View style={styles.purchasesTitle}>
+              <Text
+                style={[
+                  theme.typography.footnote,
+                  styles.purchasesTitleText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Compras efetuadas
+              </Text>
+            </View>
+            {visiblePurchases.length > 0 ? (
+              <View style={styles.purchaseList}>
+                {visiblePurchases.map((purchase) => (
+                  <PurchaseRow
+                    key={purchase.id}
+                    onDelete={() => setPurchaseToDeleteId(purchase.id)}
+                    onPress={() => {
+                      setSelectedPurchaseId(purchase.id);
+                      setPurchaseSheetVisible(true);
+                    }}
+                    purchase={purchase}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text
+                style={[
+                  theme.typography.body,
+                  styles.emptyStateText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Nenhuma compra registrada.
+              </Text>
+            )}
+          </>
+        ) : null}
       </PremiumScreen>
 
       <PurchaseDetailsSheet
@@ -245,52 +262,65 @@ function PurchaseRow({
   const isPaid = factoryPurchaseCalculationService.isPaid(purchase);
 
   return (
-    <GlassCard style={styles.purchaseCard}>
-      <View style={styles.purchaseHeader}>
-        <View style={styles.purchaseCopy}>
-          <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-            {formatPtBrDate(purchase.date)}
-          </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {purchase.bucketQuantity} baldes · {formatCurrency(purchase.totalAmount)}
+    <NativeCardContextMenu
+      actions={[
+        {
+          destructive: true,
+          id: 'delete-factory-purchase',
+          onPress: onDelete,
+          systemImage: 'trash',
+          title: 'Excluir',
+        },
+      ]}
+      style={[
+        styles.contextMenu,
+        {
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+        },
+      ]}
+    >
+      <GlassCard
+        style={[styles.purchaseCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+      >
+        <View style={styles.purchaseHeader}>
+          <View style={styles.purchaseCopy}>
+            <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+              {formatPtBrDate(purchase.date)}
+            </Text>
+          </View>
+          <Text
+            style={[
+              theme.typography.footnote,
+              { color: isPaid ? theme.colors.paid : theme.colors.unpaid },
+            ]}
+          >
+            {isPaid ? 'Pago' : 'Em aberto'}
           </Text>
         </View>
-        <Text
-          style={[
-            theme.typography.footnote,
-            { color: isPaid ? theme.colors.paid : theme.colors.unpaid },
-          ]}
-        >
-          {isPaid ? 'Pago' : 'Em aberto'}
-        </Text>
-      </View>
-      <View style={styles.purchaseAmounts}>
-        <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-          Pago {formatCurrency(paidAmount)}
-        </Text>
-        <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-          Saldo {formatCurrency(remainingAmount)}
-        </Text>
-      </View>
-      <View style={styles.purchaseActions}>
-        <NativeButton
-          accessibilityLabel="Adicionar detalhes da compra"
-          haptic="light"
-          label="Adicionar"
-          onPress={onPress}
-          variant="surface"
-        />
-        <NativeButton
-          accessibilityLabel="Excluir compra"
-          controlSize="small"
-          destructive
-          haptic="light"
-          label="Excluir"
-          onPress={onDelete}
-          variant="glass"
-        />
-      </View>
-    </GlassCard>
+        <View style={[styles.purchaseDetails, { marginTop: theme.spacing.sm }]}>
+          <View style={[styles.purchaseDetailsLeft, { gap: theme.spacing.xs }]}>
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              {purchase.bucketQuantity} baldes · {formatCurrency(purchase.totalAmount)}
+            </Text>
+            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+              Pago {formatCurrency(paidAmount)}
+            </Text>
+          </View>
+          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+            Saldo {formatCurrency(remainingAmount)}
+          </Text>
+        </View>
+        <View style={styles.purchaseActions}>
+          <NativeButton
+            accessibilityLabel="Adicionar detalhes da compra"
+            haptic="light"
+            label="Adicionar"
+            onPress={onPress}
+            variant="primary"
+          />
+        </View>
+      </GlassCard>
+    </NativeCardContextMenu>
   );
 }
 
@@ -323,6 +353,7 @@ const styles = StyleSheet.create({
   purchasesTitle: { alignItems: 'center', width: '100%' },
   purchasesTitleText: { textAlign: 'center', width: '100%' },
   purchaseList: { gap: 14 },
+  contextMenu: { width: '100%' },
   emptyStateText: { textAlign: 'center', width: '100%' },
   purchaseCard: { gap: 12 },
   purchaseHeader: {
@@ -331,6 +362,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   purchaseCopy: { flex: 1, gap: 4 },
-  purchaseAmounts: { flexDirection: 'row', justifyContent: 'space-between' },
-  purchaseActions: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  purchaseDetails: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  purchaseDetailsLeft: { alignItems: 'flex-start' },
+  purchaseActions: { alignItems: 'flex-end', flexDirection: 'row', justifyContent: 'flex-end' },
 });

@@ -3,8 +3,8 @@ import { useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppLogo } from '@/components/branding/AppLogo';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeSearchField } from '@/components/native';
@@ -12,6 +12,11 @@ import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { LastRouteCard } from '@/features/home/components/LastRouteCard';
+import { FactorySummaryCard } from '@/features/home/components/FactorySummaryCard';
+import {
+  OpenClientsSummaryCard,
+  type OpenClientSummary,
+} from '@/features/home/components/OpenClientsSummaryCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
 import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
@@ -25,6 +30,7 @@ import { useLatestCompletedRoute } from '@/features/home/hooks/useLatestComplete
 import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoices';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
+import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 
@@ -44,6 +50,7 @@ export default function Home() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [focusEntryKey, setFocusEntryKey] = useState(0);
   const wasFocused = useRef(false);
   const [currentDate, setCurrentDate] = useState(() => todayIso());
@@ -65,6 +72,9 @@ export default function Home() {
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
   const { deliveries: pendingDeliveries } = useDeliveries({ mode: 'all', status: 'Não Pago' });
+  const { loading: factoryPurchasesLoading, purchases: factoryPurchases } = useFactoryPurchases({
+    period: 'all',
+  });
   const { clients } = useClients();
   const eligibleClientIds = useMemo(
     () =>
@@ -87,7 +97,26 @@ export default function Home() {
   }, []);
 
   const todayDeliveries = useMemo(() => historyDeliveries, [historyDeliveries]);
-  const openPaymentsCount = useMemo(() => pendingDeliveries.length, [pendingDeliveries]);
+  const openClientSummaries = useMemo<OpenClientSummary[]>(() => {
+    const grouped = new Map<string, OpenClientSummary>();
+
+    for (const delivery of pendingDeliveries) {
+      const clientName = delivery.cliente.trim();
+      if (!clientName) continue;
+
+      const id = delivery.clientId ?? clientName.toLocaleLowerCase('pt-BR');
+      const current = grouped.get(id);
+      grouped.set(id, {
+        amount: (current?.amount ?? 0) + delivery.valor,
+        clientName: current?.clientName ?? clientName,
+        id,
+      });
+    }
+
+    return [...grouped.values()].sort((first, second) =>
+      first.clientName.localeCompare(second.clientName, 'pt-BR'),
+    );
+  }, [pendingDeliveries]);
   const openDocumentsCount = useMemo(
     () => countOpenDocuments(invoiceDeliveries, clients),
     [invoiceDeliveries, clients],
@@ -251,9 +280,19 @@ export default function Home() {
     router.push('/pagamentos-em-aberto');
   };
 
+  const handleOpenRegistrarEntrega = () => {
+    triggerLightImpactHaptic();
+    router.push('/registrar-entrega');
+  };
+
   const handleOpenDocumentos = () => {
     triggerLightImpactHaptic();
     router.push('/notas-fiscais-boletos');
+  };
+
+  const handleOpenFactory = () => {
+    triggerLightImpactHaptic();
+    router.push('/fabrica-compras');
   };
 
   const handleOpenLastRoute = () => {
@@ -268,20 +307,6 @@ export default function Home() {
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
-      leftActions={
-        <View
-          style={[
-            styles.headerLogoSlot,
-            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
-          ]}
-        >
-          <View
-            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
-          >
-            <AppLogo size={200} variant="splash" />
-          </View>
-        </View>
-      }
       mode="transparent"
       largeTitle
       title="Home"
@@ -293,13 +318,13 @@ export default function Home() {
       }}
     />
   );
-
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
         contentContainerStyle={{
           gap: theme.spacing.lg,
-          marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs,
+          marginTop: theme.spacing.xl + theme.spacing.xxl - theme.spacing.md + theme.spacing.xxs,
+          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xxxl,
         }}
         progressiveBlurHeight={
           theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
@@ -309,7 +334,7 @@ export default function Home() {
       >
         <View style={styles.header}>{homeHeader}</View>
 
-        <View style={{ marginBottom: theme.spacing.xs, marginTop: theme.spacing.xs }}>
+        <View style={{ marginBottom: theme.spacing.xs, marginTop: 0 }}>
           <NativeSearchField
             accessibilityLabel="Buscar clientes, entregas e filtros"
             onChangeText={handleSearchTextChange}
@@ -379,22 +404,22 @@ export default function Home() {
 
         <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
           <PremiumCard
-            accessibilityLabel="Abrir recebimentos em aberto"
-            onPress={handleOpenRecebimentos}
+            accessibilityLabel="Abrir Registrar Entrega"
+            onPress={handleOpenRegistrarEntrega}
             style={[
               styles.widgetCard,
               { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
             ]}
           >
             <View style={styles.widgetHeader}>
-              <PreviewIcon color={theme.colors.warning} name="alert-circle-outline" />
+              <PreviewIcon color={theme.colors.textSecondary} name="cube-outline" />
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
             <View
               style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {openPaymentsCount} recebimentos em aberto
+                Registrar Entrega
               </Text>
             </View>
           </PremiumCard>
@@ -426,13 +451,28 @@ export default function Home() {
           </PremiumCard>
         </View>
 
-        <LastRouteCard onPress={handleOpenLastRoute} session={latestCompletedRoute} />
+        <View style={[styles.lowerHomeContent, { gap: theme.spacing.lg }]}>
+          <LastRouteCard onPress={handleOpenLastRoute} session={latestCompletedRoute} />
 
-        <TodayDeliveriesCard
-          deliveries={todayDeliveries}
-          onDelete={handleTodayDeliveryDelete}
-          onToggleStatus={handleTodayStatusToggle}
-        />
+          <View style={[styles.openHomeContent, { gap: theme.spacing.lg }]}>
+            <OpenClientsSummaryCard
+              clients={openClientSummaries}
+              onPress={handleOpenRecebimentos}
+            />
+
+            <FactorySummaryCard
+              loading={factoryPurchasesLoading}
+              onPress={handleOpenFactory}
+              purchases={factoryPurchases}
+            />
+
+            <TodayDeliveriesCard
+              deliveries={todayDeliveries}
+              onDelete={handleTodayDeliveryDelete}
+              onToggleStatus={handleTodayStatusToggle}
+            />
+          </View>
+        </View>
       </PremiumScreen>
       <HomeSearchResultsSheet
         onDismiss={handleSearchSheetDismiss}
@@ -452,16 +492,11 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  headerLogoSlot: {
-    alignItems: 'center',
-    height: 44,
-    justifyContent: 'center',
-    overflow: 'visible',
-    width: 44,
-  },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
   pageTitle: { textAlign: 'center' },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  lowerHomeContent: { width: '100%' },
+  openHomeContent: { width: '100%' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
   widgetCard: { width: 178 },
   widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

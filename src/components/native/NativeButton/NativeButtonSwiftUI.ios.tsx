@@ -83,6 +83,16 @@ export default function NativeButtonSwiftUI({
         <Label title={label} systemImage={systemImage as SFSymbol | undefined} />
       </HStack>
     );
+  const verticalPadding =
+    controlSize === 'mini'
+      ? 6
+      : controlSize === 'small'
+        ? 8
+        : controlSize === 'large'
+          ? 16
+          : controlSize === 'extraLarge'
+            ? 20
+            : 12;
 
   return (
     <Host matchContents>
@@ -103,7 +113,7 @@ export default function NativeButtonSwiftUI({
                 foregroundStyle(color ?? '#000000'),
                 padding({
                   horizontal: horizontalPadding ?? 16,
-                  vertical: 12,
+                  vertical: verticalPadding,
                 }),
                 background(backgroundColor ?? (variant === 'filled' ? '#000000' : '#FFFFFF')),
                 cornerRadius(999),

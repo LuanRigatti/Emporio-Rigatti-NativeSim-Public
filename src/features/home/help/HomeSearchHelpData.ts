@@ -1,4 +1,12 @@
-import type { SearchHelpCategory } from './HomeSearchHelpTypes';
+import type { SearchHelpCategory, SearchHelpExample } from './HomeSearchHelpTypes';
+
+export const HOME_SEARCH_HELP_SUGGESTIONS: readonly SearchHelpExample[] = [
+  { id: 'suggestion-revenue', label: 'Faturamento', query: 'faturamento agosto' },
+  { id: 'suggestion-net-profit', label: 'Lucro Líquido', query: 'lucro líquido agosto' },
+  { id: 'suggestion-summary', label: 'Resumo', query: 'resumo agosto' },
+  { id: 'suggestion-summary-today', label: 'Resumo Hoje', query: 'resumo hoje' },
+  { id: 'suggestion-routes', label: 'Rotas', query: 'rota agosto' },
+];
 
 export const HOME_SEARCH_HELP_CATEGORIES: readonly SearchHelpCategory[] = [
   {

@@ -42,6 +42,10 @@ export function OpenPaymentsScreen() {
   const hasMountedRef = useRef(false);
   const paymentItems = useMemo(() => deliveries.map(toOpenPaymentItem), [deliveries]);
   const paymentGroups = useMemo(() => groupItemsByDate(paymentItems), [paymentItems]);
+  const totalOpenAmount = useMemo(
+    () => paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
+    [paymentItems],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -87,74 +91,60 @@ export function OpenPaymentsScreen() {
     >
       <View style={[styles.content, { marginTop: theme.spacing.xxl }]}>
         <View style={[styles.clientList, { gap: theme.spacing.sm }]}>
-          <GlassCard
-            style={[styles.totalCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-          >
-            <View style={styles.totalRow}>
-              <Text
-                style={[
-                  theme.typography.caption,
-                  { color: theme.colors.textSecondary, fontWeight: '700' },
-                ]}
-              >
-                TOTAL EM ABERTO
-              </Text>
-              <Text
-                style={[
-                  theme.typography.body,
-                  { color: theme.colors.textPrimary, fontWeight: '700' },
-                ]}
-              >
-                {formatCurrency(
-                  paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
-                )}
-              </Text>
-            </View>
-          </GlassCard>
           {paymentGroups.map((group) => (
             <View key={group.date} style={styles.dateGroup}>
               <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
                 {formatDateAsDayMonthYear(group.date)}
               </Text>
-              {group.items.map((item) => (
-                <NativeCardContextMenu
-                  key={item.id}
-                  actions={[
-                    {
-                      id: 'complete-payment',
-                      onPress: () => handlePaymentSwipe(item.id),
-                      systemImage: 'checkmark.circle.fill',
-                      title: 'Concluído',
-                    },
-                  ]}
-                  style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              <NativeCardContextMenu
+                actions={group.items.map((item) => ({
+                  id: `complete-payment-${item.id}`,
+                  onPress: () => handlePaymentSwipe(item.id),
+                  systemImage: 'checkmark.circle.fill' as const,
+                  title: `Concluído — ${item.client}`,
+                }))}
+                style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              >
+                <GlassCard
+                  style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
                 >
-                  <GlassCard
-                    style={[
-                      styles.clientCard,
-                      { borderRadius: theme.radius.xl + theme.spacing.sm },
-                    ]}
-                  >
-                    <View style={styles.cardContent}>
-                      <View style={styles.clientInfo}>
+                  <View style={[styles.dayItems, { gap: theme.spacing.lg }]}>
+                    {group.items.map((item) => (
+                      <View key={item.id} style={styles.cardContent}>
+                        <View style={styles.clientInfo}>
+                          <Text
+                            style={[theme.typography.body, { color: theme.colors.textPrimary }]}
+                          >
+                            {item.client}
+                          </Text>
+                          <Text
+                            style={[
+                              theme.typography.footnote,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+                          </Text>
+                        </View>
                         <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                          {item.client}
-                        </Text>
-                        <Text
-                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-                        >
-                          {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+                          {item.amount}
                         </Text>
                       </View>
-                      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                        {item.amount}
-                      </Text>
-                    </View>
-                  </GlassCard>
-                </NativeCardContextMenu>
-              ))}
+                    ))}
+                  </View>
+                </GlassCard>
+              </NativeCardContextMenu>
             </View>
           ))}
+          <Text
+            style={[
+              theme.typography.body,
+              styles.totalAmount,
+              { color: theme.colors.textPrimary, fontWeight: '700' },
+            ]}
+          >
+            {formatCurrency(totalOpenAmount)}
+          </Text>
         </View>
       </View>
     </PremiumScreen>
@@ -184,7 +174,7 @@ const styles = StyleSheet.create({
   clientInfo: { gap: 2 },
   contextMenu: { width: '100%' },
   dateGroup: { gap: 10 },
+  dayItems: { width: '100%' },
   groupTitle: { marginLeft: 12 },
-  totalCard: { padding: 16 },
-  totalRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  totalAmount: { alignSelf: 'center' },
 });

@@ -8,15 +8,23 @@ import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useAppTheme } from '@/theme';
 
-export default function FactoryRoute() {
+export default function FactoryPurchasesMenuRoute() {
   const { theme } = useAppTheme();
   const router = useRouter();
+
+  const handleOpenRegister = () => {
+    router.push('/fabrica-compras-registrar');
+  };
+
+  const handleOpenPurchases = () => {
+    router.push('/fabrica-compras');
+  };
 
   const header = (
     <NativeGlassHeader
       leftActions={
         <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
+          accessibilityLabel="Voltar para Fábrica"
           color={theme.colors.textPrimary}
           containerSize={theme.sizes.touchTargetMinimum}
           onPress={() => router.back()}
@@ -24,7 +32,7 @@ export default function FactoryRoute() {
         />
       }
       mode="transparent"
-      title="Fábrica"
+      title="Compras e Fábrica"
     />
   );
 
@@ -39,17 +47,17 @@ export default function FactoryRoute() {
       >
         <SettingsSection>
           <SettingItem
-            fallbackIcon="cash-outline"
-            onPress={() => router.push('/fabrica-valor-balde')}
-            systemName="dollarsign.circle"
-            title="Valor do balde"
+            fallbackIcon="cart-outline"
+            onPress={handleOpenRegister}
+            systemName="cart"
+            title="Registrar compra"
           />
           <SettingItem
-            fallbackIcon="cart-outline"
+            fallbackIcon="receipt-outline"
             isLast
-            onPress={() => router.push('/fabrica-compras-menu')}
-            systemName="cart"
-            title="Compras"
+            onPress={handleOpenPurchases}
+            systemName="doc.text"
+            title="Compras efetuadas"
           />
         </SettingsSection>
       </PremiumCard>
@@ -58,5 +66,5 @@ export default function FactoryRoute() {
 }
 
 const styles = StyleSheet.create({
-  content: { flexGrow: 1 },
+  content: { flexGrow: 1, paddingTop: 32 },
 });

@@ -5,7 +5,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 
 import { useAppTheme } from '@/theme';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
-import type { NativeButtonHaptic } from '@/types/native-ui';
+import type { NativeButtonHaptic, NativeButtonProps } from '@/types/native-ui';
 
 import { GlassSurface } from './GlassSurface';
 
@@ -17,6 +17,7 @@ export type GlassButtonProps = {
   label: string;
   onPress: () => void;
   variant?: GlassButtonVariant;
+  controlSize?: NonNullable<NativeButtonProps['controlSize']>;
   icon?: IconName;
   loading?: boolean;
   disabled?: boolean;
@@ -30,6 +31,7 @@ export function GlassButton({
   label,
   onPress,
   variant = 'glass',
+  controlSize = 'regular',
   icon,
   loading = false,
   disabled = false,
@@ -55,6 +57,33 @@ export function GlassButton({
       : variant === 'primary' || variant === 'destructive'
         ? theme.colors.textInverse
         : theme.colors.textPrimary;
+  const controlMetrics = {
+    mini: {
+      minHeight: theme.spacing.xxl + theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.md,
+      typography: theme.typography.footnote,
+    },
+    small: {
+      minHeight: theme.spacing.xxl + theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md,
+      typography: theme.typography.footnote,
+    },
+    regular: {
+      minHeight: theme.sizes.touchTargetMinimum,
+      paddingHorizontal: theme.spacing.lg,
+      typography: theme.typography.headline,
+    },
+    large: {
+      minHeight: theme.sizes.buttonHeight,
+      paddingHorizontal: theme.spacing.xl,
+      typography: theme.typography.headline,
+    },
+    extraLarge: {
+      minHeight: theme.sizes.buttonHeight + theme.spacing.xs,
+      paddingHorizontal: theme.spacing.xl,
+      typography: theme.typography.title3,
+    },
+  }[controlSize];
 
   const content = (
     <View style={[styles.content, { gap: theme.spacing.xs }]}>
@@ -63,7 +92,7 @@ export function GlassButton({
       ) : icon ? (
         <Ionicons name={icon} size={theme.sizes.iconSmall} color={foregroundColor} />
       ) : null}
-      <Text style={[theme.typography.headline, { color: foregroundColor }]}>{label}</Text>
+      <Text style={[controlMetrics.typography, { color: foregroundColor }]}>{label}</Text>
     </View>
   );
 
@@ -102,8 +131,8 @@ export function GlassButton({
               : backgroundColor,
             borderColor: isGlass ? 'transparent' : backgroundColor,
             borderRadius: theme.radius.pill,
-            minHeight: theme.sizes.touchTargetMinimum,
-            paddingHorizontal: theme.spacing.lg,
+            minHeight: controlMetrics.minHeight,
+            paddingHorizontal: controlMetrics.paddingHorizontal,
             opacity: isDisabled ? theme.opacities.disabled : 1,
           },
           fullWidth && styles.fullWidth,

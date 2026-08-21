@@ -1337,6 +1337,59 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 - `HEAD` atual: `614ab2b` (`feat: refine finance chart interactions and metric animations`), commit anterior.
 - Nenhum commit ou push adicional realizado.
 
+## Fluxo de Compras da Fábrica e tela de Compras Efetuadas
+
+### Funcionalidade implementada
+
+- Criação de uma página intermediária de **Compras e Fábrica** com duas linhas no mesmo card: **Registrar compra** e **Compras efetuadas**.
+- Reutilização de `SettingItem` e `SettingsSection` para manter o padrão visual e o haptic das Configurações.
+- Separação visual dos fluxos existentes de registro e consulta por meio dos modos `register` e `purchases` de `FactoryPurchasesScreen`.
+- Remoção do título do cabeçalho da tela de Compras efetuadas, mantendo botão voltar, filtro mensal e cards.
+
+### Comportamento final
+
+- O título **Fábrica** da Home abre diretamente a tela de compras efetuadas.
+- O acesso de Fábrica pelas Configurações abre primeiro o card com as duas opções.
+- **Registrar compra** abre somente o card de registro existente, preservando data, quantidade, cálculo, validações e gravação atuais.
+- **Compras efetuadas** abre os cards existentes das compras, com pagamentos, exclusão por menu contextual, resumo e filtro mensal no cabeçalho.
+- A tela de Compras efetuadas não exibe título no cabeçalho; o filtro mensal permanece disponível.
+
+### Arquivos principais
+
+- `src/app/(tabs)/dashboard.tsx`
+- `src/app/fabrica.tsx`
+- `src/app/fabrica-compras-menu.tsx`
+- `src/app/fabrica-compras-registrar.tsx`
+- `src/app/fabrica-compras.tsx`
+- `src/features/factory-purchases/components/FactoryPurchasesScreen.tsx`
+- `src/features/settings/components/SettingItem.tsx`
+- `src/features/settings/components/SettingsSection.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag alterada.
+- Nenhum schema, coleção, documento ou regra do Cloud Firestore alterado.
+- O fluxo continua usando `users/{uid}/factoryReceipts` e `payments` por meio de `useFactoryPurchases` e dos serviços existentes.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado: regras do projeto passaram; arquivos legados modificados ainda emitem ruído `prettier/prettier` de normalização CRLF, separado das regras semânticas.
+- Testes de Fábrica: 17 testes passaram em `FactoryReceiptDataSource` e `FactoryPurchaseCalculationService`.
+- `git diff --check`: passou.
+
+### Limitações conhecidas
+
+- `tests/factory/PurchaseDetailsSheet.test.ts` não iniciou por erro ambiental de `react-native-worklets` (`loadUnpackers` indefinido), sem relação com esta alteração.
+- A nova hierarquia de navegação ainda precisa de validação visual no iPhone Development Build.
+
+### Commit e publicação
+
+- Branch: `ajustes-codex`.
+- Alteração não commitada.
+- `HEAD` atual: `1c3ffcf8f1cc30a36669d04ca47859d4108cfa52` (`feat(ui): padronizar branding nos cabecalhos principais`).
+- Nenhum commit ou push adicional realizado.
+
 ## Flags atuais
 
 

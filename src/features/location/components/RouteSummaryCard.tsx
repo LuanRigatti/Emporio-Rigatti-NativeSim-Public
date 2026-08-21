@@ -82,14 +82,23 @@ export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
     <GlassCard
       style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.xs, padding: 0 }]}
     >
-      <View style={[styles.cards, { gap: theme.spacing.xs, paddingHorizontal: theme.spacing.sm }]}>
+      <View
+        style={[
+          styles.cards,
+          {
+            gap: theme.spacing.xxs,
+            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: theme.spacing.sm,
+          },
+        ]}
+      >
         {rows.map((row) => (
           <View
             key={row.label}
             style={[
               styles.row,
               {
-                minHeight: theme.sizes.touchTargetMinimum + theme.spacing.xs,
+                minHeight: theme.sizes.touchTargetMinimum,
               },
             ]}
           >

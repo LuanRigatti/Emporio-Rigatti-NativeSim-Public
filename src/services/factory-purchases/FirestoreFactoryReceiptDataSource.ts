@@ -119,16 +119,11 @@ async function mapReceipt(
     }
   }
 
-  let pagamentos: FactoryPayment[];
-  if (cachedReceipt && cachedReceipt.pagamentos && cachedReceipt.pagamentos.length > 0) {
-    pagamentos = cachedReceipt.pagamentos;
-  } else {
-    const { getDocs } = await import('firebase/firestore');
-    const paymentsSnapshot = await getDocs(await paymentsCollection(receiptReference));
-    pagamentos = paymentsSnapshot.docs.map((payment) =>
-      mapPayment(payment.id, payment.data() as FirestoreFactoryPaymentDocument),
-    );
-  }
+  const { getDocs } = await import('firebase/firestore');
+  const paymentsSnapshot = await getDocs(await paymentsCollection(receiptReference));
+  const pagamentos = paymentsSnapshot.docs.map((payment) =>
+    mapPayment(payment.id, payment.data() as FirestoreFactoryPaymentDocument),
+  );
 
   return {
     id,
@@ -154,7 +149,10 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
   public isUsingLocalFallback = false;
   private readonly receipts = new Map<string, FactoryReceipt>();
   private readonly listeners = new Set<() => void>();
+  private readonly paymentMutationQueues = new Map<string, Promise<unknown>>();
   private userId: string | undefined;
+  private mutationVersion = 0;
+  private restoreRequestId = 0;
 
   public subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -171,6 +169,12 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     userId?: string,
     filters: FactoryFilters = { period: 'all' },
   ): Promise<void> {
+    const restoreRequestId = ++this.restoreRequestId;
+    const mutationVersionAtStart = this.mutationVersion;
+    const canApply = () =>
+      restoreRequestId === this.restoreRequestId &&
+      mutationVersionAtStart === this.mutationVersion;
+
     if (!userId) {
       await this.restoreLocalFallback();
       return;
@@ -216,6 +220,8 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
         ),
       );
 
+      if (!canApply()) return;
+
       const returnedIds = new Set(mapped.map((r) => r.id));
 
       if (minDate || maxDate) {
@@ -239,6 +245,7 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       this.isUsingLocalFallback = false;
       this.publish();
     } catch (error) {
+      if (!canApply()) return;
       await this.restoreLocalFallback();
       if (__DEV__) console.warn('[FirestoreFactoryReceiptDataSource] Fallback local.', error);
     }
@@ -293,45 +300,97 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     receiptId: string,
     payment: FactoryPaymentDraft,
   ): Promise<FactoryReceipt> {
-    if (this.isUsingLocalFallback) {
-      const receipt = await (await this.localSource()).addPayment(receiptId, payment);
-      await this.syncFromLocal();
-      this.publish();
-      return receipt;
-    }
-    const maskedReceiptId = maskReceiptId(receiptId);
-    try {
+    return this.enqueuePaymentMutation(receiptId, async () => {
+      this.mutationVersion += 1;
+      if (this.isUsingLocalFallback) {
+        const receipt = await (await this.localSource()).addPayment(receiptId, payment);
+        await this.syncFromLocal();
+        this.publish();
+        return receipt;
+      }
+      const maskedReceiptId = maskReceiptId(receiptId);
+      try {
+        const receipt = await this.ensureReceipt(receiptId);
+        const date = requiredDate(payment.date);
+        const amount = factoryCalculationService.assertPaymentWithinBalance(
+          receipt,
+          payment.amount,
+        );
+        const balanceBefore = factoryCalculationService.openValue(receipt);
+        const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
+        const { getFirebaseFirestore } = await import('@/services/firebase/firestore');
+        const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
+        const paymentReference = doc(await paymentsCollection(receiptReference));
+        const nextPayment: FactoryPayment = { id: paymentReference.id, data: date, valor: amount };
+        const updatedReceipt: FactoryReceipt = {
+          ...receipt,
+          pagamentos: [...receipt.pagamentos, nextPayment],
+        };
+        updatedReceipt.concluido =
+          factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
+        const balanceAfter = factoryCalculationService.openValue(updatedReceipt);
+        logPayment('paymentWriteStarted', {
+          amount,
+          balanceBefore,
+          balanceAfter,
+          paymentId: maskReceiptId(paymentReference.id),
+          receiptId: maskedReceiptId,
+          target: `users/{uid}/factoryReceipts/${maskedReceiptId}/payments/{paymentId}`,
+        });
+        const batch = writeBatch(getFirebaseFirestore());
+        batch.set(paymentReference, {
+          date,
+          amount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        } satisfies FirestoreFactoryPaymentDocument);
+        batch.update(receiptReference, {
+          completed: updatedReceipt.concluido,
+          updatedAt: serverTimestamp(),
+        });
+        await batch.commit();
+        this.receipts.set(receiptId, updatedReceipt);
+        this.publish();
+        logPayment('paymentWriteSucceeded', {
+          balanceAfter,
+          paymentId: maskReceiptId(paymentReference.id),
+          receiptId: maskedReceiptId,
+        });
+        return cloneReceipt(updatedReceipt);
+      } catch (error) {
+        logPayment('paymentWriteFailed', {
+          error: error instanceof Error ? error.message : 'unknown',
+          receiptId: maskedReceiptId,
+        });
+        throw error;
+      }
+    });
+  }
+
+  public async removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt> {
+    return this.enqueuePaymentMutation(receiptId, async () => {
+      this.mutationVersion += 1;
+      if (this.isUsingLocalFallback) {
+        const receipt = await (await this.localSource()).removePayment(receiptId, paymentId);
+        await this.syncFromLocal();
+        this.publish();
+        return receipt;
+      }
       const receipt = await this.ensureReceipt(receiptId);
-      const date = requiredDate(payment.date);
-      const amount = factoryCalculationService.assertPaymentWithinBalance(receipt, payment.amount);
-      const balanceBefore = factoryCalculationService.openValue(receipt);
-      const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
-      const { getFirebaseFirestore } = await import('@/services/firebase/firestore');
-      const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
-      const paymentReference = doc(await paymentsCollection(receiptReference));
-      const nextPayment: FactoryPayment = { id: paymentReference.id, data: date, valor: amount };
+      if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
+        throw new Error('Pagamento da fábrica não encontrado.');
+      }
       const updatedReceipt: FactoryReceipt = {
         ...receipt,
-        pagamentos: [...receipt.pagamentos, nextPayment],
+        pagamentos: receipt.pagamentos.filter((payment) => payment.id !== paymentId),
       };
       updatedReceipt.concluido =
         factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-      const balanceAfter = factoryCalculationService.openValue(updatedReceipt);
-      logPayment('paymentWriteStarted', {
-        amount,
-        balanceBefore,
-        balanceAfter,
-        paymentId: maskReceiptId(paymentReference.id),
-        receiptId: maskedReceiptId,
-        target: `users/{uid}/factoryReceipts/${maskedReceiptId}/payments/{paymentId}`,
-      });
-      const batch = writeBatch(getFirebaseFirestore());
-      batch.set(paymentReference, {
-        date,
-        amount,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } satisfies FirestoreFactoryPaymentDocument);
+      const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
+      const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
+      const paymentReference = doc(await paymentsCollection(receiptReference), paymentId);
+      const batch = writeBatch(receiptReference.firestore);
+      batch.delete(paymentReference);
       batch.update(receiptReference, {
         completed: updatedReceipt.concluido,
         updatedAt: serverTimestamp(),
@@ -339,51 +398,8 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
       await batch.commit();
       this.receipts.set(receiptId, updatedReceipt);
       this.publish();
-      logPayment('paymentWriteSucceeded', {
-        balanceAfter,
-        paymentId: maskReceiptId(paymentReference.id),
-        receiptId: maskedReceiptId,
-      });
       return cloneReceipt(updatedReceipt);
-    } catch (error) {
-      logPayment('paymentWriteFailed', {
-        error: error instanceof Error ? error.message : 'unknown',
-        receiptId: maskedReceiptId,
-      });
-      throw error;
-    }
-  }
-
-  public async removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt> {
-    if (this.isUsingLocalFallback) {
-      const receipt = await (await this.localSource()).removePayment(receiptId, paymentId);
-      await this.syncFromLocal();
-      this.publish();
-      return receipt;
-    }
-    const receipt = await this.ensureReceipt(receiptId);
-    if (!receipt.pagamentos.some((payment) => payment.id === paymentId)) {
-      throw new Error('Pagamento da fábrica não encontrado.');
-    }
-    const updatedReceipt: FactoryReceipt = {
-      ...receipt,
-      pagamentos: receipt.pagamentos.filter((payment) => payment.id !== paymentId),
-    };
-    updatedReceipt.concluido =
-      factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-    const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
-    const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
-    const paymentReference = doc(await paymentsCollection(receiptReference), paymentId);
-    const batch = writeBatch(receiptReference.firestore);
-    batch.delete(paymentReference);
-    batch.update(receiptReference, {
-      completed: updatedReceipt.concluido,
-      updatedAt: serverTimestamp(),
     });
-    await batch.commit();
-    this.receipts.set(receiptId, updatedReceipt);
-    this.publish();
-    return cloneReceipt(updatedReceipt);
   }
 
   public async deleteReceipt(receiptId: string): Promise<void> {
@@ -416,6 +432,22 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
     const restored = this.receipts.get(receiptId);
     if (!restored) throw new Error('Compra não encontrada.');
     return cloneReceipt(restored);
+  }
+
+  private enqueuePaymentMutation<T>(
+    receiptId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.paymentMutationQueues.get(receiptId) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(operation);
+    this.paymentMutationQueues.set(receiptId, next);
+    const cleanup = () => {
+      if (this.paymentMutationQueues.get(receiptId) === next) {
+        this.paymentMutationQueues.delete(receiptId);
+      }
+    };
+    void next.then(cleanup, cleanup);
+    return next;
   }
 
   private requireUserId(): string {

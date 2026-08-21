@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NativeButton, NativeDatePicker, NativeSheet, NativeTextField } from '@/components/native';
+import { GlassCard } from '@/components/premium';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
@@ -28,6 +29,8 @@ export function PurchaseDetailsSheet({
   const [paymentDate, setPaymentDate] = useState(new Date());
   const [paymentAmount, setPaymentAmount] = useState('');
   const [error, setError] = useState<string | undefined>();
+  const [isAddingPayment, setIsAddingPayment] = useState(false);
+  const isAddingPaymentRef = useRef(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -51,7 +54,7 @@ export function PurchaseDetailsSheet({
         receiptId: purchase ? maskReceiptId(purchase.id) : null,
       });
     }
-    if (!purchase) return;
+    if (!purchase || isAddingPaymentRef.current) return;
 
     const amount = normalizeMoney(paymentAmount);
     const date = todayIso(paymentDate);
@@ -67,6 +70,8 @@ export function PurchaseDetailsSheet({
       return;
     }
 
+    isAddingPaymentRef.current = true;
+    setIsAddingPayment(true);
     try {
       await onAddPayment(purchase.id, { amount, date });
       setPaymentAmount('');
@@ -77,6 +82,9 @@ export function PurchaseDetailsSheet({
           ? paymentError.message
           : 'Não foi possível adicionar o pagamento.',
       );
+    } finally {
+      isAddingPaymentRef.current = false;
+      setIsAddingPayment(false);
     }
   };
 
@@ -84,6 +92,9 @@ export function PurchaseDetailsSheet({
     <NativeSheet onVisibleChange={onVisibleChange} title="Detalhes da compra" visible={visible}>
       {purchase ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <GlassCard
+            style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm, width: '100%' }]}
+          >
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
             {formatPtBrDate(purchase.date)}
           </Text>
@@ -95,10 +106,14 @@ export function PurchaseDetailsSheet({
             <DetailRow label="Saldo restante" value={formatCurrency(remainingAmount)} />
             <DetailRow label="Status" value={isPaid ? 'Pago' : 'Em aberto'} />
           </View>
+          </GlassCard>
 
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
             Histórico de pagamentos
           </Text>
+          <GlassCard
+            style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm, width: '100%' }]}
+          >
           {purchase.payments.length > 0 ? (
             purchase.payments.map((payment) => (
               <DetailRow
@@ -143,11 +158,13 @@ export function PurchaseDetailsSheet({
                 accessibilityLabel="Adicionar pagamento"
                 haptic="light"
                 label="Adicionar pagamento"
+                disabled={isAddingPayment}
                 onPress={handleAddPayment}
                 variant="primary"
               />
             </View>
           ) : null}
+          </GlassCard>
         </ScrollView>
       ) : null}
     </NativeSheet>
@@ -170,7 +187,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 14, paddingBottom: 24 },
+  card: { gap: 14 },
+  content: { paddingBottom: 24 },
   summary: { gap: 8 },
   detailRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   paymentForm: { gap: 10, marginTop: 8 },

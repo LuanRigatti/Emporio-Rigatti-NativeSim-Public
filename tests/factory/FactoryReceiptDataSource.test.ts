@@ -71,6 +71,61 @@ describe('MockFactoryReceiptDataSource', () => {
     expect(factoryCalculationService.openValue(settled)).toBe(0);
     expect(settled.concluido).toBe(true);
     expect(settled.pagamentos).toHaveLength(2);
+    expect(settled.pagamentos.map((payment) => payment.valor)).toEqual([100, 250]);
+  });
+
+  it('serializes concurrent payment mutations and rejects the second stale balance attempt', async () => {
+    const source = new MockFactoryReceiptDataSource();
+    const created = await source.createReceipt({
+      bucketUnitPrice: 35,
+      date: '2026-08-05',
+      quantity: 10,
+    });
+
+    const results = await Promise.allSettled([
+      source.addPayment(created.id, { amount: 250, date: '2026-08-06' }),
+      source.addPayment(created.id, { amount: 250, date: '2026-08-06' }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(source.getReceipts()[0]?.pagamentos).toHaveLength(1);
+    expect(factoryCalculationService.openValue(source.getReceipts()[0]!)).toBe(100);
+  });
+
+  it('keeps a confirmed payment when a later restore runs', async () => {
+    const source = new MockFactoryReceiptDataSource();
+    const created = await source.createReceipt({
+      bucketUnitPrice: 35,
+      date: '2026-08-05',
+      quantity: 10,
+    });
+    await source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
+
+    await source.restore();
+
+    expect(source.getReceipts()[0]?.pagamentos).toEqual([
+      expect.objectContaining({ data: '2026-08-06', valor: 100 }),
+    ]);
+  });
+
+  it('reopens with all persisted payments instead of losing the latest one', async () => {
+    const source = new MockFactoryReceiptDataSource();
+    const created = await source.createReceipt({
+      bucketUnitPrice: 35,
+      date: '2026-08-05',
+      quantity: 10,
+    });
+    await source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
+    await source.addPayment(created.id, { amount: 50, date: '2026-08-07' });
+
+    const reopenedSource = new MockFactoryReceiptDataSource();
+    await reopenedSource.restore();
+
+    expect(reopenedSource.getReceipts()[0]?.pagamentos.map((payment) => payment.valor)).toEqual([
+      100,
+      50,
+    ]);
   });
 
   it('removes a payment, reopens the receipt and persists through a reload', async () => {
@@ -154,6 +209,7 @@ describe('MockFactoryReceiptDataSource', () => {
 
     await source.addPayment(created.id, { amount: 100, date: '2026-08-06' });
     expect(listener).toHaveBeenCalledTimes(2);
+    expect(source.getReceipts()[0]?.pagamentos).toHaveLength(1);
 
     await source.deleteReceipt(created.id);
     expect(listener).toHaveBeenCalledTimes(3);

@@ -51,13 +51,14 @@ export default function FactoryPurchasesRoute() {
       titleStyle={{
         transform: [{ translateX: theme.spacing.lg + theme.spacing.sm + theme.spacing.xxs / 2 }],
       }}
-      title="Compras"
+      title=""
     />
   );
 
   return (
     <FactoryPurchasesScreen
       header={header}
+      mode="purchases"
       selectedMonth={selectedMonth}
       selectedYear={selectedYear}
     />

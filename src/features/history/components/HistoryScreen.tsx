@@ -4,7 +4,6 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { AppLogo } from '@/components/branding/AppLogo';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeDatePicker,
@@ -112,6 +111,13 @@ export function HistoryScreen() {
 
       return (
         <>
+          {dayDeliveries.length > 0 ? (
+            <View style={[styles.topBucketSummary, { paddingRight: theme.spacing.lg }]}>
+              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                {dayBucketCount} {dayBucketCount === 1 ? 'balde' : 'baldes'}
+              </Text>
+            </View>
+          ) : null}
           <Animated.View
             entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
             style={[
@@ -157,13 +163,6 @@ export function HistoryScreen() {
               </Animated.View>
             )}
           </Animated.View>
-          {dayDeliveries.length > 0 ? (
-            <View style={styles.bottomBucketSummary}>
-              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                {dayBucketCount} {dayBucketCount === 1 ? 'balde' : 'baldes'}
-              </Text>
-            </View>
-          ) : null}
         </>
       );
     },
@@ -253,20 +252,6 @@ export function HistoryScreen() {
   const header = (
     <NativeGlassHeader
       includeTopSafeArea={false}
-      leftActions={
-        <View
-          style={[
-            styles.headerLogoSlot,
-            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
-          ]}
-        >
-          <View
-            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
-          >
-            <AppLogo size={200} variant="splash" />
-          </View>
-        </View>
-      }
       largeTitle
       mode="transparent"
       titleStyle={{
@@ -288,6 +273,7 @@ export function HistoryScreen() {
           overlayHeaderHeight -
           theme.spacing.xxxl -
           theme.spacing.xl * 2 -
+          theme.spacing.md -
           theme.spacing.md -
           theme.spacing.xxs,
       }}
@@ -331,13 +317,6 @@ export function HistoryScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  headerLogoSlot: {
-    alignItems: 'center',
-    height: 44,
-    justifyContent: 'center',
-    overflow: 'visible',
-    width: 44,
-  },
   screenContent: { flex: 1 },
   dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
   deliveryGroup: { padding: 0 },
@@ -347,5 +326,5 @@ const styles = StyleSheet.create({
   historyEmptyContent: { flex: 1, minHeight: 0 },
   list: { width: '100%' },
   dayScroll: { flex: 1 },
-  bottomBucketSummary: { alignItems: 'center', width: '100%' },
+  topBucketSummary: { alignItems: 'flex-end', width: '100%' },
 });

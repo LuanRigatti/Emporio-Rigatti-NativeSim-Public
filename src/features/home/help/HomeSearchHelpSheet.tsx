@@ -3,10 +3,9 @@ import type { NativeBottomSheetProps } from '@/components/native';
 
 import HomeSearchHelpContent from './HomeSearchHelpContent';
 
-const HELP_SHEET_INITIAL_DETENT = { fraction: 0.65 } as const;
+const HELP_SHEET_INITIAL_DETENT = { fraction: 0.45 } as const;
 const HELP_SHEET_DETENTS: NonNullable<NativeBottomSheetProps['detents']> = [
   HELP_SHEET_INITIAL_DETENT,
-  'large',
 ];
 
 type Props = {

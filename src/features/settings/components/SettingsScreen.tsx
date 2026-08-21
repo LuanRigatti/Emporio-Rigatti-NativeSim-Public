@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppLogo } from '@/components/branding/AppLogo';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassMenu } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
@@ -76,20 +75,6 @@ export function SettingsScreen() {
   const header = (
     <NativeGlassHeader
       includeTopSafeArea={false}
-      leftActions={
-        <View
-          style={[
-            styles.headerLogoSlot,
-            { marginLeft: -theme.spacing.xs, marginRight: theme.spacing.xl },
-          ]}
-        >
-          <View
-            style={{ transform: [{ translateY: theme.spacing.xs + theme.spacing.xxs }] }}
-          >
-            <AppLogo size={200} variant="splash" />
-          </View>
-        </View>
-      }
       largeTitle
       mode="transparent"
       titleStyle={{
@@ -101,7 +86,6 @@ export function SettingsScreen() {
       title="Configurações"
     />
   );
-
   const menuHeader = (
     <NativeGlassHeader includeTopSafeArea mode="transparent" rightActions={settingsMenu} title="" />
   );
@@ -112,7 +96,7 @@ export function SettingsScreen() {
         styles.content,
         {
           gap: 0,
-          marginTop: theme.spacing.xxxl + theme.spacing.xl,
+          marginTop: theme.spacing.xxxl + theme.spacing.xl - theme.spacing.md,
           paddingTop: theme.spacing.sm,
         },
       ]}
@@ -196,13 +180,6 @@ export function SettingsScreen() {
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1 },
-  headerLogoSlot: {
-    alignItems: 'center',
-    height: 44,
-    justifyContent: 'center',
-    overflow: 'visible',
-    width: 44,
-  },
   header: { minHeight: 44 },
   menuTrigger: { alignItems: 'center', justifyContent: 'center' },
 });

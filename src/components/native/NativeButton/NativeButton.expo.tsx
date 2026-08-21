@@ -8,6 +8,7 @@ export default function NativeButtonExpo({
   accessibilityLabel,
   accessibilityHint,
   content,
+  controlSize,
   destructive,
   disabled,
   fallbackIcon,
@@ -22,6 +23,7 @@ export default function NativeButtonExpo({
     <GlassButton
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
+      controlSize={controlSize}
       disabled={disabled}
       icon={icon}
       haptic={haptic ?? 'none'}

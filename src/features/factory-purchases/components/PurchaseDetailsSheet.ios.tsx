@@ -1,7 +1,6 @@
 import {
   Button,
   DatePicker,
-  Divider,
   HStack,
   List,
   Spacer,
@@ -17,20 +16,24 @@ import {
   buttonStyle,
   controlSize,
   cornerRadius,
+  disabled as disabledModifier,
   font,
   foregroundColor,
   frame,
   keyboardType,
   listStyle,
+  listRowInsets,
   listRowSeparator,
   onTapGesture,
   padding,
   scrollContentBackground,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useRef, useState } from 'react';
 
 import { NativeBottomSheet } from '@/components/native';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
+import { spacing, useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
 
 import type { Purchase } from '../types';
@@ -53,9 +56,12 @@ export function PurchaseDetailsSheet({
   purchase,
   visible,
 }: PurchaseDetailsSheetProps) {
+  const { resolvedMode, theme } = useAppTheme();
   const [paymentDate, setPaymentDate] = useState(new Date());
   const [paymentAmount, setPaymentAmount] = useState('');
   const [error, setError] = useState<string | undefined>();
+  const [isAddingPayment, setIsAddingPayment] = useState(false);
+  const isAddingPaymentRef = useRef(false);
   const paymentAmountState = useNativeState('') as NativeTextState;
   const paymentAmountRef = useRef<TextFieldRef>(null);
 
@@ -85,7 +91,7 @@ export function PurchaseDetailsSheet({
         receiptId: purchase ? maskReceiptId(purchase.id) : null,
       });
     }
-    if (!purchase) return;
+    if (!purchase || isAddingPaymentRef.current) return;
 
     const amount = normalizeMoney(paymentAmount);
     const date = todayIso(paymentDate);
@@ -101,6 +107,8 @@ export function PurchaseDetailsSheet({
       return;
     }
 
+    isAddingPaymentRef.current = true;
+    setIsAddingPayment(true);
     try {
       await onAddPayment(purchase.id, { amount, date });
       setPaymentAmount('');
@@ -111,82 +119,121 @@ export function PurchaseDetailsSheet({
           ? paymentError.message
           : 'Não foi possível adicionar o pagamento.',
       );
+    } finally {
+      isAddingPaymentRef.current = false;
+      setIsAddingPayment(false);
     }
   };
 
   const details = purchase ? (
-    <VStack alignment="leading" spacing={16}>
+    <VStack
+      alignment="leading"
+      spacing={16}
+      modifiers={[
+        frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+        padding({ top: spacing.sm }),
+      ]}
+    >
       <HStack alignment="center" modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}>
         <Text modifiers={[font({ size: 17, weight: 'bold' })]}>Detalhes da compra</Text>
       </HStack>
-      <DetailRow label="Data" value={formatPtBrDate(purchase.date)} />
-      <DetailRow label="Baldes" value={String(purchase.bucketQuantity)} />
-      <DetailRow label="Valor do balde" value={formatCurrency(purchase.bucketUnitPrice)} />
-      <DetailRow label="Valor total" value={formatCurrency(purchase.totalAmount)} />
-      <DetailRow label="Total pago" value={formatCurrency(paidAmount)} />
-      <DetailRow label="Saldo restante" value={formatCurrency(remainingAmount)} />
-      <DetailRow label="Status" value={isPaid ? 'Pago' : 'Em aberto'} />
+      <VStack
+        alignment="leading"
+        spacing={16}
+        modifiers={[
+          frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+          padding({ all: spacing.md }),
+          background(
+            resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background,
+            shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
+          ),
+        ]}
+      >
+        <DetailRow label="Data" value={formatPtBrDate(purchase.date)} />
+        <DetailRow label="Baldes" value={String(purchase.bucketQuantity)} />
+        <DetailRow label="Valor do balde" value={formatCurrency(purchase.bucketUnitPrice)} />
+        <DetailRow label="Valor total" value={formatCurrency(purchase.totalAmount)} />
+        <DetailRow label="Total pago" value={formatCurrency(paidAmount)} />
+        <DetailRow label="Saldo restante" value={formatCurrency(remainingAmount)} />
+        <DetailRow label="Status" value={isPaid ? 'Pago' : 'Em aberto'} />
+      </VStack>
 
-      <Divider />
       <HStack alignment="center" modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}>
         <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>Histórico de pagamentos</Text>
       </HStack>
-      {purchase.payments.length > 0 ? (
-        purchase.payments.map((payment) => (
-          <DetailRow
-            key={payment.id}
-            label={formatPtBrDate(payment.date)}
-            value={formatCurrency(payment.amount)}
-          />
-        ))
-      ) : (
-        <Text modifiers={[foregroundColor('#8E8E93'), font({ size: 15 })]}>
-          Nenhum pagamento registrado.
-        </Text>
-      )}
+      <VStack
+        alignment="leading"
+        spacing={16}
+        modifiers={[
+          frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+          padding({ all: spacing.md }),
+          background(
+            resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background,
+            shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
+          ),
+        ]}
+      >
+        {purchase.payments.length > 0 ? (
+          purchase.payments.map((payment) => (
+            <DetailRow
+              key={payment.id}
+              label={formatPtBrDate(payment.date)}
+              value={formatCurrency(payment.amount)}
+            />
+          ))
+        ) : (
+          <Text modifiers={[foregroundColor('#8E8E93'), font({ size: 15 })]}>
+            Nenhum pagamento registrado.
+          </Text>
+        )}
 
-      {!isPaid ? (
-        <VStack alignment="leading" spacing={12} modifiers={[padding({ top: 4 })]}>
-          <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>Novo pagamento</Text>
-          <HStack alignment="center" spacing={12}>
-            <Text modifiers={[font({ size: 15 })]}>Data</Text>
-            <Spacer />
-            <DatePicker
-              displayedComponents={['date']}
-              onDateChange={setPaymentDate}
-              selection={paymentDate}
+        {!isPaid ? (
+          <VStack alignment="leading" spacing={12} modifiers={[padding({ top: 4 })]}>
+            <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>Novo pagamento</Text>
+            <HStack alignment="center" spacing={12}>
+              <Text modifiers={[font({ size: 15 })]}>Data</Text>
+              <Spacer />
+              <DatePicker
+                displayedComponents={['date']}
+                onDateChange={setPaymentDate}
+                selection={paymentDate}
+              />
+            </HStack>
+            <TextField
+              axis="horizontal"
+              modifiers={[
+                autocorrectionDisabled(true),
+                background('systemGray6'),
+                cornerRadius(12),
+                frame({ height: 42 }),
+                keyboardType('decimal-pad'),
+                padding({ horizontal: 10 }),
+              ]}
+              onTextChange={setPaymentAmount}
+              placeholder="Valor pago"
+              ref={paymentAmountRef}
+              text={paymentAmountState}
             />
-          </HStack>
-          <TextField
-            axis="horizontal"
-            modifiers={[
-              autocorrectionDisabled(true),
-              background('systemGray6'),
-              cornerRadius(12),
-              frame({ height: 42 }),
-              keyboardType('decimal-pad'),
-              padding({ horizontal: 10 }),
-            ]}
-            onTextChange={setPaymentAmount}
-            placeholder="Valor pago"
-            ref={paymentAmountRef}
-            text={paymentAmountState}
-          />
-          {error ? (
-            <Text modifiers={[foregroundColor('#FF3B30'), font({ size: 14 })]}>{error}</Text>
-          ) : null}
-          <HStack alignment="center">
-            <Spacer />
-            <Button
-              label="Adicionar pagamento"
-              modifiers={[buttonStyle('glassProminent'), controlSize('large')]}
-              onPress={() => {
-                void handleAddPayment();
-              }}
-            />
-          </HStack>
-        </VStack>
-      ) : null}
+            {error ? (
+              <Text modifiers={[foregroundColor('#FF3B30'), font({ size: 14 })]}>{error}</Text>
+            ) : null}
+            <HStack alignment="center">
+              <Spacer />
+              <Button
+                label="Adicionar pagamento"
+                modifiers={[
+                  buttonStyle('glassProminent'),
+                  controlSize('large'),
+                  ...(isAddingPayment ? [disabledModifier(true)] : []),
+                ]}
+                onPress={() => {
+                  void handleAddPayment();
+                }}
+              />
+            </HStack>
+          </VStack>
+        ) : null}
+      </VStack>
     </VStack>
   ) : null;
 
@@ -210,9 +257,10 @@ export function PurchaseDetailsSheet({
             spacing={0}
             modifiers={[
               frame({ maxWidth: 1000, alignment: 'topLeading' }),
+              listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
               listRowSeparator('hidden'),
               padding({
-                horizontal: 20,
+                horizontal: spacing.md,
                 top: 12,
                 bottom: 28,
               }),
@@ -223,6 +271,7 @@ export function PurchaseDetailsSheet({
         </List>
       }
       items={[]}
+      hostSizing="viewport"
       onVisibleChange={onVisibleChange}
       title="Detalhes da compra"
       visible={visible}

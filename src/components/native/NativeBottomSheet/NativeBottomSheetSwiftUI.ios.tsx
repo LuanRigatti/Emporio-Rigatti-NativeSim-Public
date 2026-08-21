@@ -33,6 +33,7 @@ import {
   offset,
   onTapGesture,
   padding,
+  presentationBackground,
   presentationDetents,
   presentationDragIndicator,
   scrollContentBackground,
@@ -46,6 +47,7 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '@/theme';
 
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
+import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
 import { roundedFont } from '../nativeTypography';
 
@@ -405,6 +407,7 @@ export default function NativeBottomSheetSwiftUI({
       >
         <Group
           modifiers={[
+            presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
             presentationDetents(
               [...sheetDetents],
               initialDetent || onDetentChange

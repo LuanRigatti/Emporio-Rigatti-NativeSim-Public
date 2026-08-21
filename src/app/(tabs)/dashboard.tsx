@@ -71,7 +71,11 @@ export default function Home() {
     remove: removeDelivery,
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
-  const { deliveries: pendingDeliveries } = useDeliveries({ mode: 'all', status: 'Não Pago' });
+  const { deliveries: pendingDeliveries } = useDeliveries({
+    deliveryStatus: 'Entregue',
+    mode: 'all',
+    status: 'Não Pago',
+  });
   const { loading: factoryPurchasesLoading, purchases: factoryPurchases } = useFactoryPurchases({
     period: 'all',
   });

@@ -38,7 +38,11 @@ export function OpenPaymentsScreen() {
     deliveries,
     editMany,
     reload: refresh,
-  } = useDeliveries({ mode: 'all', status: 'Não Pago' });
+  } = useDeliveries({
+    deliveryStatus: 'Entregue',
+    mode: 'all',
+    status: 'Não Pago',
+  });
   const hasMountedRef = useRef(false);
   const paymentItems = useMemo(() => deliveries.map(toOpenPaymentItem), [deliveries]);
   const paymentGroups = useMemo(() => groupItemsByDate(paymentItems), [paymentItems]);

@@ -92,6 +92,26 @@ describe('delivery services', () => {
     expect(result.map((item) => item.id)).toEqual(['pending']);
   });
 
+  it('shows only delivered and unpaid deliveries as open payments', () => {
+    const service = new DeliveryQueryService();
+    const result = service.filter(
+      [
+        delivery({ id: 'delivered-unpaid', entregue: true, status: 'Não Pago' }),
+        delivery({ id: 'delivered-paid', entregue: true, status: 'Pago' }),
+        delivery({ id: 'pending-unpaid', entregue: false, status: 'Não Pago' }),
+        delivery({
+          id: 'future-scheduled',
+          data: '2099-12-31',
+          entregue: false,
+          status: 'Não Pago',
+        }),
+      ],
+      { mode: 'all', status: 'Não Pago', deliveryStatus: 'Entregue' },
+    );
+
+    expect(result.map((item) => item.id)).toEqual(['delivered-unpaid']);
+  });
+
   it('does not require status chips when all delivery filters are selected', () => {
     const service = new DeliveryQueryService();
     const result = service.filter([delivery()], {

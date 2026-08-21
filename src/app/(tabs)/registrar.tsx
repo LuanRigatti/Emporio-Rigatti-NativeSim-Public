@@ -400,6 +400,9 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     setSheetVisible(visible);
     if (!visible) setSelectedClient(null);
   }, []);
+  const handleSheetPageSettled = useCallback((page: number) => {
+    if (page === 0) setSelectedClient(null);
+  }, []);
 
   const header = (
     <NativeGlassHeader
@@ -546,6 +549,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
         hostSizing="viewport"
         items={clientItems}
         onConfirm={handleConfirm}
+        onPageSettled={handleSheetPageSettled}
         onSelect={handleSelectClient}
         onVisibleChange={handleSheetVisibleChange}
         selectedItem={selectedClient}

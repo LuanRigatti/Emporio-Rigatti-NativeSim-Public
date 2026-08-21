@@ -8,6 +8,7 @@ import {
   Host,
   Image,
   List,
+  RNHostView,
   Spacer,
   Text,
   VStack,
@@ -45,6 +46,7 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 import { useAppTheme } from '@/theme';
 
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
+import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
 import { roundedFont } from '../nativeTypography';
 
 export default function NativeBottomSheetSwiftUI({
@@ -59,6 +61,7 @@ export default function NativeBottomSheetSwiftUI({
   visible,
   onConfirm,
   onDetentChange,
+  onPageSettled,
   selectedItem: controlledSelectedItem,
   initialQuantity,
   initialDetent,
@@ -341,7 +344,14 @@ export default function NativeBottomSheetSwiftUI({
       <Spacer minLength={8} />
       {headerView}
       <Spacer minLength={8} />
-      {selectedItem ? detailView : listView}
+      <RNHostView matchContents={false}>
+        <RegistrarDeliveryPagerRN
+          detailPage={detailView}
+          listPage={listView}
+          onPageSettled={(page) => onPageSettled?.(page)}
+          requestedPage={selectedItem ? 1 : 0}
+        />
+      </RNHostView>
     </VStack>
   );
 

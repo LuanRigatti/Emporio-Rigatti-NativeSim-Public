@@ -1229,6 +1229,56 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 
 - Status: Alteração local validada via Fast Refresh no dispositivo físico; aguardando autorização para commit/push.
 
+## Registrar Entrega: Pager Horizontal RN com Páginas SwiftUI Nativas
+
+### Funcionalidade implementada
+
+- Substituição controlada da troca direta entre lista e detalhes por um pager privado React Native específico do Registrar.
+- Uso de `ScrollView` horizontal com `pagingEnabled`, hospedado via `RNHostView` dentro do Bottom Sheet SwiftUI.
+- Cada página mantém um `Host` SwiftUI próprio: a primeira contém a `List` nativa de clientes e a segunda contém o formulário nativo com `DatePicker`, stepper, Liquid Glass e botão de confirmação.
+- A largura das páginas é medida pelo `onLayout` do pager; não há largura fixa baseada na tela.
+- A seleção de cliente solicita o avanço animado para a página de detalhes. O retorno para a lista só sincroniza `selectedItem` após `onMomentumScrollEnd` confirmar a página 0.
+
+### Comportamento final
+
+- O mesmo Bottom Sheet, detents, drag indicator, Safe Area e correção da barra inferior são preservados.
+- O eixo horizontal é controlado pelo `ScrollView` RN, permitindo acompanhar o dedo, interromper, retornar ou completar o gesto.
+- `List`, `DatePicker`, stepper, botões e demais controles continuam nativos SwiftUI.
+- Não são usados `SwiftUI.TabView` nem `NativeInteractivePager` neste fluxo.
+- A lógica de registro, seleção de cliente, quantidade, data, validações e regras de negócio permanece inalterada.
+
+### Arquivos principais
+
+- `src/components/native/NativeBottomSheet/RegistrarDeliveryPagerRN.tsx`
+- `src/components/native/NativeBottomSheet/NativeBottomSheetSwiftUI.ios.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/features/home/components/HomeSearchRoutePagerRN.tsx` (referência estrutural, sem alteração)
+
+### Flags e schema afetados
+
+- Nenhuma flag de funcionalidade alterada.
+- Nenhum schema, regra ou leitura do Cloud Firestore alterado.
+- Swift, Pods, `patch-expo-ui-bottom-sheet.js` e o módulo `NativeInteractivePager` não foram alterados.
+
+### Validações executadas
+
+- TypeScript (`npm run typecheck`): passou.
+- ESLint do novo pager: passou.
+- ESLint direcionado dos arquivos alterados, com a regra Prettier isolada: passou.
+- `git diff --check`: passou.
+- Não houve recompilação do Development Build.
+
+### Limitações conhecidas
+
+- A validação interativa no iPhone Development Build ainda é necessária para confirmar ausência de ghosting e a convivência entre swipe horizontal, scroll vertical da `List` e arraste vertical do Bottom Sheet.
+- O pager usa `RNHostView` externo e `Host` SwiftUI em cada página, aumentando a profundidade de composição nativa em relação à troca direta anterior.
+
+### Commit e publicação
+
+- Não commitado.
+- HEAD de referência: `883a060023793b84faade1db0136fff59eaa6b01` (`feat(ui): atualizar fluxo de compras e ajustes visuais`).
+- Nenhum commit ou push adicional realizado.
+
 ## Custo de Combustível nos Cards de Rota e Ajustes na Tela de Detalhes da Rota
 
 ### Funcionalidade implementada

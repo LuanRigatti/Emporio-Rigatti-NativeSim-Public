@@ -1918,3 +1918,60 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - HEAD de referência: `5647928a7a59b39a6542f9f29c487034e4eeb6c4`
   (`fix(ui): stabilize safe area startup and glass tint`).
 - Nenhum commit ou push adicional foi realizado.
+
+## Tint Liquid Glass nos botões de ação de Registrar
+
+### Funcionalidade implementada
+
+- Aplicado o mesmo `lightModeLiquidGlassTint` compartilhado, com opacidade
+  branca de 60%, aos dois botões nativos `Adicionar` dos fluxos de Registrar:
+  Registro de Entrega e Dados Diários.
+- O tint é enviado ao `glassEffect` nativo do `NativeGlassIconButton`, sem
+  criar cor ou opacidade local.
+
+### Comportamento final
+
+- No Light Mode, os dois botões inferiores `Adicionar` exibem o material
+  Liquid Glass nativo com tint branco de 60%.
+- No Dark Mode, o tint permanece indefinido e o visual atual é preservado.
+- Tamanho, posição, texto, estado enabled/disabled, haptics, ações,
+  validações e fluxo de registro permanecem inalterados.
+- Os fallbacks e demais controles Liquid Glass não solicitados não foram
+  alterados.
+
+### Arquivos principais
+
+- `src/app/(tabs)/registrar.tsx`
+- `src/components/native/NativeGlassIconButton/NativeGlassIconButtonSwiftUI.ios.tsx`
+- `src/theme/colors.ts`
+- `src/theme/index.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma dependência, API nativa ou asset foi adicionado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado nos arquivos dos controles e do fluxo Registrar: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final do tint depende de teste no iPhone Development
+  Build.
+- A alteração usa a implementação nativa já compilada do `@expo/ui`; não há
+  mudança Swift/Pods prevista.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- Esta alteração ainda não foi commitada.
+- HEAD de referência: `be5b6ff4e1aec0713ba1fe37dee03d78d1fb8959`
+  (`fix: align splash background and bottom scroll spacing`).
+- Não há commit/hash específico para esta alteração.
+- Nenhum commit ou push adicional foi realizado.

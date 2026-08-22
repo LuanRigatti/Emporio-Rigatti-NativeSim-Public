@@ -31,11 +31,12 @@ import {
   presentationDetents,
   presentationDragIndicator,
   shapes,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import {
@@ -236,6 +237,7 @@ export default function NativeDailyDataSheetSwiftUI({
               roundedFont({}),
               buttonStyle('glassProminent'),
               controlSize('large'),
+              ...(resolvedMode === 'light' ? [tint(lightModeLiquidGlassTint)] : []),
               ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
             ]}
             onPress={() => {

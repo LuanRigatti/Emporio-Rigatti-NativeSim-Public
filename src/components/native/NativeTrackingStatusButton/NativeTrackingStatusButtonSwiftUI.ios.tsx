@@ -28,6 +28,7 @@ export default function NativeTrackingStatusButtonSwiftUI({
   containerHeight = 56,
   containerWidth = 132,
   disabled = false,
+  glassTint,
   idleLabel = 'Iniciar',
   idleSystemImage = 'circle',
   onPress,
@@ -61,7 +62,7 @@ export default function NativeTrackingStatusButtonSwiftUI({
           ...(isDisabled ? [disabledModifier(true)] : []),
           frame({ width: containerWidth, height: containerHeight }),
           glassEffect({
-            glass: { interactive: true, variant: 'regular' },
+            glass: { interactive: true, tint: glassTint, variant: 'regular' },
             shape: 'capsule',
           }),
           ...(color ? [tint(color)] : []),

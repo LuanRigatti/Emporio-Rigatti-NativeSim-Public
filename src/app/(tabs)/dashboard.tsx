@@ -420,7 +420,7 @@ export default function Home() {
               styles.shortcutCard,
               {
                 borderRadius: theme.radius.xl + theme.spacing.sm,
-                gap: theme.spacing.sm,
+                gap: 0,
                 paddingHorizontal: theme.spacing.lg,
                 paddingVertical: 0,
               },
@@ -432,7 +432,7 @@ export default function Home() {
               onPress={handleOpenRecebimentos}
               style={styles.shortcutAction}
             >
-              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.lg }]}>
+              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.md }]}>
                 <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
                   <PreviewIcon
                     color={theme.colors.textSecondary}
@@ -446,13 +446,25 @@ export default function Home() {
                 <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
               </View>
             </AnimatedPressable>
+            <View style={[styles.shortcutDividerSlot, { height: theme.spacing.sm }]}>
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.shortcutDivider,
+                  {
+                    backgroundColor: theme.colors.separator,
+                    marginHorizontal: theme.sizes.iconSmall + theme.spacing.sm,
+                  },
+                ]}
+              />
+            </View>
             <AnimatedPressable
               accessibilityLabel="Abrir Fábrica"
               accessibilityRole="button"
               onPress={handleOpenFactory}
               style={styles.shortcutAction}
             >
-              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.lg }]}>
+              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.md }]}>
                 <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
                   <PreviewIcon
                     color={theme.colors.textSecondary}
@@ -500,6 +512,8 @@ const styles = StyleSheet.create({
   shortcutCards: { width: '100%' },
   shortcutCard: {},
   shortcutAction: { width: '100%' },
+  shortcutDivider: { height: StyleSheet.hairlineWidth },
+  shortcutDividerSlot: { justifyContent: 'center' },
   shortcutLabel: { alignItems: 'center', flexDirection: 'row' },
   shortcutRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },

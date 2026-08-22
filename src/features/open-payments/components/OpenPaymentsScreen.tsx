@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -64,7 +64,7 @@ export function OpenPaymentsScreen() {
                   resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
               }
             : {}),
-          borderRadius: theme.radius.xl + theme.spacing.sm,
+          borderRadius: theme.radius.xl + theme.spacing.md,
           padding: theme.spacing.md,
         },
       ]}
@@ -136,26 +136,47 @@ export function OpenPaymentsScreen() {
                 {formatDateAsDayMonthYear(group.date)}
               </Text>
               <GlassCard
-                style={[styles.clientCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+                style={[
+                  styles.clientCard,
+                  { borderRadius: theme.radius.xl + theme.spacing.md },
+                  group.items.length > 1 ? { paddingVertical: theme.spacing.xs } : undefined,
+                ]}
               >
-                <View style={[styles.dayItems, { gap: theme.spacing.lg }]}>
-                  {group.items.map((item) => (
-                    <NativeCardContextMenu
-                      actions={[
-                        {
-                          id: `complete-payment-${item.id}`,
-                          disabled: testModeEnabled,
-                          onPress: () => handlePaymentSwipe(item.id),
-                          systemImage: 'checkmark.circle.fill' as const,
-                          title: 'Pago',
-                        },
-                      ]}
-                      key={item.id}
-                      style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-                      preview={renderPaymentRow(item, true)}
-                    >
-                      {renderPaymentRow(item)}
-                    </NativeCardContextMenu>
+                <View style={styles.dayItems}>
+                  {group.items.map((item, index) => (
+                    <Fragment key={item.id}>
+                      <NativeCardContextMenu
+                        actions={[
+                          {
+                            id: `complete-payment-${item.id}`,
+                            disabled: testModeEnabled,
+                            onPress: () => handlePaymentSwipe(item.id),
+                            systemImage: 'checkmark.circle.fill' as const,
+                            title: 'Pago',
+                          },
+                        ]}
+                        style={[
+                          styles.contextMenu,
+                          { borderRadius: theme.radius.xl + theme.spacing.md },
+                        ]}
+                        preview={renderPaymentRow(item, true)}
+                      >
+                        {renderPaymentRow(item)}
+                      </NativeCardContextMenu>
+                      {index < group.items.length - 1 ? (
+                        <View style={[styles.dividerSlot, { height: theme.spacing.lg }]}>
+                          <View
+                            style={[
+                              styles.divider,
+                              {
+                                backgroundColor: theme.colors.separator,
+                                marginHorizontal: theme.sizes.iconSmall + theme.spacing.sm,
+                              },
+                            ]}
+                          />
+                        </View>
+                      ) : null}
+                    </Fragment>
                   ))}
                 </View>
               </GlassCard>
@@ -202,4 +223,6 @@ const styles = StyleSheet.create({
   dayItems: { width: '100%' },
   groupTitle: { marginLeft: 12 },
   totalAmount: { alignSelf: 'center' },
+  divider: { height: StyleSheet.hairlineWidth },
+  dividerSlot: { justifyContent: 'center', width: '100%' },
 });

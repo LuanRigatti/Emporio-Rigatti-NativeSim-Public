@@ -10,6 +10,7 @@ export type NativeTrackingStatusButtonProps = {
   idleSystemImage?: string;
   activeSystemImage?: string;
   color?: string;
+  glassTint?: string;
   containerHeight?: number;
   containerWidth?: number;
   accessibilityLabel?: string;

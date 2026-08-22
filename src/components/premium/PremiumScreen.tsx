@@ -70,6 +70,8 @@ export function PremiumScreen({
     progressiveBlur && ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
   const resolvedProgressiveBlurHeight =
     progressiveBlurHeight ?? insets.top + theme.spacing.xxxl + theme.spacing.xs * 2;
+  const bottomScrollSpace =
+    theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg;
   const overlayContentPaddingTop = Math.max(
     0,
     overlayHeaderUnderlay
@@ -80,10 +82,14 @@ export function PremiumScreen({
     styles.content,
     {
       paddingHorizontal: theme.layout.screenHorizontalPadding,
-      paddingBottom: theme.spacing.xxxl,
+      paddingBottom: bottomScrollSpace,
     },
     contentContainerStyle,
   ];
+  const scrollIndicatorInsets = {
+    ...scrollViewProps?.scrollIndicatorInsets,
+    bottom: Math.max(scrollViewProps?.scrollIndicatorInsets?.bottom ?? 0, bottomScrollSpace),
+  };
 
   return (
     <View
@@ -109,6 +115,7 @@ export function PremiumScreen({
           ]}
           keyboardShouldPersistTaps="handled"
           onLayout={scrollViewProps?.onLayout}
+          scrollIndicatorInsets={scrollIndicatorInsets}
           showsVerticalScrollIndicator={false}
           style={{ overflow: 'visible' }}
         >

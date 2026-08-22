@@ -1730,6 +1730,60 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Fundo Light Mode da Splash e Login
+
+### Funcionalidade implementada
+
+- O fundo da Splash Screen nativa do iOS passou a usar `#FAF8F7` no Light
+  Mode, alinhado ao fundo atual do aplicativo.
+- A configuração Dark Mode da Splash nativa foi preservada em `#0B0F14`.
+- A Splash React/SplashGate e a tela de Login já consumiam
+  `theme.colors.background`, portanto não exigiram alterações de código.
+
+### Comportamento final
+
+- Splash nativa iOS, SplashGate/Splash React e Login apresentam o mesmo fundo
+  Light Mode `#FAF8F7`.
+- Logo, ícones, tamanhos, posições, animações, fluxo de autenticação e Dark
+  Mode permanecem inalterados.
+
+### Arquivos principais
+
+- `app.config.js`
+- `src/features/splash/components/SplashFallback.tsx` (referência existente,
+  sem alteração)
+- `src/features/splash/SplashGate.tsx` (fluxo existente, sem alteração)
+- `src/features/login/components/LoginScreen.tsx` (referência existente, sem
+  alteração)
+
+### Flags e schema afetados
+
+- Alterada somente a opção `expo-splash-screen.backgroundColor` do Light Mode.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma dependência foi adicionada.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado em `app.config.js`: passou.
+- `git diff --check`: passou; os avisos são apenas de normalização LF/CRLF.
+
+### Limitações conhecidas
+
+- A alteração da Splash nativa é aplicada pelo config plugin e exige
+  recompilação do Development Build/iOS para aparecer no dispositivo.
+- A confirmação visual final ainda depende da execução no iPhone Development
+  Build.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- Esta alteração ainda não foi commitada.
+- HEAD atual: `4f1a3208bf2cd78e1e79437ac78f4c121068fdad`
+  (`feat: add local test mode for safe app demos`).
+- Nenhum commit ou push adicional foi realizado.
+
 ## Token compartilhado de tint Liquid Glass
 
 ### Funcionalidade implementada

@@ -60,7 +60,7 @@ module.exports = {
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#FAFAFF',
+          backgroundColor: '#FAF8F7',
           dark: {
             backgroundColor: '#0B0F14',
           },

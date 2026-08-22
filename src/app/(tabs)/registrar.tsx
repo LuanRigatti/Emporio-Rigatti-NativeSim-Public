@@ -60,7 +60,7 @@ function RegistrarModeSelection() {
       mode="transparent"
       titleStyle={{
         fontFamily: 'System',
-        fontSize: 32,
+        fontSize: 36,
         fontWeight: '700',
         marginLeft: -(theme.spacing.xxs * 2),
       }}

@@ -25,11 +25,14 @@ export { darkTheme } from './darkTheme';
 export {
   GLASS_DARK_TINT_OPACITY,
   GLASS_LIGHT_TINT_OPACITY,
+  SEARCH_BAR_LIGHT_TINT_OPACITY,
   darkModeLiquidGlassTint,
   getLiquidGlassTint,
+  getSearchBarLiquidGlassTint,
   lightModeLiquidGlassTint,
   lightModeTestPalette,
   previousLightColors,
+  searchBarLightModeLiquidGlassTint,
 } from './colors';
 export { icons } from './icons';
 export { lightTheme } from './lightTheme';

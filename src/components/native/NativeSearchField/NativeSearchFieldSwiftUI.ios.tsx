@@ -17,6 +17,7 @@ import { PlatformColor } from 'react-native';
 import { useEffect, useState } from 'react';
 import { roundedFont } from '../nativeTypography';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { getSearchBarLiquidGlassTint, useAppTheme } from '@/theme';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
@@ -42,6 +43,7 @@ export default function NativeSearchFieldSwiftUI({
   placeholder = 'Pesquisar',
   value,
 }: NativeSearchFieldProps) {
+  const { resolvedMode } = useAppTheme();
   const text = useNativeState(value);
   const [focused, setFocused] = useState(false);
 
@@ -63,7 +65,11 @@ export default function NativeSearchFieldSwiftUI({
           frame({ maxWidth: 1000, minHeight: 36 }),
           padding({ horizontal: 12, vertical: 8 }),
           glassEffect({
-            glass: { interactive: true, variant: 'regular' },
+            glass: {
+              interactive: true,
+              tint: getSearchBarLiquidGlassTint(resolvedMode),
+              variant: 'regular',
+            },
             shape: 'capsule',
           }),
           strokeBorder({

@@ -1730,6 +1730,53 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Títulos principais das abas em 36 pt
+
+### Funcionalidade implementada
+
+- Aumentado somente o `fontSize` dos títulos principais de Home, Finanças,
+  Registrar, Histórico e Configurações de 34 para 36.
+
+### Comportamento final
+
+- Os cinco títulos ficam levemente maiores e visualmente consistentes.
+- Peso, cor, posição, Safe Area, altura dos headers, espaçamentos, controles,
+  navegação e demais conteúdos permanecem inalterados.
+- O `NativeGlassHeader` compartilhado não foi alterado.
+
+### Arquivos principais
+
+- `src/app/(tabs)/dashboard.tsx`
+- `src/app/(tabs)/financeiro.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/features/history/components/HistoryScreen.tsx`
+- `src/features/settings/components/SettingsScreen.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado nos cinco arquivos: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final do tamanho dos títulos depende de teste no iPhone
+  Development Build.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- Esta alteração ainda não foi commitada.
+- HEAD de referência: `e9ea68237aadc1bf92b1dcad6723d5c56a72bc7c`.
+- Nenhum commit ou push adicional foi realizado.
+
 ## Ajuste de cor do status Em aberto nos cards da Fábrica
 
 ### Funcionalidade implementada

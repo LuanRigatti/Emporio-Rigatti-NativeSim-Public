@@ -91,6 +91,8 @@ export const lightModeTestPalette = {
 
 export const GLASS_LIGHT_TINT_OPACITY = 0.6 as const;
 export const lightModeLiquidGlassTint = `rgba(255, 255, 255, ${GLASS_LIGHT_TINT_OPACITY})` as const;
+export const SEARCH_BAR_LIGHT_TINT_OPACITY = 0.1 as const;
+export const searchBarLightModeLiquidGlassTint = `rgba(255, 255, 255, ${SEARCH_BAR_LIGHT_TINT_OPACITY})` as const;
 
 export const lightColors: ThemeColors = {
   ...previousLightColors,
@@ -161,4 +163,8 @@ export const darkModeLiquidGlassTint = colorWithOpacity(
 
 export function getLiquidGlassTint(mode: 'light' | 'dark'): string {
   return mode === 'dark' ? darkModeLiquidGlassTint : lightModeLiquidGlassTint;
+}
+
+export function getSearchBarLiquidGlassTint(mode: 'light' | 'dark'): string | undefined {
+  return mode === 'dark' ? darkModeLiquidGlassTint : searchBarLightModeLiquidGlassTint;
 }

@@ -153,6 +153,7 @@ export type NativeGlassIconButtonProps = {
   containerWidth?: number;
   shape?: 'circle' | 'capsule';
   interactiveGlass?: boolean;
+  labelSize?: number;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };

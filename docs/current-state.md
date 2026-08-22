@@ -1730,6 +1730,73 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Estabilização das rows de Registrar Entrega com NativeCardContextMenu
+
+### Funcionalidade implementada
+
+- Restaurada a composição nativa `NativeCardContextMenu` nas rows de Registrar
+  Entrega após o teste controlado com RN puro confirmar que o glitch vinha da
+  medição intrínseca do `Host`/`RNHostView`.
+- Cada row passou a possuir altura determinística calculada a partir do padding
+  e das alturas tipográficas já existentes.
+- O container externo RN mantém a geometria, enquanto o Context Menu nativo
+  preenche `width` e `height` disponíveis.
+
+### Comportamento final
+
+- O estado vazio e o primeiro cliente preservam a altura já corrigida.
+- Ao adicionar o segundo, terceiro ou quarto cliente, o card cresce somente
+  pela nova row na parte inferior, sem snapshots intermediários, ghosts ou
+  piscadas nas rows existentes.
+- Preview, long press e exclusão continuam nativos e funcionais.
+- O título “Hoje”, o estado vazio, Bottom Sheets, navegação e lógica de
+  registro permanecem preservados.
+- Registrar Dados não foi alterado porque não utiliza o mesmo caminho de
+  `NativeCardContextMenu` por row.
+
+### Arquivos principais
+
+- `src/app/(tabs)/registrar.tsx`
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.ios.tsx`
+  (componente auditado; não alterado)
+- `src/features/history/components/DeliveryCard.tsx` (referência estrutural
+  validada; não alterado)
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma API nativa, Pod, dependência ou asset foi alterado.
+- O bypass RN e a instrumentação DEV `[registrar-delivery-layout]` foram
+  removidos após o diagnóstico.
+
+### Validações executadas
+
+- Teste controlado no iPhone: o bypass sem `NativeCardContextMenu` eliminou o
+  glitch, confirmando a causa no sizing/composição nativa.
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado em `src/app/(tabs)/registrar.tsx`: passou com a regra de
+  Prettier desativada para isolar as regras funcionais.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A validação de gestos e composição visual nativa continua dependente do
+  iPhone Development Build.
+- O componente compartilhado `NativeCardContextMenu` continua usando
+  `Host/RNHostView matchContents`; a estabilidade desta tela depende da
+  geometria determinística fornecida pelo container RN.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- A alteração está apenas no working tree e ainda não foi commitada.
+- HEAD de referência: `2f5becff5fe0c19fb1e596c255b70acf6701cb53`.
+- Não há commit/hash específico para esta alteração.
+- Nenhum commit ou push adicional foi realizado.
+
 ## Títulos principais das abas em 36 pt
 
 ### Funcionalidade implementada

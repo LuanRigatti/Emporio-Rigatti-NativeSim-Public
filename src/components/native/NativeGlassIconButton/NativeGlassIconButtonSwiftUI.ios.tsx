@@ -23,6 +23,7 @@ export default function NativeGlassIconButtonSwiftUI({
   glassTint,
   interactiveGlass = false,
   label,
+  labelSize,
   onPress,
   size,
   shape = 'circle',
@@ -52,7 +53,14 @@ export default function NativeGlassIconButtonSwiftUI({
         onPress={onPress}
       >
         {label ? (
-          <Text modifiers={[roundedFont({}), ...(color ? [tint(color)] : [])]}>{label}</Text>
+          <Text
+            modifiers={[
+              roundedFont(labelSize ? { size: labelSize } : {}),
+              ...(color ? [tint(color)] : []),
+            ]}
+          >
+            {label}
+          </Text>
         ) : (
           <Image color={color} size={size} systemName={(systemImage ?? 'plus') as SFSymbol} />
         )}

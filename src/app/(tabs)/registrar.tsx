@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
@@ -177,6 +178,12 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
       ),
     [dailyValues, totalKilometers],
   );
+  const dailyDataCardMinHeight =
+    theme.spacing.lg * 2 +
+    theme.typography.caption.lineHeight +
+    theme.spacing.md +
+    theme.typography.body.lineHeight * 4 +
+    theme.spacing.sm * 3;
 
   const handleDailyDataSubmit = useCallback(
     async (values: NativeDailyDataValues) => {
@@ -269,61 +276,99 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
-        contentContainerStyle={styles.dailyDataContent}
+        contentContainerStyle={[styles.dailyDataContent, { paddingHorizontal: 0 }]}
         overlayHeader={header}
         progressiveBlur
       >
-        {hasDailyData ? (
-          <View style={[styles.dailyDataList, { gap: theme.spacing.sm }]}>
+        <View style={[styles.dailyDataList, { gap: theme.spacing.sm }]}>
+          <Animated.View style={styles.fullWidth}>
             <View
               style={[
                 styles.dailyDataContextWrapper,
                 {
                   backgroundColor:
                     resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
-                  borderRadius: theme.radius.xl + theme.spacing.sm,
+                  borderRadius: hasDailyData
+                    ? theme.radius.xl + theme.spacing.sm
+                    : theme.radius.xl + theme.spacing.lg,
+                  height: dailyDataCardMinHeight,
+                  minHeight: dailyDataCardMinHeight,
                   overflow: 'hidden',
                   width: '100%',
                 },
                 resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
               ]}
             >
-              <NativeCardContextMenu
-                actions={[
-                  {
-                    destructive: true,
-                    disabled: isDeleting,
-                    id: 'delete-daily-data',
-                    onPress: () => {
-                      void handleDeleteDailyData();
-                    },
-                    systemImage: 'trash',
-                    title: 'Excluir',
-                  },
-                ]}
-                style={[
-                  styles.dailyDataContextWrapper,
-                  { borderRadius: theme.radius.xl + theme.spacing.sm },
-                ]}
-                preview={dailyDataPreview}
-              >
-                <View
-                  style={[
-                    styles.dailyDataCard,
-                    {
-                      backgroundColor: 'transparent',
-                      borderRadius: theme.radius.xl + theme.spacing.sm,
-                      padding: theme.spacing.lg,
-                      width: '100%',
-                    },
-                  ]}
-                >
-                  {renderDailyDataContent()}
-                </View>
+            <NativeCardContextMenu
+              actions={
+                hasDailyData
+                  ? [
+                      {
+                        destructive: true,
+                        disabled: isDeleting,
+                        id: 'delete-daily-data',
+                        onPress: () => {
+                          void handleDeleteDailyData();
+                        },
+                        systemImage: 'trash',
+                        title: 'Excluir',
+                      },
+                    ]
+                  : []
+              }
+              style={[
+                styles.dailyDataContextWrapper,
+                {
+                  borderRadius: hasDailyData
+                    ? theme.radius.xl + theme.spacing.sm
+                    : theme.radius.xl + theme.spacing.lg,
+                  height: dailyDataCardMinHeight,
+                },
+              ]}
+              preview={dailyDataPreview}
+            >
+              <Animated.View style={styles.fullWidth}>
+                {hasDailyData ? (
+                  <Animated.View entering={FadeIn.duration(theme.animations.duration.fast)}>
+                    <View
+                      style={[
+                        styles.dailyDataCard,
+                        {
+                          backgroundColor: 'transparent',
+                          borderRadius: theme.radius.xl + theme.spacing.sm,
+                          padding: theme.spacing.lg,
+                          width: '100%',
+                        },
+                      ]}
+                    >
+                      {renderDailyDataContent()}
+                    </View>
+                  </Animated.View>
+                ) : (
+                  <View
+                    style={[
+                      styles.emptyStateCard,
+                      {
+                        minHeight: dailyDataCardMinHeight,
+                        paddingVertical: theme.spacing.xxl * 2,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        theme.typography.body,
+                        { color: theme.colors.textSecondary, textAlign: 'center' },
+                      ]}
+                    >
+                      Nenhum dado hoje
+                    </Text>
+                  </View>
+                )}
+              </Animated.View>
               </NativeCardContextMenu>
             </View>
-          </View>
-        ) : null}
+          </Animated.View>
+        </View>
       </PremiumScreen>
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <View
@@ -342,6 +387,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
             glassTint={getLiquidGlassTint(resolvedMode)}
             interactiveGlass
             label="Adicionar"
+            labelSize={18}
             onPress={openDailyDataSheet}
             shape="capsule"
           />
@@ -402,6 +448,14 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     () => deliveries.filter((delivery) => delivery.data === currentDate),
     [currentDate, deliveries],
   );
+  const emptyDeliveryCardMinHeight =
+    theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
+  const deliveryRowHeight =
+    (theme.spacing.sm + theme.spacing.xs) * 2 +
+    Math.max(
+      theme.typography.body.lineHeight,
+      theme.typography.callout.lineHeight + theme.typography.footnote.lineHeight + 2,
+    );
   const openSheet = () => {
     triggerLightImpactHaptic();
     setSelectedClient(null);
@@ -477,113 +531,164 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
         progressiveBlur
       >
         <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
-          {todayDeliveries.length > 0 ? (
+          <Animated.View style={styles.fullWidth}>
             <PremiumCard
               style={[
                 styles.deliveryCard,
                 {
-                  borderRadius: theme.radius.xl + theme.spacing.xl,
-                  padding: theme.spacing.md,
-                  position: 'relative',
+                  height:
+                    todayDeliveries.length <= 1 ? emptyDeliveryCardMinHeight : undefined,
+                  minHeight: emptyDeliveryCardMinHeight,
                 },
+                todayDeliveries.length > 0
+                  ? {
+                      borderRadius: theme.radius.xl + theme.spacing.lg,
+                      padding: theme.spacing.md,
+                      position: 'relative',
+                    }
+                  : {
+                      borderRadius: theme.radius.xl + theme.spacing.lg,
+                      paddingVertical: theme.spacing.xxl * 2,
+                    },
               ]}
             >
-              <Text
-                style={[
-                  theme.typography.headline,
-                  styles.deliveryDayTitle,
-                  { color: theme.colors.textPrimary },
-                ]}
-              >
-                Hoje
-              </Text>
-              <View
-                style={[
-                  styles.todayDeliveriesGroup,
-                  { gap: theme.spacing.xs, marginTop: theme.spacing.xl },
-                ]}
-              >
-                {[...todayDeliveries].reverse().map((delivery) => {
-                  const renderDeliveryItemRow = (preview = false) => (
-                    <View
+            <Animated.View style={styles.fullWidth}>
+              {todayDeliveries.length > 0 ? (
+                <>
+                  <View
+                    style={[
+                      styles.deliveryTitleSlot,
+                      {
+                        height: theme.typography.headline.lineHeight,
+                        marginTop: -theme.spacing.xs,
+                      },
+                    ]}
+                  >
+                    <Text
                       style={[
-                        styles.deliveryItemRow,
-                        {
-                          backgroundColor: preview ? theme.colors.surface : 'transparent',
-                          borderRadius: theme.radius.xl + theme.spacing.sm,
-                          overflow: preview ? 'hidden' : undefined,
-                          paddingHorizontal: theme.spacing.md,
-                          paddingVertical: theme.spacing.sm + theme.spacing.xs,
-                          width: '100%',
-                        },
+                        theme.typography.headline,
+                        styles.deliveryDayTitle,
+                        { color: theme.colors.textPrimary },
                       ]}
                     >
-                      <View style={styles.deliveryItemCopy}>
-                        <Text
-                          style={[
-                            theme.typography.callout,
-                            { color: theme.colors.textPrimary, fontWeight: '700' },
+                      Hoje
+                    </Text>
+                  </View>
+                  <View style={styles.fullWidth}>
+                  <View
+                    style={[
+                      styles.todayDeliveriesGroup,
+                      { gap: theme.spacing.xs },
+                    ]}
+                  >
+                    {[...todayDeliveries].reverse().map((delivery) => {
+                      const renderDeliveryItemRow = (preview = false) => (
+                        <View style={[
+                            styles.deliveryItemRow,
+                            {
+                              backgroundColor: preview
+                                ? theme.colors.surface
+                                : 'transparent',
+                              borderRadius: theme.radius.xl + theme.spacing.sm,
+                              height: deliveryRowHeight,
+                              overflow: preview ? 'hidden' : undefined,
+                              paddingHorizontal: theme.spacing.md,
+                              paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                              width: '100%',
+                            },
                           ]}
                         >
-                          {delivery.cliente}
-                        </Text>
-                        <Text
-                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-                        >
-                    {maskQuantity(delivery.quantidadeBaldes)}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[
-                          theme.typography.body,
-                          { color: theme.colors.textPrimary, fontWeight: '600' },
-                        ]}
-                      >
-                        {maskText(delivery.valor)}
-                      </Text>
-                    </View>
-                  );
-
-                  return (
-                    <View
-                      key={delivery.id}
-                      style={[
-                        styles.deliveryContextMenu,
+                          <View style={styles.deliveryItemCopy}>
+                            <Text
+                              style={[
+                                theme.typography.callout,
+                                { color: theme.colors.textPrimary, fontWeight: '700' },
+                              ]}
+                            >
+                              {delivery.cliente}
+                            </Text>
+                            <Text
+                              style={[
+                                theme.typography.footnote,
+                                { color: theme.colors.textSecondary },
+                              ]}
+                            >
+                              {maskQuantity(delivery.quantidadeBaldes)}
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              theme.typography.body,
+                              { color: theme.colors.textPrimary, fontWeight: '600' },
+                            ]}
+                          >
+                            {maskText(delivery.valor)}
+                          </Text>
+                        </View>
+                      );
+                      const rowContent = renderDeliveryItemRow();
+                      const rowActions = [
                         {
-                          backgroundColor: theme.colors.surface,
-                          borderRadius: theme.radius.xl + theme.spacing.sm,
-                          overflow: 'hidden',
-                          width: '100%',
-                        },
-                      ]}
-                    >
-                      <NativeCardContextMenu
-                        actions={[
-                          {
-                            destructive: true,
-                            disabled: testModeEnabled,
-                            id: 'delete-delivery',
-                            onPress: () => {
-                              void removeDelivery(delivery.id);
-                            },
-                            systemImage: 'trash',
-                            title: 'Excluir',
+                          destructive: true,
+                          disabled: testModeEnabled,
+                          id: 'delete-delivery',
+                          onPress: () => {
+                            void removeDelivery(delivery.id);
                           },
-                        ]}
-                        preview={renderDeliveryItemRow(true)}
-                        style={[
-                          styles.deliveryContextMenu,
-                          { borderRadius: theme.radius.xl + theme.spacing.sm },
-                        ]}
-                      >
-                        {renderDeliveryItemRow()}
-                      </NativeCardContextMenu>
-                    </View>
-                  );
-                })}
-              </View>
+                          systemImage: 'trash' as const,
+                          title: 'Excluir',
+                        },
+                      ];
+
+                      return (
+                        <View
+                          key={delivery.id}
+                          style={[
+                            styles.deliveryContextMenu,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderRadius: theme.radius.xl + theme.spacing.sm,
+                              height: deliveryRowHeight,
+                              overflow: 'hidden',
+                              width: '100%',
+                            },
+                          ]}
+                        >
+                          <NativeCardContextMenu
+                            actions={rowActions}
+                            preview={renderDeliveryItemRow(true)}
+                            style={[
+                              styles.deliveryContextMenu,
+                              {
+                                borderRadius: theme.radius.xl + theme.spacing.sm,
+                                height: '100%',
+                                width: '100%',
+                              },
+                            ]}
+                          >
+                            {rowContent}
+                          </NativeCardContextMenu>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.emptyStateCard}>
+                  <Text
+                    style={[
+                      theme.typography.body,
+                      { color: theme.colors.textSecondary, textAlign: 'center' },
+                    ]}
+                  >
+                    Nenhuma entrega hoje
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
             </PremiumCard>
-          ) : null}
+          </Animated.View>
         </View>
       </PremiumScreen>
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -603,6 +708,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
             glassTint={getLiquidGlassTint(resolvedMode)}
             interactiveGlass
             label="Adicionar"
+            labelSize={18}
             onPress={openSheet}
             shape="capsule"
           />
@@ -662,6 +768,7 @@ const styles = StyleSheet.create({
   widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   widgetCopy: { gap: 8, marginTop: 12 },
   dailyDataContent: { flexGrow: 1 },
+  fullWidth: { width: '100%' },
   floatingAdd: {
     alignItems: 'center',
     left: 0,
@@ -669,6 +776,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   dailyDataList: { paddingHorizontal: 16, paddingTop: 28 },
+  emptyStateCard: { alignItems: 'center', justifyContent: 'center', width: '100%' },
   dailyDataContextWrapper: { width: '100%' },
   dailyDataCard: { gap: 16 },
   dailyDataRows: { gap: 12 },
@@ -677,8 +785,9 @@ const styles = StyleSheet.create({
   headerTrailingActions: { width: 104 },
   deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
-  deliveryCard: { gap: 8, overflow: 'hidden' },
-  deliveryDayTitle: { left: 0, position: 'absolute', right: 0, textAlign: 'center', top: 8 },
+  deliveryCard: { gap: 8, overflow: 'visible' },
+  deliveryTitleSlot: { alignItems: 'center', justifyContent: 'center', width: '100%' },
+  deliveryDayTitle: { textAlign: 'center' },
   todayDeliveriesGroup: { width: '100%' },
   deliveryContextMenu: { width: '100%' },
   deliveryItemRow: {

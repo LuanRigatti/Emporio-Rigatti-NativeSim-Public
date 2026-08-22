@@ -13,6 +13,7 @@ export default function NativeGlassIconButtonFallback({
   disabled = false,
   fallbackIcon,
   label,
+  labelSize,
   onPress,
   size,
   shape = 'circle',
@@ -45,9 +46,19 @@ export default function NativeGlassIconButtonFallback({
         disabled={disabled}
         onPress={onPress}
         style={({ pressed }) => [styles.button, { opacity: pressed ? theme.opacities.pressed : 1 }]}
-      >
+        >
         {label ? (
-          <Text style={[styles.label, { color: iconColor }]}>{label}</Text>
+          <Text
+            style={[
+              styles.label,
+              {
+                color: iconColor,
+                fontSize: labelSize ?? 17,
+              },
+            ]}
+          >
+            {label}
+          </Text>
         ) : fallbackIcon ? (
           <Ionicons color={iconColor} name={fallbackIcon} size={iconSize} />
         ) : null}

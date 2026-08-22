@@ -146,6 +146,7 @@ export type NativeGlassIconButtonProps = {
   accessibilityLabel: string;
   onPress: () => void;
   color?: string;
+  glassTint?: string;
   size?: number;
   containerSize?: number;
   containerWidth?: number;
@@ -167,6 +168,7 @@ export type NativeGlassBackButtonProps = {
 
 export type NativeGlassMenuProps = {
   actions: readonly NativeMenuAction[];
+  glassTint?: string;
   systemImage: string;
   fallbackIcon: ComponentProps<typeof Ionicons>['name'];
   accessibilityLabel: string;

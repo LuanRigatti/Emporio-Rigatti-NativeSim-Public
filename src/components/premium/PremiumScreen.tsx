@@ -1,4 +1,3 @@
-import { useIsFocused } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import {
   Platform,
@@ -6,18 +5,15 @@ import {
   StyleSheet,
   View,
   type ColorValue,
-  type LayoutChangeEvent,
   type ScrollViewProps,
   type StyleProp,
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { ProgressiveBlur } from '@/components/ui/progressive-blur';
 import { ENABLE_PROGRESSIVE_BLUR } from '@/config/featureFlags';
 import { useAppTheme } from '@/theme';
-import { logStartupDiagnostics, useStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
+import { useAppSafeAreaInsets } from '@/providers';
 
 export type PremiumScreenProps = ViewProps & {
   children: ReactNode;
@@ -36,7 +32,6 @@ export type PremiumScreenProps = ViewProps & {
   progressiveBlurTopOffset?: number;
   progressiveBlur?: boolean;
   scrollable?: boolean;
-  startupDiagnosticsLabel?: string;
   contentContainerStyle?: StyleProp<ViewStyle>;
   scrollViewProps?: Omit<ScrollViewProps, 'contentContainerStyle'>;
 };
@@ -58,7 +53,6 @@ export function PremiumScreen({
   progressiveBlurTopOffset = 0,
   progressiveBlur = false,
   scrollable = true,
-  startupDiagnosticsLabel,
   contentContainerStyle,
   scrollViewProps,
   onLayout: rootOnLayout,
@@ -66,8 +60,7 @@ export function PremiumScreen({
   ...props
 }: PremiumScreenProps) {
   const { resolvedMode, theme } = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
+  const insets = useAppSafeAreaInsets();
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(0);
   const effectiveOverlayHeaderHeight =
     overlayHeaderHeight || insets.top + theme.sizes.touchTargetMinimum;
@@ -83,40 +76,6 @@ export function PremiumScreen({
       ? 0
       : overlayHeaderTotalHeight + overlayHeaderSpacing - overlayHeaderContentOffset,
   );
-  const diagnosticsComponent = startupDiagnosticsLabel
-    ? `PremiumScreen.${startupDiagnosticsLabel}`
-    : 'PremiumScreen';
-
-  useStartupDiagnostics(diagnosticsComponent, {
-    effectiveOverlayHeaderHeight,
-    insetsBottom: insets.bottom,
-    insetsTop: insets.top,
-    isFocused,
-    overlayHeaderHeight,
-    overlayHeaderTopOffset,
-    overlayHeaderTotalHeight,
-    overlayContentPaddingTop,
-    overlayHeaderUnderlay,
-    paddingTop: overlayHeader && !overlayHeaderUnderlay ? 0 : insets.top,
-  });
-
-  const handleRootLayout = (event: LayoutChangeEvent) => {
-    rootOnLayout?.(event);
-    logStartupDiagnostics(diagnosticsComponent, 'root-layout', {
-      frame: event.nativeEvent.layout,
-    });
-  };
-  const handleScrollViewLayout = (event: LayoutChangeEvent) => {
-    scrollViewProps?.onLayout?.(event);
-    logStartupDiagnostics(`${diagnosticsComponent}.scrollView`, 'layout', {
-      frame: event.nativeEvent.layout,
-    });
-  };
-  const handleContentLayout = (event: LayoutChangeEvent) => {
-    logStartupDiagnostics(`${diagnosticsComponent}.content`, 'layout', {
-      frame: event.nativeEvent.layout,
-    });
-  };
   const contentStyle = [
     styles.content,
     {
@@ -129,7 +88,7 @@ export function PremiumScreen({
   return (
     <View
       {...props}
-      onLayout={handleRootLayout}
+      onLayout={rootOnLayout}
       style={[
         styles.safeArea,
         {
@@ -149,7 +108,7 @@ export function PremiumScreen({
             overlayHeader ? { paddingTop: overlayContentPaddingTop } : undefined,
           ]}
           keyboardShouldPersistTaps="handled"
-          onLayout={handleScrollViewLayout}
+          onLayout={scrollViewProps?.onLayout}
           showsVerticalScrollIndicator={false}
           style={{ overflow: 'visible' }}
         >
@@ -157,7 +116,6 @@ export function PremiumScreen({
         </ScrollView>
       ) : (
         <View
-          onLayout={handleContentLayout}
           style={[
             contentStyle,
             overlayHeader ? { paddingTop: overlayContentPaddingTop } : undefined,
@@ -192,10 +150,6 @@ export function PremiumScreen({
         <View
           onLayout={(event) => {
             const height = event.nativeEvent.layout.height;
-            logStartupDiagnostics(`${diagnosticsComponent}.overlayHeader`, 'layout', {
-              frame: event.nativeEvent.layout,
-              measuredHeight: height,
-            });
             setOverlayHeaderHeight(height);
             onOverlayHeaderLayout?.(height);
           }}

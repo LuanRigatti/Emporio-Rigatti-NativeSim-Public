@@ -22,7 +22,7 @@ import {
 } from '@/services/finance';
 import { routeTrackingRepository } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
 import {
   HISTORY_MONTH_ITEMS,
@@ -50,7 +50,7 @@ const metricCopy = {
 export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const router = useRouter();
   const params = useLocalSearchParams<{ period?: string | string[] }>();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const [selectedMonth, setSelectedMonth] = useState(
     () => parseMonthlyPeriodParam(params.period).month,
   );
@@ -156,6 +156,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
       rightActions={
         <NativePeriodActionGroup
           color={theme.colors.textPrimary}
+          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
           monthDisplayValue={monthShortLabel(selectedMonth)}
           monthItems={HISTORY_MONTH_ITEMS}
           onMonthChange={setSelectedMonth}

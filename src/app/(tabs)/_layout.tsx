@@ -1,14 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { getNativeCapabilities } from '@/platform/nativeCapabilities';
-import {
-  logStartupDiagnostics,
-  startupLayoutHandler,
-  useStartupDiagnostics,
-} from '@/utils/startupLayoutDiagnostics';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -31,35 +23,11 @@ export default function PrototypeTabsLayout() {
 
 function TabsNavigator() {
   const colorScheme = useColorScheme();
-  const insets = useSafeAreaInsets();
   const iconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
-  const capabilities = getNativeCapabilities();
-
-  useStartupDiagnostics('NativeTabs', {
-    canUseNativeTabs: capabilities.canUseNativeTabs,
-    colorScheme,
-    insetsBottom: insets.bottom,
-    insetsTop: insets.top,
-  });
 
   return (
-    <View
-      collapsable={false}
-      onLayout={startupLayoutHandler('NativeTabs.sceneHost')}
-      style={styles.root}
-    >
-      <NativeTabs
-        labelVisibilityMode="unlabeled"
-        screenListeners={{
-          blur: (event) => {
-            logStartupDiagnostics('NativeTabs', 'scene-blur', { target: event.target });
-          },
-          focus: (event) => {
-            logStartupDiagnostics('NativeTabs', 'scene-focus', { target: event.target });
-          },
-        }}
-        tintColor={iconColor}
-      >
+    <View collapsable={false} style={styles.root}>
+      <NativeTabs labelVisibilityMode="unlabeled" tintColor={iconColor}>
         <NativeTabs.Trigger name="dashboard">
           <NativeTabs.Trigger.Icon {...icon('home-outline', 'house', 'house.fill', iconColor)} />
           <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>

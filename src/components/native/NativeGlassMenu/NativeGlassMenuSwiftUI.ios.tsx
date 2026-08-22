@@ -18,6 +18,7 @@ export default function NativeGlassMenuSwiftUI({
   actions,
   color,
   containerSize,
+  glassTint,
   size,
   style,
   systemImage,
@@ -31,7 +32,7 @@ export default function NativeGlassMenuSwiftUI({
               padding({ all: 0 }),
               frame({ width: containerSize, height: containerSize }),
               glassEffect({
-                glass: { interactive: true, variant: 'regular' },
+                glass: { interactive: true, tint: glassTint, variant: 'regular' },
                 shape: 'circle',
               }),
               ...(color ? [tint(color)] : []),

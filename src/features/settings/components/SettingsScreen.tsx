@@ -7,14 +7,14 @@ import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassMenu } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useSession } from '@/providers';
-import { useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 import { SettingItem } from './SettingItem';
 import { SettingsSection } from './SettingsSection';
 
 export function SettingsScreen() {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const router = useRouter();
   const { isAuthenticated, signOutMock } = useSession();
 
@@ -42,6 +42,7 @@ export function SettingsScreen() {
       color={theme.colors.textPrimary}
       containerSize={theme.sizes.touchTargetMinimum}
       fallbackIcon="ellipsis-horizontal"
+      glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
       size={theme.sizes.iconMedium}
       style={{
         height: theme.sizes.touchTargetMinimum,
@@ -92,7 +93,6 @@ export function SettingsScreen() {
 
   return (
     <PremiumScreen
-      startupDiagnosticsLabel="Configuracoes"
       contentContainerStyle={[
         styles.content,
         {

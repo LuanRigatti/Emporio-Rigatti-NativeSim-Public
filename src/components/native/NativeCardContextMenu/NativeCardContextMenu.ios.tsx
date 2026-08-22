@@ -7,10 +7,6 @@ import {
   logHistoryLayoutDiagnostics,
   logHistoryLayoutSize,
 } from '@/utils/historyLayoutDiagnostics';
-import {
-  logStartupDiagnostics,
-  useStartupDiagnostics,
-} from '@/utils/startupLayoutDiagnostics';
 
 import type { NativeCardContextMenuProps } from './NativeCardContextMenu.types';
 
@@ -26,11 +22,6 @@ export default function NativeCardContextMenu({
   const diagnosticsComponent = diagnosticsLabel
     ? `${diagnosticsLabel}.NativeCardContextMenu`
     : 'NativeCardContextMenu';
-
-  useStartupDiagnostics(diagnosticsComponent, {
-    actionCount: actions.length,
-    hasPreview: Boolean(preview),
-  });
 
   const hasPreview = Boolean(preview);
 
@@ -79,10 +70,6 @@ export default function NativeCardContextMenu({
       ignoreSafeArea="all"
       matchContents
       onLayoutContent={({ nativeEvent }) => {
-        logStartupDiagnostics(`${diagnosticsComponent}.host`, 'content-ready', {
-          height: nativeEvent.height,
-          width: nativeEvent.width,
-        });
         if (diagnosticsDeliveryId) {
           logHistoryLayoutSize(
             diagnosticsDeliveryId,

@@ -1,5 +1,6 @@
 export { AuthProvider, useAuth } from './AuthProvider';
 export type { AuthContextValue, AuthStatus } from './AuthProvider';
+export { AppSafeAreaProvider, useAppSafeAreaInsets } from './AppSafeAreaContext';
 export { NotificationProvider, useNotifications } from './NotificationProvider';
 export type { NotificationContextValue } from './NotificationProvider';
 export {

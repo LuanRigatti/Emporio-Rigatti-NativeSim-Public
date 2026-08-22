@@ -22,6 +22,12 @@ export {
   typography,
 };
 export { darkTheme } from './darkTheme';
+export {
+  GLASS_LIGHT_TINT_OPACITY,
+  lightModeLiquidGlassTint,
+  lightModeTestPalette,
+  previousLightColors,
+} from './colors';
 export { icons } from './icons';
 export { lightTheme } from './lightTheme';
 export { ThemeProvider } from './ThemeProvider';

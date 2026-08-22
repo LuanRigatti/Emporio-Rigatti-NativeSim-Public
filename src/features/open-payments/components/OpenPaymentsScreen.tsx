@@ -58,7 +58,7 @@ export function OpenPaymentsScreen() {
           ...(preview
             ? {
                 backgroundColor:
-                  resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+                  resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
               }
             : {}),
           borderRadius: theme.radius.xl + theme.spacing.sm,

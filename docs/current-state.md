@@ -1729,3 +1729,58 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
   (`fix: stabilize initial native UI rendering`).
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
+
+## Token compartilhado de tint Liquid Glass
+
+### Funcionalidade implementada
+
+- Centralização da opacidade do tint branco usado pelos controles Liquid Glass
+  nativos já aprovados no Light Mode em `GLASS_LIGHT_TINT_OPACITY = 0.6`.
+- `lightModeLiquidGlassTint` passou a ser derivado desse token, eliminando a
+  duplicação do valor `0.6`.
+
+### Comportamento final
+
+- Seletor de mês/ano de Finanças, filtro do Histórico, menu de Configurações,
+  botões Voltar e seletor equivalente das telas financeiras continuam usando
+  `glassEffect` nativo com tint branco de 60% no Light Mode.
+- Dark Mode permanece sem alteração.
+- Tab bar, Search Bar, Bottom Sheets e outros controles Liquid Glass não listados
+  não passaram a consumir o token.
+- Geometria, tamanhos, ações, navegação e comportamento nativo foram preservados.
+
+### Arquivos principais
+
+- `src/theme/colors.ts`
+- `src/theme/index.ts`
+- Consumidores existentes de `lightModeLiquidGlassTint`:
+  `src/app/(tabs)/financeiro.tsx`,
+  `src/features/finance/components/MonthlyFinancialDetailScreen.tsx`,
+  `src/features/history/components/HistoryScreen.tsx`,
+  `src/features/settings/components/SettingsScreen.tsx` e
+  `src/components/native/NativeGlassBackButton/NativeGlassBackButton.tsx`.
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi alterada.
+- Nenhum schema, coleção, regra ou dado do Cloud Firestore foi alterado.
+- Nenhuma dependência, API nativa, asset ou componente novo foi criado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou sem erros.
+- ESLint direcionado em `src/theme/colors.ts` e `src/theme/index.ts`: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de normalização
+  LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- O token é intencionalmente limitado aos controles que já receberam o tint
+  branco de 60%; novos controles Liquid Glass não o recebem automaticamente.
+- A validação visual final continua dependente do iPhone Development Build.
+
+### Commit e publicação
+
+- Esta alteração ainda não foi commitada.
+- Não há commit/hash específico para ela.
+- Nenhum commit ou push adicional foi realizado.

@@ -20,6 +20,7 @@ export default function NativeGlassIconButtonSwiftUI({
   containerSize,
   containerWidth,
   disabled,
+  glassTint,
   interactiveGlass = false,
   label,
   onPress,
@@ -40,7 +41,7 @@ export default function NativeGlassIconButtonSwiftUI({
           ...(interactiveGlass
             ? [
                 glassEffect({
-                  glass: { interactive: true, variant: 'regular' },
+                  glass: { interactive: true, tint: glassTint, variant: 'regular' },
                   shape,
                 }),
               ]

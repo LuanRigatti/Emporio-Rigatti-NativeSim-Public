@@ -24,6 +24,7 @@ export default function NativePeriodActionGroupSwiftUI({
   color,
   dayItems,
   dayPicker = false,
+  glassTint,
   monthDisplayValue,
   monthItems,
   onDayChange,
@@ -61,7 +62,7 @@ export default function NativePeriodActionGroupSwiftUI({
             alignment: 'center',
           }),
           glassEffect({
-            glass: { interactive: true, variant: 'regular' },
+            glass: { interactive: true, tint: glassTint, variant: 'regular' },
             shape: 'capsule',
           }),
         ]}

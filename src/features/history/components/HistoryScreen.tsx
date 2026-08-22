@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useIsFocused } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -12,7 +11,8 @@ import {
   type NativeMenuAction,
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
-import { useAppTheme } from '@/theme';
+import { useAppSafeAreaInsets } from '@/providers';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 import { startHistoryLayoutDiagnostics } from '@/utils/historyLayoutDiagnostics';
 import { toHistoryDelivery } from '@/services/data';
@@ -40,8 +40,8 @@ function filterDayDeliveries<T extends { status: string }>(
 
 export function HistoryScreen() {
   const isFocused = useIsFocused();
-  const insets = useSafeAreaInsets();
-  const { reduceMotionEnabled, theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
+  const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const {
     reload: refresh,
@@ -207,6 +207,7 @@ export function HistoryScreen() {
           color={theme.colors.textPrimary}
           containerSize={theme.sizes.touchTargetMinimum}
           fallbackIcon="filter-outline"
+          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
           size={theme.sizes.iconMedium}
           systemImage="line.3.horizontal.decrease"
           style={{
@@ -303,7 +304,6 @@ export function HistoryScreen() {
   return (
     <Animated.View style={styles.root}>
       <PremiumScreen
-        startupDiagnosticsLabel="Historico"
         scrollable={false}
         contentContainerStyle={[
           styles.screenContent,

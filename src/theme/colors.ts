@@ -41,7 +41,7 @@ export type ThemeColors = {
   overlay: string;
 };
 
-export const lightColors: ThemeColors = {
+export const previousLightColors: ThemeColors = {
   background: '#FAFAFF',
   backgroundSecondary: '#EEF2F7',
   surface: '#FFFFFF',
@@ -82,6 +82,22 @@ export const lightColors: ThemeColors = {
   profit: '#0B6B61',
   expense: '#B42318',
   overlay: 'rgba(17, 24, 39, 0.42)',
+};
+
+export const lightModeTestPalette = {
+  background: '#FAF8F7',
+  surface: '#FEFFFF',
+} as const;
+
+export const GLASS_LIGHT_TINT_OPACITY = 0.6 as const;
+export const lightModeLiquidGlassTint = `rgba(255, 255, 255, ${GLASS_LIGHT_TINT_OPACITY})` as const;
+
+export const lightColors: ThemeColors = {
+  ...previousLightColors,
+  background: lightModeTestPalette.background,
+  surface: lightModeTestPalette.surface,
+  surfaceElevated: lightModeTestPalette.surface,
+  surfaceMuted: lightModeTestPalette.surface,
 };
 
 export const darkColors: ThemeColors = {

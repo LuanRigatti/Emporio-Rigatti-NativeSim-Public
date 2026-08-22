@@ -2,6 +2,7 @@ import type { NativeDropdownItem } from '../NativeDropdown';
 
 export type NativePeriodActionGroupProps = {
   color?: string;
+  glassTint?: string;
   dayItems?: readonly NativeDropdownItem<string>[];
   dayPicker?: boolean;
   valueFontSize?: number;

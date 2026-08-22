@@ -14,7 +14,6 @@ import {
   logHistoryLayoutDiagnostics,
   logHistoryLayoutFrame,
 } from '@/utils/historyLayoutDiagnostics';
-import { startupLayoutHandler, useStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
@@ -40,11 +39,6 @@ export function DeliveryCard({
 }: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
   const diagnosticsComponent = `History.DeliveryCard.${delivery.id}`;
-
-  useStartupDiagnostics(diagnosticsComponent, {
-    contained,
-    hasDeleteAction: Boolean(onDelete),
-  });
 
   useEffect(() => {
     logHistoryLayoutDiagnostics(delivery.id, diagnosticsComponent, 'mount');
@@ -83,7 +77,7 @@ export function DeliveryCard({
       style={[
         styles.card,
         {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
           borderRadius: theme.radius.xl + theme.spacing.sm,
           width: '100%',
         },
@@ -97,7 +91,7 @@ export function DeliveryCard({
       style={[
         styles.card,
         {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
           borderWidth: 0,
           borderRadius: theme.radius.xl + theme.spacing.sm,
           marginHorizontal: 0,
@@ -108,7 +102,7 @@ export function DeliveryCard({
     </GlassCard>
   );
   const contextCardStyle: ViewStyle = {
-    backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+    backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
     borderRadius: theme.radius.xl + theme.spacing.sm,
     height: HISTORY_DELIVERY_CARD_HEIGHT,
     width: '100%',
@@ -117,7 +111,6 @@ export function DeliveryCard({
   return onDelete ? (
     <View
       onLayout={(event) => {
-        startupLayoutHandler(`${diagnosticsComponent}.rn-container`)(event);
         handleHistoryLayout(event);
       }}
       style={[styles.contextContainer, contextCardStyle]}

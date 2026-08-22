@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
-import { logStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 import NativeGlassIconButtonFallback from './NativeGlassIconButtonFallback';
 import type { NativeGlassIconButtonProps } from './NativeGlassIconButton.types';
@@ -13,11 +12,6 @@ export default function NativeGlassIconButtonNative(props: NativeGlassIconButton
       (require('./NativeGlassIconButtonSwiftUI.ios')
         .default as ComponentType<NativeGlassIconButtonProps>)
       : null;
-
-  logStartupDiagnostics('NativeGlassIconButton', 'implementation', {
-    canUseExpoUI,
-    implementation: NativeImplementation ? 'SwiftUI-sync' : 'fallback',
-  });
 
   return NativeImplementation ? (
     <NativeImplementation {...props} />

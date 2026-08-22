@@ -1,15 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useRouter } from 'expo-router';
-import * as Font from 'expo-font';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeSearchField } from '@/components/native';
 import { useAppTheme } from '@/theme';
+import { useAppSafeAreaInsets } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
@@ -26,7 +24,6 @@ import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
-import { logStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 function PreviewIcon({
   color,
@@ -46,7 +43,7 @@ export default function Home() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { theme } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppSafeAreaInsets();
   const [focusEntryKey, setFocusEntryKey] = useState(0);
   const wasFocused = useRef(false);
   const [currentDate, setCurrentDate] = useState(() => todayIso());
@@ -84,30 +81,6 @@ export default function Home() {
   );
   useEffect(() => {
     const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const fontFamily = Ionicons.getFontFamily();
-    let lastReady: boolean | null = null;
-
-    const reportReadiness = () => {
-      const ready = Font.isLoaded(fontFamily);
-      if (ready === lastReady) return;
-
-      lastReady = ready;
-      logStartupDiagnostics('Home.Ionicons', 'font-readiness', {
-        fontFamily,
-        ready,
-      });
-    };
-
-    reportReadiness();
-    const timer = setInterval(() => {
-      reportReadiness();
-      if (lastReady) clearInterval(timer);
-    }, 16);
-
     return () => clearInterval(timer);
   }, []);
 
@@ -307,7 +280,6 @@ export default function Home() {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
-        startupDiagnosticsLabel="Home"
         contentContainerStyle={{
           gap: theme.spacing.lg,
           marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
@@ -438,58 +410,58 @@ export default function Home() {
           </PremiumCard>
         </View>
 
-        <View style={[styles.shortcutCards, { gap: theme.spacing.sm }]}>
+        <View style={styles.shortcutCards}>
           <PremiumCard
-            accessibilityLabel="Abrir recebimentos em aberto"
-            onPress={handleOpenRecebimentos}
             style={[
               styles.shortcutCard,
               {
                 borderRadius: theme.radius.xl + theme.spacing.sm,
+                gap: theme.spacing.sm,
                 paddingHorizontal: theme.spacing.lg,
-                paddingVertical: theme.spacing.lg,
+                paddingVertical: 0,
               },
             ]}
           >
-            <View style={styles.shortcutRow}>
-              <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
-                <PreviewIcon
-                  color={theme.colors.textSecondary}
-                  name="logo-usd"
-                  size={theme.sizes.iconSmall}
-                />
-                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                  Em aberto
-                </Text>
+            <AnimatedPressable
+              accessibilityLabel="Abrir recebimentos em aberto"
+              accessibilityRole="button"
+              onPress={handleOpenRecebimentos}
+              style={styles.shortcutAction}
+            >
+              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.lg }]}>
+                <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
+                  <PreviewIcon
+                    color={theme.colors.textSecondary}
+                    name="logo-usd"
+                    size={theme.sizes.iconSmall}
+                  />
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Em aberto
+                  </Text>
+                </View>
+                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
               </View>
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-            </View>
-          </PremiumCard>
-          <PremiumCard
-            accessibilityLabel="Abrir Fábrica"
-            onPress={handleOpenFactory}
-            style={[
-              styles.shortcutCard,
-              {
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                paddingHorizontal: theme.spacing.lg,
-                paddingVertical: theme.spacing.lg,
-              },
-            ]}
-          >
-            <View style={styles.shortcutRow}>
-              <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
-                <PreviewIcon
-                  color={theme.colors.textSecondary}
-                  name="business-outline"
-                  size={theme.sizes.iconSmall}
-                />
-                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                  Fábrica
-                </Text>
+            </AnimatedPressable>
+            <AnimatedPressable
+              accessibilityLabel="Abrir Fábrica"
+              accessibilityRole="button"
+              onPress={handleOpenFactory}
+              style={styles.shortcutAction}
+            >
+              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.lg }]}>
+                <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
+                  <PreviewIcon
+                    color={theme.colors.textSecondary}
+                    name="business-outline"
+                    size={theme.sizes.iconSmall}
+                  />
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Fábrica
+                  </Text>
+                </View>
+                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
               </View>
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-            </View>
+            </AnimatedPressable>
           </PremiumCard>
         </View>
 
@@ -523,6 +495,7 @@ const styles = StyleSheet.create({
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   shortcutCards: { width: '100%' },
   shortcutCard: {},
+  shortcutAction: { width: '100%' },
   shortcutLabel: { alignItems: 'center', flexDirection: 'row' },
   shortcutRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },

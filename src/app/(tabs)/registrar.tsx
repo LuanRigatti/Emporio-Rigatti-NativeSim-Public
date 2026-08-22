@@ -2,8 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
@@ -18,6 +16,7 @@ import type {
   NativeDailyDataValues,
 } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
@@ -70,7 +69,6 @@ function RegistrarModeSelection() {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
-        startupDiagnosticsLabel="Registrar"
         contentContainerStyle={[
           styles.modeSelectionContent,
           { marginTop: theme.spacing.xxxl + theme.spacing.xl + 2 },
@@ -153,7 +151,7 @@ function RegistrarModeSelection() {
 }
 
 export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
-  const insets = useSafeAreaInsets();
+  const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
   const [isDeleting, setIsDeleting] = useState(false);
   const { addFieldValue, deleteDailyData, getLatestDailyValue, getValues, setFieldValue } =
@@ -253,7 +251,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
       style={[
         styles.dailyDataCard,
         {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
           borderRadius: theme.radius.xl + theme.spacing.sm,
           overflow: 'hidden',
           padding: theme.spacing.lg,
@@ -268,7 +266,6 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
-        startupDiagnosticsLabel="RegistrarDailyData"
         contentContainerStyle={styles.dailyDataContent}
         overlayHeader={header}
         progressiveBlur
@@ -280,7 +277,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
                 styles.dailyDataContextWrapper,
                 {
                   backgroundColor:
-                    resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
+                    resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
                   borderRadius: theme.radius.xl + theme.spacing.sm,
                   overflow: 'hidden',
                   width: '100%',
@@ -358,7 +355,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
 
 export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   const colorScheme = useColorScheme();
-  const insets = useSafeAreaInsets();
+  const insets = useAppSafeAreaInsets();
   const { theme } = useAppTheme();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [selectedClient, setSelectedClient] = useState<NativeBottomSheetItem | null>(null);
@@ -465,7 +462,6 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
-        startupDiagnosticsLabel="RegistrarDelivery"
         contentContainerStyle={{
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,
           paddingHorizontal: 0,

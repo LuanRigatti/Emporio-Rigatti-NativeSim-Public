@@ -7,11 +7,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   initialWindowMetrics,
   SafeAreaProvider,
-  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import { CrossScreenGlassMorphProvider, TransientGlassMorphHost } from '@/components/native';
 import {
+  AppSafeAreaProvider,
   InitialCacheHydrationContext,
   SessionProvider,
   useSession,
@@ -24,14 +24,12 @@ import { firestoreDeliveryDataSource } from '@/services/deliveries';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider } from '@/theme';
-import { startupLayoutHandler, useStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
   const { status, user } = useSession();
   const pathname = usePathname();
-  const insets = useSafeAreaInsets();
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const isCacheHydrated =
     status === 'loading'
@@ -44,13 +42,6 @@ function AppShell() {
       status === 'authenticated' && Boolean(user?.id) && pathname !== '/' && pathname !== '/login',
     relockOnBackground: true,
     sessionKey: user?.id,
-  });
-
-  useStartupDiagnostics('AppShell', {
-    insetsBottom: insets.bottom,
-    insetsTop: insets.top,
-    pathname,
-    sessionStatus: status,
   });
 
   useEffect(() => {
@@ -121,21 +112,17 @@ function AppShell() {
 
 export default function PrototypeRootLayout() {
   return (
-    <GestureHandlerRootView
-      onLayout={startupLayoutHandler('GestureHandlerRootView')}
-      style={{ flex: 1 }}
-    >
-      <SafeAreaProvider
-        initialMetrics={initialWindowMetrics}
-        onLayout={startupLayoutHandler('RootSafeAreaProvider')}
-      >
-        <SessionProvider>
-          <ThemeProvider>
-            <CrossScreenGlassMorphProvider>
-              <AppShell />
-            </CrossScreenGlassMorphProvider>
-          </ThemeProvider>
-        </SessionProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <AppSafeAreaProvider>
+          <SessionProvider>
+            <ThemeProvider>
+              <CrossScreenGlassMorphProvider>
+                <AppShell />
+              </CrossScreenGlassMorphProvider>
+            </ThemeProvider>
+          </SessionProvider>
+        </AppSafeAreaProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

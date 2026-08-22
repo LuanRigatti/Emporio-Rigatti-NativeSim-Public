@@ -18,7 +18,7 @@ import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 function monthShortLabel(month: number): string {
@@ -31,7 +31,7 @@ function monthShortLabel(month: number): string {
 
 export default function PrototypeFinanceiro() {
   const router = useRouter();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
@@ -120,6 +120,7 @@ export default function PrototypeFinanceiro() {
   const periodActions = (
     <NativePeriodActionGroup
       color={theme.colors.textPrimary}
+      glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
       monthDisplayValue={monthShortLabel(selectedMonth)}
       monthItems={HISTORY_MONTH_ITEMS}
       onMonthChange={setSelectedMonth}
@@ -173,7 +174,6 @@ export default function PrototypeFinanceiro() {
 
   return (
     <PremiumScreen
-      startupDiagnosticsLabel="Financeiro"
       contentContainerStyle={[
         styles.content,
         { marginTop: theme.spacing.md - theme.spacing.xs - 4 },

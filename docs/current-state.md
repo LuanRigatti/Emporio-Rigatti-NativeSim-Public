@@ -1606,3 +1606,60 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - HEAD de referência: `427a364` (`fix(ui): remove context menu platter flicker on cards`).
 - Esta alteração ainda não foi commitada.
 - Nenhum commit ou push adicional realizado.
+
+## Altura determinística dos cards do Histórico
+
+### Funcionalidade implementada
+
+- Correção da geometria inicial do `DeliveryCard` do Histórico após a evidência
+  de que o `Host`/`RNHostView` com `matchContents` iniciava o card em `174pt` e
+  depois reportava o conteúdo final em `87pt`.
+- O caminho contextual do card agora reserva uma altura local determinística de
+  `87pt`, mantendo largura responsiva (`width: '100%'`).
+- O `Host` ocupa `100%` do container externo, sem permitir que a composição
+  intrínseca altere a altura externa do card.
+
+### Comportamento final
+
+- O `DeliveryCard` deve nascer com `height: 87pt`, sem espaços temporários entre
+  clientes causados pelo reflow do Host.
+- Trigger transparente, Preview explícito, long press, haptics, ações,
+  background, clipping e cantos arredondados permanecem preservados.
+- A instrumentação DEV `[history-layout]` permanece ativa temporariamente para
+  confirmar no iPhone que não ocorre mais a transição `174pt -> 87pt`.
+
+### Arquivos principais
+
+- `src/features/history/components/DeliveryCard.tsx`
+- `src/utils/historyLayoutDiagnostics.ts` (diagnóstico temporário)
+- `src/components/native/NativeCardContextMenu/NativeCardContextMenu.ios.tsx`
+  (instrumentação existente, sem alteração funcional)
+
+### Flags e schema afetados
+
+- Nenhuma flag alterada.
+- Nenhum schema, documento, coleção ou regra do Cloud Firestore alterado.
+- Nenhum componente Swift/UIKit, Host global ou componente de outras telas
+  alterado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado: passou.
+- `git diff --check`: passou; o Git emitiu apenas avisos de normalização
+  LF/CRLF já presentes no working tree.
+
+### Limitações conhecidas
+
+- A confirmação final da geometria e da ausência de espaços durante o primeiro
+  frame ainda depende da reprodução no iPhone Development Build com os logs
+  `[history-layout]`.
+- A altura de `87pt` foi derivada do tamanho final observado nos logs e deve
+  ser reavaliada caso o conteúdo visual do card seja alterado.
+
+### Commit e publicação
+
+- Branch: `ajustes-codex`.
+- Não commitado.
+- HEAD atual: `36208a2` (`fix(ui): aplicar ajustes visuais recentes`).
+- Nenhum commit ou push adicional realizado.

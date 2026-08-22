@@ -12,3 +12,7 @@ export { FinancialPeriodProvider, useFinancialPeriod } from './FinancialPeriodPr
 export type { FinancialPeriodContextValue } from './FinancialPeriodProvider';
 export { SessionProvider, useSession } from './SessionProvider';
 export type { SessionContextValue } from './SessionProvider';
+export {
+  InitialCacheHydrationContext,
+  useInitialCacheHydration,
+} from './InitialCacheHydrationContext';

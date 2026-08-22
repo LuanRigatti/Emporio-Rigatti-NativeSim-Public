@@ -10,7 +10,7 @@ import {
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProgressiveBlur } from '@/components/ui/progressive-blur';
 import { ENABLE_PROGRESSIVE_BLUR } from '@/config/featureFlags';
@@ -86,10 +86,16 @@ export function PremiumScreen({
   ];
 
   return (
-    <SafeAreaView
+    <View
       {...props}
-      edges={overlayHeader ? [] : ['top']}
-      style={[styles.safeArea, { backgroundColor: theme.colors.background }, style]}
+      style={[
+        styles.safeArea,
+        {
+          backgroundColor: theme.colors.background,
+          paddingTop: overlayHeader && !overlayHeaderUnderlay ? 0 : insets.top,
+        },
+        style,
+      ]}
     >
       {scrollable ? (
         <ScrollView
@@ -151,7 +157,7 @@ export function PremiumScreen({
           {overlayHeader}
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 

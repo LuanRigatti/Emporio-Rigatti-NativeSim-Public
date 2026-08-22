@@ -7,6 +7,8 @@ import { useAppTheme } from '@/theme';
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
 
+const HISTORY_DELIVERY_CARD_HEIGHT = 87;
+
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
   onToggleStatus: () => void;
@@ -82,6 +84,7 @@ export function DeliveryCard({
   const contextCardStyle: ViewStyle = {
     backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : '#FFFFFF',
     borderRadius: theme.radius.xl + theme.spacing.sm,
+    height: HISTORY_DELIVERY_CARD_HEIGHT,
     width: '100%',
   };
 
@@ -116,7 +119,7 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1, gap: 8 },
   cardHeaderRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   contextContainer: { overflow: 'hidden' },
-  contextMenu: { width: '100%' },
+  contextMenu: { height: '100%', width: '100%' },
   primaryInfo: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 8 },
   statusInset: { marginRight: 8 },
 });

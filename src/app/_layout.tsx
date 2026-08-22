@@ -1,11 +1,17 @@
 import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Font from 'expo-font';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CrossScreenGlassMorphProvider, TransientGlassMorphHost } from '@/components/native';
-import { SessionProvider, useSession } from '@/providers';
+import {
+  InitialCacheHydrationContext,
+  SessionProvider,
+  useSession,
+} from '@/providers';
 import { BiometricLockOverlay } from '@/components/auth/BiometricLockOverlay';
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
@@ -20,12 +26,41 @@ void SplashScreen.preventAutoHideAsync();
 function AppShell() {
   const { status, user } = useSession();
   const pathname = usePathname();
+  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
+  const isCacheHydrated =
+    status === 'loading'
+      ? false
+      : status !== 'authenticated' || !user?.id
+        ? true
+        : hydratedUserId === user.id;
   const biometricUnlock = useBiometricUnlock({
     activeSession:
       status === 'authenticated' && Boolean(user?.id) && pathname !== '/' && pathname !== '/login',
     relockOnBackground: true,
     sessionKey: user?.id,
   });
+
+  useEffect(() => {
+    let active = true;
+
+    if (status !== 'authenticated' || !user?.id) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void Promise.allSettled([
+      firestoreClientDataSource.hydrateFromCache(user.id),
+      firestoreDeliveryDataSource.hydrateFromCache(user.id),
+      Font.loadAsync(Ionicons.font),
+    ]).finally(() => {
+      if (active) setHydratedUserId(user.id);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [status, user?.id]);
 
   useEffect(() => {
     void locationTrackingService.restoreActiveRouteAfterAppRestart().catch((error) => {
@@ -42,32 +77,32 @@ function AppShell() {
     const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
     void financialPeriodSnapshotCache.read(user.id, currentMonth);
     void stockPeriodSnapshotCache.read(user.id, currentMonth);
-    void firestoreClientDataSource.hydrateFromCache(user.id);
-    void firestoreDeliveryDataSource.hydrateFromCache(user.id);
     void routeTrackingRepository.getRouteHistory();
   }, [user?.id]);
 
   return (
-    <>
-      <Stack screenOptions={{ animation: 'default', headerShown: false }}>
-        <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
-        <Stack.Screen
-          name="login"
-          options={{
-            animation: 'default',
-            animationTypeForReplace: 'push',
-            gestureEnabled: false,
-          }}
+    <InitialCacheHydrationContext.Provider value={isCacheHydrated}>
+      <>
+        <Stack screenOptions={{ animation: 'default', headerShown: false }}>
+          <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
+          <Stack.Screen
+            name="login"
+            options={{
+              animation: 'default',
+              animationTypeForReplace: 'push',
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+        </Stack>
+        <BiometricLockOverlay
+          onRetry={biometricUnlock.retry}
+          showRetry={biometricUnlock.canRetry}
+          visible={biometricUnlock.isPrivacyActive}
         />
-        <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
-      </Stack>
-      <BiometricLockOverlay
-        onRetry={biometricUnlock.retry}
-        showRetry={biometricUnlock.canRetry}
-        visible={biometricUnlock.isPrivacyActive}
-      />
-      <TransientGlassMorphHost />
-    </>
+        <TransientGlassMorphHost />
+      </>
+    </InitialCacheHydrationContext.Provider>
   );
 }
 

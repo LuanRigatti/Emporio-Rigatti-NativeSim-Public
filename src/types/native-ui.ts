@@ -93,6 +93,7 @@ export type NativeButtonProps = {
   onPress: () => void;
   haptic?: NativeButtonHaptic;
   variant?: 'glass' | 'primary' | 'filled' | 'surface';
+  glassTint?: string;
   backgroundColor?: string;
   controlSize?: 'mini' | 'small' | 'regular' | 'large' | 'extraLarge';
   systemImage?: string;

@@ -1730,6 +1730,59 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Refinamento do card agrupado Em aberto/Fábrica na Home
+
+### Funcionalidade implementada
+
+- Refinado o card único da Home que reúne as ações `Em aberto` e `Fábrica`.
+- As duas linhas mantêm seus ícones, títulos, chevrons, separador, ações de
+  toque e navegação existentes.
+
+### Comportamento final
+
+- O card continua sendo uma única superfície, com `Em aberto` na primeira
+  linha e `Fábrica` na segunda.
+- O conteúdo das linhas foi deslocado levemente para a direita.
+- O respiro vertical do card foi ajustado sem alterar os demais cards da Home.
+- O deslocamento vertical é aplicado à linha completa, mantendo ícone, texto e
+  chevron juntos: `Em aberto` fica levemente mais abaixo e `Fábrica`
+  levemente mais acima.
+- Não houve alteração de layout global, lógica, navegação ou comportamento de
+  outras telas.
+
+### Arquivos principais
+
+- `src/app/(tabs)/dashboard.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma dependência, API nativa ou asset foi adicionado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado em `src/app/(tabs)/dashboard.tsx`: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final do refinamento depende de teste no iPhone
+  Development Build.
+- As demais alterações já existentes no working tree não fazem parte deste
+  refinamento documental.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- Esta alteração visual ainda não foi commitada.
+- HEAD atual: `a91204488fa4289408108bf3e39d9a45eff36382`
+  (`fix(ui): refine home cards and native glass actions`).
+- Nenhum commit ou push adicional foi realizado.
+
 ## Fundo Light Mode da Splash e Login
 
 ### Funcionalidade implementada

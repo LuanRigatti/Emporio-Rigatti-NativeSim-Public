@@ -16,7 +16,7 @@ import {
   factoryPurchaseCalculationService,
   type FactoryPurchaseSummary,
 } from '@/services/factory-purchases';
-import { useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -280,8 +280,14 @@ function PurchaseRow({
         </View>
         <Text
           style={[
-            theme.typography.footnote,
-            { color: isPaid ? theme.colors.paid : theme.colors.unpaid },
+            theme.typography.callout,
+            {
+              color: isPaid
+                ? theme.colors.paid
+                : resolvedMode === 'light'
+                  ? '#000000'
+                  : theme.colors.unpaid,
+            },
           ]}
         >
           {isPaid ? 'Pago' : 'Em aberto'}
@@ -290,23 +296,25 @@ function PurchaseRow({
       <View style={[styles.purchaseDetails, { marginTop: theme.spacing.sm }]}>
         <View style={[styles.purchaseDetailsLeft, { gap: theme.spacing.xs }]}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {maskQuantity(purchase.bucketQuantity)} · {maskCurrency(purchase.totalAmount)}
+            {maskQuantity(purchase.bucketQuantity)}
           </Text>
           <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
             Pago {maskCurrency(paidAmount)}
           </Text>
+          <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+            Saldo {maskCurrency(remainingAmount)}
+          </Text>
         </View>
-        <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-          Saldo {maskCurrency(remainingAmount)}
-        </Text>
       </View>
-      <View style={styles.purchaseActions}>
+      <View style={[styles.purchaseActions, { marginTop: -theme.spacing.xs }]}>
         <NativeButton
           accessibilityLabel="Adicionar detalhes da compra"
           haptic="light"
           label="Adicionar"
           onPress={onPress}
           variant="primary"
+          color={resolvedMode === 'light' ? '#000000' : undefined}
+          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
         />
       </View>
     </>
@@ -333,7 +341,11 @@ function PurchaseRow({
               style={[
                 styles.purchaseCard,
                 purchaseCardStyle,
-                { overflow: 'hidden', padding: theme.spacing.lg },
+                {
+                  overflow: 'hidden',
+                  padding: theme.spacing.lg,
+                  paddingBottom: theme.spacing.sm,
+                },
               ]}
             >
               {renderPurchaseContent()}
@@ -347,6 +359,7 @@ function PurchaseRow({
                 backgroundColor: 'transparent',
                 borderRadius: theme.radius.xl + theme.spacing.sm,
                 padding: theme.spacing.lg,
+                paddingBottom: theme.spacing.sm,
                 width: '100%',
               },
             ]}

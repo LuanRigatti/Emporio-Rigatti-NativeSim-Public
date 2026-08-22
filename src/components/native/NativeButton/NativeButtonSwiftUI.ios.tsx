@@ -11,6 +11,7 @@ import {
   foregroundColor,
   padding,
   foregroundStyle,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
@@ -22,6 +23,7 @@ import { roundedFont } from '../nativeTypography';
 export default function NativeButtonSwiftUI({
   disabled,
   destructive,
+  glassTint,
   accessibilityHint: hint,
   accessibilityValue: value,
   color,
@@ -80,7 +82,11 @@ export default function NativeButtonSwiftUI({
       </HStack>
     ) : (
       <HStack modifiers={contentWidth !== undefined ? [frame({ width: contentWidth })] : undefined}>
-        <Label title={label} systemImage={systemImage as SFSymbol | undefined} />
+        <Label
+          modifiers={color ? [foregroundColor(color)] : undefined}
+          title={label}
+          systemImage={systemImage as SFSymbol | undefined}
+        />
       </HStack>
     );
   const verticalPadding =
@@ -106,6 +112,7 @@ export default function NativeButtonSwiftUI({
           buttonStyle(
             isFilledVariant ? 'plain' : variant === 'primary' ? 'glassProminent' : 'glass',
           ),
+          ...(glassTint ? [tint(glassTint)] : []),
           controlSizeModifier(controlSize ?? 'regular'),
           ...(disabled ? [disabledModifier(true)] : []),
           ...(isFilledVariant

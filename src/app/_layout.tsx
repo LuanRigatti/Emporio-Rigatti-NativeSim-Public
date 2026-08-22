@@ -22,6 +22,7 @@ import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import { firestoreClientDataSource } from '@/services/clients';
 import { firestoreDeliveryDataSource } from '@/services/deliveries';
+import { factoryReceiptDataSource } from '@/services/factory-purchases';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider } from '@/theme';
@@ -54,9 +55,13 @@ function AppShell() {
       };
     }
 
+    const today = new Date();
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
     void Promise.allSettled([
       firestoreClientDataSource.hydrateFromCache(user.id),
       firestoreDeliveryDataSource.hydrateFromCache(user.id),
+      factoryReceiptDataSource.restore(user.id, { month: currentMonth, period: 'month' }),
       Font.loadAsync(Ionicons.font),
     ]).finally(() => {
       if (active) setHydratedUserId(user.id);

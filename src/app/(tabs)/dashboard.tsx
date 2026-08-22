@@ -432,8 +432,24 @@ export default function Home() {
               onPress={handleOpenRecebimentos}
               style={styles.shortcutAction}
             >
-              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.md }]}>
-                <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
+              <View
+                style={[
+                  styles.shortcutRow,
+                  {
+                    paddingVertical: theme.spacing.lg,
+                    transform: [{ translateY: theme.spacing.xxs }],
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.shortcutLabel,
+                    {
+                      gap: theme.spacing.sm,
+                      marginLeft: theme.spacing.xs,
+                    },
+                  ]}
+                >
                   <PreviewIcon
                     color={theme.colors.textSecondary}
                     name="logo-usd"
@@ -464,8 +480,24 @@ export default function Home() {
               onPress={handleOpenFactory}
               style={styles.shortcutAction}
             >
-              <View style={[styles.shortcutRow, { paddingVertical: theme.spacing.md }]}>
-                <View style={[styles.shortcutLabel, { gap: theme.spacing.sm }]}>
+              <View
+                style={[
+                  styles.shortcutRow,
+                  {
+                    paddingVertical: theme.spacing.lg,
+                    transform: [{ translateY: -theme.spacing.xxs }],
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.shortcutLabel,
+                    {
+                      gap: theme.spacing.sm,
+                      marginLeft: theme.spacing.xs,
+                    },
+                  ]}
+                >
                   <PreviewIcon
                     color={theme.colors.textSecondary}
                     name="business-outline"

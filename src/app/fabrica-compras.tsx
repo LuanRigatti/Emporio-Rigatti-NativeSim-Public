@@ -9,10 +9,10 @@ import {
 } from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import { FactoryPurchasesScreen } from '@/features/factory-purchases/components/FactoryPurchasesScreen';
-import { useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
 
 export default function FactoryPurchasesRoute() {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const router = useRouter();
   const currentPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
@@ -37,6 +37,7 @@ export default function FactoryPurchasesRoute() {
       rightActions={
         <NativePeriodActionGroup
           color={theme.colors.textPrimary}
+          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
           monthDisplayValue={monthDisplayValue}
           monthItems={HISTORY_MONTH_ITEMS}
           onMonthChange={setSelectedMonth}

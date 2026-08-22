@@ -7,7 +7,8 @@ import { factoryPurchaseCalculationService } from '@/services/factory-purchases'
 import { comparePurchasesDescending } from '@/services/factory-purchases/FactoryPurchaseCalculationService';
 import { useAppTheme } from '@/theme';
 import type { Purchase } from '@/features/factory-purchases/types';
-import { formatCurrency, formatPtBrDate } from '@/utils/data';
+import { formatPtBrDate } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 type PurchaseStatus = 'Pago' | 'Parcial' | 'Em aberto';
 
@@ -33,6 +34,7 @@ export function FactorySummaryCard({
   purchases,
 }: FactorySummaryCardProps) {
   const { theme } = useAppTheme();
+  const { currency: maskCurrency } = useTestModePresentation();
   const recentPurchases = useMemo<PurchaseSummary[]>(
     () =>
       [...purchases]
@@ -106,7 +108,7 @@ export function FactorySummaryCard({
                           { color: theme.colors.textPrimary, fontWeight: 'bold' },
                         ]}
                       >
-                        {formatCurrency(purchase.totalAmount)}
+                        {maskCurrency(purchase.totalAmount)}
                       </Text>
                       <Text
                         style={[

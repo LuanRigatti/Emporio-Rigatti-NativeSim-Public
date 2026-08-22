@@ -10,6 +10,7 @@ import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { normalizeClientKey } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { formatDateAsDayMonthYear, groupItemsByDate } from '@/utils/groupItemsByDate';
 import type { DatedItemGroup } from '@/utils/groupItemsByDate';
 
@@ -20,6 +21,7 @@ import type { OpenPaymentPreview } from '@/features/open-payments/data/openPayme
 export function InvoicesScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled } = useTestModePresentation();
   const { clients, reload: reloadClients } = useClients();
   const invoiceClientNames = useMemo(
     () =>
@@ -82,18 +84,20 @@ export function InvoicesScreen() {
 
   const handleInvoiceSwipe = useCallback(
     async (deliveryId: string) => {
+      if (testModeEnabled) return;
       triggerLightImpactHaptic();
       await updateInvoiceStatus(deliveryId, 'emitido');
     },
-    [updateInvoiceStatus],
+    [testModeEnabled, updateInvoiceStatus],
   );
 
   const handleBoletoSwipe = useCallback(
     async (deliveryId: string) => {
+      if (testModeEnabled) return;
       triggerLightImpactHaptic();
       await updateBoletoStatus(deliveryId, 'emitido');
     },
-    [updateBoletoStatus],
+    [testModeEnabled, updateBoletoStatus],
   );
 
   const header = (
@@ -170,6 +174,8 @@ function DocumentTypeCard({
   title: string;
 }) {
   const { resolvedMode } = useAppTheme();
+  const { enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
+    useTestModePresentation();
 
   return (
     <GlassCard style={[styles.typeCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
@@ -212,7 +218,7 @@ function DocumentTypeCard({
                       <Text
                         style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
                       >
-                        {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+                        {maskQuantity(item.quantity)}
                       </Text>
                     </View>
                     <Text
@@ -221,7 +227,7 @@ function DocumentTypeCard({
                         { color: theme.colors.textPrimary, fontWeight: '600' },
                       ]}
                     >
-                      {item.amount}
+                      {maskText(item.amount)}
                     </Text>
                   </View>
                 );
@@ -244,6 +250,7 @@ function DocumentTypeCard({
                       actions={[
                         {
                           id: 'emit-document',
+                          disabled: testModeEnabled,
                           onPress: () => onDelete(item.id),
                           systemImage: 'checkmark.seal.fill',
                           title: 'Emitido',

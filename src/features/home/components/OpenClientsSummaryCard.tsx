@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
-import { formatCurrency } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 export type OpenClientSummary = {
   amount: number;
@@ -18,6 +18,7 @@ type OpenClientsSummaryCardProps = {
 
 export function OpenClientsSummaryCard({ clients, onPress }: OpenClientsSummaryCardProps) {
   const { theme } = useAppTheme();
+  const { currency: maskCurrency } = useTestModePresentation();
 
   if (clients.length === 0) return null;
 
@@ -65,7 +66,7 @@ export function OpenClientsSummaryCard({ clients, onPress }: OpenClientsSummaryC
                 {client.clientName}
               </Text>
               <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
-                {formatCurrency(client.amount)}
+                {maskCurrency(client.amount)}
               </Text>
             </View>
           ))}

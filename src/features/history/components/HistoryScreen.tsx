@@ -18,6 +18,7 @@ import { startHistoryLayoutDiagnostics } from '@/utils/historyLayoutDiagnostics'
 import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { parseIsoCalendarDate, todayIso } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
@@ -42,6 +43,7 @@ export function HistoryScreen() {
   const isFocused = useIsFocused();
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const {
     reload: refresh,
@@ -93,17 +95,19 @@ export function HistoryScreen() {
 
   const handleToggleStatus = useCallback(
     (deliveryId: string) => {
+      if (testModeEnabled) return;
       triggerSelectionHaptic();
       void toggleDelivery(deliveryId);
     },
-    [toggleDelivery],
+    [testModeEnabled, toggleDelivery],
   );
 
   const handleDeleteDelivery = useCallback(
     (deliveryId: string) => {
+      if (testModeEnabled) return;
       void removeDelivery(deliveryId);
     },
-    [removeDelivery],
+    [removeDelivery, testModeEnabled],
   );
 
   const renderDayContent = useCallback(
@@ -120,7 +124,7 @@ export function HistoryScreen() {
           {dayDeliveries.length > 0 ? (
             <View style={[styles.topBucketSummary, { paddingRight: theme.spacing.lg }]}>
               <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                {dayBucketCount} {dayBucketCount === 1 ? 'balde' : 'baldes'}
+                {maskQuantity(dayBucketCount)}
               </Text>
             </View>
           ) : null}
@@ -170,6 +174,7 @@ export function HistoryScreen() {
       allDeliveries,
       handleDeleteDelivery,
       handleToggleStatus,
+      maskQuantity,
       reduceMotionEnabled,
       selectedFilter,
       theme,

@@ -19,9 +19,11 @@ import { useAppTheme } from '@/theme';
 import type { ClientModel } from '@/types/data';
 import { normalizeMoney } from '@/utils/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 export default function ClientsRoute() {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
   const { clients, error, loading, reload, removeCustomConfiguration, saveCustomClient } =
     useClients();
@@ -32,6 +34,7 @@ export default function ClientsRoute() {
 
   const handleCreateClient = useCallback(
     async ({ address, bucketPrice, name, usesBoleto, usesInvoice }: NativeClientFormValues) => {
+      if (testModeEnabled) return;
       const price = normalizeMoney(bucketPrice);
       if (!name.trim()) throw new Error('Informe o nome do cliente.');
       if (price === undefined || price <= 0) {
@@ -40,11 +43,11 @@ export default function ClientsRoute() {
       if (!address.trim()) throw new Error('Informe o endere\u00e7o do cliente.');
       await saveCustomClient(name, price, address, usesInvoice, usesBoleto);
     },
-    [saveCustomClient],
+    [saveCustomClient, testModeEnabled],
   );
 
   const handleDeleteClient = useCallback(async () => {
-    if (!clientToDelete) return;
+    if (!clientToDelete || testModeEnabled) return;
 
     setDeleting(true);
     setDeleteError(undefined);
@@ -60,7 +63,7 @@ export default function ClientsRoute() {
     } finally {
       setDeleting(false);
     }
-  }, [clientToDelete, removeCustomConfiguration]);
+  }, [clientToDelete, removeCustomConfiguration, testModeEnabled]);
 
   const header = (
     <NativeGlassHeader
@@ -136,6 +139,7 @@ export default function ClientsRoute() {
                     actions={[
                       {
                         destructive: true,
+                        disabled: testModeEnabled,
                         id: 'delete-client',
                         onPress: () => {
                           setDeleteError(undefined);

@@ -18,6 +18,7 @@ import { fuelCostCalculationService, type FuelType } from '@/services/expenses';
 import type { RouteDistanceSummary } from '@/services/routes';
 import { useAppTheme } from '@/theme';
 import { normalizeMoney, todayIso } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { CostField } from './CostField';
 
@@ -31,6 +32,7 @@ type CostsEditorScreenProps = {
 
 export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
   const { getLatestDailyValue, getMonthlySum, getValues, isHydrated, updateField } =
     useCostSettings();
@@ -45,6 +47,13 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   } | null>(null);
   const monthItems = useMemo(() => createMonthItems(), []);
   const yearItems = useMemo(() => createYearItems(), []);
+  const handleUpdateField = useCallback(
+    (...args: Parameters<typeof updateField>) => {
+      if (testModeEnabled) return;
+      updateField(...args);
+    },
+    [testModeEnabled, updateField],
+  );
   const date = parseIsoDate(selectedDate);
   const monthKey = `${selectedYear}-${pad(selectedMonth)}`;
   const period = mode === 'monthly' ? 'month' : 'day';
@@ -150,7 +159,7 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
             <CostField
               keyboardType="decimal-pad"
               label="Luz"
-              onChangeText={(value) => updateField('month', monthKey, 'light', value)}
+              onChangeText={(value) => handleUpdateField('month', monthKey, 'light', value)}
               placeholder="R$ 0,00"
               value={values.light}
             />
@@ -168,14 +177,14 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
             <CostField
               keyboardType="decimal-pad"
               label="Estar"
-              onChangeText={(value) => updateField('day', selectedDate, 'estar', value)}
+              onChangeText={(value) => handleUpdateField('day', selectedDate, 'estar', value)}
               placeholder="R$ 0,00"
               value={values.estar}
             />
             <CostField
               keyboardType="decimal-pad"
               label="Outros"
-              onChangeText={(value) => updateField('day', selectedDate, 'other', value)}
+              onChangeText={(value) => handleUpdateField('day', selectedDate, 'other', value)}
               placeholder="R$ 0,00"
               value={values.other}
             />
@@ -183,14 +192,14 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
               disabled={automaticKilometers !== undefined}
               keyboardType="decimal-pad"
               label="Km"
-              onChangeText={(value) => updateField('day', selectedDate, 'kilometers', value)}
+              onChangeText={(value) => handleUpdateField('day', selectedDate, 'kilometers', value)}
               placeholder="0,0 km"
               value={automaticKilometers ?? values.kilometers}
             />
             <CostField
               keyboardType="decimal-pad"
               label="Preço do combustível"
-              onChangeText={(value) => updateField('day', selectedDate, 'fuelPrice', value)}
+              onChangeText={(value) => handleUpdateField('day', selectedDate, 'fuelPrice', value)}
               placeholder="R$ 0,00 por litro"
               trailing={
                 <NativeDropdown
@@ -200,7 +209,8 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
                     { label: 'Gasolina', value: 'gasolina' as const },
                     { label: 'Álcool', value: 'etanol' as const },
                   ]}
-                  onValueChange={(value) => updateField('day', selectedDate, 'fuelType', value)}
+                  disabled={testModeEnabled}
+                  onValueChange={(value) => handleUpdateField('day', selectedDate, 'fuelType', value)}
                   selectedValue={fuelType}
                   variant="glass"
                 />
@@ -250,13 +260,16 @@ function createYearItems(): readonly NativeDropdownItem<number>[] {
 
 function ReadOnlyCostField({ label, value }: { label: string; value: string }) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
 
   return (
     <View style={styles.readOnlyField}>
       <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
         {label}
       </Text>
-      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{value}</Text>
+      <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+        {maskText(value)}
+      </Text>
     </View>
   );
 }

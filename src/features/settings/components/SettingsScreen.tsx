@@ -161,6 +161,12 @@ export function SettingsScreen() {
               title="Face ID"
             />
             <SettingItem
+              fallbackIcon="flask-outline"
+              onPress={() => router.push('/modo-teste')}
+              systemName="testtube.2"
+              title="Modo Teste"
+            />
+            <SettingItem
               fallbackIcon="archive-outline"
               onPress={() => router.push('/backup')}
               systemName="externaldrive"

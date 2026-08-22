@@ -17,7 +17,8 @@ import {
   type FactoryPurchaseSummary,
 } from '@/services/factory-purchases';
 import { useAppTheme } from '@/theme';
-import { formatCurrency, formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
+import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { PurchaseDetailsSheet } from './PurchaseDetailsSheet';
 import type { Purchase } from '../types';
@@ -39,6 +40,8 @@ export function FactoryPurchasesScreen({
   selectedYear: number;
 }) {
   const { theme } = useAppTheme();
+  const { currency: maskCurrency, number: maskNumber, enabled: testModeEnabled } =
+    useTestModePresentation();
   const { settings: factorySettings } = useFactorySettings();
   const { addPayment, createPurchase, deletePurchase, purchaseById, purchases } =
     useFactoryPurchases({
@@ -71,7 +74,7 @@ export function FactoryPurchasesScreen({
     setBlurQuantityField(() => blur);
   }, []);
   const handleCreatePurchase = async () => {
-    if (isRegistering) return;
+    if (isRegistering || testModeEnabled) return;
     blurQuantityField?.();
     Keyboard.dismiss();
 
@@ -146,13 +149,13 @@ export function FactoryPurchasesScreen({
                 Valor total estimado
               </Text>
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {formatCurrency(estimatedTotal)}
+                {maskCurrency(estimatedTotal)}
               </Text>
             </View>
             <View style={styles.formAction}>
               <NativeButton
                 accessibilityLabel="Registrar compra"
-                disabled={isRegistering}
+                disabled={isRegistering || testModeEnabled}
                 haptic="light"
                 label="Registrar"
                 onPress={() => void handleCreatePurchase()}
@@ -167,9 +170,9 @@ export function FactoryPurchasesScreen({
             <GlassCard
               style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
-              <SummaryMetric label="Total pago" value={formatCurrency(summary.totalPaid)} />
-              <SummaryMetric label="Valor em aberto" value={formatCurrency(summary.openValue)} />
-              <SummaryMetric label="Total de baldes" value={String(summary.totalBuckets)} />
+              <SummaryMetric label="Total pago" value={maskCurrency(summary.totalPaid)} />
+              <SummaryMetric label="Valor em aberto" value={maskCurrency(summary.openValue)} />
+              <SummaryMetric label="Total de baldes" value={maskNumber(summary.totalBuckets)} />
             </GlassCard>
 
             <View style={styles.purchasesTitle}>
@@ -229,7 +232,7 @@ export function FactoryPurchasesScreen({
         message="Essa compra e os pagamentos vinculados serão removidos."
         onCancel={() => setPurchaseToDeleteId(null)}
         onConfirm={() => {
-          if (!purchaseToDeleteId) return;
+          if (!purchaseToDeleteId || testModeEnabled) return;
           void deletePurchase(purchaseToDeleteId)
             .then(() => setPurchaseToDeleteId(null))
             .catch((deleteError) => {
@@ -257,6 +260,8 @@ function PurchaseRow({
   purchase: Purchase;
 }) {
   const { resolvedMode, theme } = useAppTheme();
+  const { currency: maskCurrency, enabled: testModeEnabled, quantity: maskQuantity } =
+    useTestModePresentation();
   const paidAmount = factoryPurchaseCalculationService.paidAmount(purchase);
   const remainingAmount = factoryPurchaseCalculationService.remainingAmount(purchase);
   const isPaid = factoryPurchaseCalculationService.isPaid(purchase);
@@ -285,14 +290,14 @@ function PurchaseRow({
       <View style={[styles.purchaseDetails, { marginTop: theme.spacing.sm }]}>
         <View style={[styles.purchaseDetailsLeft, { gap: theme.spacing.xs }]}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {purchase.bucketQuantity} baldes · {formatCurrency(purchase.totalAmount)}
+            {maskQuantity(purchase.bucketQuantity)} · {maskCurrency(purchase.totalAmount)}
           </Text>
           <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-            Pago {formatCurrency(paidAmount)}
+            Pago {maskCurrency(paidAmount)}
           </Text>
         </View>
         <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-          Saldo {formatCurrency(remainingAmount)}
+          Saldo {maskCurrency(remainingAmount)}
         </Text>
       </View>
       <View style={styles.purchaseActions}>
@@ -315,6 +320,7 @@ function PurchaseRow({
           actions={[
             {
               destructive: true,
+              disabled: testModeEnabled,
               id: 'delete-factory-purchase',
               onPress: onDelete,
               systemImage: 'trash',

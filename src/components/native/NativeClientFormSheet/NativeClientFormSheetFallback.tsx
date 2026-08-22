@@ -4,6 +4,7 @@ import { Keyboard, StyleSheet, Switch, Text, TextInput, View } from 'react-nativ
 import { NativeButton } from '@/components/native/NativeButton';
 import { NativeSheet } from '@/components/native/NativeSheet';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type {
   NativeClientFormSheetProps,
@@ -17,6 +18,7 @@ export default function NativeClientFormSheetFallback({
   visible,
 }: NativeClientFormSheetProps) {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
   const [values, setValues] = useState<NativeClientFormValues>({
     address: '',
     bucketPrice: '',
@@ -39,6 +41,7 @@ export default function NativeClientFormSheetFallback({
     setValues((current) => ({ ...current, [key]: value }));
 
   const submit = async () => {
+    if (testModeEnabled) return;
     setError(undefined);
     Keyboard.dismiss();
     try {
@@ -59,10 +62,11 @@ export default function NativeClientFormSheetFallback({
             </Text>
             <TextInput
               keyboardType={key === 'bucketPrice' ? 'decimal-pad' : 'default'}
+              editable={!testModeEnabled}
               onChangeText={(value) => update(key, value)}
               placeholder={key === 'bucketPrice' ? 'R$ 0,00' : undefined}
               style={[styles.input, { color: theme.colors.textPrimary }]}
-              value={values[key]}
+              value={key === 'bucketPrice' ? maskInput(values[key]) : values[key]}
             />
           </View>
         ))}
@@ -70,7 +74,8 @@ export default function NativeClientFormSheetFallback({
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
             Usa nota fiscal
           </Text>
-          <Switch
+            <Switch
+            disabled={testModeEnabled}
             onValueChange={(usesInvoice) =>
               setValues((current) => ({ ...current, usesInvoice }))
             }
@@ -80,6 +85,7 @@ export default function NativeClientFormSheetFallback({
         <View style={styles.toggleRow}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>Usa boleto</Text>
           <Switch
+            disabled={testModeEnabled}
             onValueChange={(usesBoleto) =>
               setValues((current) => ({ ...current, usesBoleto }))
             }
@@ -89,6 +95,7 @@ export default function NativeClientFormSheetFallback({
         {error ? <Text style={{ color: theme.colors.danger }}>{error}</Text> : null}
         <NativeButton
           controlSize="large"
+          disabled={testModeEnabled}
           haptic="light"
           label="Adicionar"
           onPress={() => void submit()}

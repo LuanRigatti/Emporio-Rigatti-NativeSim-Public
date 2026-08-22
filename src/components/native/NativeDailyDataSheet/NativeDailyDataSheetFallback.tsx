@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { NativeSheet } from '../NativeSheet';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type {
   NativeDailyDataSheetProps,
   NativeDailyDataValues,
@@ -15,6 +16,7 @@ export default function NativeDailyDataSheetFallback({
   visible,
 }: NativeDailyDataSheetProps) {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
   const [values, setValues] = useState<NativeDailyDataValues>(
     initialValues ?? { estar: '', fuelPrice: '', kilometers: '', other: '' },
   );
@@ -27,6 +29,7 @@ export default function NativeDailyDataSheetFallback({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const update = (field: keyof NativeDailyDataValues, value: string) => {
+    if (testModeEnabled) return;
     setValues((current) => ({ ...current, [field]: value }));
   };
 
@@ -59,17 +62,20 @@ export default function NativeDailyDataSheetFallback({
               ) : null}
               <TextInput
                 keyboardType="decimal-pad"
+                editable={!testModeEnabled}
                 onChangeText={(value) => update(key, value)}
                 placeholder={currency ? '0,00' : '0,0'}
                 placeholderTextColor={theme.colors.textTertiary}
                 style={[styles.input, theme.typography.body, { color: theme.colors.textPrimary }]}
-                value={values[key]}
+                value={maskInput(values[key])}
               />
             </View>
           </View>
         ))}
         <Pressable
+          disabled={testModeEnabled}
           onPress={() => {
+            if (testModeEnabled) return;
             void onSubmit(values);
             onVisibleChange(false);
           }}

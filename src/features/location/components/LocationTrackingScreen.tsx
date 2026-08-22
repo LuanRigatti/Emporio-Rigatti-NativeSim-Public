@@ -18,6 +18,7 @@ import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTra
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
 import {
   HISTORY_MONTH_ITEMS,
@@ -86,6 +87,7 @@ export function LocationTrackingScreen() {
     ReturnType<LocationTrackingService['getPermissionStatus']>
   > | null>(null);
   const [trackingError, setTrackingError] = useState<TrackingErrorState | null>(null);
+  const { enabled: testModeEnabled } = useTestModePresentation();
 
   const refreshRoute = useCallback(async () => {
     const storedRoute = await locationTrackingService.getRoute();
@@ -134,6 +136,7 @@ export function LocationTrackingScreen() {
   );
 
   const handleStart = useCallback(async () => {
+    if (testModeEnabled) return;
     triggerLightImpactHaptic();
     setBusy(true);
     setTrackingError(null);
@@ -150,10 +153,10 @@ export function LocationTrackingScreen() {
     } finally {
       setBusy(false);
     }
-  }, [refreshRoute]);
+  }, [refreshRoute, testModeEnabled]);
 
   const handleStop = useCallback(async () => {
-    if (!route) return;
+    if (!route || testModeEnabled) return;
 
     triggerLightImpactHaptic();
     setBusy(true);
@@ -172,10 +175,11 @@ export function LocationTrackingScreen() {
     } finally {
       setBusy(false);
     }
-  }, [refreshHistory, refreshRoute, route, selectedPeriod]);
+  }, [refreshHistory, refreshRoute, route, selectedPeriod, testModeEnabled]);
 
   const handleDeleteRoute = useCallback(
     async (sessionId: string) => {
+      if (testModeEnabled) return;
       setBusy(true);
       setTrackingError(null);
 
@@ -188,7 +192,7 @@ export function LocationTrackingScreen() {
         setBusy(false);
       }
     },
-    [refreshHistory, selectedPeriod],
+    [refreshHistory, selectedPeriod, testModeEnabled],
   );
 
   const handleOpenRoute = useCallback(
@@ -314,7 +318,7 @@ export function LocationTrackingScreen() {
             active={Boolean(route?.active)}
             busy={busy}
             color={theme.colors.textPrimary}
-            disabled={busy}
+            disabled={busy || testModeEnabled}
             onPress={() => void (route?.active ? handleStop() : handleStart())}
           />
         </View>
@@ -336,6 +340,7 @@ function RouteHistoryCard({
 }) {
   const fuelCost = useRouteFuelCost(session);
   const { resolvedMode } = useAppTheme();
+  const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const routeCardStyle: ViewStyle = {
     backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
     borderRadius: theme.radius.xl + theme.spacing.xs,
@@ -358,10 +363,10 @@ function RouteHistoryCard({
         </Text>
         <View style={styles.routeStatsRow}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {formatDistance(session.distanceMeters)}
+            {maskText(formatDistance(session.distanceMeters))}
           </Text>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-            {formatCurrency(fuelCost)}
+            {maskText(formatCurrency(fuelCost))}
           </Text>
         </View>
       </View>
@@ -391,6 +396,7 @@ function RouteHistoryCard({
         actions={[
           {
             destructive: true,
+            disabled: testModeEnabled,
             id: 'delete-route',
             onPress: onDelete,
             systemImage: 'trash',

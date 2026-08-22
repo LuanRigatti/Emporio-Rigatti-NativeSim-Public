@@ -7,6 +7,7 @@ import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/nativ
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type { Delivery } from '@/types/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatDateAsDayMonthYear, groupItemsByDate } from '@/utils/groupItemsByDate';
@@ -34,6 +35,8 @@ function toOpenPaymentItem(delivery: Delivery): OpenPaymentPreview {
 export function OpenPaymentsScreen() {
   const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
+  const { currency: maskCurrency, enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
+    useTestModePresentation();
   const {
     deliveries,
     editMany,
@@ -71,13 +74,13 @@ export function OpenPaymentsScreen() {
           {item.client}
         </Text>
         <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          {`${item.quantity} ${item.quantity === 1 ? 'balde' : 'baldes'}`}
+          {maskQuantity(item.quantity)}
         </Text>
       </View>
       <Text
         style={[theme.typography.body, { color: theme.colors.textPrimary, fontWeight: 'bold' }]}
       >
-        {item.amount}
+        {maskText(item.amount)}
       </Text>
     </View>
   );
@@ -93,10 +96,11 @@ export function OpenPaymentsScreen() {
 
   const handlePaymentSwipe = useCallback(
     (deliveryId: string) => {
+      if (testModeEnabled) return;
       triggerLightImpactHaptic();
       void editMany([deliveryId], { status: 'Pago' });
     },
-    [editMany],
+    [editMany, testModeEnabled],
   );
 
   const header = (
@@ -140,6 +144,7 @@ export function OpenPaymentsScreen() {
                       actions={[
                         {
                           id: `complete-payment-${item.id}`,
+                          disabled: testModeEnabled,
                           onPress: () => handlePaymentSwipe(item.id),
                           systemImage: 'checkmark.circle.fill' as const,
                           title: 'Pago',
@@ -163,7 +168,7 @@ export function OpenPaymentsScreen() {
               { color: theme.colors.textPrimary, fontWeight: '700' },
             ]}
           >
-            {formatCurrency(totalOpenAmount)}
+            {maskCurrency(totalOpenAmount)}
           </Text>
         </View>
       </View>

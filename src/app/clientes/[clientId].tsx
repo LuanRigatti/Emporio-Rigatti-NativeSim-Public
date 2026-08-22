@@ -6,6 +6,7 @@ import { NativeGlassBackButton, NativeTextField, NativeToggle } from '@/componen
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { formatCurrency, normalizeMoney } from '@/utils/data';
 
 const CLIENT_NAMES: Record<string, string> = {
@@ -23,6 +24,7 @@ const CLIENT_NAMES: Record<string, string> = {
 
 export default function ClientDetailsRoute() {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
   const { clients, updatePrice } = useClients();
   const { clientId, clientName: routeClientName } = useLocalSearchParams<{
@@ -45,6 +47,10 @@ export default function ClientDetailsRoute() {
   const clientName = (clientId && CLIENT_NAMES[clientId]) || routeClientName || 'Cliente';
 
   const handleBack = useCallback(() => {
+    if (testModeEnabled) {
+      router.back();
+      return;
+    }
     if (!client) {
       router.back();
       return;
@@ -66,7 +72,7 @@ export default function ClientDetailsRoute() {
         );
       }
     });
-  }, [bucketValue, client, router, updatePrice, usesBoleto, usesInvoice]);
+  }, [bucketValue, client, router, testModeEnabled, updatePrice, usesBoleto, usesInvoice]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -105,6 +111,7 @@ export default function ClientDetailsRoute() {
           </Text>
           <NativeTextField
             accessibilityLabel="Valor do balde"
+            keyboardType="decimal-pad"
             onChangeText={setBucketValue}
             value={bucketValue}
           />

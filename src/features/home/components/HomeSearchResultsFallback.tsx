@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type {
   HomeSearchResultVisualModel,
@@ -16,6 +17,7 @@ type Props = {
 
 function ResultHeader({ query, result }: { query?: string; result: HomeSearchVisualResult }) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   if (!result.header) return null;
   const context = result.hideQueryContext
     ? undefined
@@ -24,7 +26,7 @@ function ResultHeader({ query, result }: { query?: string; result: HomeSearchVis
     <View style={styles.header}>
       {context ? (
         <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          {context}
+          {maskText(context)}
         </Text>
       ) : null}
       <Text style={[theme.typography.title2, { color: theme.colors.textPrimary }]}>
@@ -32,7 +34,7 @@ function ResultHeader({ query, result }: { query?: string; result: HomeSearchVis
       </Text>
       {result.header.subtitle ? (
         <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
-          {result.header.subtitle}
+        {maskText(result.header.subtitle)}
         </Text>
       ) : null}
     </View>
@@ -52,10 +54,11 @@ function toneColor(
 
 function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualModel['metric']> }) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   return (
     <View style={styles.metric}>
       <Text style={[theme.typography.metricLarge, { color: toneColor(metric.tone, theme) }]}>
-        {metric.value}
+        {maskText(metric.value)}
       </Text>
       {metric.label ? (
         <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
@@ -68,13 +71,14 @@ function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualMo
 
 function ResultValueRow({ row }: { row: HomeSearchVisualRow }) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   return (
     <View style={styles.row}>
       <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
         {row.label}
       </Text>
       <Text style={[theme.typography.body, styles.rowValue, { color: toneColor(row.tone, theme) }]}>
-        {row.value}
+        {maskText(row.value)}
       </Text>
     </View>
   );

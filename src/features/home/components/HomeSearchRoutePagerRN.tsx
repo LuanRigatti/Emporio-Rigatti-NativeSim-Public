@@ -6,6 +6,7 @@ import { spacing, useAppTheme } from '@/theme';
 import { NativeTrackedRoutesMap } from '@/components/routes';
 import { locationTrackingService } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { selectHomeSearchRouteSessions } from './HomeSearchRoutePreviewAdapter';
 import type {
   HomeSearchVisualResult,
@@ -147,6 +148,7 @@ function RoutePreviewMapRN({
 
 function RoutePageHeader({ query, result }: { query?: string; result: HomeSearchVisualResult }) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   if (!result.header) return null;
   const context = result.hideQueryContext
     ? undefined
@@ -156,7 +158,7 @@ function RoutePageHeader({ query, result }: { query?: string; result: HomeSearch
     <View style={styles.header}>
       {context ? (
         <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          {context}
+          {maskText(context)}
         </Text>
       ) : null}
       <View style={styles.headerTitleRow}>
@@ -184,7 +186,7 @@ function RoutePageHeader({ query, result }: { query?: string; result: HomeSearch
             { color: theme.colors.textSecondary, paddingLeft: 28 },
           ]}
         >
-          {result.header.subtitle}
+          {maskText(result.header.subtitle)}
         </Text>
       ) : null}
     </View>
@@ -193,6 +195,7 @@ function RoutePageHeader({ query, result }: { query?: string; result: HomeSearch
 
 function RouteValueRow({ row }: { row: HomeSearchVisualRow }) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   const isMonospaced = row.monospaced || monospacedLabelValues.has(row.label);
   return (
     <View style={styles.row}>
@@ -210,7 +213,7 @@ function RouteValueRow({ row }: { row: HomeSearchVisualRow }) {
           },
         ]}
       >
-        {row.value}
+        {maskText(row.value)}
       </Text>
     </View>
   );

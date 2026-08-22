@@ -20,6 +20,7 @@ import {
   buttonStyle,
   cornerRadius,
   controlSize,
+  disabled as disabledModifier,
   frame,
   glassEffect,
   keyboardType,
@@ -35,6 +36,7 @@ import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import {
   NATIVE_SHEET_PRESENTATION_BACKGROUND,
@@ -63,6 +65,7 @@ export default function NativeDailyDataSheetSwiftUI({
   visible,
 }: NativeDailyDataSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
@@ -78,26 +81,28 @@ export default function NativeDailyDataSheetSwiftUI({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
-    estarState.set(values.estar);
-  }, [estarState, values.estar]);
+    estarState.set(maskInput(values.estar) ?? '');
+  }, [estarState, maskInput, values.estar]);
 
   useEffect(() => {
-    otherState.set(values.other);
-  }, [otherState, values.other]);
+    otherState.set(maskInput(values.other) ?? '');
+  }, [maskInput, otherState, values.other]);
 
   useEffect(() => {
-    fuelPriceState.set(values.fuelPrice);
-  }, [fuelPriceState, values.fuelPrice]);
+    fuelPriceState.set(maskInput(values.fuelPrice) ?? '');
+  }, [fuelPriceState, maskInput, values.fuelPrice]);
 
   useEffect(() => {
-    kilometersState.set(values.kilometers);
-  }, [kilometersState, values.kilometers]);
+    kilometersState.set(maskInput(values.kilometers) ?? '');
+  }, [kilometersState, maskInput, values.kilometers]);
 
   const update = (field: keyof NativeDailyDataValues, value: string) => {
+    if (testModeEnabled) return;
     setValues((current) => ({ ...current, [field]: value }));
   };
 
   const handleSubmit = async () => {
+    if (testModeEnabled) return;
     setSubmitting(true);
     try {
       await onSubmit(values);
@@ -135,6 +140,7 @@ export default function NativeDailyDataSheetSwiftUI({
             autocorrectionDisabled(true),
             frame({ maxWidth: 1000 }),
             keyboardType('decimal-pad'),
+            ...(testModeEnabled ? [disabledModifier(true)] : []),
             padding({ leading: 44 }),
           ]}
           onTextChange={(value) => update(fieldName, value)}
@@ -224,9 +230,14 @@ export default function NativeDailyDataSheetSwiftUI({
           ]}
         >
           <Spacer />
-          <Button
-            label="Adicionar"
-            modifiers={[roundedFont({}), buttonStyle('glassProminent'), controlSize('large')]}
+            <Button
+              label="Adicionar"
+            modifiers={[
+              roundedFont({}),
+              buttonStyle('glassProminent'),
+              controlSize('large'),
+              ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
+            ]}
             onPress={() => {
               if (submitting) return;
               triggerNativeButtonHaptic('light');

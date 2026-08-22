@@ -6,8 +6,8 @@ import { NativeTrackedRouteMap } from '@/components/routes';
 import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
 import { useAppTheme } from '@/theme';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { formatCurrency } from '@/utils/data';
 import { formatRouteDateLabel, formatRouteDistanceLabel } from '../utils/lastRouteFormatUtils';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 export { formatRouteDateLabel, formatRouteDistanceLabel };
 
@@ -18,6 +18,7 @@ export type LastRouteCardProps = {
 
 export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
   const { theme } = useAppTheme();
+  const { currency: maskCurrency, text: maskText } = useTestModePresentation();
   const fuelCost = useRouteFuelCost(session);
 
   if (!session) return null;
@@ -72,10 +73,10 @@ export function LastRouteCard({ onPress, session }: LastRouteCardProps) {
           </Text>
           <View style={styles.routeStatsRow}>
             <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {formatRouteDistanceLabel(session.distanceMeters)}
+              {maskText(formatRouteDistanceLabel(session.distanceMeters))}
             </Text>
             <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {formatCurrency(fuelCost)}
+              {maskCurrency(fuelCost)}
             </Text>
           </View>
         </View>

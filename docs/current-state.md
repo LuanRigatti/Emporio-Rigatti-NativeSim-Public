@@ -1784,3 +1784,83 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Esta alteração ainda não foi commitada.
 - Não há commit/hash específico para ela.
 - Nenhum commit ou push adicional foi realizado.
+
+## Modo Teste / Modo Apresentação local
+
+### Funcionalidade implementada
+
+- Adicionado o Modo Teste em Configurações, com tela própria e o mesmo
+  `NativeToggle` nativo usado pelo Face ID.
+- Criado `TestModeProvider` central com estado persistido somente no
+  `AsyncStorage` local do dispositivo.
+- O `SplashGate` aguarda a leitura da preferência local antes de liberar a
+  interface principal.
+- Criado helper central de apresentação para mascarar valores numéricos e
+  sensíveis sem alterar os dados reais.
+- Campos numéricos editáveis ficam visualmente zerados e bloqueados enquanto o
+  modo está ativo; ações de gravação relacionadas também são protegidas contra
+  o envio de valores mascarados.
+
+### Comportamento final
+
+- Com o modo ativo, valores aparecem como `R$ 0,00`, `0 km`, `0 baldes`, `0%`
+  ou equivalente ao formato original.
+- Dados reais continuam sendo usados internamente por cálculos, gráficos,
+  linhas, curvas e animações.
+- Ao desativar o modo, os valores reais reaparecem imediatamente.
+- Nenhum dado de negócio, cache Firestore, schema ou serviço financeiro é
+  substituído por zero; a única persistência nova é a preferência local do
+  dispositivo.
+- Home Search, Home, Finanças, Registrar, Histórico, Fábrica, Estoque, Custos,
+  Clientes, Localização, pagamentos em aberto, documentos e formulários
+  nativos usam a mesma camada de apresentação quando exibem valores cobertos
+  pelo modo.
+
+### Arquivos principais
+
+- `src/app/_layout.tsx`
+- `src/app/modo-teste.tsx`
+- `src/providers/TestModeProvider.tsx`
+- `src/hooks/useTestMode.ts`
+- `src/services/preferences/TestModeStorage.ts`
+- `src/utils/presentation/testModeValues.ts`
+- `src/features/splash/SplashGate.tsx`
+- `src/features/settings/components/SettingsScreen.tsx`
+- `src/features/settings/components/TestModeScreen.tsx`
+- `src/components/native/NativeTextField/NativeTextField.native.tsx`
+- `src/components/native/NativeAnimatedNumber/NativeAnimatedNumber.native.tsx`
+- Componentes de apresentação das telas Home, Finanças, Histórico, Fábrica,
+  Estoque, Custos, Clientes, Localização, pagamentos e documentos.
+
+### Flags e schema afetados
+
+- Preferência local: `@pareact/test-mode-enabled-v1` no AsyncStorage.
+- Nenhuma flag remota foi alterada.
+- Nenhum schema, documento, coleção, regra ou cálculo do Cloud Firestore foi
+  alterado.
+- Nenhuma dependência ou API nativa nova foi adicionada.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado nos arquivos alterados: passou com a regra de Prettier
+  desativada para isolar as regras funcionais; a execução normal apresenta
+  ruído preexistente de normalização CRLF.
+- `git diff --check`: passou; os avisos emitidos são de normalização LF/CRLF.
+- Nenhum commit ou push adicional realizado.
+
+### Limitações conhecidas
+
+- A validação visual final dos controles nativos, campos SwiftUI e gráficos
+  ainda depende de teste no iPhone Development Build.
+- O mascaramento cobre a apresentação das telas e componentes atualmente
+  ativos; novos componentes numéricos devem consumir
+  `useTestModePresentation()` para aderir ao modo.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- A implementação está apenas no working tree e ainda não foi commitada.
+- HEAD de referência: `5647928a7a59b39a6542f9f29c487034e4eeb6c4`
+  (`fix(ui): stabilize safe area startup and glass tint`).
+- Nenhum commit ou push adicional foi realizado.

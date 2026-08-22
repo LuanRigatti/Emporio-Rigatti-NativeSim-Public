@@ -20,7 +20,8 @@ import {
   type StockPeriodSnapshotCacheEntry,
 } from '@/services/stock';
 import { useAppTheme } from '@/theme';
-import { formatCurrency, normalizeMoney } from '@/utils/data';
+import { normalizeMoney } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 function monthShortLabel(month: number): string {
   const labels = [
@@ -191,12 +192,13 @@ export default function StockRoute() {
 
 function StockSummaryRow({ label, value }: { label: string; value: number | null }) {
   const { theme } = useAppTheme();
+  const { quantity: maskQuantity } = useTestModePresentation();
 
   return (
     <View style={styles.summaryRow}>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-        {value === null ? '' : `${value} ${value === 1 ? 'balde' : 'baldes'}`}
+        {value === null ? '' : maskQuantity(value)}
       </Text>
     </View>
   );
@@ -204,12 +206,13 @@ function StockSummaryRow({ label, value }: { label: string; value: number | null
 
 function StockValueRow({ label, value }: { label: string; value: number | null }) {
   const { theme } = useAppTheme();
+  const { currency: maskCurrency } = useTestModePresentation();
 
   return (
     <View style={styles.summaryRow}>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{label}</Text>
       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-        {value === null ? '' : formatCurrency(value)}
+        {value === null ? '' : maskCurrency(value)}
       </Text>
     </View>
   );

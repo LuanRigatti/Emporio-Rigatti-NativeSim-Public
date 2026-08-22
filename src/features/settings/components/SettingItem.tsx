@@ -9,6 +9,7 @@ import type { SettingsIconProps } from './SettingsIcon.types';
 export type SettingItemProps = {
   title: string;
   description?: string;
+  disabled?: boolean;
   systemName: SettingsIconProps['systemName'];
   fallbackIcon: SettingsIconProps['fallbackIcon'];
   isLast?: boolean;
@@ -19,6 +20,7 @@ export type SettingItemProps = {
 
 export function SettingItem({
   description,
+  disabled = false,
   fallbackIcon,
   onPress,
   leadingInset,
@@ -27,7 +29,7 @@ export function SettingItem({
   trailingInset = 8,
 }: SettingItemProps) {
   const { theme } = useAppTheme();
-  const handlePress = onPress
+  const handlePress = onPress && !disabled
     ? () => {
         triggerLightImpactHaptic();
         onPress();
@@ -70,7 +72,7 @@ export function SettingItem({
       accessibilityHint={onPress ? undefined : 'Disponível futuramente'}
       accessibilityLabel={description ? `${title}, ${description}` : title}
       accessibilityRole={onPress ? 'button' : undefined}
-      disabled={!onPress}
+      disabled={!onPress || disabled}
       onPress={handlePress}
       style={({ pressed }) => [
         styles.row,

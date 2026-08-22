@@ -9,6 +9,7 @@ import { NativeSearchField } from '@/components/native';
 import { useAppTheme } from '@/theme';
 import { useAppSafeAreaInsets } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
@@ -43,6 +44,7 @@ export default function Home() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const insets = useAppSafeAreaInsets();
   const [focusEntryKey, setFocusEntryKey] = useState(0);
   const wasFocused = useRef(false);
@@ -132,17 +134,19 @@ export default function Home() {
 
   const handleTodayStatusToggle = useCallback(
     (deliveryId: string) => {
+      if (testModeEnabled) return;
       triggerLightImpactHaptic();
       void toggleDelivery(deliveryId);
     },
-    [toggleDelivery],
+    [testModeEnabled, toggleDelivery],
   );
 
   const handleTodayDeliveryDelete = useCallback(
     (deliveryId: string) => {
+      if (testModeEnabled) return;
       void removeDelivery(deliveryId);
     },
-    [removeDelivery],
+    [removeDelivery, testModeEnabled],
   );
 
   const handleSearchTextChange = useCallback((value: string) => {
@@ -404,7 +408,7 @@ export default function Home() {
               style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {formatOpenDocumentsLabel(openDocumentsCount)}
+                {maskText(formatOpenDocumentsLabel(openDocumentsCount))}
               </Text>
             </View>
           </PremiumCard>

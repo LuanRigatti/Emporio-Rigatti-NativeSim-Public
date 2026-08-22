@@ -6,6 +6,7 @@ import { useAppTheme } from '@/theme';
 import type { DeliveryStatus } from '../data/historyMocks';
 
 export type DeliveryStatusBadgeProps = {
+  disabled?: boolean;
   status: DeliveryStatus;
   onPress: () => void;
 };
@@ -14,7 +15,7 @@ function statusLabel(status: DeliveryStatus): string {
   return status === 'pendente' ? 'Pendente' : 'Entregue';
 }
 
-export function DeliveryStatusBadge({ onPress, status }: DeliveryStatusBadgeProps) {
+export function DeliveryStatusBadge({ disabled = false, onPress, status }: DeliveryStatusBadgeProps) {
   const { theme } = useAppTheme();
   const statusColors = {
     concluída: { background: theme.colors.successSurface, foreground: theme.colors.success },
@@ -26,6 +27,7 @@ export function DeliveryStatusBadge({ onPress, status }: DeliveryStatusBadgeProp
       accessibilityLabel={`Status: ${statusLabel(status)}`}
       accessibilityHint="Toque para alternar entre pendente e concluída"
       accessibilityRole="button"
+      disabled={disabled}
       onPress={onPress}
       style={[
         styles.badge,

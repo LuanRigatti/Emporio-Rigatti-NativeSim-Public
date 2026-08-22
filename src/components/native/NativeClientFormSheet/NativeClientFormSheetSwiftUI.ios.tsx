@@ -21,6 +21,7 @@ import {
   buttonStyle,
   controlSize,
   cornerRadius,
+  disabled as disabledModifier,
   disabled,
   foregroundColor,
   frame,
@@ -34,6 +35,7 @@ import {
 import { useEffect, useState } from 'react';
 
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { roundedFont } from '../nativeTypography';
 
 import type {
@@ -56,6 +58,7 @@ export default function NativeClientFormSheetSwiftUI({
   const [usesBoleto, setUsesBoleto] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
+  const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
   const nameState = useNativeState('');
   const addressState = useNativeState('');
   const bucketPriceState = useNativeState('');
@@ -83,10 +86,11 @@ export default function NativeClientFormSheetSwiftUI({
   }, [address, addressState]);
 
   useEffect(() => {
-    bucketPriceState.set(bucketPrice);
-  }, [bucketPrice, bucketPriceState]);
+    bucketPriceState.set(maskInput(bucketPrice) ?? '');
+  }, [bucketPrice, bucketPriceState, maskInput]);
 
   const handleSubmit = async () => {
+    if (testModeEnabled) return;
     setError(undefined);
     setSubmitting(true);
     const values: NativeClientFormValues = {
@@ -127,6 +131,7 @@ export default function NativeClientFormSheetSwiftUI({
           background('systemGray6'),
           cornerRadius(12),
           keyboardType(inputKeyboardType),
+          ...(testModeEnabled ? [disabledModifier(true)] : []),
           padding({ horizontal: 12, vertical: 10 }),
         ]}
         onTextChange={onTextChange}
@@ -161,7 +166,7 @@ export default function NativeClientFormSheetSwiftUI({
         <Toggle
           isOn={usesInvoice}
           label=""
-          modifiers={[controlSize('regular')]}
+          modifiers={[controlSize('regular'), ...(testModeEnabled ? [disabledModifier(true)] : [])]}
           onIsOnChange={setUsesInvoice}
         />
       </HStack>
@@ -172,7 +177,7 @@ export default function NativeClientFormSheetSwiftUI({
         <Toggle
           isOn={usesBoleto}
           label=""
-          modifiers={[controlSize('regular')]}
+          modifiers={[controlSize('regular'), ...(testModeEnabled ? [disabledModifier(true)] : [])]}
           onIsOnChange={setUsesBoleto}
         />
       </HStack>
@@ -224,7 +229,7 @@ export default function NativeClientFormSheetSwiftUI({
             roundedFont({}),
             buttonStyle('glassProminent'),
             controlSize('large'),
-            ...(submitting ? [disabled(true)] : []),
+              ...(submitting || testModeEnabled ? [disabled(true)] : []),
           ]}
           onPress={() => {
             triggerNativeButtonHaptic('light');

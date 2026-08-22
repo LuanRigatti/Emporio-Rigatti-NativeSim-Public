@@ -1,6 +1,7 @@
 import { Text as RNText } from 'react-native';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { NativeAnimatedNumberProps } from './NativeAnimatedNumber.types';
 
@@ -15,6 +16,8 @@ export default function NativeAnimatedNumberNative({
   text,
   value,
 }: NativeAnimatedNumberProps) {
+  const { text: maskText } = useTestModePresentation();
+  const presentedText = maskText(text);
   const NativeImplementation = getNativeCapabilities().canUseExpoUI
     ? require('./NativeAnimatedNumberSwiftUI.ios').default // eslint-disable-line @typescript-eslint/no-require-imports
     : null;
@@ -29,7 +32,7 @@ export default function NativeAnimatedNumberNative({
         fontWeight={fontWeight}
         lineHeight={lineHeight}
         style={style}
-        text={text}
+        text={presentedText}
         value={value}
       />
     );
@@ -60,7 +63,7 @@ export default function NativeAnimatedNumberNative({
         style,
       ]}
     >
-      {text}
+      {presentedText}
     </RNText>
   );
 }

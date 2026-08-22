@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
-import { useInitialCacheHydration, useSession } from '@/providers';
+import { useInitialCacheHydration, useSession, useTestMode } from '@/providers';
 import { useAppTheme } from '@/theme';
 
 import SplashVisual from './components/SplashVisual';
@@ -13,6 +13,7 @@ export function SplashGate() {
   const router = useRouter();
   const { isAuthenticated, isLoading: sessionLoading, user } = useSession();
   const isCacheHydrated = useInitialCacheHydration();
+  const { isReady: testModeReady } = useTestMode();
   const { isReady: themeReady, reduceMotionEnabled, resolvedMode } = useAppTheme();
   const {
     error: biometricError,
@@ -37,6 +38,7 @@ export function SplashGate() {
       !themeReady ||
       !overlayReady ||
       !isCacheHydrated ||
+      !testModeReady ||
       sessionLoading ||
       (isAuthenticated && !biometricReady) ||
       hideStartedRef.current
@@ -57,6 +59,7 @@ export function SplashGate() {
     biometricReady,
     isAuthenticated,
     isCacheHydrated,
+    testModeReady,
     overlayReady,
     sessionLoading,
     themeReady,

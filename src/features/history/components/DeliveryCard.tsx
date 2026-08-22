@@ -10,6 +10,7 @@ import {
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import {
   logHistoryLayoutDiagnostics,
   logHistoryLayoutFrame,
@@ -38,6 +39,8 @@ export function DeliveryCard({
   onToggleStatus,
 }: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const { enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
+    useTestModePresentation();
   const diagnosticsComponent = `History.DeliveryCard.${delivery.id}`;
 
   useEffect(() => {
@@ -56,16 +59,20 @@ export function DeliveryCard({
             {delivery.cliente}
           </Text>
           <View style={styles.statusInset}>
-            <DeliveryStatusBadge onPress={onToggleStatus} status={delivery.status} />
+            <DeliveryStatusBadge
+              disabled={testModeEnabled}
+              onPress={onToggleStatus}
+              status={delivery.status}
+            />
           </View>
         </View>
 
         <View style={[styles.primaryInfo, { gap: theme.spacing.sm }]}>
           <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
-            {delivery.quantidadeBaldes} baldes
+            {maskQuantity(delivery.quantidadeBaldes)}
           </Text>
           <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
-            {delivery.valor}
+            {maskText(delivery.valor)}
           </Text>
         </View>
       </View>
@@ -119,6 +126,7 @@ export function DeliveryCard({
         actions={[
           {
             destructive: true,
+            disabled: testModeEnabled,
             id: 'delete-delivery',
             onPress: onDelete,
             systemImage: 'trash',

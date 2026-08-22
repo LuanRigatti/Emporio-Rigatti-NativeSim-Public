@@ -6,6 +6,7 @@ import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
 import { useAppTheme } from '@/theme';
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { formatCurrency } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 type Props = {
   dailyDistanceKilometers?: number;
@@ -47,6 +48,7 @@ function formatDistance(meters: number): string {
 
 export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   const fuelCost = useRouteFuelCost(session);
   const sessionDistanceKilometers = session.distanceMeters / 1000;
   const showDailyDistance =
@@ -60,12 +62,12 @@ export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
     {
       icon: 'point.3.connected.trianglepath.dotted',
       label: 'Distância',
-      value: formatDistance(session.distanceMeters),
+      value: maskText(formatDistance(session.distanceMeters)),
     },
     {
       icon: 'fuelpump',
       label: 'Valor gasto',
-      value: formatCurrency(fuelCost),
+      value: maskText(formatCurrency(fuelCost)),
     },
     ...(!showDailyDistance
       ? []
@@ -73,7 +75,7 @@ export function RouteSummaryCard({ dailyDistanceKilometers, session }: Props) {
           {
             icon: 'road.lanes',
             label: 'Km considerado no dia',
-            value: formatKilometers(dailyDistanceKilometers),
+            value: maskText(formatKilometers(dailyDistanceKilometers)),
           },
         ]),
   ];

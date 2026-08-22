@@ -14,6 +14,7 @@ import {
   AppSafeAreaProvider,
   InitialCacheHydrationContext,
   SessionProvider,
+  TestModeProvider,
   useSession,
 } from '@/providers';
 import { BiometricLockOverlay } from '@/components/auth/BiometricLockOverlay';
@@ -117,9 +118,11 @@ export default function PrototypeRootLayout() {
         <AppSafeAreaProvider>
           <SessionProvider>
             <ThemeProvider>
-              <CrossScreenGlassMorphProvider>
-                <AppShell />
-              </CrossScreenGlassMorphProvider>
+              <TestModeProvider>
+                <CrossScreenGlassMorphProvider>
+                  <AppShell />
+                </CrossScreenGlassMorphProvider>
+              </TestModeProvider>
             </ThemeProvider>
           </SessionProvider>
         </AppSafeAreaProvider>

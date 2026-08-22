@@ -5,7 +5,8 @@ import { NativeButton, NativeDatePicker, NativeSheet, NativeTextField } from '@/
 import { GlassCard } from '@/components/premium';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { useAppTheme } from '@/theme';
-import { formatCurrency, formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
+import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { Purchase } from '../types';
 
@@ -26,6 +27,8 @@ export function PurchaseDetailsSheet({
   visible,
 }: PurchaseDetailsSheetProps) {
   const { theme } = useAppTheme();
+  const { currency: maskCurrency, number: maskNumber, enabled: testModeEnabled } =
+    useTestModePresentation();
   const [paymentDate, setPaymentDate] = useState(new Date());
   const [paymentAmount, setPaymentAmount] = useState('');
   const [error, setError] = useState<string | undefined>();
@@ -54,7 +57,7 @@ export function PurchaseDetailsSheet({
         receiptId: purchase ? maskReceiptId(purchase.id) : null,
       });
     }
-    if (!purchase || isAddingPaymentRef.current) return;
+    if (!purchase || isAddingPaymentRef.current || testModeEnabled) return;
 
     const amount = normalizeMoney(paymentAmount);
     const date = todayIso(paymentDate);
@@ -99,11 +102,11 @@ export function PurchaseDetailsSheet({
             {formatPtBrDate(purchase.date)}
           </Text>
           <View style={styles.summary}>
-            <DetailRow label="Baldes" value={String(purchase.bucketQuantity)} />
-            <DetailRow label="Valor do balde" value={formatCurrency(purchase.bucketUnitPrice)} />
-            <DetailRow label="Valor total" value={formatCurrency(purchase.totalAmount)} />
-            <DetailRow label="Total pago" value={formatCurrency(paidAmount)} />
-            <DetailRow label="Saldo restante" value={formatCurrency(remainingAmount)} />
+            <DetailRow label="Baldes" value={maskNumber(purchase.bucketQuantity)} />
+            <DetailRow label="Valor do balde" value={maskCurrency(purchase.bucketUnitPrice)} />
+            <DetailRow label="Valor total" value={maskCurrency(purchase.totalAmount)} />
+            <DetailRow label="Total pago" value={maskCurrency(paidAmount)} />
+            <DetailRow label="Saldo restante" value={maskCurrency(remainingAmount)} />
             <DetailRow label="Status" value={isPaid ? 'Pago' : 'Em aberto'} />
           </View>
           </GlassCard>
@@ -119,7 +122,7 @@ export function PurchaseDetailsSheet({
               <DetailRow
                 key={payment.id}
                 label={formatPtBrDate(payment.date)}
-                value={formatCurrency(payment.amount)}
+                value={maskCurrency(payment.amount)}
               />
             ))
           ) : (
@@ -158,7 +161,7 @@ export function PurchaseDetailsSheet({
                 accessibilityLabel="Adicionar pagamento"
                 haptic="light"
                 label="Adicionar pagamento"
-                disabled={isAddingPayment}
+                disabled={isAddingPayment || testModeEnabled}
                 onPress={handleAddPayment}
                 variant="primary"
               />

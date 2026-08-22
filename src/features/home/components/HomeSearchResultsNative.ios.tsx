@@ -24,6 +24,7 @@ import { PlatformColor } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { spacing, useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import HomeSearchRoutePagerRN from './HomeSearchRoutePagerRN';
 import HomeSearchRoutePreview from './HomeSearchRoutePreview.ios';
@@ -64,6 +65,7 @@ function ResultHeader({
   query?: string;
   result: HomeSearchVisualResult;
 }) {
+  const { text: maskText } = useTestModePresentation();
   if (!result.header) return null;
   const context = result.hideQueryContext
     ? undefined
@@ -84,7 +86,7 @@ function ResultHeader({
             semanticStyle('secondary'),
           ]}
         >
-          {context}
+          {maskText(context)}
         </Text>
       ) : null}
       {result.header.systemImage ? (
@@ -122,7 +124,7 @@ function ResultHeader({
             padding({ leading: spacing.xxl }),
           ]}
         >
-          {result.header.subtitle}
+          {maskText(result.header.subtitle)}
         </Text>
       ) : null}
     </VStack>
@@ -130,6 +132,7 @@ function ResultHeader({
 }
 
 function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualModel['metric']> }) {
+  const { text: maskText } = useTestModePresentation();
   return (
     <VStack alignment="leading" spacing={spacing.xxs}>
       <Text
@@ -139,7 +142,7 @@ function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualMo
           ...(metric.monospaced ? [monospacedDigit()] : []),
         ]}
       >
-        {metric.value}
+        {maskText(metric.value)}
       </Text>
       {metric.label ? (
         <Text
@@ -156,6 +159,7 @@ function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualMo
 }
 
 function ResultValueRow({ row }: { row: HomeSearchVisualRow }) {
+  const { text: maskText } = useTestModePresentation();
   const monospaced = row.monospaced || monospacedLabelValues.has(row.label);
   return (
     <VStack alignment="leading" spacing={0} modifiers={[padding({ vertical: spacing.xs })]}>
@@ -178,7 +182,7 @@ function ResultValueRow({ row }: { row: HomeSearchVisualRow }) {
             ...(monospaced ? [monospacedDigit()] : []),
           ]}
         >
-          {row.value}
+          {maskText(row.value)}
         </Text>
       </LabeledContent>
     </VStack>

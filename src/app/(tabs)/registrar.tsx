@@ -24,6 +24,7 @@ import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 const BUCKET_PRICE = 49.8;
 
@@ -153,6 +154,7 @@ function RegistrarModeSelection() {
 export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
+  const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const [isDeleting, setIsDeleting] = useState(false);
   const { addFieldValue, deleteDailyData, getLatestDailyValue, getValues, setFieldValue } =
     useCostSettings();
@@ -178,6 +180,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
 
   const handleDailyDataSubmit = useCallback(
     async (values: NativeDailyDataValues) => {
+      if (testModeEnabled) return;
       await Promise.all([
         addFieldValue('day', dailyDate, 'estar', values.estar),
         addFieldValue('day', dailyDate, 'other', values.other),
@@ -185,11 +188,11 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
         setFieldValue('day', dailyDate, 'fuelPrice', values.fuelPrice),
       ]);
     },
-    [addFieldValue, setFieldValue, dailyDate],
+    [addFieldValue, dailyDate, setFieldValue, testModeEnabled],
   );
 
   const handleDeleteDailyData = useCallback(async () => {
-    if (isDeleting) return;
+    if (isDeleting || testModeEnabled) return;
 
     setIsDeleting(true);
     triggerLightImpactHaptic();
@@ -198,7 +201,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
     } finally {
       setIsDeleting(false);
     }
-  }, [dailyDate, deleteDailyData, isDeleting]);
+  }, [dailyDate, deleteDailyData, isDeleting, testModeEnabled]);
 
   const openDailyDataSheet = useCallback(() => {
     triggerLightImpactHaptic();
@@ -233,15 +236,15 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
         {formatDeliveryDate(dailyDate)}
       </Text>
       <View style={styles.dailyDataRows}>
-        <DailyDataRow label="Estar" value={formatStoredCost(dailyValues.estar)} />
-        <DailyDataRow label="Outros" value={formatStoredCost(dailyValues.other)} />
+        <DailyDataRow label="Estar" value={maskText(formatStoredCost(dailyValues.estar))} />
+        <DailyDataRow label="Outros" value={maskText(formatStoredCost(dailyValues.other))} />
         <DailyDataRow
           label="Km"
-          value={`${formatStoredNumber(String(totalKilometers))} km`}
+          value={maskText(`${formatStoredNumber(String(totalKilometers))} km`)}
         />
         <DailyDataRow
           label="Preço do combustível"
-          value={formatStoredCost(dailyValues.fuelPrice)}
+          value={maskText(formatStoredCost(dailyValues.fuelPrice))}
         />
       </View>
     </>
@@ -357,6 +360,8 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   const colorScheme = useColorScheme();
   const insets = useAppSafeAreaInsets();
   const { theme } = useAppTheme();
+  const { quantity: maskQuantity, text: maskText, enabled: testModeEnabled } =
+    useTestModePresentation();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [selectedClient, setSelectedClient] = useState<NativeBottomSheetItem | null>(null);
   const dark = colorScheme === 'dark';
@@ -402,6 +407,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     setSheetVisible(true);
   };
   const handleConfirm = (confirmation: NativeBottomSheetConfirmation) => {
+    if (testModeEnabled) return;
     const currentClient = clients.find((client) => client.clientId === confirmation.client.id);
     if (!currentClient?.clientId || !currentClient.address) return;
     const bucketPrice = currentClient.currentPrice ?? confirmation.bucketPrice;
@@ -523,7 +529,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                         <Text
                           style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
                         >
-                          {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
+                    {maskQuantity(delivery.quantidadeBaldes)}
                         </Text>
                       </View>
                       <Text
@@ -532,7 +538,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                           { color: theme.colors.textPrimary, fontWeight: '600' },
                         ]}
                       >
-                        {delivery.valor}
+                        {maskText(delivery.valor)}
                       </Text>
                     </View>
                   );
@@ -554,6 +560,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                         actions={[
                           {
                             destructive: true,
+                            disabled: testModeEnabled,
                             id: 'delete-delivery',
                             onPress: () => {
                               void removeDelivery(delivery.id);

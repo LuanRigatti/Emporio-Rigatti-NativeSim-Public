@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { PremiumCard } from './PremiumCard';
 
@@ -17,6 +18,7 @@ export type SummaryCardProps = {
 
 export function SummaryCard({ rows, style, title }: SummaryCardProps) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   return (
     <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }, style]}>
       <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>{title}</Text>
@@ -35,7 +37,7 @@ export function SummaryCard({ rows, style, title }: SummaryCardProps) {
                 },
               ]}
             >
-              {row.value}
+              {maskText(row.value)}
             </Text>
           </View>
         ))}

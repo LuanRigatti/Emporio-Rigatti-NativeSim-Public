@@ -13,6 +13,8 @@ export { FinancialPeriodProvider, useFinancialPeriod } from './FinancialPeriodPr
 export type { FinancialPeriodContextValue } from './FinancialPeriodProvider';
 export { SessionProvider, useSession } from './SessionProvider';
 export type { SessionContextValue } from './SessionProvider';
+export { TestModeContext, TestModeProvider, useTestMode } from './TestModeProvider';
+export type { TestModeContextValue } from './TestModeProvider';
 export {
   InitialCacheHydrationContext,
   useInitialCacheHydration,

@@ -45,6 +45,7 @@ import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
@@ -70,12 +71,21 @@ export default function NativeBottomSheetSwiftUI({
   hostSizing = 'content',
 }: NativeBottomSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
+    useTestModePresentation();
   const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
   const selectedItem = controlledSelectedItem ?? null;
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
+  const presentedQuantity = maskNumber(bucketQuantity);
+  const presentedTotal = testModeEnabled
+    ? maskCurrency(0)
+    : new Intl.NumberFormat('pt-BR', {
+        currency: 'BRL',
+        style: 'currency',
+      }).format(effectiveBucketPrice * bucketQuantity);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -176,7 +186,7 @@ export default function NativeBottomSheetSwiftUI({
                   shape: 'circle',
                 }),
                 accessibilityLabel('Diminuir quantidade'),
-                disabledModifier(!selectedItem),
+                disabledModifier(!selectedItem || testModeEnabled),
               ]}
               onPress={() => {
                 setQuantityDirection('down');
@@ -198,7 +208,7 @@ export default function NativeBottomSheetSwiftUI({
                 animation(Animation.easeInOut({ duration: 0.18 }), bucketQuantity),
               ]}
             >
-              {bucketQuantity}
+              {presentedQuantity}
             </Text>
             <Button
               modifiers={[
@@ -209,7 +219,7 @@ export default function NativeBottomSheetSwiftUI({
                   shape: 'circle',
                 }),
                 accessibilityLabel('Aumentar quantidade'),
-                disabledModifier(!selectedItem),
+                disabledModifier(!selectedItem || testModeEnabled),
               ]}
               onPress={() => {
                 setQuantityDirection('up');
@@ -231,10 +241,7 @@ export default function NativeBottomSheetSwiftUI({
             <Text
               modifiers={[roundedFont({ size: 17, weight: 'semibold' }), padding({ trailing: 16 })]}
             >
-              {new Intl.NumberFormat('pt-BR', {
-                currency: 'BRL',
-                style: 'currency',
-              }).format(effectiveBucketPrice * bucketQuantity)}
+              {presentedTotal}
             </Text>
           </HStack>
         </VStack>
@@ -258,10 +265,10 @@ export default function NativeBottomSheetSwiftUI({
             buttonStyle('glassProminent'),
             controlSize('large'),
             padding({ top: 4 }),
-            disabledModifier(!selectedItem),
+            disabledModifier(!selectedItem || testModeEnabled),
           ]}
           onPress={() => {
-            if (!selectedItem) return;
+            if (!selectedItem || testModeEnabled) return;
 
             onConfirm?.({
               bucketPrice: effectiveBucketPrice,

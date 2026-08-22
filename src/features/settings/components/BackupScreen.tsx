@@ -10,12 +10,14 @@ import { useFirestoreBackupDryRun } from '@/hooks/useFirestoreBackupDryRun';
 import { useFirestoreBackupRestore } from '@/hooks/useFirestoreBackupRestore';
 import type { FirestoreBackupDryRunReport } from '@/services/backup';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { SettingItem } from './SettingItem';
 import { SettingsSection } from './SettingsSection';
 
 export function BackupScreen() {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const router = useRouter();
   const firestoreBackup = useFirestoreBackup();
   const firestoreBackupDryRun = useFirestoreBackupDryRun();
@@ -38,10 +40,12 @@ export function BackupScreen() {
     if (firestoreBackup.result) {
       Alert.alert(
         'Backup exportado',
-        `${firestoreBackup.result.fileName}\n${firestoreBackup.result.counts.deliveries} entregas · ${firestoreBackup.result.sizeBytes} bytes`,
+        maskText(
+          `${firestoreBackup.result.fileName}\n${firestoreBackup.result.counts.deliveries} entregas · ${firestoreBackup.result.sizeBytes} bytes`,
+        ),
       );
     }
-  }, [firestoreBackup.result]);
+  }, [firestoreBackup.result, maskText]);
 
   useEffect(() => {
     const report = firestoreBackupDryRun.report;
@@ -65,9 +69,11 @@ export function BackupScreen() {
     );
     Alert.alert(
       report.status === 'ready' ? 'Backup validado' : 'Backup bloqueado',
-      `${report.status === 'ready' ? 'Dry-run concluído sem escritas.' : 'Corrija os problemas antes de restaurar.'}\nCriar: ${totalCreates} · Conflitos: ${totalConflicts}\nEscritas Firestore: ${report.writesAttempted}\n\n${entitySummary}`,
+      maskText(
+        `${report.status === 'ready' ? 'Dry-run concluído sem escritas.' : 'Corrija os problemas antes de restaurar.'}\nCriar: ${totalCreates} · Conflitos: ${totalConflicts}\nEscritas Firestore: ${report.writesAttempted}\n\n${entitySummary}`,
+      ),
     );
-  }, [firestoreBackupDryRun.report]);
+  }, [firestoreBackupDryRun.report, maskText]);
 
   const confirmBackupRestore = useCallback(
     (report: FirestoreBackupDryRunReport) =>
@@ -100,6 +106,7 @@ export function BackupScreen() {
   );
 
   const handleRestoreBackup = useCallback(async () => {
+    if (testModeEnabled) return;
     const flow = await restoreBackup(confirmBackupRestore);
     if (!flow) return;
     if (flow.preparation.report.status !== 'ready') {
@@ -113,9 +120,11 @@ export function BackupScreen() {
       flow.result.status === 'completed' ? 'Restauração concluída' : 'Restauração parcial';
     Alert.alert(
       title,
-      `Criados: ${flow.result.created}\nIgnorados: ${flow.result.skipped}\nConflitos: ${flow.result.conflicts}\nFalhas: ${flow.result.failed}\nEscritas: ${flow.result.writesSucceeded}/${flow.result.writesAttempted}\nPós-dry-run: ${postStatus}\nExclusões: ${flow.result.deletionsAttempted}`,
+      maskText(
+        `Criados: ${flow.result.created}\nIgnorados: ${flow.result.skipped}\nConflitos: ${flow.result.conflicts}\nFalhas: ${flow.result.failed}\nEscritas: ${flow.result.writesSucceeded}/${flow.result.writesAttempted}\nPós-dry-run: ${postStatus}\nExclusões: ${flow.result.deletionsAttempted}`,
+      ),
     );
-  }, [confirmBackupRestore, restoreBackup]);
+  }, [confirmBackupRestore, maskText, restoreBackup, testModeEnabled]);
 
   const header = (
     <NativeGlassHeader
@@ -162,6 +171,7 @@ export function BackupScreen() {
             fallbackIcon="download-outline"
             isLast
             onPress={() => void handleRestoreBackup()}
+            disabled={testModeEnabled}
             systemName="arrow.down.doc"
             title="Restaurar backup"
           />

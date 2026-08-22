@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeCardContextMenu } from '@/components/native';
 import { PremiumCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import { DeliveryStatusBadge } from '@/features/history/components/DeliveryStatusBadge';
@@ -19,6 +20,7 @@ export function TodayDeliveriesCard({
   onToggleStatus,
 }: TodayDeliveriesCardProps) {
   const { theme } = useAppTheme();
+  const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
   const totalBuckets = deliveries.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0);
 
   if (deliveries.length === 0) return null;
@@ -38,7 +40,7 @@ export function TodayDeliveriesCard({
             { color: theme.colors.textSecondary },
           ]}
         >
-          {`${totalBuckets} ${totalBuckets === 1 ? 'balde' : 'baldes'}`}
+          {maskQuantity(totalBuckets)}
         </Text>
       </View>
 
@@ -68,10 +70,11 @@ export function TodayDeliveriesCard({
                     {delivery.cliente}
                   </Text>
                   <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                    {`${delivery.quantidadeBaldes} ${delivery.quantidadeBaldes === 1 ? 'balde' : 'baldes'}`}
+                    {maskQuantity(delivery.quantidadeBaldes)}
                   </Text>
                 </View>
                 <DeliveryStatusBadge
+                  disabled={testModeEnabled}
                   onPress={() => onToggleStatus(delivery.id)}
                   status={delivery.status}
                 />
@@ -95,6 +98,7 @@ export function TodayDeliveriesCard({
                   actions={[
                     {
                       destructive: true,
+                      disabled: testModeEnabled,
                       id: 'delete-delivery',
                       onPress: () => onDelete(delivery.id),
                       systemImage: 'trash',

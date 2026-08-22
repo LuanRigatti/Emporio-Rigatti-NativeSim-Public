@@ -7,6 +7,7 @@ import HistorySymbolIcon from '@/features/history/components/HistorySymbolIcon';
 import type { FinancialComparison } from '@/types/data';
 import { useAppTheme } from '@/theme';
 import { formatTrendPercentage } from '../utils/financialTrendUtils';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 export type FinancialTrendIndicatorProps = {
   comparison?: FinancialComparison;
@@ -20,6 +21,7 @@ export function FinancialTrendIndicator({
   visible = true,
 }: FinancialTrendIndicatorProps) {
   const { theme } = useAppTheme();
+  const { text: maskText } = useTestModePresentation();
   const [cachedComparison, setCachedComparison] = useState<FinancialComparison | undefined>(
     comparison,
   );
@@ -52,7 +54,7 @@ export function FinancialTrendIndicator({
       : 'remove-outline';
 
   const percentageText = isReady
-    ? formatTrendPercentage(effectiveComparison?.percentual)
+    ? maskText(formatTrendPercentage(effectiveComparison?.percentual))
     : '\u00a0';
 
   return (

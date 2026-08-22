@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { AnimatedPressable } from '@/components/premium';
 import { icons, useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { OpenPaymentPreview } from '../data/openPaymentPreview';
 
@@ -25,6 +26,7 @@ export function OpenPaymentRow({
   showInvoiceStatusIcon = false,
 }: OpenPaymentRowProps) {
   const { reduceMotionEnabled, theme } = useAppTheme();
+  const { quantity: maskQuantity, text: maskText } = useTestModePresentation();
   const selectionProgress = useSharedValue(selectionMode ? 1 : 0);
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export function OpenPaymentRow({
                 {item.client}
               </Text>
               <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                {item.quantity} baldes
+                {maskQuantity(item.quantity)}
               </Text>
             </View>
           </View>
@@ -83,7 +85,7 @@ export function OpenPaymentRow({
             <Ionicons color={theme.colors.warning} name={icons.status.toIssue} size={16} />
           ) : null}
           <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-            {item.amount}
+            {maskText(item.amount)}
           </Text>
         </View>
       </View>

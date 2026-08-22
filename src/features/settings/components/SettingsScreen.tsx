@@ -7,7 +7,7 @@ import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassMenu } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useSession } from '@/providers';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 import { SettingItem } from './SettingItem';
@@ -42,7 +42,7 @@ export function SettingsScreen() {
       color={theme.colors.textPrimary}
       containerSize={theme.sizes.touchTargetMinimum}
       fallbackIcon="ellipsis-horizontal"
-      glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+      glassTint={getLiquidGlassTint(resolvedMode)}
       size={theme.sizes.iconMedium}
       style={{
         height: theme.sizes.touchTargetMinimum,

@@ -15,7 +15,7 @@ import { NativeTrackedRouteMap } from '@/components/routes';
 import { locationTrackingService, RouteTrackingError } from '@/services/routes';
 import type { LocationTrackingService } from '@/services/routes';
 import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTracking';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
@@ -319,7 +319,7 @@ export function LocationTrackingScreen() {
             busy={busy}
             color={theme.colors.textPrimary}
             disabled={busy || testModeEnabled}
-            glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+            glassTint={getLiquidGlassTint(resolvedMode)}
             onPress={() => void (route?.active ? handleStop() : handleStart())}
           />
         </View>

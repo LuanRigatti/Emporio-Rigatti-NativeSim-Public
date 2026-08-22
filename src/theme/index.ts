@@ -23,7 +23,10 @@ export {
 };
 export { darkTheme } from './darkTheme';
 export {
+  GLASS_DARK_TINT_OPACITY,
   GLASS_LIGHT_TINT_OPACITY,
+  darkModeLiquidGlassTint,
+  getLiquidGlassTint,
   lightModeLiquidGlassTint,
   lightModeTestPalette,
   previousLightColors,

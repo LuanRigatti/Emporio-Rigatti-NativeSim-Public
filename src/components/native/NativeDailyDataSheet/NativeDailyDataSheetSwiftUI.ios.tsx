@@ -36,7 +36,7 @@ import {
 import { useEffect, useState } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import {
@@ -237,7 +237,7 @@ export default function NativeDailyDataSheetSwiftUI({
               roundedFont({}),
               buttonStyle('glassProminent'),
               controlSize('large'),
-              ...(resolvedMode === 'light' ? [tint(lightModeLiquidGlassTint)] : []),
+              tint(getLiquidGlassTint(resolvedMode)),
               ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
             ]}
             onPress={() => {

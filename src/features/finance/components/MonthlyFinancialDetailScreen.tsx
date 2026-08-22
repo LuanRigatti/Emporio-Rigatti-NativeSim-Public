@@ -22,7 +22,7 @@ import {
 } from '@/services/finance';
 import { routeTrackingRepository } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
 import {
   HISTORY_MONTH_ITEMS,
@@ -156,7 +156,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
       rightActions={
         <NativePeriodActionGroup
           color={theme.colors.textPrimary}
-          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+          glassTint={getLiquidGlassTint(resolvedMode)}
           monthDisplayValue={monthShortLabel(selectedMonth)}
           monthItems={HISTORY_MONTH_ITEMS}
           onMonthChange={setSelectedMonth}

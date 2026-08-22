@@ -18,7 +18,7 @@ import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 function monthShortLabel(month: number): string {
@@ -120,7 +120,7 @@ export default function PrototypeFinanceiro() {
   const periodActions = (
     <NativePeriodActionGroup
       color={theme.colors.textPrimary}
-      glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+      glassTint={getLiquidGlassTint(resolvedMode)}
       monthDisplayValue={monthShortLabel(selectedMonth)}
       monthItems={HISTORY_MONTH_ITEMS}
       onMonthChange={setSelectedMonth}

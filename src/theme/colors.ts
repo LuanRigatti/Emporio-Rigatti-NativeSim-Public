@@ -142,3 +142,23 @@ export const darkColors: ThemeColors = {
   expense: '#FF817A',
   overlay: 'rgba(0, 0, 0, 0.58)',
 };
+
+export const GLASS_DARK_TINT_OPACITY = 0.85 as const;
+
+function colorWithOpacity(hexColor: string, opacity: number): string {
+  const normalized = hexColor.replace('#', '');
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+}
+
+export const darkModeLiquidGlassTint = colorWithOpacity(
+  darkColors.surface,
+  GLASS_DARK_TINT_OPACITY,
+);
+
+export function getLiquidGlassTint(mode: 'light' | 'dark'): string {
+  return mode === 'dark' ? darkModeLiquidGlassTint : lightModeLiquidGlassTint;
+}

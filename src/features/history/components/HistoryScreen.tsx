@@ -12,7 +12,7 @@ import {
 } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 import { startHistoryLayoutDiagnostics } from '@/utils/historyLayoutDiagnostics';
 import { toHistoryDelivery } from '@/services/data';
@@ -212,7 +212,7 @@ export function HistoryScreen() {
           color={theme.colors.textPrimary}
           containerSize={theme.sizes.touchTargetMinimum}
           fallbackIcon="filter-outline"
-          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+          glassTint={getLiquidGlassTint(resolvedMode)}
           size={theme.sizes.iconMedium}
           systemImage="line.3.horizontal.decrease"
           style={{

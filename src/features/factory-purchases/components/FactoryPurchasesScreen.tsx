@@ -16,7 +16,7 @@ import {
   factoryPurchaseCalculationService,
   type FactoryPurchaseSummary,
 } from '@/services/factory-purchases';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -286,7 +286,7 @@ function PurchaseRow({
                 ? theme.colors.paid
                 : resolvedMode === 'light'
                   ? '#000000'
-                  : theme.colors.unpaid,
+                  : theme.colors.textPrimary,
             },
           ]}
         >
@@ -314,7 +314,7 @@ function PurchaseRow({
           onPress={onPress}
           variant="primary"
           color={resolvedMode === 'light' ? '#000000' : undefined}
-          glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+          glassTint={getLiquidGlassTint(resolvedMode)}
         />
       </View>
     </>

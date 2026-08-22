@@ -1730,6 +1730,52 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Ajuste de cor do status Em aberto nos cards da Fábrica
+
+### Funcionalidade implementada
+
+- Ajustada somente a cor textual do status `Em aberto` nos cards de compras da
+  tela Fábrica aberta pela Home.
+
+### Comportamento final
+
+- No Light Mode, `Em aberto` permanece preto.
+- No Dark Mode, `Em aberto` usa `theme.colors.textPrimary`, mantendo leitura
+  clara sobre o card escuro.
+- O status `Pago` permanece verde.
+- Layout, valores, cálculos, pagamentos, ações e navegação permanecem
+  inalterados.
+
+### Arquivos principais
+
+- `src/features/factory-purchases/components/FactoryPurchasesScreen.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou.
+- ESLint direcionado no `FactoryPurchasesScreen.tsx`: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final depende de teste no iPhone Development Build.
+- A alteração é visual e não muda regras financeiras ou persistência.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- Esta alteração ainda não foi commitada.
+- HEAD atual: `e883e14b32179aaa0e056776beb9281e90574852`
+  (`fix(ui): refine home and factory presentation`).
+- Nenhum commit ou push adicional foi realizado.
+
 ## Refinamento do card agrupado Em aberto/Fábrica na Home
 
 ### Funcionalidade implementada

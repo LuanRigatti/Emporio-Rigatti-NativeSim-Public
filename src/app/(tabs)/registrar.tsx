@@ -20,7 +20,7 @@ import { useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
@@ -339,7 +339,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
             color={theme.colors.textPrimary}
             containerSize={56}
             containerWidth={116}
-            glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+            glassTint={getLiquidGlassTint(resolvedMode)}
             interactiveGlass
             label="Adicionar"
             onPress={openDailyDataSheet}
@@ -600,7 +600,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
             color={dark ? '#FFFFFF' : '#000000'}
             containerSize={56}
             containerWidth={116}
-            glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+            glassTint={getLiquidGlassTint(resolvedMode)}
             interactiveGlass
             label="Adicionar"
             onPress={openSheet}

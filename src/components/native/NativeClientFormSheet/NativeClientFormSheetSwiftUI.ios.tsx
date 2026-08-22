@@ -35,7 +35,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { roundedFont } from '../nativeTypography';
@@ -232,7 +232,7 @@ export default function NativeClientFormSheetSwiftUI({
             roundedFont({}),
             buttonStyle('glassProminent'),
             controlSize('large'),
-            ...(resolvedMode === 'light' ? [tint(lightModeLiquidGlassTint)] : []),
+            tint(getLiquidGlassTint(resolvedMode)),
               ...(submitting || testModeEnabled ? [disabled(true)] : []),
           ]}
           onPress={() => {

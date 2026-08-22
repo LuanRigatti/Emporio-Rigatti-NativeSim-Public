@@ -1,6 +1,6 @@
 import NativeGlassIconButton from '../NativeGlassIconButton';
 import type { NativeGlassBackButtonProps } from './NativeGlassBackButton.types';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 
 export default function NativeGlassBackButton({
   accessibilityLabel = 'Voltar',
@@ -12,7 +12,7 @@ export default function NativeGlassBackButton({
     <NativeGlassIconButton
       accessibilityLabel={accessibilityLabel}
       fallbackIcon="chevron-back"
-      glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
+      glassTint={getLiquidGlassTint(resolvedMode)}
       interactiveGlass
       systemImage="chevron.left"
       {...props}

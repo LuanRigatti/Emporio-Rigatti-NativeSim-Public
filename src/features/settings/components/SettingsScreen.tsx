@@ -92,11 +92,12 @@ export function SettingsScreen() {
 
   return (
     <PremiumScreen
+      startupDiagnosticsLabel="Configuracoes"
       contentContainerStyle={[
         styles.content,
         {
           gap: 0,
-          marginTop: theme.spacing.xxxl + theme.spacing.xl - theme.spacing.md,
+          marginTop: theme.spacing.xxxl + theme.spacing.xl + 2,
           paddingTop: theme.spacing.sm,
         },
       ]}

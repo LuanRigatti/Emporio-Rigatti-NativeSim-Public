@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused, useRouter } from 'expo-router';
+import * as Font from 'expo-font';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
@@ -25,6 +26,7 @@ import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
+import { logStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 function PreviewIcon({
   color,
@@ -82,6 +84,30 @@ export default function Home() {
   );
   useEffect(() => {
     const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const fontFamily = Ionicons.getFontFamily();
+    let lastReady: boolean | null = null;
+
+    const reportReadiness = () => {
+      const ready = Font.isLoaded(fontFamily);
+      if (ready === lastReady) return;
+
+      lastReady = ready;
+      logStartupDiagnostics('Home.Ionicons', 'font-readiness', {
+        fontFamily,
+        ready,
+      });
+    };
+
+    reportReadiness();
+    const timer = setInterval(() => {
+      reportReadiness();
+      if (lastReady) clearInterval(timer);
+    }, 16);
+
     return () => clearInterval(timer);
   }, []);
 
@@ -281,9 +307,10 @@ export default function Home() {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
+        startupDiagnosticsLabel="Home"
         contentContainerStyle={{
           gap: theme.spacing.lg,
-          marginTop: theme.spacing.xl + theme.spacing.xxl - theme.spacing.md + theme.spacing.xxs,
+          marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xxxl,
         }}
         progressiveBlurHeight={

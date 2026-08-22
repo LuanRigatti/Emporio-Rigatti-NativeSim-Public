@@ -70,9 +70,10 @@ function RegistrarModeSelection() {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
+        startupDiagnosticsLabel="Registrar"
         contentContainerStyle={[
           styles.modeSelectionContent,
-          { marginTop: theme.spacing.xxxl + theme.spacing.xl - theme.spacing.md },
+          { marginTop: theme.spacing.xxxl + theme.spacing.xl + 2 },
         ]}
         progressiveBlurHeight={
           theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
@@ -267,6 +268,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
+        startupDiagnosticsLabel="RegistrarDailyData"
         contentContainerStyle={styles.dailyDataContent}
         overlayHeader={header}
         progressiveBlur
@@ -463,6 +465,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <PremiumScreen
+        startupDiagnosticsLabel="RegistrarDelivery"
         contentContainerStyle={{
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,
           paddingHorizontal: 0,

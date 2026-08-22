@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useIsFocused } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
@@ -14,6 +14,7 @@ import {
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
+import { startHistoryLayoutDiagnostics } from '@/utils/historyLayoutDiagnostics';
 import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { parseIsoCalendarDate, todayIso } from '@/utils/data';
@@ -38,6 +39,7 @@ function filterDayDeliveries<T extends { status: string }>(
 }
 
 export function HistoryScreen() {
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
@@ -53,6 +55,10 @@ export function HistoryScreen() {
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(
     () => insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm,
   );
+
+  if (__DEV__ && isFocused) {
+    startHistoryLayoutDiagnostics();
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -269,12 +275,24 @@ export function HistoryScreen() {
           theme.spacing.xl * 2 -
           theme.spacing.md -
           theme.spacing.md -
+          theme.spacing.xxs +
+          theme.spacing.xs +
           theme.spacing.xxs,
       }}
       showsVerticalScrollIndicator={false}
       style={styles.dayScroll}
     >
-      <View style={styles.header}>{header}</View>
+      <View
+        style={[
+          styles.header,
+          {
+            marginBottom: -theme.spacing.xs,
+            marginTop: theme.spacing.xs,
+          },
+        ]}
+      >
+        {header}
+      </View>
       {isFilterPreviewVisible ? (
         <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
       ) : null}
@@ -285,6 +303,7 @@ export function HistoryScreen() {
   return (
     <Animated.View style={styles.root}>
       <PremiumScreen
+        startupDiagnosticsLabel="Historico"
         scrollable={false}
         contentContainerStyle={[
           styles.screenContent,

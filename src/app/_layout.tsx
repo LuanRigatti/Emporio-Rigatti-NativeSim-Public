@@ -4,7 +4,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Font from 'expo-font';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import { CrossScreenGlassMorphProvider, TransientGlassMorphHost } from '@/components/native';
 import {
@@ -20,12 +24,14 @@ import { firestoreDeliveryDataSource } from '@/services/deliveries';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider } from '@/theme';
+import { startupLayoutHandler, useStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
   const { status, user } = useSession();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const isCacheHydrated =
     status === 'loading'
@@ -38,6 +44,13 @@ function AppShell() {
       status === 'authenticated' && Boolean(user?.id) && pathname !== '/' && pathname !== '/login',
     relockOnBackground: true,
     sessionKey: user?.id,
+  });
+
+  useStartupDiagnostics('AppShell', {
+    insetsBottom: insets.bottom,
+    insetsTop: insets.top,
+    pathname,
+    sessionStatus: status,
   });
 
   useEffect(() => {
@@ -108,8 +121,14 @@ function AppShell() {
 
 export default function PrototypeRootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+    <GestureHandlerRootView
+      onLayout={startupLayoutHandler('GestureHandlerRootView')}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaProvider
+        initialMetrics={initialWindowMetrics}
+        onLayout={startupLayoutHandler('RootSafeAreaProvider')}
+      >
         <SessionProvider>
           <ThemeProvider>
             <CrossScreenGlassMorphProvider>

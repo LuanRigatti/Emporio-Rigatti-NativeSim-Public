@@ -1,6 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { getNativeCapabilities } from '@/platform/nativeCapabilities';
+import {
+  logStartupDiagnostics,
+  startupLayoutHandler,
+  useStartupDiagnostics,
+} from '@/utils/startupLayoutDiagnostics';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -23,36 +31,66 @@ export default function PrototypeTabsLayout() {
 
 function TabsNavigator() {
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const iconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
+  const capabilities = getNativeCapabilities();
+
+  useStartupDiagnostics('NativeTabs', {
+    canUseNativeTabs: capabilities.canUseNativeTabs,
+    colorScheme,
+    insetsBottom: insets.bottom,
+    insetsTop: insets.top,
+  });
 
   return (
-    <NativeTabs labelVisibilityMode="unlabeled" tintColor={iconColor}>
-      <NativeTabs.Trigger name="dashboard">
-        <NativeTabs.Trigger.Icon {...icon('home-outline', 'house', 'house.fill', iconColor)} />
-        <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="financeiro">
-        <NativeTabs.Trigger.Icon
-          {...icon('bar-chart-outline', 'chart.bar', 'chart.bar.fill', iconColor)}
-        />
-        <NativeTabs.Trigger.Label hidden>Finanças</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="registrar">
-        <NativeTabs.Trigger.Icon
-          {...icon('add-outline', 'plus.circle', 'plus.circle.fill', iconColor)}
-        />
-        <NativeTabs.Trigger.Label hidden>Registrar</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="historico">
-        <NativeTabs.Trigger.Icon {...icon('time-outline', 'clock', 'clock.fill', iconColor)} />
-        <NativeTabs.Trigger.Label hidden>Histórico</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="configuracoes">
-        <NativeTabs.Trigger.Icon
-          {...icon('settings-outline', 'gearshape', 'gearshape.fill', iconColor)}
-        />
-        <NativeTabs.Trigger.Label hidden>Configurações</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <View
+      collapsable={false}
+      onLayout={startupLayoutHandler('NativeTabs.sceneHost')}
+      style={styles.root}
+    >
+      <NativeTabs
+        labelVisibilityMode="unlabeled"
+        screenListeners={{
+          blur: (event) => {
+            logStartupDiagnostics('NativeTabs', 'scene-blur', { target: event.target });
+          },
+          focus: (event) => {
+            logStartupDiagnostics('NativeTabs', 'scene-focus', { target: event.target });
+          },
+        }}
+        tintColor={iconColor}
+      >
+        <NativeTabs.Trigger name="dashboard">
+          <NativeTabs.Trigger.Icon {...icon('home-outline', 'house', 'house.fill', iconColor)} />
+          <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="financeiro">
+          <NativeTabs.Trigger.Icon
+            {...icon('bar-chart-outline', 'chart.bar', 'chart.bar.fill', iconColor)}
+          />
+          <NativeTabs.Trigger.Label hidden>Finanças</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="registrar">
+          <NativeTabs.Trigger.Icon
+            {...icon('add-outline', 'plus.circle', 'plus.circle.fill', iconColor)}
+          />
+          <NativeTabs.Trigger.Label hidden>Registrar</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="historico">
+          <NativeTabs.Trigger.Icon {...icon('time-outline', 'clock', 'clock.fill', iconColor)} />
+          <NativeTabs.Trigger.Label hidden>Histórico</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="configuracoes">
+          <NativeTabs.Trigger.Icon
+            {...icon('settings-outline', 'gearshape', 'gearshape.fill', iconColor)}
+          />
+          <NativeTabs.Trigger.Label hidden>Configurações</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      </NativeTabs>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});

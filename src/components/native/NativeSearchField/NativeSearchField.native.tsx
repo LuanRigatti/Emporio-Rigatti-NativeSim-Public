@@ -6,6 +6,7 @@ import { getNativeCapabilities } from '@/platform/nativeCapabilities';
 import NativeSearchFieldExpo from './NativeSearchField.expo';
 import NativeSearchPlaceholderShimmer from './NativeSearchPlaceholderShimmer';
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
+import { startupLayoutHandler, useStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 export default function NativeSearchFieldNative(props: NativeSearchFieldProps) {
   const canUseExpoUI = getNativeCapabilities().canUseExpoUI;
@@ -22,9 +23,17 @@ export default function NativeSearchFieldNative(props: NativeSearchFieldProps) {
     ? require('./NativeSearchFieldSwiftUI.ios').default // eslint-disable-line @typescript-eslint/no-require-imports
     : null;
 
+  useStartupDiagnostics('Home.NativeSearchField', {
+    canUseExpoUI,
+    implementation: NativeImplementation ? 'SwiftUI-sync' : 'fallback',
+  });
+
   if (NativeImplementation) {
     return (
-      <View style={{ position: 'relative', width: '100%' }}>
+      <View
+        onLayout={startupLayoutHandler('Home.NativeSearchField.rn-wrapper')}
+        style={{ position: 'relative', width: '100%' }}
+      >
         <NativeImplementation {...nativeProps} onFocusChange={handleFocusChange} placeholder="" />
         <NativeSearchPlaceholderShimmer
           entryKey={focusEntryKey}

@@ -17,6 +17,10 @@ import { PlatformColor } from 'react-native';
 import { useEffect, useState } from 'react';
 import { roundedFont } from '../nativeTypography';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import {
+  logStartupDiagnostics,
+  useStartupDiagnostics,
+} from '@/utils/startupLayoutDiagnostics';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
@@ -45,6 +49,11 @@ export default function NativeSearchFieldSwiftUI({
   const text = useNativeState(value);
   const [focused, setFocused] = useState(false);
 
+  useStartupDiagnostics('Home.NativeSearchFieldSwiftUI', {
+    focused,
+    valueLength: value.length,
+  });
+
   const handleNativeSubmit = () => {
     const nativeValue = text.get();
     logNativeSearchSubmit(nativeValue, value, focused);
@@ -56,7 +65,15 @@ export default function NativeSearchFieldSwiftUI({
   }, [text, value]);
 
   return (
-    <Host style={{ minHeight: 36, width: '100%' }}>
+    <Host
+      onLayoutContent={({ nativeEvent }) => {
+        logStartupDiagnostics('Home.NativeSearchFieldSwiftUI.host', 'content-ready', {
+          height: nativeEvent.height,
+          width: nativeEvent.width,
+        });
+      }}
+      style={{ minHeight: 36, width: '100%' }}
+    >
       <HStack
         spacing={20}
         modifiers={[

@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { getNativeCapabilities } from '@/platform/nativeCapabilities';
+import { logStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 import NativeDatePickerExpo from './NativeDatePicker.expo';
 import type { NativeDatePickerProps } from './NativeDatePicker.types';
@@ -17,6 +18,11 @@ export default function NativeDatePickerNative(props: NativeDatePickerProps) {
   const isCompactNativePicker =
     Platform.OS === 'ios' && props.style === 'compact' && NativeImplementation;
 
+  logStartupDiagnostics('NativeDatePicker', 'implementation', {
+    canUseExpoUI,
+    implementation: NativeImplementation ? 'SwiftUI-sync' : 'Expo-fallback',
+    style: props.style ?? 'default',
+  });
   const nativePicker = NativeImplementation ? (
     createElement(NativeImplementation, props)
   ) : (

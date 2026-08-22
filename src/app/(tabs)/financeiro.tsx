@@ -173,7 +173,11 @@ export default function PrototypeFinanceiro() {
 
   return (
     <PremiumScreen
-      contentContainerStyle={[styles.content, { marginTop: -theme.spacing.md }]}
+      startupDiagnosticsLabel="Financeiro"
+      contentContainerStyle={[
+        styles.content,
+        { marginTop: theme.spacing.md - theme.spacing.xs - 4 },
+      ]}
       overlayHeader={filterHeader}
       overlayHeaderUnderlay
       progressiveBlurHeight={

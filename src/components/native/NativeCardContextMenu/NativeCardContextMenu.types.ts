@@ -18,4 +18,6 @@ export type NativeCardContextMenuProps = {
   style?: StyleProp<ViewStyle>;
   title?: string;
   cornerRadius?: number;
+  diagnosticsLabel?: string;
+  diagnosticsDeliveryId?: string;
 };

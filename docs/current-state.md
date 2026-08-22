@@ -1663,3 +1663,69 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Não commitado.
 - HEAD atual: `36208a2` (`fix(ui): aplicar ajustes visuais recentes`).
 - Nenhum commit ou push adicional realizado.
+
+## Ajustes finais de posicionamento vertical das abas principais
+
+### Funcionalidade implementada
+
+- Foram refinados os offsets verticais dos blocos principais de Home,
+  Registrar, Finanças, Histórico e Configurações usando os tokens de
+  espaçamento já existentes.
+- Home, Registrar, Finanças e Configurações passaram a iniciar com seus
+  títulos e conteúdos principais no novo posicionamento aprovado, mantendo o
+  conteúdo de cada tela agrupado como um bloco.
+- No Histórico, o bloco de cards manteve sua posição e somente o título foi
+  deslocado para baixo, preservando o espaçamento visual entre título, filtro e
+  lista.
+
+### Comportamento final
+
+- O título e os conteúdos de cada aba permanecem estáveis no layout final,
+  sem alteração de navegação, handlers, dados ou regras de negócio.
+- Home preserva Search Bar, cards, mapa, logo, scroll e espaço inferior para a
+  tab bar.
+- Registrar, Finanças, Histórico e Configurações preservam seus componentes,
+  headers, filtros e listas; apenas o posicionamento vertical solicitado foi
+  refinado.
+
+### Arquivos principais
+
+- `src/app/(tabs)/dashboard.tsx`
+- `src/app/(tabs)/registrar.tsx`
+- `src/app/(tabs)/financeiro.tsx`
+- `src/features/history/components/HistoryScreen.tsx`
+- `src/features/settings/components/SettingsScreen.tsx`
+- `src/theme/spacing.ts` foi apenas reutilizado como fonte dos tokens; não foi
+  alterado.
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi alterada.
+- Nenhum schema, documento, coleção, regra ou leitura do Cloud Firestore foi
+  alterado.
+- Nenhum asset, dependência, componente nativo ou regra financeira foi
+  alterado por este ajuste.
+
+### Validações executadas
+
+- TypeScript (`npx.cmd tsc --noEmit`): passou sem erros.
+- ESLint direcionado nos arquivos alterados: passou.
+- `git diff --check`: passou; os avisos observados são apenas de normalização
+  LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final dos offsets ainda depende do teste no iPhone
+  Development Build, especialmente em diferentes tamanhos de tela e valores
+  de Safe Area.
+- Há instrumentações DEV e outras alterações anteriores no working tree; elas
+  não fazem parte deste registro documental nem foram modificadas nesta
+  atualização.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- HEAD atual: `4465513351c04158ef9f2a4a498ab241b7fa8a39`
+  (`fix: stabilize initial native UI rendering`).
+- Os ajustes verticais descritos nesta seção ainda não foram commitados.
+- Nenhum commit ou push adicional foi realizado.

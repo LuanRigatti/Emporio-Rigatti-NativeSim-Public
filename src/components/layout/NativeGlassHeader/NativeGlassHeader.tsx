@@ -1,7 +1,12 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme';
+import {
+  logStartupDiagnostics,
+  startupLayoutHandler,
+  useStartupDiagnostics,
+} from '@/utils/startupLayoutDiagnostics';
 
 import NativeGlassHeaderBackground from './NativeGlassHeaderBackground';
 import type { NativeGlassHeaderProps } from './NativeGlassHeader.types';
@@ -25,10 +30,28 @@ export function NativeGlassHeader({
   const insets = useSafeAreaInsets();
   const { theme } = useAppTheme();
   const resolvedTitleStyle = largeTitle ? theme.typography.largeTitle : theme.typography.headline;
+  const diagnosticsComponent = `NativeGlassHeader.${title || 'untitled'}`;
+
+  useStartupDiagnostics(diagnosticsComponent, {
+    hasLeftActions: Boolean(leftActions),
+    hasRightActions: Boolean(rightActions),
+    includeTopSafeArea,
+    insetsTop: insets.top,
+    largeTitle,
+    mode,
+    paddingTop: includeTopSafeArea ? insets.top : 0,
+  });
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    onLayout?.(event);
+    logStartupDiagnostics(diagnosticsComponent, 'layout', {
+      frame: event.nativeEvent.layout,
+    });
+  };
 
   return (
     <View
-      onLayout={onLayout}
+      onLayout={handleLayout}
       pointerEvents={pointerEvents}
       style={[
         styles.container,
@@ -41,8 +64,12 @@ export function NativeGlassHeader({
       ]}
     >
       <NativeGlassHeaderBackground mode={mode} />
-      <View style={[styles.topRow, { minHeight: theme.sizes.touchTargetMinimum }]}>
+      <View
+        onLayout={startupLayoutHandler(`${diagnosticsComponent}.topRow`)}
+        style={[styles.topRow, { minHeight: theme.sizes.touchTargetMinimum }]}
+      >
         <View
+          onLayout={startupLayoutHandler(`${diagnosticsComponent}.leftActions`)}
           style={[
             styles.actions,
             { minWidth: largeTitle && !leftActions ? 0 : theme.sizes.touchTargetMinimum },
@@ -50,9 +77,13 @@ export function NativeGlassHeader({
         >
           {leftActions}
         </View>
-        <View style={[styles.titleContainer, largeTitle ? styles.largeTitleContainer : undefined]}>
+        <View
+          onLayout={startupLayoutHandler(`${diagnosticsComponent}.titleContainer`)}
+          style={[styles.titleContainer, largeTitle ? styles.largeTitleContainer : undefined]}
+        >
           <Text
             numberOfLines={1}
+            onLayout={startupLayoutHandler(`${diagnosticsComponent}.title`)}
             style={[
               resolvedTitleStyle,
               customTitleStyle,
@@ -72,6 +103,7 @@ export function NativeGlassHeader({
           ) : null}
         </View>
         <View
+          onLayout={startupLayoutHandler(`${diagnosticsComponent}.rightActions`)}
           style={[
             styles.actions,
             styles.trailingActions,

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeCardContextMenu } from '@/components/native';
 import { PremiumCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
+import { startupLayoutHandler, useStartupDiagnostics } from '@/utils/startupLayoutDiagnostics';
 
 import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import { DeliveryStatusBadge } from '@/features/history/components/DeliveryStatusBadge';
@@ -20,6 +21,10 @@ export function TodayDeliveriesCard({
 }: TodayDeliveriesCardProps) {
   const { theme } = useAppTheme();
   const totalBuckets = deliveries.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0);
+
+  useStartupDiagnostics('Home.TodayDeliveriesCard', {
+    deliveryCount: deliveries.length,
+  });
 
   if (deliveries.length === 0) return null;
 
@@ -47,6 +52,7 @@ export function TodayDeliveriesCard({
           {deliveries.map((delivery) => {
             const renderDeliveryRow = (preview = false) => (
               <View
+                onLayout={startupLayoutHandler(`Home.TodayDeliveriesCard.${delivery.id}.rn-row`)}
                 style={[
                   styles.row,
                   {
@@ -101,6 +107,7 @@ export function TodayDeliveriesCard({
                       title: 'Excluir',
                     },
                   ]}
+                  diagnosticsLabel={`Home.TodayDeliveriesCard.${delivery.id}`}
                   preview={renderDeliveryRow(true)}
                   style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
                 >

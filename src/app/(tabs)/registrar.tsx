@@ -2,7 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  useAnimatedStyle,
+  useDerivedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeBottomSheet,
@@ -10,6 +16,7 @@ import {
   NativeDailyDataSheet,
   NativeGlassBackButton,
   NativeGlassIconButton,
+  NativeGlassMenu,
 } from '@/components/native';
 import type {
   NativeBottomSheetConfirmation,
@@ -22,12 +29,63 @@ import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
 import { getLiquidGlassTint, useAppTheme } from '@/theme';
-import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { triggerLightImpactHaptic, triggerSelectionHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import type { Delivery } from '@/types/data';
 
 const BUCKET_PRICE = 49.8;
+const DELIVERY_CARD_GROWTH_DURATION = 200;
+
+type DeliverySortMode = 'latest' | 'alphabetical' | 'quantity';
+
+function sortDeliveryRecords(
+  deliveries: readonly Delivery[],
+  date: string,
+  sortMode: DeliverySortMode,
+  recentlyAddedDeliveryIds: readonly string[],
+): Delivery[] {
+  const recentOrder = new Map(
+    recentlyAddedDeliveryIds.map((deliveryId, index) => [deliveryId, index]),
+  );
+
+  return deliveries
+    .map((delivery, index) => ({ delivery, index }))
+    .filter(({ delivery }) => delivery.data === date)
+    .sort((left, right) => {
+      if (sortMode === 'alphabetical') {
+        return (
+          left.delivery.cliente.localeCompare(right.delivery.cliente, 'pt-BR', {
+            sensitivity: 'base',
+          }) || left.index - right.index
+        );
+      }
+
+      if (sortMode === 'quantity') {
+        return right.delivery.quantidade - left.delivery.quantidade || left.index - right.index;
+      }
+
+      const leftRecent = recentOrder.get(left.delivery.id);
+      const rightRecent = recentOrder.get(right.delivery.id);
+      if (leftRecent !== undefined || rightRecent !== undefined) {
+        if (leftRecent === undefined) return 1;
+        if (rightRecent === undefined) return -1;
+        if (leftRecent !== rightRecent) return leftRecent - rightRecent;
+      }
+
+      const leftCreatedAt = left.delivery.createdAt;
+      const rightCreatedAt = right.delivery.createdAt;
+      if (leftCreatedAt !== undefined || rightCreatedAt !== undefined) {
+        if (leftCreatedAt === undefined) return 1;
+        if (rightCreatedAt === undefined) return -1;
+        if (leftCreatedAt !== rightCreatedAt) return rightCreatedAt - leftCreatedAt;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ delivery }) => delivery);
+}
 
 const EMPTY_DAILY_DATA_VALUES: NativeDailyDataValues = {
   estar: '',
@@ -424,18 +482,16 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     [clients],
   );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
+  const [deliverySortMode, setDeliverySortMode] = useState<DeliverySortMode>('latest');
+  const [recentlyAddedDeliveryIds, setRecentlyAddedDeliveryIds] = useState<readonly string[]>([]);
   const {
-    deliveries: firestoreDeliveries,
+    allDeliveries: sourceDeliveries,
     create,
     remove: removeDelivery,
   } = useDeliveries({
     mode: 'today',
     date: currentDate,
   });
-  const deliveries = useMemo(
-    () => firestoreDeliveries.map(toHistoryDelivery),
-    [firestoreDeliveries],
-  );
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());
@@ -445,8 +501,14 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
     }, []),
   );
   const todayDeliveries = useMemo(
-    () => deliveries.filter((delivery) => delivery.data === currentDate),
-    [currentDate, deliveries],
+    () =>
+      sortDeliveryRecords(
+        sourceDeliveries,
+        currentDate,
+        deliverySortMode,
+        recentlyAddedDeliveryIds,
+      ).map(toHistoryDelivery),
+    [currentDate, deliverySortMode, recentlyAddedDeliveryIds, sourceDeliveries],
   );
   const emptyDeliveryCardMinHeight =
     theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
@@ -456,6 +518,27 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
       theme.typography.body.lineHeight,
       theme.typography.callout.lineHeight + theme.typography.footnote.lineHeight + 2,
     );
+  const deliveryCardContentHeight =
+    theme.typography.headline.lineHeight -
+    theme.spacing.xs +
+    todayDeliveries.length * deliveryRowHeight +
+    Math.max(0, todayDeliveries.length - 1) * theme.spacing.xs;
+  const deliveryCardHeight =
+    todayDeliveries.length <= 1
+      ? emptyDeliveryCardMinHeight
+      : theme.spacing.md * 2 + deliveryCardContentHeight;
+  const deliveryCardHeightValue = useDerivedValue(
+    () =>
+      withTiming(deliveryCardHeight, {
+        duration: DELIVERY_CARD_GROWTH_DURATION,
+        easing: Easing.out(Easing.quad),
+      }),
+    [deliveryCardHeight],
+  );
+  const deliveryCardAnimatedStyle = useAnimatedStyle(() => ({
+    height: deliveryCardHeightValue.value,
+  }));
+
   const openSheet = () => {
     triggerLightImpactHaptic();
     setSelectedClient(null);
@@ -479,9 +562,19 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
       value: bucketPrice * confirmation.quantity,
       valueWasManuallyChanged: false,
       historicalUnitPrice: bucketPrice,
-    });
+    }).then((created) => {
+      setRecentlyAddedDeliveryIds((current) => [
+        created.id,
+        ...current.filter((deliveryId) => deliveryId !== created.id),
+      ]);
+    }).catch(() => undefined);
     setSheetVisible(false);
   };
+
+  const handleDeliverySortChange = useCallback((sortMode: DeliverySortMode) => {
+    triggerSelectionHaptic();
+    setDeliverySortMode(sortMode);
+  }, []);
   const handleSelectClient = useCallback(
     (item: NativeBottomSheetItem) => {
       const currentClient = clients.find((client) => client.clientId === item.id);
@@ -516,6 +609,56 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
       }
       mode="transparent"
       pointerEvents="box-none"
+      rightActions={
+        <NativeGlassMenu
+          accessibilityLabel="Ordenar entregas"
+          actions={[
+            {
+              id: 'latest',
+              isOn: deliverySortMode === 'latest',
+              onPress: () => handleDeliverySortChange('latest'),
+              systemImage: 'clock.arrow.circlepath',
+              title: 'Recentes',
+            },
+            {
+              id: 'alphabetical',
+              isOn: deliverySortMode === 'alphabetical',
+              onPress: () => handleDeliverySortChange('alphabetical'),
+              systemImage: 'textformat.abc',
+              title: 'Ordem alfabética',
+            },
+            {
+              id: 'quantity',
+              isOn: deliverySortMode === 'quantity',
+              onPress: () => handleDeliverySortChange('quantity'),
+              systemImage: 'chart.bar.fill',
+              title: 'Quantidade de baldes',
+            },
+          ]}
+          color={dark ? '#FFFFFF' : '#000000'}
+          containerSize={theme.sizes.touchTargetMinimum}
+          fallbackIcon="filter-outline"
+          glassTint={getLiquidGlassTint(resolvedMode)}
+          size={theme.sizes.iconMedium}
+          systemImage="line.3.horizontal.decrease"
+          style={{
+            height: theme.sizes.touchTargetMinimum,
+            width: theme.sizes.touchTargetMinimum,
+          }}
+          trigger={
+            <NativeGlassIconButton
+              accessibilityLabel="Ordenar entregas"
+              color={dark ? '#FFFFFF' : '#000000'}
+              containerSize={theme.sizes.touchTargetMinimum}
+              fallbackIcon="filter-outline"
+              interactiveGlass
+              onPress={triggerLightImpactHaptic}
+              size={theme.sizes.iconMedium}
+              systemImage="line.3.horizontal.decrease"
+            />
+          }
+        />
+      }
       title="Entregas"
     />
   );
@@ -531,14 +674,12 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
         progressiveBlur
       >
         <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
-          <Animated.View style={styles.fullWidth}>
+          <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
             <PremiumCard
               style={[
                 styles.deliveryCard,
                 {
-                  height:
-                    todayDeliveries.length <= 1 ? emptyDeliveryCardMinHeight : undefined,
-                  minHeight: emptyDeliveryCardMinHeight,
+                  height: '100%',
                 },
                 todayDeliveries.length > 0
                   ? {
@@ -552,7 +693,7 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                     },
               ]}
             >
-            <Animated.View style={styles.fullWidth}>
+            <Animated.View style={[styles.fullWidth, styles.deliveryContent]}>
               {todayDeliveries.length > 0 ? (
                 <>
                   <View
@@ -574,14 +715,14 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
                       Hoje
                     </Text>
                   </View>
-                  <View style={styles.fullWidth}>
+                  <View style={[styles.fullWidth, styles.deliveryContentViewport]}>
                   <View
                     style={[
                       styles.todayDeliveriesGroup,
                       { gap: theme.spacing.xs },
                     ]}
                   >
-                    {[...todayDeliveries].reverse().map((delivery) => {
+                    {todayDeliveries.map((delivery) => {
                       const renderDeliveryItemRow = (preview = false) => (
                         <View style={[
                             styles.deliveryItemRow,
@@ -786,6 +927,8 @@ const styles = StyleSheet.create({
   deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8, overflow: 'visible' },
+  deliveryContent: { flex: 1 },
+  deliveryContentViewport: { flex: 1, overflow: 'hidden' },
   deliveryTitleSlot: { alignItems: 'center', justifyContent: 'center', width: '100%' },
   deliveryDayTitle: { textAlign: 'center' },
   todayDeliveriesGroup: { width: '100%' },

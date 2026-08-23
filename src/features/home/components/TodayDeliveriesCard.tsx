@@ -1,7 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeCardContextMenu } from '@/components/native';
-import { PremiumCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -44,8 +43,7 @@ export function TodayDeliveriesCard({
         </Text>
       </View>
 
-      <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
-        <View style={{ gap: theme.spacing.xs }}>
+      <View style={[styles.cards, { gap: theme.spacing.xs }]}>
           {deliveries.map((delivery) => {
             const renderDeliveryRow = (preview = false) => (
               <View
@@ -113,14 +111,13 @@ export function TodayDeliveriesCard({
               </View>
             );
           })}
-        </View>
-      </PremiumCard>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { overflow: 'hidden', padding: 0 },
+  cards: { width: '100%' },
   contextContainer: { overflow: 'hidden' },
   contextMenu: { width: '100%' },
   copy: { flex: 1, gap: 2, marginLeft: 8 },

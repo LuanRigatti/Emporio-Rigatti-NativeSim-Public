@@ -1,12 +1,6 @@
 import { Button, ContextMenu, Host, RNHostView, Section } from '@expo/ui/swift-ui';
 import { disabled as disabledModifier } from '@expo/ui/swift-ui/modifiers';
-import { useEffect } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-
-import {
-  logHistoryLayoutDiagnostics,
-  logHistoryLayoutSize,
-} from '@/utils/historyLayoutDiagnostics';
 
 import type { NativeCardContextMenuProps } from './NativeCardContextMenu.types';
 
@@ -16,45 +10,7 @@ export default function NativeCardContextMenu({
   preview,
   style,
   title,
-  diagnosticsLabel,
-  diagnosticsDeliveryId,
 }: NativeCardContextMenuProps) {
-  const diagnosticsComponent = diagnosticsLabel
-    ? `${diagnosticsLabel}.NativeCardContextMenu`
-    : 'NativeCardContextMenu';
-
-  const hasPreview = Boolean(preview);
-
-  useEffect(() => {
-    if (!diagnosticsDeliveryId) return;
-
-    logHistoryLayoutDiagnostics(diagnosticsDeliveryId, diagnosticsComponent, 'mount', {
-      hasPreview,
-    });
-    logHistoryLayoutDiagnostics(
-      diagnosticsDeliveryId,
-      `${diagnosticsComponent}.Trigger`,
-      'mount',
-    );
-    if (hasPreview) {
-      logHistoryLayoutDiagnostics(
-        diagnosticsDeliveryId,
-        `${diagnosticsComponent}.Preview`,
-        'mount',
-      );
-    }
-    logHistoryLayoutDiagnostics(
-      diagnosticsDeliveryId,
-      `${diagnosticsComponent}.Host`,
-      'mount',
-    );
-    logHistoryLayoutDiagnostics(
-      diagnosticsDeliveryId,
-      `${diagnosticsComponent}.RNHostView`,
-      'mount',
-    );
-  }, [diagnosticsComponent, diagnosticsDeliveryId, hasPreview]);
-
   const actionButtons = actions.map((action) => (
     <Button
       key={action.id}
@@ -69,15 +25,6 @@ export default function NativeCardContextMenu({
     <Host
       ignoreSafeArea="all"
       matchContents
-      onLayoutContent={({ nativeEvent }) => {
-        if (diagnosticsDeliveryId) {
-          logHistoryLayoutSize(
-            diagnosticsDeliveryId,
-            `${diagnosticsComponent}.Host/RNHostView`,
-            nativeEvent,
-          );
-        }
-      }}
       style={style as StyleProp<ViewStyle>}
     >
       <ContextMenu>

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { useFocusEffect, useIsFocused } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
@@ -14,7 +14,6 @@ import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
-import { startHistoryLayoutDiagnostics } from '@/utils/historyLayoutDiagnostics';
 import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { parseIsoCalendarDate, todayIso } from '@/utils/data';
@@ -40,7 +39,6 @@ function filterDayDeliveries<T extends { status: string }>(
 }
 
 export function HistoryScreen() {
-  const isFocused = useIsFocused();
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
@@ -57,10 +55,6 @@ export function HistoryScreen() {
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(
     () => insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm,
   );
-
-  if (__DEV__ && isFocused) {
-    startHistoryLayoutDiagnostics();
-  }
 
   useFocusEffect(
     useCallback(() => {
@@ -141,19 +135,15 @@ export function HistoryScreen() {
             ]}
           >
             {visibleDeliveries.length > 0 ? (
-              <GlassCard
-                style={[styles.deliveryGroup, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-              >
-                {visibleDeliveries.map((delivery) => (
-                  <DeliveryCard
-                    contained
-                    delivery={delivery}
-                    key={delivery.id}
-                    onDelete={() => handleDeleteDelivery(delivery.id)}
-                    onToggleStatus={() => handleToggleStatus(delivery.id)}
-                  />
-                ))}
-              </GlassCard>
+              visibleDeliveries.map((delivery) => (
+                <DeliveryCard
+                  contained
+                  delivery={delivery}
+                  key={delivery.id}
+                  onDelete={() => handleDeleteDelivery(delivery.id)}
+                  onToggleStatus={() => handleToggleStatus(delivery.id)}
+                />
+              ))
             ) : (
               <Animated.View
                 entering={FadeInDown.duration(
@@ -208,6 +198,25 @@ export function HistoryScreen() {
       includeTopSafeArea
       mode="transparent"
       leftActions={
+        <NativeDatePicker
+          accessibilityLabel="Selecionar dia do histórico"
+          mode="date"
+          onChange={handleSelectDate}
+          style="compact"
+          value={parseIsoCalendarDate(selectedDate) ?? new Date()}
+        />
+      }
+      accessory={
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={{
+            height: theme.sizes.touchTargetMinimum + theme.spacing.sm,
+            marginTop: theme.spacing.xs,
+          }}
+        />
+      }
+      rightActions={
         <NativeGlassMenu
           accessibilityLabel="Filtros do histórico"
           actions={filterActions}
@@ -233,25 +242,6 @@ export function HistoryScreen() {
               systemImage="line.3.horizontal.decrease"
             />
           }
-        />
-      }
-      accessory={
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-          style={{
-            height: theme.sizes.touchTargetMinimum + theme.spacing.sm,
-            marginTop: theme.spacing.xs,
-          }}
-        />
-      }
-      rightActions={
-        <NativeDatePicker
-          accessibilityLabel="Selecionar dia do histórico"
-          mode="date"
-          onChange={handleSelectDate}
-          style="compact"
-          value={parseIsoCalendarDate(selectedDate) ?? new Date()}
         />
       }
       title=""
@@ -292,7 +282,6 @@ export function HistoryScreen() {
   );
   const dayContentStyle = {
     flexGrow: 1,
-    paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
     paddingHorizontal: theme.spacing.md,
     paddingTop:
       overlayHeaderHeight -
@@ -304,20 +293,13 @@ export function HistoryScreen() {
       theme.spacing.xs +
       theme.spacing.xxs,
   };
-  const dayContent = <View style={[styles.dayScroll, dayContentStyle]}>{dayContentChildren}</View>;
+  const dayContent = <View style={dayContentStyle}>{dayContentChildren}</View>;
 
   return (
     <Animated.View style={styles.root}>
       <PremiumScreen
         scrollable
-        contentContainerStyle={[
-          styles.screenContent,
-          {
-            gap: theme.spacing.lg,
-            paddingHorizontal: 0,
-            paddingBottom: 0,
-          },
-        ]}
+        contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
         overlayHeader={filterHeader}
         overlayHeaderUnderlay
         onOverlayHeaderLayout={setOverlayHeaderHeight}
@@ -338,14 +320,11 @@ export function HistoryScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  screenContent: { flex: 1 },
-  dayContentContainer: { flex: 1, minHeight: 0, position: 'relative' },
-  deliveryGroup: { padding: 0 },
+  dayContentContainer: { position: 'relative' },
   header: { minHeight: 44 },
   emptyState: { alignSelf: 'stretch', width: '100%' },
   emptyList: { flexGrow: 1 },
   emptyCard: { width: '100%' },
   list: { width: '100%' },
-  dayScroll: { flex: 1 },
   topBucketSummary: { alignItems: 'flex-end', width: '100%' },
 });

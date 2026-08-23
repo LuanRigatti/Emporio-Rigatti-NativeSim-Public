@@ -1,9 +1,7 @@
-import { useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  type LayoutChangeEvent,
   type ViewStyle,
 } from 'react-native';
 
@@ -11,10 +9,6 @@ import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
-import {
-  logHistoryLayoutDiagnostics,
-  logHistoryLayoutFrame,
-} from '@/utils/historyLayoutDiagnostics';
 
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
@@ -41,16 +35,6 @@ export function DeliveryCard({
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
     useTestModePresentation();
-  const diagnosticsComponent = `History.DeliveryCard.${delivery.id}`;
-
-  useEffect(() => {
-    logHistoryLayoutDiagnostics(delivery.id, diagnosticsComponent, 'mount');
-  }, [delivery.id, diagnosticsComponent]);
-
-  const handleHistoryLayout = (event: LayoutChangeEvent) => {
-    logHistoryLayoutFrame(delivery.id, diagnosticsComponent, event.nativeEvent.layout);
-  };
-
   const content = (
     <View style={styles.cardRow}>
       <View style={styles.cardContent}>
@@ -116,12 +100,7 @@ export function DeliveryCard({
   };
 
   return onDelete ? (
-    <View
-      onLayout={(event) => {
-        handleHistoryLayout(event);
-      }}
-      style={[styles.contextContainer, contextCardStyle]}
-    >
+    <View style={[styles.contextContainer, contextCardStyle]}>
       <NativeCardContextMenu
         actions={[
           {
@@ -133,8 +112,6 @@ export function DeliveryCard({
             title: 'Excluir',
           },
         ]}
-        diagnosticsDeliveryId={delivery.id}
-        diagnosticsLabel={diagnosticsComponent}
         style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
         preview={
           <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>{content}</View>

@@ -52,7 +52,7 @@ export default function NativeGlassMenuSwiftUI({
             modifiers={[roundedFont({}), ...(action.disabled ? [disabledModifier(true)] : [])]}
             onPress={action.onPress}
             role={action.destructive ? 'destructive' : 'default'}
-            systemImage={action.systemImage as SFSymbol | undefined}
+            systemImage={(action.isOn ? 'checkmark' : action.systemImage) as SFSymbol | undefined}
           />
         ))}
       </Menu>

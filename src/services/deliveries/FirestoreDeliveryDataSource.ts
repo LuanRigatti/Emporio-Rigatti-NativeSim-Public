@@ -64,8 +64,11 @@ async function collectionFor(uid: string) {
 }
 
 function mapDocument(id: string, value: FirestoreDeliveryDocument): Delivery {
+  const createdAt = normalizeCreatedAt(value.createdAt);
+
   return {
     id,
+    ...(createdAt === undefined ? {} : { createdAt }),
     ...(value.clientId ? { clientId: `client:${value.clientId}` } : {}),
     cliente: value.clientNameSnapshot,
     quantidade: value.quantity,
@@ -81,6 +84,27 @@ function mapDocument(id: string, value: FirestoreDeliveryDocument): Delivery {
     observacao: value.observation,
     legacyFields: value.legacyFields,
   };
+}
+
+function normalizeCreatedAt(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  if (value instanceof Date) return value.getTime();
+  if (!value || typeof value !== 'object') return undefined;
+
+  const timestamp = value as {
+    nanoseconds?: unknown;
+    seconds?: unknown;
+    toMillis?: unknown;
+  };
+  if (typeof timestamp.toMillis === 'function') {
+    const milliseconds = timestamp.toMillis();
+    return Number.isFinite(milliseconds) ? milliseconds : undefined;
+  }
+  if (typeof timestamp.seconds === 'number') {
+    const nanoseconds = typeof timestamp.nanoseconds === 'number' ? timestamp.nanoseconds : 0;
+    return timestamp.seconds * 1000 + nanoseconds / 1_000_000;
+  }
+  return undefined;
 }
 
 function toDocument(delivery: Delivery): FirestoreDeliveryDocument {

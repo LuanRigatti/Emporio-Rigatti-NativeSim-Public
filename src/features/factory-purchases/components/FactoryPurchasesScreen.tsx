@@ -111,6 +111,7 @@ export function FactoryPurchasesScreen({
         contentContainerStyle={styles.content}
         overlayHeader={header}
         overlayHeaderSpacing={theme.spacing.md}
+        progressiveBlur
         scrollViewProps={{ scrollEventThrottle: 16 }}
       >
         {mode !== 'purchases' ? (

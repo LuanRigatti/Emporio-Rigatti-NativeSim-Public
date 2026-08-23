@@ -1850,6 +1850,53 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Não há commit/hash específico para esta alteração.
 - Nenhum commit ou push adicional foi realizado.
 
+## Cards individuais de Entregas de hoje na Home
+
+### Funcionalidade implementada
+
+- Removido o `PremiumCard` externo que agrupava todas as entregas do dia na
+  Home.
+- Cada entrega agora é renderizada em seu próprio container visual com
+  `NativeCardContextMenu`, seguindo o princípio já usado no Histórico.
+
+### Comportamento final
+
+- Uma entrega corresponde a um card independente; várias entregas aparecem
+  empilhadas verticalmente.
+- O espaçamento entre os cards usa o token existente de spacing.
+- Nome, quantidade, status, ações de toque, long press, exclusão, Modo Teste e
+  demais informações foram preservados.
+- O restante da Home, incluindo Search Bar, Progressive Blur e navegação, não
+  foi alterado.
+
+### Arquivos principais
+
+- `src/features/home/components/TodayDeliveriesCard.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado em `TodayDeliveriesCard.tsx`: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A validação visual final do empilhamento dos cards depende de teste no iPhone
+  Development Build com múltiplas entregas no dia.
+
+### Commit e publicação
+
+- Esta alteração ainda não foi commitada.
+- Não há commit/hash específico para ela.
+- Nenhum commit ou push adicional foi realizado.
+
 ## Títulos principais das abas em 36 pt
 
 ### Funcionalidade implementada

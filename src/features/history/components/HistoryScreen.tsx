@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect, useIsFocused } from 'expo-router';
 
@@ -161,9 +161,11 @@ export function HistoryScreen() {
                 )}
                 style={styles.emptyState}
               >
-                <EmptyState
-                  style={[styles.historyEmptyContent, { paddingTop: theme.spacing.xxxl * 3 }]}
-                />
+                <GlassCard
+                  style={[styles.emptyCard, { borderRadius: theme.radius.xl + theme.spacing.md }]}
+                >
+                  <EmptyState />
+                </GlassCard>
               </Animated.View>
             )}
           </Animated.View>
@@ -269,25 +271,8 @@ export function HistoryScreen() {
       title="Histórico"
     />
   );
-  const dayContent = (
-    <ScrollView
-      contentContainerStyle={{
-        flexGrow: 1,
-        paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
-        paddingHorizontal: theme.spacing.md,
-        paddingTop:
-          overlayHeaderHeight -
-          theme.spacing.xxxl -
-          theme.spacing.xl * 2 -
-          theme.spacing.md -
-          theme.spacing.md -
-          theme.spacing.xxs +
-          theme.spacing.xs +
-          theme.spacing.xxs,
-      }}
-      showsVerticalScrollIndicator={false}
-      style={styles.dayScroll}
-    >
+  const dayContentChildren = (
+    <>
       <View
         style={[
           styles.header,
@@ -303,13 +288,28 @@ export function HistoryScreen() {
         <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
       ) : null}
       {renderDayContent(selectedDate)}
-    </ScrollView>
+    </>
   );
+  const dayContentStyle = {
+    flexGrow: 1,
+    paddingBottom: theme.layout.tabBarHeight + theme.spacing.xl + insets.bottom,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop:
+      overlayHeaderHeight -
+      theme.spacing.xxxl -
+      theme.spacing.xl * 2 -
+      theme.spacing.md -
+      theme.spacing.md -
+      theme.spacing.xxs +
+      theme.spacing.xs +
+      theme.spacing.xxs,
+  };
+  const dayContent = <View style={[styles.dayScroll, dayContentStyle]}>{dayContentChildren}</View>;
 
   return (
     <Animated.View style={styles.root}>
       <PremiumScreen
-        scrollable={false}
+        scrollable
         contentContainerStyle={[
           styles.screenContent,
           {
@@ -322,9 +322,12 @@ export function HistoryScreen() {
         overlayHeaderUnderlay
         onOverlayHeaderLayout={setOverlayHeaderHeight}
         progressiveBlurHeight={
-          theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
+          insets.top +
+          theme.sizes.touchTargetMinimum * 2 +
+          theme.spacing.xs +
+          theme.spacing.sm
         }
-        progressiveBlurTopOffset={0}
+        progressiveBlurTopOffset={-theme.spacing.xl}
         progressiveBlur
       >
         <View style={styles.dayContentContainer}>{dayContent}</View>
@@ -340,8 +343,8 @@ const styles = StyleSheet.create({
   deliveryGroup: { padding: 0 },
   header: { minHeight: 44 },
   emptyState: { alignSelf: 'stretch', width: '100%' },
-  emptyList: { flex: 1 },
-  historyEmptyContent: { flex: 1, minHeight: 0 },
+  emptyList: { flexGrow: 1 },
+  emptyCard: { width: '100%' },
   list: { width: '100%' },
   dayScroll: { flex: 1 },
   topBucketSummary: { alignItems: 'flex-end', width: '100%' },

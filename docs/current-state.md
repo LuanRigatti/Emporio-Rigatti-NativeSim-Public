@@ -1730,6 +1730,59 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Estado vazio do Histórico em card
+
+### Funcionalidade implementada
+
+- O estado vazio da aba Histórico passou a reutilizar `GlassCard`, seguindo o
+  padrão visual de superfície já usado na tela “Em aberto”.
+- O texto `Nenhuma entrega encontrada` permanece centralizado dentro do card.
+
+### Comportamento final
+
+- Dias sem entregas exibem um card com background, radius e padding do padrão
+  `GlassCard`.
+- Dias com entregas continuam exibindo a lista normal, sem alteração de filtro,
+  consulta ou ações.
+- O Histórico continua usando permanentemente o `ScrollView` do `PremiumScreen`,
+  sem `ScrollView` interno.
+- Progressive Blur, header, filtro, seletor de data, Safe Area e espaçamento
+  inferior permanecem preservados.
+
+### Arquivos principais
+
+- `src/features/history/components/HistoryScreen.tsx`
+- `src/components/premium/GlassCard.tsx` (padrão visual reutilizado)
+- `src/features/history/components/EmptyState.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, coleção, regra, cache ou dado do Cloud Firestore foi alterado.
+- Nenhuma dependência, API nativa ou asset foi adicionado.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado em `HistoryScreen.tsx`: passou.
+- `git diff --check`: passou; o aviso apresentado refere-se apenas à
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final do card, do scroll e do Progressive Blur depende
+  do teste no iPhone Development Build.
+- O estado vazio continua dependente dos dados/filtros atuais do Histórico;
+  nenhuma fonte de verdade foi alterada.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- Esta alteração ainda não foi commitada.
+- HEAD de referência: `606f29a4439d79411428494d4d4af941ea948ace`
+  (`fix(ui): stabilize registrar rows and button labels`).
+- Nenhum commit ou push adicional foi realizado.
+
 ## Estabilização das rows de Registrar Entrega com NativeCardContextMenu
 
 ### Funcionalidade implementada

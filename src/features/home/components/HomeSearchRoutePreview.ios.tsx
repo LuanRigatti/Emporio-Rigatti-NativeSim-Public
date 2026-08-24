@@ -43,12 +43,6 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
       .getRouteHistory()
       .then((history) => {
         if (cancelled) return;
-        if (__DEV__) {
-          console.log('[home-route-map]', {
-            event: 'sessions-resolved',
-            historyCount: history.length,
-          });
-        }
         setState({
           history,
           loaded: true,
@@ -56,11 +50,6 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
         });
       })
       .catch(() => {
-        if (__DEV__) {
-          console.log('[home-route-map]', {
-            event: 'history-unavailable',
-          });
-        }
         if (!cancelled) setState({ history: [], loaded: true, unavailable: true });
       });
 
@@ -93,25 +82,6 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
     [visibleSessions],
   );
 
-  useEffect(() => {
-    if (__DEV__) {
-      console.log('[home-route-map]', {
-        event: 'session-ids-received',
-        sessionIds: normalizedIds,
-      });
-    }
-  }, [normalizedIds]);
-
-  useEffect(() => {
-    if (__DEV__ && previewStatus === 'ready') {
-      console.log('[home-route-map]', {
-        event: 'sessions-selected',
-        sampleCount: visibleSessions.reduce((total, session) => total + session.samples.length, 0),
-        sessionCount: visibleSessions.length,
-      });
-    }
-  }, [previewStatus, visibleSessions]);
-
   return (
     <VStack
       alignment="leading"
@@ -119,15 +89,6 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
     >
       <RNHostView matchContents={false}>
         <View
-          onLayout={(event) => {
-            if (__DEV__) {
-              console.log('[home-route-map]', {
-                event: 'container-layout',
-                height: event.nativeEvent.layout.height,
-                width: event.nativeEvent.layout.width,
-              });
-            }
-          }}
           pointerEvents={isLarge ? 'auto' : 'none'}
           style={{
             backgroundColor: theme.colors.surface,

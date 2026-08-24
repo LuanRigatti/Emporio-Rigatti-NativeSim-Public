@@ -123,29 +123,6 @@ function TrackedRoutesMap({
       : []),
   ]);
 
-  const polylineCount = visibleRoutes.filter(({ coordinates }) => coordinates.length > 1).length;
-
-  useEffect(() => {
-    if (__DEV__) {
-      console.log('[home-route-map]', {
-        allCoordinateCount: allCoordinates.length,
-        cameraPosition,
-        event: 'projection-ready',
-        markerCount: markers.length,
-        polylineCount,
-        routeCount: preparedRoutes.length,
-      });
-    }
-  }, [allCoordinates.length, cameraPosition, markers.length, polylineCount, preparedRoutes.length]);
-
-  useEffect(() => {
-    if (__DEV__ && Platform.OS === 'ios' && cameraPosition) {
-      console.log('[home-route-map]', {
-        event: 'apple-maps-branch-rendered',
-      });
-    }
-  }, [cameraPosition]);
-
   if (!cameraPosition) {
     if (routes.length === 1) {
       return (
@@ -177,15 +154,6 @@ function TrackedRoutesMap({
       <AppleMaps.View
         annotations={markers}
         cameraPosition={cameraPosition}
-        onCameraMove={(event) => {
-          if (__DEV__) {
-            console.log('[home-route-map]', {
-              coordinates: event.coordinates,
-              event: 'apple-maps-camera-move',
-              zoom: event.zoom,
-            });
-          }
-        }}
         polylines={polylines}
         style={style}
         uiSettings={{

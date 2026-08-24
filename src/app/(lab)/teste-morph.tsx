@@ -86,10 +86,7 @@ export default function TesteMorphScreen() {
             Liquid Glass Morph
           </Text>
           <Text
-            style={[
-              theme.typography.footnote,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
+            style={[theme.typography.footnote, { color: theme.colors.textSecondary, marginTop: 2 }]}
           >
             Morph local: 1 círculo ⇄ 2 botões.
           </Text>

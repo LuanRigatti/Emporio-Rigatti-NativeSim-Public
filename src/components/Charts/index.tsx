@@ -57,7 +57,7 @@ export function FinancialSeriesChart({
   const chartHeight = height - paddingTop - paddingBottom;
   const values = points.map((point) => point.value);
   const yCoordinates = getFinancialChartYCoordinates(values, chartHeight, paddingTop);
-  const coordinates = points.map((point, index) => ({
+  const coordinates = points.map((_, index) => ({
     x: points.length === 1 ? width / 2 : paddingX + (index / (points.length - 1)) * chartWidth,
     y: yCoordinates[index] ?? paddingTop + chartHeight,
   }));

@@ -51,23 +51,10 @@ export function PurchaseDetailsSheet({
   const isPaid = purchase ? factoryPurchaseCalculationService.isPaid(purchase) : false;
 
   const handleAddPayment = async () => {
-    if (__DEV__) {
-      console.log('[FactoryPayment] addPaymentPressed', {
-        hasPurchase: Boolean(purchase),
-        receiptId: purchase ? maskReceiptId(purchase.id) : null,
-      });
-    }
     if (!purchase || isAddingPaymentRef.current || testModeEnabled) return;
 
     const amount = normalizeMoney(paymentAmount);
     const date = todayIso(paymentDate);
-    if (__DEV__) {
-      console.log('[FactoryPayment] paymentPayload', {
-        amount,
-        date,
-        receiptId: maskReceiptId(purchase.id),
-      });
-    }
     if (amount === undefined) {
       setError('Informe um valor de pagamento maior que zero.');
       return;
@@ -172,10 +159,6 @@ export function PurchaseDetailsSheet({
       ) : null}
     </NativeSheet>
   );
-}
-
-function maskReceiptId(receiptId: string): string {
-  return receiptId.length <= 8 ? receiptId : `${receiptId.slice(0, 4)}…${receiptId.slice(-4)}`;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {

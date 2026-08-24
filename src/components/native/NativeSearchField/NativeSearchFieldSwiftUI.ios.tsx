@@ -21,19 +21,6 @@ import { getSearchBarLiquidGlassTint, useAppTheme } from '@/theme';
 
 import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
-function logNativeSearchSubmit(nativeValue: string, reactValue: string, focused: boolean): void {
-  if (!__DEV__) return;
-
-  console.log('[home-search-input]', {
-    timestampMs: Date.now(),
-    event: 'native-submit',
-    nativeLength: nativeValue.length,
-    reactLength: reactValue.length,
-    valuesMatch: nativeValue === reactValue,
-    focused,
-  });
-}
-
 export default function NativeSearchFieldSwiftUI({
   accessibilityLabel: label,
   onChangeText,
@@ -48,9 +35,7 @@ export default function NativeSearchFieldSwiftUI({
   const [focused, setFocused] = useState(false);
 
   const handleNativeSubmit = () => {
-    const nativeValue = text.get();
-    logNativeSearchSubmit(nativeValue, value, focused);
-    onSubmit?.(nativeValue);
+    onSubmit?.(text.get());
   };
 
   useEffect(() => {

@@ -123,21 +123,6 @@ export class LocationTrackingService {
     const foreground = await Location.getForegroundPermissionsAsync();
     const background = await Location.getBackgroundPermissionsAsync();
 
-    if (__DEV__) {
-      console.log('[LocationTracking] permission status', {
-        background: {
-          canAskAgain: background.canAskAgain,
-          granted: background.granted,
-          status: background.status,
-        },
-        foreground: {
-          canAskAgain: foreground.canAskAgain,
-          granted: foreground.granted,
-          status: foreground.status,
-        },
-      });
-    }
-
     return { background, foreground };
   }
 

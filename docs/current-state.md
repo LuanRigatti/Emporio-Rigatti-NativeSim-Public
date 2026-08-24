@@ -1027,66 +1027,17 @@ uma operação confirmada.
 
 - Status: Validado localmente com 0 erros; aguardando autorização para commit.
 
-## Card Última Rota na Home (Atalho com Preview de Mapa Apple Maps)
+## Limpeza do antigo card Última Rota da Home
 
-### Funcionalidade implementada
+O antigo atalho `Última rota` foi removido na limpeza geral porque `LastRouteCard` e
+`useLatestCompletedRoute` não possuíam consumidores de runtime. A remoção não altera o
+tracking de rotas, a persistência local, a tela Localização ou os cálculos de combustível.
 
-- **Criação do card de atalho `Última rota` na Home:**
-  - Posicionado estrategicamente abaixo dos widgets *Recebimentos em aberto* e *Documentos* e acima de *Entregas de hoje* em [dashboard.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/app/(tabs)/dashboard.tsx).
-  - Reutilização integral do componente de mapa nativo [NativeTrackedRouteMap](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/routes/NativeTrackedRouteMap.native.tsx) (`AppleMaps.View` no iOS Development Build com polyline nativa, marcadores início/fim, enquadramento automático de câmera e fallback gracioso).
-  - Apresentação em [GlassCard](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/components/premium/GlassCard.tsx) elevado com curvatura Apple de `theme.radius.xl + theme.spacing.sm`, altura de prévia de 180 pt e cantos arredondados contínuos.
-  - Formatação tipográfica em duas linhas: linha 1 com data por extenso (`16 de agosto de 2026` via `Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })`) e linha 2 com distância formatada (`91,85 km` ou `0,00 km` em `pt-BR`).
-  - Header da seção com título `Última rota` e chevron discreto à direita (`chevron-forward`), com margens horizontais idênticas a `TodayDeliveriesCard` (`16 pt`).
-  - Navegação instantânea: toque em qualquer ponto do card ou header aciona `triggerLightImpactHaptic()` e `router.push('/localizacao')`.
-- **Seleção canônica da última sessão finalizada:**
-  - Adição dos métodos `getLatestCompletedRoute()` e `getMemoryLatestCompletedRoute()` em [RouteTrackingRepository.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/services/routes/RouteTrackingRepository.ts) e [LocationTrackingService.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/services/routes/LocationTrackingService.ts).
-  - Seleção estrita da última sessão finalizada da ordenação canônica por data/horário (`history[history.length - 1]`).
-  - Sem filtros destrutivos por distância, duração ou quantidade de pontos: sessões com `0,00 km`, curta duração ou apenas o ponto inicial são exibidas normalmente como a última sessão real.
-  - Rotas ativas em andamento nunca substituem a última rota finalizada.
-  - Na ausência total de rotas finalizadas no histórico (`history.length === 0`), a seção retorna `null` e a Home não reserva nenhum espaço em branco.
-- **Performance e Zero Firestore:**
-  - Hidratação de frame 0 instantânea a partir da memória via hook [useLatestCompletedRoute.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/hooks/useLatestCompletedRoute.ts), sem flash e sem layout shift.
-  - Sincronização em segundo plano no ciclo de foco (`useFocusEffect`).
-  - 0 consultas ao Firestore (rotas são 100% locais via `AsyncStorage` + memória).
-
-### Comportamento final
-
-- Usuário abre a Home: o card `Última rota` aparece imediatamente abaixo dos widgets de recebimentos/documentos, exibindo a rota finalizada mais recente.
-- Caso o usuário inicie uma nova rota, o card continua exibindo a rota finalizada anterior até que a nova rota seja parada e concluída.
-- Ao tocar no card ou no cabeçalho, o app vibra suavemente e navega diretamente para a tela de Localização.
-- Se o usuário não tiver nenhuma rota gravada, a seção não é renderizada e a Home permanece minimalista.
-
-### Arquivos principais
-
-- `src/features/home/components/LastRouteCard.tsx` (novo)
-- `src/features/home/utils/lastRouteFormatUtils.ts` (novo)
-- `src/features/home/hooks/useLatestCompletedRoute.ts` (novo)
-- `src/services/routes/RouteTrackingRepository.ts`
-- `src/services/routes/LocationTrackingService.ts`
-- `src/app/(tabs)/dashboard.tsx`
-- `tests/home/LastRouteCard.test.ts` (novo)
-- `tests/routes/RouteTracking.test.ts`
-
-### Flags e schema afetados
-
-- Nenhuma flag ou schema do Cloud Firestore alterado. Persistência local e tracking GPS preservados integralmente.
-
-### Validações executadas
-
-- TypeScript (`npx tsc --noEmit`): 0 erros.
-- ESLint direcionado nos arquivos afetados: 0 erros e 0 warnings.
-- Jest: 69 suítes e 515 testes passando.
-- `git diff --check`: limpo.
-
-### Limitações conhecidas
-
-- Nesta etapa, o toque navega para a tela principal de Localização (`/localizacao`). O foco ou abertura direta de uma rota específica na lista fica reservado para expansões futuras da navegação.
-
-### Commit e publicação
-
-- Branch: `ajustes-antigravity`.
-- Mensagem: `feat(home): adicionar card ultima rota com preview de mapa nativo`.
-- Status: Validado e publicado na branch `ajustes-antigravity`.
+- Removidos: `src/features/home/components/LastRouteCard.tsx` e
+  `src/features/home/hooks/useLatestCompletedRoute.ts`.
+- Mantidos: `src/features/home/utils/lastRouteFormatUtils.ts` e seu teste de formatação,
+  sem integração com a UI da Home.
+- Nenhuma flag ou schema do Cloud Firestore foi alterado.
 
 ## Padronização do Long Press e Context Menu nos Cards
 
@@ -1283,10 +1234,7 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 
 ### Funcionalidade implementada
 
-- Integração do cálculo canônico de custo de combustível nos cards de rota da Home (`LastRouteCard`) e da aba Localização (`RouteHistoryCard`), reutilizando exclusivamente o serviço `FuelCostCalculationService` (`useRouteFuelCost`).
-- Exibição do valor gasto (`R$ 00,00`) na mesma linha dos quilômetros percorridos, alinhado à direita no rodapé dos cards, mantendo rigorosamente a mesma tipografia, cor secundária e altura dos cards.
-- Simplificação do formato da data no card `Última rota` da Home para `DD/MM` (ex: `19/08`).
-- Navegação direta do toque no card `Última rota` da Home para a tela de detalhes `/localizacao/[routeId]` quando houver uma rota finalizada.
+- Integração do cálculo canônico de custo de combustível nos cards de rota da aba Localização (`RouteHistoryCard`), reutilizando exclusivamente o serviço `FuelCostCalculationService` (`useRouteFuelCost`). A antiga integração no card `Última rota` da Home foi removida na limpeza geral.
 - Na tela de detalhes da rota (`RouteDetailsScreen` e `RouteSummaryCard`):
   - Inclusão da linha `Valor gasto` com o valor canônico formatado (`formatCurrency(fuelCost)`) e SF Symbol `fuelpump`.
   - Atualização do formato da linha `Data` para `${weekday} ${day}/${month}/${year}` (ex: `quarta-feira 19/08/26`).
@@ -1295,7 +1243,6 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 
 ### Comportamento final
 
-- **Card Última rota (Home):** exibe data em formato compacto `19/08` no título e no rodapé `26,37 km` à esquerda com `R$ 18,42` à direita na mesma linha.
 - **Cards de rotas (Localização):** cada card do histórico do mês exibe os horários de início/fim e no rodapé `26,37 km` à esquerda com `R$ 18,42` à direita.
 - **Tela de detalhes da rota:** exibe o mapa com cantos arredondados suaves (34pt) e o card de resumo com Data (`quarta-feira 19/08/26`), Início, Fim, Duração, Distância, Valor gasto e Km considerado no dia (quando aplicável), sem a linha de Pontos GPS.
 - Todos os cálculos utilizam os dados reais da sessão (`session.distanceMeters / 1000`), a autonomia configurada do carro (`useCarSettings`) e o preço/tipo de combustível correspondente à data da rota (`useCostSettings`), sem duplicar lógica matemática nem usar km consolidado.
@@ -1303,13 +1250,10 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 ### Arquivos principais
 
 - `src/hooks/useRouteFuelCost.ts`
-- `src/features/home/components/LastRouteCard.tsx`
-- `src/features/home/utils/lastRouteFormatUtils.ts`
 - `src/features/location/components/LocationTrackingScreen.tsx`
 - `src/features/location/components/RouteDetailsScreen.tsx`
 - `src/features/location/components/RouteSummaryCard.tsx`
 - `src/app/(tabs)/dashboard.tsx`
-- `tests/home/LastRouteCard.test.ts`
 - `tests/routes/useRouteFuelCost.test.ts`
 
 ### Flags e schema afetados

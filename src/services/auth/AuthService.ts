@@ -7,20 +7,6 @@ import type { AuthServiceContract, AuthStateListener, AuthUser } from './types';
 
 const AUTHORIZED_GOOGLE_EMAIL = 'luanr.rigatti@gmail.com';
 
-function logAuthentication(
-  method: 'email' | 'google-popup' | 'google-credential',
-  user: AuthUser,
-): void {
-  if (!__DEV__) return;
-
-  console.info('[Firebase Auth]', {
-    method,
-    email: user.email,
-    uid: user.id,
-    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? 'unconfigured',
-  });
-}
-
 export class AuthService implements AuthServiceContract {
   public constructor(private readonly repository: AuthRepository = firebaseAuthRepository) {}
 
@@ -57,7 +43,6 @@ export class AuthService implements AuthServiceContract {
         );
       }
       const user = await this.repository.signInWithEmailAndPassword(email.trim(), password);
-      logAuthentication('email', user);
       return user;
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'email');
@@ -67,7 +52,7 @@ export class AuthService implements AuthServiceContract {
   public async signInWithGooglePopup(): Promise<AuthUser> {
     try {
       const user = await this.repository.signInWithGooglePopup();
-      return this.validateGoogleUser(user, 'google-popup');
+      return this.validateGoogleUser(user);
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'google');
     }
@@ -87,16 +72,13 @@ export class AuthService implements AuthServiceContract {
 
     try {
       const user = await this.repository.signInWithGoogleCredential(idToken, accessToken);
-      return this.validateGoogleUser(user, 'google-credential');
+      return this.validateGoogleUser(user);
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'google');
     }
   }
 
-  private async validateGoogleUser(
-    user: AuthUser,
-    method: 'google-popup' | 'google-credential',
-  ): Promise<AuthUser> {
+  private async validateGoogleUser(user: AuthUser): Promise<AuthUser> {
     const email = user.email?.trim().toLowerCase();
     if (email !== AUTHORIZED_GOOGLE_EMAIL) {
       await Promise.resolve(this.repository.signOut()).catch(() => undefined);
@@ -106,7 +88,6 @@ export class AuthService implements AuthServiceContract {
       );
     }
 
-    logAuthentication(method, user);
     return user;
   }
 

@@ -8,9 +8,7 @@ import {
   UserRootRepository,
 } from '@/repositories';
 import { asyncStorageCacheService } from '@/services/cache';
-import { getFirebaseConfig } from '@/config';
 import { DataError, toDataError } from './DataError';
-import { DATA_NODES } from './paths';
 
 import type { CachedUserDataSnapshot, UserDataSnapshot } from './UserDataSnapshot';
 
@@ -29,14 +27,6 @@ export class UserDataService {
   public async readFromFirebase(uid: string): Promise<UserDataSnapshot> {
     try {
       const userNodeExists = await new UserRootRepository(uid).exists();
-      if (__DEV__) {
-        console.info('[Firebase Data]', {
-          projectId: getFirebaseConfig().projectId,
-          uid,
-          userNodeExists,
-          nodes: Object.values(DATA_NODES),
-        });
-      }
       if (!userNodeExists) {
         throw new DataError(
           'user-data-not-found',

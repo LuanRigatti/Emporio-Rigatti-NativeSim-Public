@@ -96,14 +96,6 @@ function mapPayment(id: string, document: FirestoreFactoryPaymentDocument): Fact
   };
 }
 
-function maskReceiptId(receiptId: string): string {
-  return receiptId.length <= 8 ? receiptId : `${receiptId.slice(0, 4)}…${receiptId.slice(-4)}`;
-}
-
-function logPayment(message: string, details: Record<string, unknown>): void {
-  if (__DEV__) console.log(`[FirestoreFactoryReceiptDataSource] ${message}`, details);
-}
-
 async function mapReceipt(
   id: string,
   document: FirestoreFactoryReceiptDocument,
@@ -308,62 +300,38 @@ export class FirestoreFactoryReceiptDataSource implements FactoryReceiptDataSour
         this.publish();
         return receipt;
       }
-      const maskedReceiptId = maskReceiptId(receiptId);
-      try {
-        const receipt = await this.ensureReceipt(receiptId);
-        const date = requiredDate(payment.date);
-        const amount = factoryCalculationService.assertPaymentWithinBalance(
-          receipt,
-          payment.amount,
-        );
-        const balanceBefore = factoryCalculationService.openValue(receipt);
-        const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
-        const { getFirebaseFirestore } = await import('@/services/firebase/firestore');
-        const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
-        const paymentReference = doc(await paymentsCollection(receiptReference));
-        const nextPayment: FactoryPayment = { id: paymentReference.id, data: date, valor: amount };
-        const updatedReceipt: FactoryReceipt = {
-          ...receipt,
-          pagamentos: [...receipt.pagamentos, nextPayment],
-        };
-        updatedReceipt.concluido =
-          factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
-        const balanceAfter = factoryCalculationService.openValue(updatedReceipt);
-        logPayment('paymentWriteStarted', {
-          amount,
-          balanceBefore,
-          balanceAfter,
-          paymentId: maskReceiptId(paymentReference.id),
-          receiptId: maskedReceiptId,
-          target: `users/{uid}/factoryReceipts/${maskedReceiptId}/payments/{paymentId}`,
-        });
-        const batch = writeBatch(getFirebaseFirestore());
-        batch.set(paymentReference, {
-          date,
-          amount,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        } satisfies FirestoreFactoryPaymentDocument);
-        batch.update(receiptReference, {
-          completed: updatedReceipt.concluido,
-          updatedAt: serverTimestamp(),
-        });
-        await batch.commit();
-        this.receipts.set(receiptId, updatedReceipt);
-        this.publish();
-        logPayment('paymentWriteSucceeded', {
-          balanceAfter,
-          paymentId: maskReceiptId(paymentReference.id),
-          receiptId: maskedReceiptId,
-        });
-        return cloneReceipt(updatedReceipt);
-      } catch (error) {
-        logPayment('paymentWriteFailed', {
-          error: error instanceof Error ? error.message : 'unknown',
-          receiptId: maskedReceiptId,
-        });
-        throw error;
-      }
+      const receipt = await this.ensureReceipt(receiptId);
+      const date = requiredDate(payment.date);
+      const amount = factoryCalculationService.assertPaymentWithinBalance(
+        receipt,
+        payment.amount,
+      );
+      const { doc, serverTimestamp, writeBatch } = await import('firebase/firestore');
+      const { getFirebaseFirestore } = await import('@/services/firebase/firestore');
+      const receiptReference = doc(await receiptCollection(this.requireUserId()), receiptId);
+      const paymentReference = doc(await paymentsCollection(receiptReference));
+      const nextPayment: FactoryPayment = { id: paymentReference.id, data: date, valor: amount };
+      const updatedReceipt: FactoryReceipt = {
+        ...receipt,
+        pagamentos: [...receipt.pagamentos, nextPayment],
+      };
+      updatedReceipt.concluido =
+        factoryCalculationService.isWithinSettlementTolerance(updatedReceipt);
+      const batch = writeBatch(getFirebaseFirestore());
+      batch.set(paymentReference, {
+        date,
+        amount,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      } satisfies FirestoreFactoryPaymentDocument);
+      batch.update(receiptReference, {
+        completed: updatedReceipt.concluido,
+        updatedAt: serverTimestamp(),
+      });
+      await batch.commit();
+      this.receipts.set(receiptId, updatedReceipt);
+      this.publish();
+      return cloneReceipt(updatedReceipt);
     });
   }
 

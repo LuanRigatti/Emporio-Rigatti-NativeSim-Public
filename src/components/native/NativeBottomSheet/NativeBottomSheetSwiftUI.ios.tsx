@@ -372,14 +372,6 @@ export default function NativeBottomSheetSwiftUI({
       : ([{ fraction: 0.48 }, 'large'] as const));
 
   const handleIsPresentedChange = (nextVisible: boolean) => {
-    if (__DEV__) {
-      console.log('[native-bottom-sheet-flow]', {
-        timestampMs: Date.now(),
-        event: 'is-presented-change',
-        title,
-        visible: nextVisible,
-      });
-    }
     onVisibleChange(nextVisible);
   };
 
@@ -401,13 +393,6 @@ export default function NativeBottomSheetSwiftUI({
       <BottomSheet
         isPresented={visible}
         onDismiss={() => {
-          if (__DEV__) {
-            console.log('[native-bottom-sheet-flow]', {
-              timestampMs: Date.now(),
-              event: 'dismiss-completed',
-              title,
-            });
-          }
           onDismiss?.();
         }}
         onIsPresentedChange={handleIsPresentedChange}

@@ -7,7 +7,7 @@ import NativeBottomSheetFallback from './NativeBottomSheetFallback';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 
 export default function NativeBottomSheetNative(props: NativeBottomSheetProps) {
-  const { onImplementationReady, title, visible } = props;
+  const { onImplementationReady } = props;
   const canUseExpoUI = getNativeCapabilities().canUseExpoUI;
   const loadImplementation = useCallback(
     () => import('./NativeBottomSheetSwiftUI.ios').then((module) => module.default),
@@ -19,26 +19,7 @@ export default function NativeBottomSheetNative(props: NativeBottomSheetProps) {
   useEffect(() => {
     if (!readyImplementation) return;
     onImplementationReady?.(readyImplementation);
-    if (__DEV__) {
-      console.log('[native-bottom-sheet-flow]', {
-        timestampMs: Date.now(),
-        event: 'implementation-ready',
-        implementation: readyImplementation,
-        title,
-      });
-    }
-  }, [onImplementationReady, readyImplementation, title]);
-
-  useEffect(() => {
-    if (!__DEV__) return;
-    console.log('[native-bottom-sheet-flow]', {
-      timestampMs: Date.now(),
-      event: 'implementation-rendered',
-      implementation: readyImplementation ?? 'loading',
-      title,
-      visible,
-    });
-  }, [readyImplementation, title, visible]);
+  }, [onImplementationReady, readyImplementation]);
 
   return NativeImplementation ? (
     // The lazy hook resolves this component once; it remains stable after resolution.

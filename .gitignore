@@ -42,6 +42,10 @@ functions/.env.local
 # typescript
 *.tsbuildinfo
 
+# test and lint caches
+coverage/
+.eslintcache
+
 # generated native folders
 /ios
 /android

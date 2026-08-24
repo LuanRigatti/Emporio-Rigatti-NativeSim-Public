@@ -53,7 +53,7 @@ export class BackupService {
   private readonly writeData: (data: BackupData) => Promise<void>;
 
   public constructor(
-    private readonly uid: string,
+    uid: string,
     dependencies: BackupServiceDependencies = {},
   ) {
     this.readSnapshot = dependencies.readSnapshot ?? (() => userDataService.readFromFirebase(uid));

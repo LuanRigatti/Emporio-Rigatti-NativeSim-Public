@@ -13,7 +13,6 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
-import { logHomeSearchFlow } from '@/features/home/debug/HomeSearchFlowDebug';
 import {
   homeSearchPresentationReducer,
   initialHomeSearchPresentationState,
@@ -56,9 +55,6 @@ export default function Home() {
     initialHomeSearchPresentationState,
   );
   const activeSearchId = useRef(0);
-  const previousSearchPhase = useRef(searchFlow.phase);
-  const lastSubmitAt = useRef<number | null>(null);
-  const lastTextChangeAt = useRef<number | null>(null);
   const { search: runHomeSearch } = useHomeSearch();
   const {
     deliveries: dailyDeliveries,
@@ -101,36 +97,16 @@ export default function Home() {
   }, [isFocused]);
 
   useEffect(() => {
-    if (previousSearchPhase.current === searchFlow.phase) return;
-
-    logHomeSearchFlow('state-transition', {
-      searchId: searchFlow.activeSearchId,
-      presentationId: searchFlow.presentationId,
-      from: previousSearchPhase.current,
-      to: searchFlow.phase,
-    });
-    previousSearchPhase.current = searchFlow.phase;
-  }, [searchFlow.activeSearchId, searchFlow.phase, searchFlow.presentationId]);
-
-  useEffect(() => {
     if (searchFlow.phase !== 'resultReady' || !searchFlow.response) return;
 
-    logHomeSearchFlow('content-committed', {
-      searchId: searchFlow.activeSearchId,
-      resultCount: searchFlow.response.results.length,
-    });
     dispatchSearchFlow({ type: 'CONTENT_COMMITTED' });
-  }, [searchFlow.activeSearchId, searchFlow.phase, searchFlow.response]);
+  }, [searchFlow.phase, searchFlow.response]);
 
   useEffect(() => {
     if (searchFlow.phase !== 'readyToPresent') return;
 
-    logHomeSearchFlow('presentation-requested', {
-      searchId: searchFlow.activeSearchId,
-      presentationId: searchFlow.presentationId + 1,
-    });
     dispatchSearchFlow({ type: 'PRESENTATION_REQUESTED' });
-  }, [searchFlow.activeSearchId, searchFlow.phase, searchFlow.presentationId]);
+  }, [searchFlow.phase]);
 
   const handleTodayStatusToggle = useCallback(
     (deliveryId: string) => {
@@ -149,35 +125,13 @@ export default function Home() {
     [removeDelivery, testModeEnabled],
   );
 
-  const handleSearchTextChange = useCallback((value: string) => {
-    const timestampMs = Date.now();
-    lastTextChangeAt.current = timestampMs;
-    if (lastSubmitAt.current !== null && timestampMs - lastSubmitAt.current < 500) {
-      logHomeSearchFlow('text-change-after-submit', {
-        searchId: activeSearchId.current,
-        elapsedMs: timestampMs - lastSubmitAt.current,
-        textLength: value.length,
-      });
-    }
-    setSearchText(value);
-  }, []);
+  const handleSearchTextChange = useCallback((value: string) => setSearchText(value), []);
 
   const handleSearchSubmit = useCallback(
     (submittedValue: string) => {
       const searchId = activeSearchId.current + 1;
-      const timestampMs = Date.now();
-      lastSubmitAt.current = timestampMs;
       const query = submittedValue.trim();
-      logHomeSearchFlow('submit-received', {
-        searchId,
-        queryLength: query.length,
-        msSinceTextChange:
-          lastTextChangeAt.current === null ? null : timestampMs - lastTextChangeAt.current,
-      });
-      if (!query) {
-        logHomeSearchFlow('submit-ignored-empty', { searchId });
-        return;
-      }
+      if (!query) return;
       activeSearchId.current = searchId;
       Keyboard.dismiss();
       dispatchSearchFlow({ type: 'SEARCH_SUBMITTED', searchId });
@@ -188,11 +142,6 @@ export default function Home() {
           }
           return;
         }
-
-        logHomeSearchFlow('result-ready', {
-          searchId,
-          resultCount: nextResponse.results.length,
-        });
         dispatchSearchFlow({ type: 'RESULT_RECEIVED', response: nextResponse, searchId });
       });
     },
@@ -200,8 +149,7 @@ export default function Home() {
   );
 
   const handleSearchSheetImplementationReady = useCallback(
-    (implementation: 'swiftui' | 'fallback') => {
-      logHomeSearchFlow('implementation-ready', { implementation });
+    (_implementation: 'swiftui' | 'fallback') => {
       dispatchSearchFlow({ type: 'IMPLEMENTATION_READY' });
     },
     [],
@@ -209,14 +157,9 @@ export default function Home() {
 
   const handleSearchSheetVisibleChange = useCallback(
     (nextVisible: boolean) => {
-      logHomeSearchFlow('sheet-visible-change', {
-        searchId: searchFlow.activeSearchId,
-        presentationId: searchFlow.presentationId,
-        visible: nextVisible,
-      });
       dispatchSearchFlow({ type: 'NATIVE_VISIBILITY_CHANGED', visible: nextVisible });
     },
-    [searchFlow.activeSearchId, searchFlow.presentationId],
+    [],
   );
 
   const handlePressHelp = useCallback(() => {
@@ -238,14 +181,10 @@ export default function Home() {
   }, []);
 
   const handleSearchSheetDismiss = useCallback(() => {
-    logHomeSearchFlow('dismiss-confirmed', {
-      searchId: searchFlow.activeSearchId,
-      presentationId: searchFlow.presentationId,
-    });
     setSearchText('');
     setFocusEntryKey((currentKey) => currentKey + 1);
     dispatchSearchFlow({ type: 'DISMISS_COMPLETED' });
-  }, [searchFlow.activeSearchId, searchFlow.presentationId]);
+  }, []);
 
   const handleOpenRecebimentos = () => {
     triggerLightImpactHaptic();
@@ -308,62 +247,6 @@ export default function Home() {
             value={searchText}
           />
         </View>
-
-        {/* <PremiumCard
-          style={{
-            borderRadius: theme.radius.xl + theme.spacing.sm,
-            gap: theme.spacing.sm,
-            padding: theme.spacing.xl,
-          }}
-        >
-          <View style={styles.heroHeader}>
-            <Text
-              style={[
-                theme.typography.caption,
-                {
-                  color:
-                    resolvedMode === 'dark'
-                      ? theme.colors.textPrimary
-                      : theme.colors.contrastSurface,
-                },
-              ]}
-            >
-              FATURAMENTO MENSAL
-            </Text>
-            <PreviewIcon color={theme.colors.revenue} name="trending-up" />
-          </View>
-          <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-            R$ 12.540,00
-          </Text>
-        </PremiumCard> */}
-
-        {/* <PremiumCard
-          style={{
-            borderRadius: theme.radius.xl + theme.spacing.sm,
-            gap: theme.spacing.sm,
-            padding: theme.spacing.xl,
-          }}
-        >
-          <View style={styles.heroHeader}>
-            <Text
-              style={[
-                theme.typography.caption,
-                {
-                  color:
-                    resolvedMode === 'dark'
-                      ? theme.colors.textPrimary
-                      : theme.colors.contrastSurface,
-                },
-              ]}
-            >
-              LUCRO LÍQUIDO MENSAL
-            </Text>
-            <PreviewIcon color={theme.colors.profit} name="trending-up" />
-          </View>
-          <Text style={[theme.typography.metricLarge, { color: theme.colors.textPrimary }]}>
-            R$ 9.840,00
-          </Text>
-        </PremiumCard> */}
 
         <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
           <PremiumCard
@@ -539,8 +422,6 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
-  pageTitle: { textAlign: 'center' },
-  heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   shortcutCards: { width: '100%' },
   shortcutCard: {},
   shortcutAction: { width: '100%' },

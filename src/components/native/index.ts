@@ -81,6 +81,5 @@ export { NativeGlassMorphActionGroup } from './NativeGlassMorphActionGroup';
 export type { NativeGlassMorphActionGroupProps } from './NativeGlassMorphActionGroup';
 export { NativeTrackingStatusButton } from './NativeTrackingStatusButton';
 export type { NativeTrackingStatusButtonProps } from './NativeTrackingStatusButton';
-export * from './CrossScreenGlassMorph';
 export { NativeFallback } from './NativeFallback';
 export type { NativeCapabilities, NativeRuntimeEnvironment } from '@/types/native-ui';

@@ -1,57 +1,24 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import { NativeGlassHeader } from '@/components/layout';
-import {
-  CrossScreenGlassMorphTarget,
-  NativeGlassBackButton,
-  useCrossScreenGlassMorph,
-} from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
+import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
-import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 export default function Teste1Screen() {
   const { theme } = useAppTheme();
-  const router = useRouter();
-  const { setMorphState } = useCrossScreenGlassMorph();
-
-  useEffect(() => {
-    setMorphState('capsule');
-  }, [setMorphState]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setMorphState('capsule');
-    }, [setMorphState]),
-  );
-
-  const handleBack = () => {
-    triggerLightImpactHaptic();
-    setMorphState('circle');
-    router.back();
-  };
-
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Teste Morph"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={handleBack}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      rightActions={<CrossScreenGlassMorphTarget shape="capsule" width={90} />}
-      title="Teste 1"
-    />
-  );
+  const insets = useAppSafeAreaInsets();
 
   return (
-    <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
+    <PremiumScreen
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + theme.sizes.touchTargetMinimum + theme.spacing.md,
+        },
+      ]}
+      progressiveBlur={false}
+      style={styles.transparentRoot}
+    >
       <GlassCard
         style={[
           styles.card,
@@ -73,4 +40,5 @@ export default function Teste1Screen() {
 const styles = StyleSheet.create({
   card: { gap: 12, padding: 16 },
   content: { flexGrow: 1, gap: 16 },
+  transparentRoot: { paddingTop: 0 },
 });

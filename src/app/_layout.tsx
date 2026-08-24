@@ -1,4 +1,4 @@
-import { Stack, usePathname } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Font from 'expo-font';
@@ -9,7 +9,6 @@ import {
   SafeAreaProvider,
 } from 'react-native-safe-area-context';
 
-import { CrossScreenGlassMorphProvider, TransientGlassMorphHost } from '@/components/native';
 import {
   AppSafeAreaProvider,
   InitialCacheHydrationContext,
@@ -28,6 +27,51 @@ import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCa
 import { ThemeProvider } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
+
+const TESTE_MORPH_STACK_SCREEN = (
+  <Stack.Screen
+    name="teste-morph"
+    options={{
+      headerShown: true,
+      headerShadowVisible: false,
+      headerTitle: 'Teste Morph',
+      headerTransparent: true,
+    }}
+  >
+    <Stack.Screen.BackButton displayMode="minimal" />
+    <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Button
+        accessibilityLabel="Ações do Teste Morph"
+        icon="ellipsis"
+      />
+    </Stack.Toolbar>
+  </Stack.Screen>
+);
+
+const TESTE_1_STACK_SCREEN = (
+  <Stack.Screen
+    name="teste-1"
+    options={{
+      headerShown: true,
+      headerShadowVisible: false,
+      headerTitle: 'Teste 1',
+      headerTransparent: true,
+    }}
+  >
+    <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+    <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Button
+        accessibilityLabel="Ação principal do Teste 1"
+        icon="plus"
+      />
+      <Stack.Toolbar.Button
+        accessibilityLabel="Fechar Teste 1"
+        icon="xmark"
+        onPress={() => router.back()}
+      />
+    </Stack.Toolbar>
+  </Stack.Screen>
+);
 
 function AppShell() {
   const { status, user } = useSession();
@@ -103,14 +147,25 @@ function AppShell() {
               gestureEnabled: false,
             }}
           />
-          <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
+          <Stack.Screen
+            name="(tabs)"
+            options={{
+              gestureEnabled: false,
+              headerBackVisible: false,
+              headerShown: true,
+              headerShadowVisible: false,
+              headerTitle: '',
+              headerTransparent: true,
+            }}
+          />
+          {TESTE_MORPH_STACK_SCREEN}
+          {TESTE_1_STACK_SCREEN}
         </Stack>
         <BiometricLockOverlay
           onRetry={biometricUnlock.retry}
           showRetry={biometricUnlock.canRetry}
           visible={biometricUnlock.isPrivacyActive}
         />
-        <TransientGlassMorphHost />
       </>
     </InitialCacheHydrationContext.Provider>
   );
@@ -124,9 +179,7 @@ export default function PrototypeRootLayout() {
           <SessionProvider>
             <ThemeProvider>
               <TestModeProvider>
-                <CrossScreenGlassMorphProvider>
-                  <AppShell />
-                </CrossScreenGlassMorphProvider>
+                <AppShell />
               </TestModeProvider>
             </ThemeProvider>
           </SessionProvider>

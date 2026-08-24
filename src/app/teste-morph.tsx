@@ -1,64 +1,33 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect } from 'react';
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { NativeGlassHeader } from '@/components/layout';
-import {
-  CrossScreenGlassMorphTarget,
-  NativeGlassBackButton,
-  NativeGlassMorphActionGroup,
-  useCrossScreenGlassMorph,
-} from '@/components/native';
+import { NativeGlassMorphActionGroup } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
+import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 export default function TesteMorphScreen() {
   const { theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
   const router = useRouter();
-  const { setMorphState } = useCrossScreenGlassMorph();
-
-  useEffect(() => {
-    setMorphState('circle');
-    return () => {
-      setMorphState(null);
-    };
-  }, [setMorphState]);
-
-  useFocusEffect(
-    useCallback(() => {
-      setMorphState('circle');
-    }, [setMorphState]),
-  );
 
   const handleOpenTeste1 = () => {
     triggerLightImpactHaptic();
-    setMorphState('capsule');
     router.push('/teste-1');
   };
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => {
-            setMorphState(null);
-            router.back();
-          }}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      rightActions={<CrossScreenGlassMorphTarget shape="circle" width={90} />}
-      title="Teste Morph"
-    />
-  );
-
   return (
-    <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
+    <PremiumScreen
+      contentContainerStyle={[
+        styles.content,
+        {
+          paddingTop: insets.top + theme.sizes.touchTargetMinimum + theme.spacing.md,
+        },
+      ]}
+      progressiveBlur={false}
+      style={styles.transparentRoot}
+    >
       {/* Teste 1: Morph Cross-Screen (1 círculo ⇄ 1 cápsula) */}
       <GlassCard
         style={[
@@ -117,7 +86,10 @@ export default function TesteMorphScreen() {
             Liquid Glass Morph
           </Text>
           <Text
-            style={[theme.typography.footnote, { color: theme.colors.textSecondary, marginTop: 2 }]}
+            style={[
+              theme.typography.footnote,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
             Morph local: 1 círculo ⇄ 2 botões.
           </Text>
@@ -134,6 +106,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
   },
+  transparentRoot: { paddingTop: 0 },
   textContainer: {
     flex: 1,
   },

@@ -72,12 +72,6 @@ export default function SettingsLayout() {
       <Stack.Screen name="estoque">
         <Stack.Screen.BackButton displayMode="minimal" />
       </Stack.Screen>
-      <Stack.Screen name="localizacao">
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
-      <Stack.Screen name="localizacao/[routeId]">
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
     </Stack>
   );
 }

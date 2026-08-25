@@ -1,10 +1,9 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { EmptyState } from '@/components/feedback';
-import { NativeGlassBackButton } from '@/components/native';
 import { NativeTrackedRouteMap } from '@/components/routes';
 import { GlassCard, PremiumScreen, Skeleton } from '@/components/premium';
 import { locationTrackingService } from '@/services/routes';
@@ -14,7 +13,6 @@ import { useAppTheme } from '@/theme';
 import { RouteSummaryCard } from './RouteSummaryCard';
 
 export function RouteDetailsScreen() {
-  const router = useRouter();
   const { routeId } = useLocalSearchParams<{ routeId?: string | string[] }>();
   const { theme } = useAppTheme();
   const [session, setSession] = useState<RouteTrackingSession | null>(null);
@@ -66,21 +64,7 @@ export function RouteDetailsScreen() {
     }, [id]),
   );
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Localização"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      title="Detalhes da rota"
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="Detalhes da rota" />;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>

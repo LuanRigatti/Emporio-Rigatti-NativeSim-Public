@@ -7,7 +7,9 @@ import { FactoryPurchasesScreen } from '@/features/factory-purchases/components/
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import { useAppTheme } from '@/theme';
 
-export default function FactoryPurchaseRegisterRoute() {
+export function FactoryPurchaseRegisterRoute({
+  nativeHeader = false,
+}: { nativeHeader?: boolean } = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();
   const currentPeriod = getCurrentHistoryPeriod();
@@ -17,13 +19,15 @@ export default function FactoryPurchaseRegisterRoute() {
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Compras e Fábrica"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Compras e Fábrica"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       title="Registrar compra"
@@ -39,3 +43,5 @@ export default function FactoryPurchaseRegisterRoute() {
     />
   );
 }
+
+export default FactoryPurchaseRegisterRoute;

@@ -1,32 +1,16 @@
-import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeTextField } from '@/components/native';
+import { NativeTextField } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useCarSettings } from '@/hooks/useCarSettings';
 import { useAppTheme } from '@/theme';
 
-export default function CarDataRoute() {
+export function CarDataScreen() {
   const { theme } = useAppTheme();
-  const router = useRouter();
   const { settings, updateField } = useCarSettings();
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Dados"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      title="Dados do Carro"
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="Dados do Carro" />;
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>

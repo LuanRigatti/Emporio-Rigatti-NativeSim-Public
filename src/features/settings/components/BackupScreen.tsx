@@ -1,9 +1,7 @@
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton } from '@/components/native';
 import { PremiumScreen } from '@/components/premium';
 import { useFirestoreBackup } from '@/hooks/useFirestoreBackup';
 import { useFirestoreBackupDryRun } from '@/hooks/useFirestoreBackupDryRun';
@@ -18,7 +16,6 @@ import { SettingsSection } from './SettingsSection';
 export function BackupScreen() {
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
-  const router = useRouter();
   const firestoreBackup = useFirestoreBackup();
   const firestoreBackupDryRun = useFirestoreBackupDryRun();
   const firestoreBackupRestore = useFirestoreBackupRestore();
@@ -126,21 +123,7 @@ export function BackupScreen() {
     );
   }, [confirmBackupRestore, maskText, restoreBackup, testModeEnabled]);
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      title="Backup"
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="Backup" />;
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>

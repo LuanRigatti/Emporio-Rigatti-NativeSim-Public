@@ -1,6 +1,10 @@
 import { router, Stack } from 'expo-router';
 
+import { useAppTheme } from '@/theme';
+
 export default function LabLayout() {
+  const { resolvedMode } = useAppTheme();
+
   return (
     <Stack
       screenOptions={{
@@ -8,6 +12,11 @@ export default function LabLayout() {
         headerShown: true,
         headerShadowVisible: false,
         headerTransparent: true,
+        unstable_nativeProps: {
+          headerConfig: {
+            experimental_userInterfaceStyle: resolvedMode,
+          },
+        },
       }}
     >
       <Stack.Screen

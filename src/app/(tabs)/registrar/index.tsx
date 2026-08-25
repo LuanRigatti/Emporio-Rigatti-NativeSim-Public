@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
 import Animated, {
   Easing,
   FadeIn,
@@ -14,9 +15,7 @@ import {
   NativeBottomSheet,
   NativeCardContextMenu,
   NativeDailyDataSheet,
-  NativeGlassBackButton,
   NativeGlassIconButton,
-  NativeGlassMenu,
 } from '@/components/native';
 import type {
   NativeBottomSheetConfirmation,
@@ -104,12 +103,12 @@ function RegistrarModeSelection() {
 
   const handleOpenRegistrarEntrega = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar-entrega');
+    router.push('/registrar/entrega');
   };
 
   const handleOpenRegistrarDados = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar-dados-diarios');
+    router.push('/registrar/dados');
   };
 
   const header = (
@@ -210,7 +209,7 @@ function RegistrarModeSelection() {
   );
 }
 
-export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
+export function RegistrarDailyDataScreen() {
   const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
@@ -279,17 +278,6 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
 
   const header = (
     <NativeGlassHeader
-      leftActions={
-        <View style={styles.headerLeadingActions}>
-          <NativeGlassBackButton
-            accessibilityLabel="Voltar para Registrar"
-            color={theme.colors.textPrimary}
-            containerSize={theme.sizes.touchTargetMinimum}
-            onPress={onBack}
-            size={theme.sizes.iconMedium}
-          />
-        </View>
-      }
       mode="transparent"
       rightActions={<View style={styles.headerTrailingActions} />}
       title={'Dados Diários'}
@@ -461,7 +449,7 @@ export function RegistrarDailyDataScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
+export function RegistrarDeliveryScreen() {
   const colorScheme = useColorScheme();
   const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
@@ -596,75 +584,18 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   const header = (
     <NativeGlassHeader
       includeTopSafeArea
-      leftActions={
-        <View style={styles.deliveryHeaderLeadingActions}>
-          <NativeGlassBackButton
-            accessibilityLabel="Voltar para Registrar"
-            color={dark ? '#FFFFFF' : '#000000'}
-            containerSize={44}
-            onPress={onBack}
-            size={20}
-          />
-        </View>
-      }
       mode="transparent"
       pointerEvents="box-none"
-      rightActions={
-        <NativeGlassMenu
-          accessibilityLabel="Ordenar entregas"
-          actions={[
-            {
-              id: 'latest',
-              isOn: deliverySortMode === 'latest',
-              onPress: () => handleDeliverySortChange('latest'),
-              systemImage: 'clock.arrow.circlepath',
-              title: 'Recentes',
-            },
-            {
-              id: 'alphabetical',
-              isOn: deliverySortMode === 'alphabetical',
-              onPress: () => handleDeliverySortChange('alphabetical'),
-              systemImage: 'textformat.abc',
-              title: 'Ordem alfabética',
-            },
-            {
-              id: 'quantity',
-              isOn: deliverySortMode === 'quantity',
-              onPress: () => handleDeliverySortChange('quantity'),
-              systemImage: 'chart.bar.fill',
-              title: 'Quantidade de baldes',
-            },
-          ]}
-          color={dark ? '#FFFFFF' : '#000000'}
-          containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon="filter-outline"
-          glassTint={getLiquidGlassTint(resolvedMode)}
-          size={theme.sizes.iconMedium}
-          systemImage="line.3.horizontal.decrease"
-          style={{
-            height: theme.sizes.touchTargetMinimum,
-            width: theme.sizes.touchTargetMinimum,
-          }}
-          trigger={
-            <NativeGlassIconButton
-              accessibilityLabel="Ordenar entregas"
-              color={dark ? '#FFFFFF' : '#000000'}
-              containerSize={theme.sizes.touchTargetMinimum}
-              fallbackIcon="filter-outline"
-              interactiveGlass
-              onPress={triggerLightImpactHaptic}
-              size={theme.sizes.iconMedium}
-              systemImage="line.3.horizontal.decrease"
-            />
-          }
-        />
-      }
       title="Entregas"
     />
   );
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+      <RegistrarDeliveryToolbar
+        onSortChange={handleDeliverySortChange}
+        sortMode={deliverySortMode}
+      />
       <PremiumScreen
         contentContainerStyle={{
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,
@@ -873,6 +804,50 @@ export function RegistrarDeliveryScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
+function RegistrarDeliveryToolbar({
+  onSortChange,
+  sortMode,
+}: {
+  onSortChange: (sortMode: DeliverySortMode) => void;
+  sortMode: DeliverySortMode;
+}) {
+  const { theme } = useAppTheme();
+
+  return (
+    <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Menu
+        accessibilityLabel="Ordenar entregas"
+        icon="line.3.horizontal.decrease"
+        separateBackground={false}
+        title="Ordenar entregas"
+        tintColor={theme.colors.textPrimary}
+      >
+        <Stack.Toolbar.MenuAction
+          icon={'clock.arrow.circlepath' as SFSymbol}
+          isOn={sortMode === 'latest'}
+          onPress={() => onSortChange('latest')}
+        >
+          Recentes
+        </Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.MenuAction
+          icon={'textformat.abc' as SFSymbol}
+          isOn={sortMode === 'alphabetical'}
+          onPress={() => onSortChange('alphabetical')}
+        >
+          Ordem alfabética
+        </Stack.Toolbar.MenuAction>
+        <Stack.Toolbar.MenuAction
+          icon={'chart.bar.fill' as SFSymbol}
+          isOn={sortMode === 'quantity'}
+          onPress={() => onSortChange('quantity')}
+        >
+          Quantidade de baldes
+        </Stack.Toolbar.MenuAction>
+      </Stack.Toolbar.Menu>
+    </Stack.Toolbar>
+  );
+}
+
 function formatDeliveryDate(value: string) {
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
@@ -922,9 +897,7 @@ const styles = StyleSheet.create({
   dailyDataCard: { gap: 16 },
   dailyDataRows: { gap: 12 },
   dailyDataRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  headerLeadingActions: { alignItems: 'flex-start', width: 104 },
   headerTrailingActions: { width: 104 },
-  deliveryHeaderLeadingActions: { alignItems: 'flex-start', width: 44 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   deliveryCard: { gap: 8, overflow: 'visible' },
   deliveryContent: { flex: 1 },

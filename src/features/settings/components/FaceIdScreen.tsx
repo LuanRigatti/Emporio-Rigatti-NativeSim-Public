@@ -1,16 +1,14 @@
-import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeToggle } from '@/components/native';
+import { NativeToggle } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useBiometricUnlockPreference } from '@/hooks/useBiometricUnlockPreference';
 import { useAppTheme } from '@/theme';
 
 export function FaceIdScreen() {
   const { theme } = useAppTheme();
-  const router = useRouter();
   const { enabled, isHydrated, updateEnabled } = useBiometricUnlockPreference();
 
   const handleToggle = useCallback(
@@ -32,21 +30,7 @@ export function FaceIdScreen() {
     [updateEnabled],
   );
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      title="Face ID"
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="Face ID" />;
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>

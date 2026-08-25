@@ -8,20 +8,34 @@ import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useAppTheme } from '@/theme';
 
-export default function FactoryRoute() {
+type FactoryRouteProps = {
+  nativeHeader?: boolean;
+  navigationPaths?: {
+    bucketValue: string;
+    purchasesMenu: string;
+  };
+};
+
+export function FactoryRoute({ nativeHeader = false, navigationPaths }: FactoryRouteProps = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const paths = navigationPaths ?? {
+    bucketValue: '/fabrica-valor-balde',
+    purchasesMenu: '/fabrica-compras-menu',
+  };
 
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Configurações"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       title="Fábrica"
@@ -40,14 +54,14 @@ export default function FactoryRoute() {
         <SettingsSection>
           <SettingItem
             fallbackIcon="cash-outline"
-            onPress={() => router.push('/fabrica-valor-balde')}
+            onPress={() => router.push(paths.bucketValue)}
             systemName="dollarsign.circle"
             title="Valor do balde"
           />
           <SettingItem
             fallbackIcon="cart-outline"
             isLast
-            onPress={() => router.push('/fabrica-compras-menu')}
+            onPress={() => router.push(paths.purchasesMenu)}
             systemName="cart"
             title="Compras"
           />
@@ -56,6 +70,8 @@ export default function FactoryRoute() {
     </PremiumScreen>
   );
 }
+
+export default FactoryRoute;
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1 },

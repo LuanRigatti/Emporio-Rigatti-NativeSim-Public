@@ -52,6 +52,7 @@ export type {
   NativeDatePickerProps,
   NativeDatePickerStyle,
 } from './NativeDatePicker';
+export { NativeDateToolbar } from './NativeDateToolbar';
 export { NativeDialog } from './NativeDialog';
 export type { NativeDialogAction, NativeDialogProps } from './NativeDialog';
 export { NativeList } from './NativeList';

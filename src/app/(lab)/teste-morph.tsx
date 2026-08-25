@@ -3,13 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassMorphActionGroup } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
-import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 export default function TesteMorphScreen() {
   const { theme } = useAppTheme();
-  const insets = useAppSafeAreaInsets();
   const router = useRouter();
 
   const handleOpenTeste1 = () => {
@@ -22,11 +20,10 @@ export default function TesteMorphScreen() {
       contentContainerStyle={[
         styles.content,
         {
-          paddingTop: insets.top + theme.sizes.touchTargetMinimum + theme.spacing.md,
+          paddingTop: theme.sizes.touchTargetMinimum + theme.spacing.md,
         },
       ]}
-      progressiveBlur={false}
-      style={styles.transparentRoot}
+      progressiveBlur
     >
       {/* Teste 1: Morph Cross-Screen (1 círculo ⇄ 1 cápsula) */}
       <GlassCard
@@ -103,7 +100,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
   },
-  transparentRoot: { paddingTop: 0 },
   textContainer: {
     flex: 1,
   },

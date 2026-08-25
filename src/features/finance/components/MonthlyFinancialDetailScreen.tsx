@@ -1,13 +1,9 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import {
-  NativeAnimatedNumber,
-  NativeGlassBackButton,
-  NativePeriodActionGroup,
-} from '@/components/native';
+import { NativeAnimatedNumber } from '@/components/native';
 import { FinancialSeriesChart } from '@/components/Charts';
 import { EmptyState } from '@/components/feedback';
 import { PremiumCard, PremiumScreen, Skeleton } from '@/components/premium';
@@ -22,15 +18,12 @@ import {
 } from '@/services/finance';
 import { routeTrackingRepository } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
-import {
-  HISTORY_MONTH_ITEMS,
-  getHistoryYearItems,
-} from '@/features/history/components/periodOptions';
 import { formatMonthlyPeriodKey, parseMonthlyPeriodParam } from '../utils/monthlyPeriodUtils';
 
 import { FinancialDayDetailCard } from './FinancialDayDetailCard';
+import { FinancePeriodToolbar } from './FinancePeriodToolbar';
 
 type Props = {
   metric: MonthlyFinancialDetailMetric;
@@ -48,9 +41,8 @@ const metricCopy = {
 };
 
 export function MonthlyFinancialDetailScreen({ metric }: Props) {
-  const router = useRouter();
   const params = useLocalSearchParams<{ period?: string | string[] }>();
-  const { resolvedMode, theme } = useAppTheme();
+  const { theme } = useAppTheme();
   const [selectedMonth, setSelectedMonth] = useState(
     () => parseMonthlyPeriodParam(params.period).month,
   );
@@ -141,109 +133,81 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
     details.find((detail) => detail.date === selectedDate) ?? details[details.length - 1];
   const selectedIndex = selectedDetail ? details.indexOf(selectedDetail) : 0;
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Finanças"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      rightActions={
-        <NativePeriodActionGroup
-          color={theme.colors.textPrimary}
-          glassTint={getLiquidGlassTint(resolvedMode)}
-          monthDisplayValue={monthShortLabel(selectedMonth)}
-          monthItems={HISTORY_MONTH_ITEMS}
-          onMonthChange={setSelectedMonth}
-          onYearChange={setSelectedYear}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-          showValues
-          valueFontSize={17}
-          yearItems={getHistoryYearItems()}
-        />
-      }
-      title=""
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="" />;
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      <PremiumScreen
-        contentContainerStyle={styles.content}
-        overlayHeader={header}
-        overlayHeaderContentOffset={
-          theme.typography.headline.lineHeight +
-          theme.spacing.xl -
-          theme.sizes.touchTargetMinimum +
-          theme.spacing.xxs * 8
-        }
-        overlayHeaderSpacing={theme.spacing.xxxl + theme.spacing.md}
-        progressiveBlur
-        scrollable
-      >
-        {!isDataReady ? (
-          <View style={styles.loading}>
-            <Skeleton height={220} />
-            <Skeleton height={theme.sizes.loadingLineHeight * 8} />
-          </View>
-        ) : details.length === 0 ? (
-          <EmptyState
-            description="Não existem entregas ou lançamentos no mês selecionado."
-            title="Sem movimento no período"
-          />
-        ) : selectedDetail ? (
-          <>
-            <PremiumCard
-              style={[styles.chartCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-            >
-              <View style={styles.chartHeader}>
-                <View style={styles.chartHeaderRow}>
-                  <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                    {copy.subtitle}
-                  </Text>
-                  <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                    {formatPtBrDate(selectedDetail.date)}
-                  </Text>
+    <>
+      <FinancePeriodToolbar
+        composition="split"
+        onMonthChange={setSelectedMonth}
+        onYearChange={setSelectedYear}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+      />
+      <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+        <PremiumScreen
+          contentContainerStyle={styles.content}
+          overlayHeader={header}
+          overlayHeaderContentOffset={
+            theme.typography.headline.lineHeight +
+            theme.spacing.xl -
+            theme.sizes.touchTargetMinimum +
+            theme.spacing.xxs * 8
+          }
+          overlayHeaderSpacing={theme.spacing.xxxl + theme.spacing.md}
+          progressiveBlur
+          scrollable
+        >
+          {!isDataReady ? (
+            <View style={styles.loading}>
+              <Skeleton height={220} />
+              <Skeleton height={theme.sizes.loadingLineHeight * 8} />
+            </View>
+          ) : details.length === 0 ? (
+            <EmptyState
+              description="Não existem entregas ou lançamentos no mês selecionado."
+              title="Sem movimento no período"
+            />
+          ) : selectedDetail ? (
+            <>
+              <PremiumCard
+                style={[styles.chartCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              >
+                <View style={styles.chartHeader}>
+                  <View style={styles.chartHeaderRow}>
+                    <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                      {copy.subtitle}
+                    </Text>
+                    <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                      {formatPtBrDate(selectedDetail.date)}
+                    </Text>
+                  </View>
+                  <NativeAnimatedNumber
+                    animationEnabled={isDataReady}
+                    color={theme.colors.textPrimary}
+                    fontSize={theme.typography.metricMedium.fontSize}
+                    fontWeight="bold"
+                    lineHeight={theme.typography.metricMedium.lineHeight}
+                    text={formatCurrency(financialMetricValue(selectedDetail.summary, metric))}
+                    value={financialMetricValue(selectedDetail.summary, metric)}
+                  />
                 </View>
-                <NativeAnimatedNumber
-                  animationEnabled={isDataReady}
+                <FinancialSeriesChart
+                  accessibilityLabel={`Gráfico de ${copy.title}`}
                   color={theme.colors.textPrimary}
-                  fontSize={theme.typography.metricMedium.fontSize}
-                  fontWeight="bold"
-                  lineHeight={theme.typography.metricMedium.lineHeight}
-                  text={formatCurrency(financialMetricValue(selectedDetail.summary, metric))}
-                  value={financialMetricValue(selectedDetail.summary, metric)}
+                  lineWidth={4}
+                  onSelectPoint={(index) => setSelectedDate(details[index]?.date)}
+                  points={points}
+                  selectedIndex={selectedIndex}
+                  showAllLabels
                 />
-              </View>
-              <FinancialSeriesChart
-                accessibilityLabel={`Gráfico de ${copy.title}`}
-                color={theme.colors.textPrimary}
-                lineWidth={4}
-                onSelectPoint={(index) => setSelectedDate(details[index]?.date)}
-                points={points}
-                selectedIndex={selectedIndex}
-                showAllLabels
-              />
-            </PremiumCard>
-            <FinancialDayDetailCard detail={selectedDetail} metric={metric} />
-          </>
-        ) : null}
-      </PremiumScreen>
-    </View>
-  );
-}
-
-function monthShortLabel(month: number): string {
-  return (
-    ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
-      month - 1
-    ] ?? String(month)
+              </PremiumCard>
+              <FinancialDayDetailCard detail={selectedDetail} metric={metric} />
+            </>
+          ) : null}
+        </PremiumScreen>
+      </View>
+    </>
   );
 }
 

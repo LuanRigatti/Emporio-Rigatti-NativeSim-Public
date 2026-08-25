@@ -1,8 +1,9 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { usePreventRemove, type NavigationAction } from 'expo-router/react-navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { NativeGlassBackButton, NativeTextField, NativeToggle } from '@/components/native';
+import { NativeTextField, NativeToggle } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useAppTheme } from '@/theme';
@@ -22,10 +23,16 @@ const CLIENT_NAMES: Record<string, string> = {
   sofia: 'Sofia Rocha',
 };
 
+type ClientEditValues = {
+  bucketValue: string;
+  usesBoleto: boolean;
+  usesInvoice: boolean;
+};
+
 export default function ClientDetailsRoute() {
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
-  const router = useRouter();
+  const navigation = useNavigation();
   const { clients, updatePrice } = useClients();
   const { clientId, clientName: routeClientName } = useLocalSearchParams<{
     clientId?: string;
@@ -36,6 +43,10 @@ export default function ClientDetailsRoute() {
   const [usesInvoice, setUsesInvoice] = useState(false);
   const [usesBoleto, setUsesBoleto] = useState(false);
   const [error, setError] = useState<string>();
+  const [initialValues, setInitialValues] = useState<ClientEditValues | null>(null);
+  const pendingRemoveActionRef = useRef<NavigationAction | null>(null);
+  const isSavingRef = useRef(false);
+  const [allowNextRemove, setAllowNextRemove] = useState(false);
   const client = useMemo(
     () =>
       clients.find(
@@ -46,41 +57,69 @@ export default function ClientDetailsRoute() {
   );
   const clientName = (clientId && CLIENT_NAMES[clientId]) || routeClientName || 'Cliente';
 
-  const handleBack = useCallback(() => {
-    if (testModeEnabled) {
-      router.back();
-      return;
-    }
-    if (!client) {
-      router.back();
-      return;
-    }
+  const hasPendingChanges = Boolean(
+    client &&
+    !testModeEnabled &&
+    initialValues &&
+    (bucketValue !== initialValues.bucketValue ||
+      usesInvoice !== initialValues.usesInvoice ||
+      usesBoleto !== initialValues.usesBoleto),
+  );
 
-    const price = normalizeMoney(bucketValue);
-    if (price === undefined || price <= 0) {
-      setError('Informe um preço maior que zero.');
-      return;
-    }
+  const handleBeforeRemove = useCallback(
+    ({ data: { action } }: { data: { action: NavigationAction } }) => {
+      if (!client || isSavingRef.current) return;
 
-    setError(undefined);
-    router.back();
-    void updatePrice(client, price, usesInvoice, usesBoleto).catch((saveError) => {
-      if (__DEV__) {
-        console.error(
-          '[ClientDetails] failed to persist changes after leaving the screen',
-          saveError,
-        );
+      const price = normalizeMoney(bucketValue);
+      if (price === undefined || price <= 0) {
+        setError('Informe um preço maior que zero.');
+        return;
       }
-    });
-  }, [bucketValue, client, router, testModeEnabled, updatePrice, usesBoleto, usesInvoice]);
+
+      isSavingRef.current = true;
+      setError(undefined);
+      void updatePrice(client, price, usesInvoice, usesBoleto)
+        .then(() => {
+          pendingRemoveActionRef.current = action;
+          setAllowNextRemove(true);
+        })
+        .catch((saveError) => {
+          if (__DEV__) {
+            console.error(
+              '[ClientDetails] failed to persist changes before leaving the screen',
+              saveError,
+            );
+          }
+        })
+        .finally(() => {
+          isSavingRef.current = false;
+        });
+    },
+    [bucketValue, client, updatePrice, usesBoleto, usesInvoice],
+  );
+
+  usePreventRemove(hasPendingChanges && !allowNextRemove, handleBeforeRemove);
+
+  useEffect(() => {
+    if (!allowNextRemove) return;
+    const action = pendingRemoveActionRef.current;
+    pendingRemoveActionRef.current = null;
+    if (action) navigation.dispatch(action);
+  }, [allowNextRemove, navigation]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (client) {
+      const nextValues = {
+        bucketValue: client.currentPrice === undefined ? '' : formatCurrency(client.currentPrice),
+        usesBoleto: client.usesBoleto,
+        usesInvoice: client.usesInvoice,
+      };
+      setInitialValues(nextValues);
       setAddress(client.address ?? '');
-      setUsesInvoice(client.usesInvoice);
-      setUsesBoleto(client.usesBoleto);
-      setBucketValue(client.currentPrice === undefined ? '' : formatCurrency(client.currentPrice));
+      setUsesInvoice(nextValues.usesInvoice);
+      setUsesBoleto(nextValues.usesBoleto);
+      setBucketValue(nextValues.bucketValue);
     }
   }, [client]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -92,15 +131,7 @@ export default function ClientDetailsRoute() {
         { backgroundColor: theme.colors.background, gap: theme.spacing.lg },
       ]}
     >
-      <View style={styles.headerRow}>
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Clientes"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={handleBack}
-          size={theme.sizes.iconMedium}
-        />
-      </View>
+      <View style={{ height: theme.sizes.touchTargetMinimum }} />
       <GlassCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
           {clientName}
@@ -119,11 +150,7 @@ export default function ClientDetailsRoute() {
             <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
           ) : null}
         </View>
-        <NativeToggle
-          label="Usa nota fiscal"
-          onValueChange={setUsesInvoice}
-          value={usesInvoice}
-        />
+        <NativeToggle label="Usa nota fiscal" onValueChange={setUsesInvoice} value={usesInvoice} />
         <NativeToggle label="Usa boleto" onValueChange={setUsesBoleto} value={usesBoleto} />
         <View style={styles.fieldGroup}>
           <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
@@ -145,5 +172,4 @@ const styles = StyleSheet.create({
   card: { gap: 20 },
   content: { flexGrow: 1 },
   fieldGroup: { gap: 8 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between' },
 });

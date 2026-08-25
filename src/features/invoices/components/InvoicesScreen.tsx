@@ -18,7 +18,7 @@ import type { Delivery } from '@/types/data';
 
 import type { OpenPaymentPreview } from '@/features/open-payments/data/openPaymentPreview';
 
-export function InvoicesScreen() {
+export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolean } = {}) {
   const router = useRouter();
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
@@ -103,13 +103,15 @@ export function InvoicesScreen() {
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Home"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Home"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       title="Notas fiscais/boletos"

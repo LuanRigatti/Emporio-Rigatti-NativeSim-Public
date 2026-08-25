@@ -1674,6 +1674,79 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Os ajustes verticais descritos nesta seção ainda não foram commitados.
 - Nenhum commit ou push adicional foi realizado.
 
+## Atalhos da Home para Documentos e Fábrica no Native Stack
+
+### Funcionalidade implementada
+
+- Os atalhos `Documentos em aberto` e `Fábrica` da Home usam rotas raiz do
+  Native Stack, sem selecionar outra aba do `NativeTabs`.
+- `Documentos em aberto` reutiliza `InvoicesScreen` em
+  `/notas-fiscais-boletos`.
+- `Fábrica` reutiliza `FactoryPurchasesRoute` em `/fabrica-compras`, com o
+  seletor de período nativo compartilhado já usado no fluxo financeiro.
+- As duas rotas usam `Stack.Screen.BackButton displayMode="minimal"` e
+  `gestureEnabled: true`.
+
+### Comportamento final
+
+- Home → Documentos e Home → Fábrica executam push no Stack raiz e não trocam
+  visualmente para outra tab.
+- O botão voltar e o swipe-back retornam para a Home.
+- Consultas, documentos, compras, pagamentos, período, cards, ProgressiveBlur,
+  Light/Dark Mode e lógica Firestore permanecem preservados.
+- A comparação com Finanças confirmou que o morph Liquid Glass de maior
+  expressão ocorre quando a origem e o destino estão no mesmo Native Stack e
+  mudam estruturalmente de 1 para 2 itens nativos compartilhando background.
+- Na origem Home não existe toolbar nativo correspondente; portanto os atalhos
+  produzem a entrada/saída nativa do BackButton, mas não um morph cross-screen
+  equivalente ao 1→2 de Finanças.
+
+### Arquivos principais
+
+- `src/app/_layout.tsx`
+- `src/app/(tabs)/dashboard.tsx`
+- `src/app/notas-fiscais-boletos.tsx`
+- `src/app/fabrica-compras.tsx`
+- `src/features/invoices/components/InvoicesScreen.tsx`
+- `src/features/factory-purchases/components/FactoryPurchasesScreen.tsx`
+- `src/features/finance/components/FinancePeriodToolbar.tsx` (referência
+  reutilizada)
+- `src/app/(tabs)/financeiro/_layout.tsx` (referência arquitetural)
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- `experimental_userInterfaceStyle` continua sendo aplicado somente à
+  configuração nativa dos Stacks, conforme o tema resolvido.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma dependência, API Swift ou prebuild foi alterado/executado.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado nos layouts, rotas e componentes envolvidos: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+- A auditoria estrutural não substitui a validação visual no iPhone Development
+  Build.
+
+### Limitações conhecidas
+
+- O efeito C de morph cross-screen não pode ser reproduzido nesses atalhos sem
+  uma origem nativa correspondente no header da Home.
+- Colocar Home, Fábrica e Documentos no mesmo Native Stack exigiria uma
+  reorganização estrutural do fluxo da tab Home; ainda assim, um morph real
+  exigiria um item nativo de origem. Nenhuma dessas alterações foi aplicada.
+- Não há commit específico para esta auditoria/registro documental.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- HEAD no momento da documentação: `4cf668de1873de6335452910ca165dcf9cd8c642`.
+- A alteração documentada não foi commitada adicionalmente.
+- Nenhum commit ou push foi realizado.
+
 ## Estado vazio do Histórico em card
 
 ### Funcionalidade implementada

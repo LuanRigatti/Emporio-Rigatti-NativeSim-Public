@@ -5,12 +5,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeDatePicker,
+  NativeDateToolbar,
   NativeDropdown,
   NativeGlassBackButton,
   NativePeriodActionGroup,
 } from '@/components/native';
 import type { NativeDropdownItem } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
+import { FinancePeriodToolbar } from '@/features/finance';
 import { useCarSettings } from '@/hooks/useCarSettings';
 import { useCostSettings } from '@/hooks/useCostSettings';
 import { dailyDataQueryService } from '@/services/costs';
@@ -28,9 +30,10 @@ export type CostsEditorMode = 'daily' | 'monthly';
 
 type CostsEditorScreenProps = {
   mode: CostsEditorMode;
+  nativeHeader?: boolean;
 };
 
-export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
+export function CostsEditorScreen({ mode, nativeHeader = false }: CostsEditorScreenProps) {
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
@@ -100,19 +103,21 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
   const header = (
     <NativeGlassHeader
       leftActions={
-        <View style={styles.headerSlot}>
-          <NativeGlassBackButton
-            accessibilityLabel="Voltar para Custos"
-            color={theme.colors.textPrimary}
-            containerSize={theme.sizes.touchTargetMinimum}
-            onPress={() => router.back()}
-            size={theme.sizes.iconMedium}
-          />
-        </View>
+        nativeHeader ? undefined : (
+          <View style={styles.headerSlot}>
+            <NativeGlassBackButton
+              accessibilityLabel="Voltar para Custos"
+              color={theme.colors.textPrimary}
+              containerSize={theme.sizes.touchTargetMinimum}
+              onPress={() => router.back()}
+              size={theme.sizes.iconMedium}
+            />
+          </View>
+        )
       }
       mode="transparent"
       rightActions={
-        mode === 'monthly' ? (
+        !nativeHeader && mode === 'monthly' ? (
           <NativePeriodActionGroup
             color={theme.colors.textPrimary}
             monthDisplayValue={monthShortLabel(selectedMonth)}
@@ -129,7 +134,7 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
             valueFontSize={17}
             yearItems={yearItems}
           />
-        ) : (
+        ) : !nativeHeader ? (
           <NativeDatePicker
             accessibilityLabel="Selecionar data"
             mode="date"
@@ -137,94 +142,109 @@ export function CostsEditorScreen({ mode }: CostsEditorScreenProps) {
             style="compact"
             value={date}
           />
-        )
+        ) : undefined
       }
       title=""
     />
   );
 
   return (
-    <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
-      <GlassCard
-        style={[
-          styles.card,
-          {
-            borderRadius: theme.radius.xl + theme.spacing.sm,
-            marginTop: theme.spacing.md,
-          },
-        ]}
-      >
-        {mode === 'monthly' ? (
-          <>
-            <CostField
-              keyboardType="decimal-pad"
-              label="Luz"
-              onChangeText={(value) => handleUpdateField('month', monthKey, 'light', value)}
-              placeholder="R$ 0,00"
-              value={values.light}
-            />
-            <ReadOnlyCostField
-              label="Estar"
-              value={isHydrated ? formatCurrency(monthlyEstar) : ''}
-            />
-            <ReadOnlyCostField
-              label="Outros"
-              value={isHydrated ? formatCurrency(monthlyOther) : ''}
-            />
-          </>
+    <>
+      {nativeHeader ? (
+        mode === 'monthly' ? (
+          <FinancePeriodToolbar
+            composition="combined"
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+          />
         ) : (
-          <>
-            <CostField
-              keyboardType="decimal-pad"
-              label="Estar"
-              onChangeText={(value) => handleUpdateField('day', selectedDate, 'estar', value)}
-              placeholder="R$ 0,00"
-              value={values.estar}
-            />
-            <CostField
-              keyboardType="decimal-pad"
-              label="Outros"
-              onChangeText={(value) => handleUpdateField('day', selectedDate, 'other', value)}
-              placeholder="R$ 0,00"
-              value={values.other}
-            />
-            <CostField
-              disabled={automaticKilometers !== undefined}
-              keyboardType="decimal-pad"
-              label="Km"
-              onChangeText={(value) => handleUpdateField('day', selectedDate, 'kilometers', value)}
-              placeholder="0,0 km"
-              value={automaticKilometers ?? values.kilometers}
-            />
-            <CostField
-              keyboardType="decimal-pad"
-              label="Preço do combustível"
-              onChangeText={(value) => handleUpdateField('day', selectedDate, 'fuelPrice', value)}
-              placeholder="R$ 0,00 por litro"
-              trailing={
-                <NativeDropdown
-                  accessibilityLabel="Tipo de combustível"
-                  color={theme.colors.textPrimary}
-                  items={[
-                    { label: 'Gasolina', value: 'gasolina' as const },
-                    { label: 'Álcool', value: 'etanol' as const },
-                  ]}
-                  disabled={testModeEnabled}
-                  onValueChange={(value) => handleUpdateField('day', selectedDate, 'fuelType', value)}
-                  selectedValue={fuelType}
-                  variant="glass"
-                />
-              }
-              value={values.fuelPrice}
-            />
-            <ReadOnlyCostField
-              label="Custo do combustível"
-              value={isHydrated ? formatCurrency(dailyFuelCost) : ''}
-            />
-          </>
-        )}
-      </GlassCard>
-    </PremiumScreen>
+          <NativeDateToolbar onDateChange={setSelectedDate} selectedDate={selectedDate} />
+        )
+      ) : null}
+      <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
+        <GlassCard
+          style={[
+            styles.card,
+            {
+              borderRadius: theme.radius.xl + theme.spacing.sm,
+              marginTop: theme.spacing.md,
+            },
+          ]}
+        >
+          {mode === 'monthly' ? (
+            <>
+              <CostField
+                keyboardType="decimal-pad"
+                label="Luz"
+                onChangeText={(value) => handleUpdateField('month', monthKey, 'light', value)}
+                placeholder="R$ 0,00"
+                value={values.light}
+              />
+              <ReadOnlyCostField
+                label="Estar"
+                value={isHydrated ? formatCurrency(monthlyEstar) : ''}
+              />
+              <ReadOnlyCostField
+                label="Outros"
+                value={isHydrated ? formatCurrency(monthlyOther) : ''}
+              />
+            </>
+          ) : (
+            <>
+              <CostField
+                keyboardType="decimal-pad"
+                label="Estar"
+                onChangeText={(value) => handleUpdateField('day', selectedDate, 'estar', value)}
+                placeholder="R$ 0,00"
+                value={values.estar}
+              />
+              <CostField
+                keyboardType="decimal-pad"
+                label="Outros"
+                onChangeText={(value) => handleUpdateField('day', selectedDate, 'other', value)}
+                placeholder="R$ 0,00"
+                value={values.other}
+              />
+              <CostField
+                disabled={automaticKilometers !== undefined}
+                keyboardType="decimal-pad"
+                label="Km"
+                onChangeText={(value) => handleUpdateField('day', selectedDate, 'kilometers', value)}
+                placeholder="0,0 km"
+                value={automaticKilometers ?? values.kilometers}
+              />
+              <CostField
+                keyboardType="decimal-pad"
+                label="Preço do combustível"
+                onChangeText={(value) => handleUpdateField('day', selectedDate, 'fuelPrice', value)}
+                placeholder="R$ 0,00 por litro"
+                trailing={
+                  <NativeDropdown
+                    accessibilityLabel="Tipo de combustível"
+                    color={theme.colors.textPrimary}
+                    items={[
+                      { label: 'Gasolina', value: 'gasolina' as const },
+                      { label: 'Álcool', value: 'etanol' as const },
+                    ]}
+                    disabled={testModeEnabled}
+                    onValueChange={(value) => handleUpdateField('day', selectedDate, 'fuelType', value)}
+                    selectedValue={fuelType}
+                    variant="glass"
+                  />
+                }
+                value={values.fuelPrice}
+              />
+              <ReadOnlyCostField
+                label="Custo do combustível"
+                value={isHydrated ? formatCurrency(dailyFuelCost) : ''}
+              />
+            </>
+          )}
+        </GlassCard>
+      </PremiumScreen>
+    </>
   );
 }
 

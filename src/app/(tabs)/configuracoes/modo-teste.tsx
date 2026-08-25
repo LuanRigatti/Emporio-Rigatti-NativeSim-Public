@@ -1,5 +1,5 @@
 import { TestModeScreen } from '@/features/settings';
 
-export default function TestModeRoute() {
+export default function SettingsTestModeRoute() {
   return <TestModeScreen />;
 }

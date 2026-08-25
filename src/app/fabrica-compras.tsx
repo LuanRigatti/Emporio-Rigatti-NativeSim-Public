@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassBackButton, NativePeriodActionGroup } from '@/components/native';
+import { FinancePeriodToolbar } from '@/features/finance';
 import {
   HISTORY_MONTH_ITEMS,
   getHistoryYearItems,
@@ -11,7 +12,7 @@ import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUti
 import { FactoryPurchasesScreen } from '@/features/factory-purchases/components/FactoryPurchasesScreen';
 import { getLiquidGlassTint, useAppTheme } from '@/theme';
 
-export default function FactoryPurchasesRoute() {
+export function FactoryPurchasesRoute({ nativeHeader = false }: { nativeHeader?: boolean } = {}) {
   const { resolvedMode, theme } = useAppTheme();
   const router = useRouter();
   const currentPeriod = getCurrentHistoryPeriod();
@@ -25,29 +26,33 @@ export default function FactoryPurchasesRoute() {
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Fábrica"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Fábrica"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       rightActions={
-        <NativePeriodActionGroup
-          color={theme.colors.textPrimary}
-          glassTint={getLiquidGlassTint(resolvedMode)}
-          monthDisplayValue={monthDisplayValue}
-          monthItems={HISTORY_MONTH_ITEMS}
-          onMonthChange={setSelectedMonth}
-          onYearChange={setSelectedYear}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-          showValues
-          valueFontSize={17}
-          yearItems={getHistoryYearItems()}
-        />
+        nativeHeader ? undefined : (
+          <NativePeriodActionGroup
+            color={theme.colors.textPrimary}
+            glassTint={getLiquidGlassTint(resolvedMode)}
+            monthDisplayValue={monthDisplayValue}
+            monthItems={HISTORY_MONTH_ITEMS}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            showValues
+            valueFontSize={17}
+            yearItems={getHistoryYearItems()}
+          />
+        )
       }
       titleStyle={{
         transform: [{ translateX: theme.spacing.lg + theme.spacing.sm + theme.spacing.xxs / 2 }],
@@ -57,11 +62,26 @@ export default function FactoryPurchasesRoute() {
   );
 
   return (
-    <FactoryPurchasesScreen
-      header={header}
-      mode="purchases"
-      selectedMonth={selectedMonth}
-      selectedYear={selectedYear}
-    />
+    <>
+      {nativeHeader ? (
+        <FinancePeriodToolbar
+          composition="combined"
+          onMonthChange={setSelectedMonth}
+          onYearChange={setSelectedYear}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+        />
+      ) : null}
+      <FactoryPurchasesScreen
+        header={header}
+        mode="purchases"
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+      />
+    </>
   );
+}
+
+export default function FactoryPurchasesRootRoute() {
+  return <FactoryPurchasesRoute nativeHeader />;
 }

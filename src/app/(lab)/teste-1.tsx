@@ -1,23 +1,20 @@
 import { StyleSheet, Text } from 'react-native';
 
 import { GlassCard, PremiumScreen } from '@/components/premium';
-import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
 
 export default function Teste1Screen() {
   const { theme } = useAppTheme();
-  const insets = useAppSafeAreaInsets();
 
   return (
     <PremiumScreen
       contentContainerStyle={[
         styles.content,
         {
-          paddingTop: insets.top + theme.sizes.touchTargetMinimum + theme.spacing.md,
+          paddingTop: theme.sizes.touchTargetMinimum + theme.spacing.md,
         },
       ]}
-      progressiveBlur={false}
-      style={styles.transparentRoot}
+      progressiveBlur
     >
       <GlassCard
         style={[
@@ -40,5 +37,4 @@ export default function Teste1Screen() {
 const styles = StyleSheet.create({
   card: { gap: 12, padding: 16 },
   content: { flexGrow: 1, gap: 16 },
-  transparentRoot: { paddingTop: 0 },
 });

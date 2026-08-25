@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -6,7 +6,6 @@ import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeCardContextMenu,
   NativeClientFormSheet,
-  NativeGlassBackButton,
   NativeGlassIconButton,
   type NativeClientFormValues,
 } from '@/components/native';
@@ -65,39 +64,22 @@ export default function ClientsRoute() {
     }
   }, [clientToDelete, removeCustomConfiguration, testModeEnabled]);
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configura\u00e7\u00f5es"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      rightActions={
-        <NativeGlassIconButton
-          accessibilityLabel="Adicionar cliente"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon="add"
-          interactiveGlass
-          onPress={() => {
-            triggerLightImpactHaptic();
-            setFormVisible(true);
-          }}
-          size={theme.sizes.iconMedium}
-          systemImage="plus"
-        />
-      }
-      title="Clientes"
-    />
-  );
+  const handleOpenCreate = useCallback(() => {
+    triggerLightImpactHaptic();
+    setFormVisible(true);
+  }, []);
+
+  const header = <NativeGlassHeader mode="transparent" title="Clientes" />;
 
   return (
     <>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityLabel="Adicionar cliente"
+          icon="plus"
+          onPress={handleOpenCreate}
+        />
+      </Stack.Toolbar>
       <PremiumScreen
         contentContainerStyle={[styles.content, { backgroundColor: theme.colors.background }]}
         overlayHeader={header}
@@ -162,7 +144,7 @@ export default function ClientsRoute() {
                             clientId: client.clientId,
                             clientName: client.canonicalName,
                           },
-                          pathname: '/clientes/[clientId]',
+                          pathname: '/configuracoes/clientes/[clientId]',
                         })
                       }
                       systemName="person.crop.circle"

@@ -1,16 +1,12 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NativeGlassHeader } from '@/components/layout';
-import {
-  NativeCardContextMenu,
-  NativeGlassBackButton,
-  NativePeriodActionGroup,
-  NativeTrackingStatusButton,
-} from '@/components/native';
+import { NativeCardContextMenu, NativeTrackingStatusButton } from '@/components/native';
 import { PremiumScreen } from '@/components/premium';
+import { FinancePeriodToolbar } from '@/features/finance';
 import { NativeTrackedRouteMap } from '@/components/routes';
 import { locationTrackingService, RouteTrackingError } from '@/services/routes';
 import type { LocationTrackingService } from '@/services/routes';
@@ -20,15 +16,18 @@ import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { useRouteFuelCost } from '@/hooks/useRouteFuelCost';
-import {
-  HISTORY_MONTH_ITEMS,
-  getHistoryYearItems,
-} from '@/features/history/components/periodOptions';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 
 type TrackingErrorState = {
   code?: RouteTrackingError['code'];
   message: string;
+};
+
+type NativeStackTransitionNavigation = {
+  addListener: (
+    event: 'transitionEnd',
+    listener: (event: { data?: { closing?: boolean } }) => void,
+  ) => () => void;
 };
 
 function formatDistance(meters: number): string {
@@ -47,14 +46,6 @@ function formatTime(timestamp: number): string {
 
 function createRouteId(): string {
   return `location-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function monthShortLabel(month: number): string {
-  return (
-    ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][
-      month - 1
-    ] ?? String(month)
-  );
 }
 
 function formatRouteDayLabel(value: string): string {
@@ -76,6 +67,7 @@ function getErrorMessage(error: unknown): string {
 export function LocationTrackingScreen() {
   const { resolvedMode, theme } = useAppTheme();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const currentPeriod = getCurrentHistoryPeriod();
   const [route, setRoute] = useState<RouteTrackingRecord | null>(null);
@@ -87,7 +79,19 @@ export function LocationTrackingScreen() {
     ReturnType<LocationTrackingService['getPermissionStatus']>
   > | null>(null);
   const [trackingError, setTrackingError] = useState<TrackingErrorState | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const { enabled: testModeEnabled } = useTestModePresentation();
+
+  useEffect(() => {
+    const nativeStackNavigation = navigation as unknown as NativeStackTransitionNavigation;
+    const unsubscribe = nativeStackNavigation.addListener('transitionEnd', (event) => {
+      if (!event.data?.closing) {
+        setMapReady(true);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const refreshRoute = useCallback(async () => {
     const storedRoute = await locationTrackingService.getRoute();
@@ -198,7 +202,7 @@ export function LocationTrackingScreen() {
   const handleOpenRoute = useCallback(
     (sessionId: string) => {
       triggerLightImpactHaptic();
-      router.push(`/localizacao/${encodeURIComponent(sessionId)}`);
+      router.push(`/configuracoes/localizacao/${encodeURIComponent(sessionId)}`);
     },
     [router],
   );
@@ -213,10 +217,13 @@ export function LocationTrackingScreen() {
     });
 
     return Array.from(groups.entries())
-      .map(([date, sessions]) => [
-        date,
-        [...sessions].sort((left, right) => right.startTimestamp - left.startTimestamp),
-      ] as const)
+      .map(
+        ([date, sessions]) =>
+          [
+            date,
+            [...sessions].sort((left, right) => right.startTimestamp - left.startTimestamp),
+          ] as const,
+      )
       .sort(([left], [right]) => right.localeCompare(left));
   }, [routeHistory]);
 
@@ -225,115 +232,99 @@ export function LocationTrackingScreen() {
       ? undefined
       : trackingError?.message;
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      rightActions={
-        <NativePeriodActionGroup
-          color={theme.colors.textPrimary}
-          monthDisplayValue={monthShortLabel(selectedMonth)}
-          monthItems={HISTORY_MONTH_ITEMS}
-          onMonthChange={setSelectedMonth}
-          onYearChange={setSelectedYear}
-          selectedMonth={selectedMonth}
-          selectedYear={selectedYear}
-          showValues
-          valueFontSize={17}
-          yearItems={getHistoryYearItems()}
-        />
-      }
-      title=""
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="" />;
 
   return (
-    <View style={styles.root}>
-      <PremiumScreen
-        contentContainerStyle={[styles.content, { gap: theme.spacing.lg }]}
-        overlayHeader={header}
-        progressiveBlur
-      >
-        <View style={styles.historySection}>
-          <View style={{ height: theme.typography.headline.lineHeight }} />
-          {visibleErrorMessage ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
-              {visibleErrorMessage}
-            </Text>
-          ) : null}
-          {routeHistoryByDay.length > 0 ? (
-            routeHistoryByDay.map(([date, sessions]) => (
-              <View key={date} style={styles.dayGroup}>
-                <Text
-                  style={[
-                    theme.typography.headline,
-                    { color: theme.colors.textPrimary, marginLeft: theme.spacing.sm },
-                  ]}
-                >
-                  {formatRouteDayLabel(date)}
-                </Text>
-                {sessions.map((session) => (
-                  <RouteHistoryCard
-                    key={session.id}
-                    onDelete={() => void handleDeleteRoute(session.id)}
-                    onPress={() => handleOpenRoute(session.id)}
-                    session={session}
-                    theme={theme}
-                  />
-                ))}
-              </View>
-            ))
-          ) : (
-            <Text
-              style={[
-                theme.typography.footnote,
-                { alignSelf: 'stretch', color: theme.colors.textSecondary, textAlign: 'center' },
-              ]}
-            >
-              Nenhuma rota registrada neste mês.
-            </Text>
-          )}
-        </View>
-      </PremiumScreen>
-
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View
-          style={[
-            styles.floatingAction,
-            {
-              bottom: Math.max(0, insets.bottom - theme.spacing.xs),
-            },
-          ]}
+    <>
+      <FinancePeriodToolbar
+        composition="combined"
+        onMonthChange={setSelectedMonth}
+        onYearChange={setSelectedYear}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+      />
+      <View style={styles.root}>
+        <PremiumScreen
+          contentContainerStyle={[styles.content, { gap: theme.spacing.lg }]}
+          overlayHeader={header}
+          progressiveBlur
         >
-          <NativeTrackingStatusButton
-            accessibilityLabel={route?.active ? 'Parar rastreamento' : 'Iniciar rastreamento'}
-            active={Boolean(route?.active)}
-            busy={busy}
-            color={theme.colors.textPrimary}
-            disabled={busy || testModeEnabled}
-            glassTint={getLiquidGlassTint(resolvedMode)}
-            onPress={() => void (route?.active ? handleStop() : handleStart())}
-          />
+          <View style={styles.historySection}>
+            <View style={{ height: theme.typography.headline.lineHeight }} />
+            {visibleErrorMessage ? (
+              <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
+                {visibleErrorMessage}
+              </Text>
+            ) : null}
+            {routeHistoryByDay.length > 0 ? (
+              routeHistoryByDay.map(([date, sessions]) => (
+                <View key={date} style={styles.dayGroup}>
+                  <Text
+                    style={[
+                      theme.typography.headline,
+                      { color: theme.colors.textPrimary, marginLeft: theme.spacing.sm },
+                    ]}
+                  >
+                    {formatRouteDayLabel(date)}
+                  </Text>
+                  {sessions.map((session) => (
+                    <RouteHistoryCard
+                      key={session.id}
+                      mapReady={mapReady}
+                      onDelete={() => void handleDeleteRoute(session.id)}
+                      onPress={() => handleOpenRoute(session.id)}
+                      session={session}
+                      theme={theme}
+                    />
+                  ))}
+                </View>
+              ))
+            ) : (
+              <Text
+                style={[
+                  theme.typography.footnote,
+                  { alignSelf: 'stretch', color: theme.colors.textSecondary, textAlign: 'center' },
+                ]}
+              >
+                Nenhuma rota registrada neste mês.
+              </Text>
+            )}
+          </View>
+        </PremiumScreen>
+
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <View
+            style={[
+              styles.floatingAction,
+              {
+                bottom: Math.max(0, insets.bottom - theme.spacing.xs),
+              },
+            ]}
+          >
+            <NativeTrackingStatusButton
+              accessibilityLabel={route?.active ? 'Parar rastreamento' : 'Iniciar rastreamento'}
+              active={Boolean(route?.active)}
+              busy={busy}
+              color={theme.colors.textPrimary}
+              disabled={busy || testModeEnabled}
+              glassTint={getLiquidGlassTint(resolvedMode)}
+              onPress={() => void (route?.active ? handleStop() : handleStart())}
+            />
+          </View>
         </View>
       </View>
-    </View>
+    </>
   );
 }
 
 function RouteHistoryCard({
+  mapReady,
   onDelete,
   onPress,
   session,
   theme,
 }: {
+  mapReady: boolean;
   onDelete: () => void;
   onPress: () => void;
   session: RouteTrackingSession;
@@ -350,13 +341,17 @@ function RouteHistoryCard({
   const renderRouteCardContent = () => (
     <>
       <View pointerEvents="none" style={styles.routePreview}>
-        <NativeTrackedRouteMap
-          animate={false}
-          interactive={false}
-          routeId={session.id}
-          samples={session.samples}
-          style={styles.routePreviewMap}
-        />
+        {mapReady ? (
+          <NativeTrackedRouteMap
+            animate={false}
+            interactive={false}
+            routeId={session.id}
+            samples={session.samples}
+            style={styles.routePreviewMap}
+          />
+        ) : (
+          <View style={[styles.routePreviewMap, { backgroundColor: theme.colors.surface }]} />
+        )}
       </View>
       <View style={styles.routeMeta}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
@@ -374,13 +369,7 @@ function RouteHistoryCard({
     </>
   );
   const routePreview = (
-    <View
-      style={[
-        styles.historyCard,
-        routeCardStyle,
-        { overflow: 'hidden' },
-      ]}
-    >
+    <View style={[styles.historyCard, routeCardStyle, { overflow: 'hidden' }]}>
       {renderRouteCardContent()}
     </View>
   );

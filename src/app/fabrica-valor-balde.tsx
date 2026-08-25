@@ -7,7 +7,7 @@ import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useFactorySettings } from '@/hooks/useFactorySettings';
 import { useAppTheme } from '@/theme';
 
-export default function FactoryBucketValueRoute() {
+export function FactoryBucketValueRoute({ nativeHeader = false }: { nativeHeader?: boolean } = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();
   const { settings, updateField } = useFactorySettings();
@@ -15,13 +15,15 @@ export default function FactoryBucketValueRoute() {
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Fábrica"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Fábrica"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       title="Valor do balde"
@@ -47,6 +49,8 @@ export default function FactoryBucketValueRoute() {
     </PremiumScreen>
   );
 }
+
+export default FactoryBucketValueRoute;
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1, gap: 16 },

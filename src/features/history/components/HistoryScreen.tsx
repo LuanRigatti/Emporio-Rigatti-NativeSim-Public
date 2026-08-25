@@ -1,27 +1,23 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
+import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { NativeGlassHeader } from '@/components/layout';
-import {
-  NativeDatePicker,
-  NativeGlassIconButton,
-  NativeGlassMenu,
-  type NativeMenuAction,
-} from '@/components/native';
+import { NativeDateToolbar, type NativeMenuAction } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
 import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
-import { parseIsoCalendarDate, todayIso } from '@/utils/data';
+import { todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
-import { FilterChips, type HistoryFilter } from './FilterChips';
+import type { HistoryFilter } from './FilterChips';
 
 function filterDayDeliveries<T extends { status: string }>(
   deliveries: readonly T[],
@@ -40,7 +36,7 @@ function filterDayDeliveries<T extends { status: string }>(
 
 export function HistoryScreen() {
   const insets = useAppSafeAreaInsets();
-  const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const { reduceMotionEnabled, theme } = useAppTheme();
   const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const {
@@ -51,7 +47,6 @@ export function HistoryScreen() {
   } = useDeliveries({ mode: 'today', date: selectedDate });
   const allDeliveries = useMemo(() => deliveries.map(toHistoryDelivery), [deliveries]);
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
-  const [isFilterPreviewVisible, setIsFilterPreviewVisible] = useState(false);
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(
     () => insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm,
   );
@@ -61,19 +56,14 @@ export function HistoryScreen() {
       void refresh();
     }, [refresh]),
   );
-  const handleSelectDate = useCallback((date: Date) => {
-    setSelectedDate(todayIso(date));
+  const handleSelectDate = useCallback((date: string) => {
+    setSelectedDate(date);
     setSelectedFilter('Todos');
   }, []);
 
   const requestDatePage = useCallback((date: string, resetFilter = true) => {
     setSelectedDate(date);
     if (resetFilter) setSelectedFilter('Todos');
-  }, []);
-
-  const handleFilterPress = useCallback(() => {
-    triggerSelectionHaptic();
-    setIsFilterPreviewVisible((current) => !current);
   }, []);
 
   const handleSelectFilter = useCallback(
@@ -197,15 +187,6 @@ export function HistoryScreen() {
     <NativeGlassHeader
       includeTopSafeArea
       mode="transparent"
-      leftActions={
-        <NativeDatePicker
-          accessibilityLabel="Selecionar dia do histórico"
-          mode="date"
-          onChange={handleSelectDate}
-          style="compact"
-          value={parseIsoCalendarDate(selectedDate) ?? new Date()}
-        />
-      }
       accessory={
         <View
           accessibilityElementsHidden
@@ -214,34 +195,6 @@ export function HistoryScreen() {
             height: theme.sizes.touchTargetMinimum + theme.spacing.sm,
             marginTop: theme.spacing.xs,
           }}
-        />
-      }
-      rightActions={
-        <NativeGlassMenu
-          accessibilityLabel="Filtros do histórico"
-          actions={filterActions}
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon="filter-outline"
-          glassTint={getLiquidGlassTint(resolvedMode)}
-          size={theme.sizes.iconMedium}
-          systemImage="line.3.horizontal.decrease"
-          style={{
-            height: theme.sizes.touchTargetMinimum,
-            width: theme.sizes.touchTargetMinimum,
-          }}
-          trigger={
-            <NativeGlassIconButton
-              accessibilityLabel="Filtros do histórico"
-              color={theme.colors.textPrimary}
-              containerSize={theme.sizes.touchTargetMinimum}
-              fallbackIcon="filter-outline"
-              interactiveGlass
-              onPress={handleFilterPress}
-              size={theme.sizes.iconMedium}
-              systemImage="line.3.horizontal.decrease"
-            />
-          }
         />
       }
       title=""
@@ -274,9 +227,6 @@ export function HistoryScreen() {
       >
         {header}
       </View>
-      {isFilterPreviewVisible ? (
-        <FilterChips onSelectFilter={handleSelectFilter} selectedFilter={selectedFilter} />
-      ) : null}
       {renderDayContent(selectedDate)}
     </>
   );
@@ -297,6 +247,12 @@ export function HistoryScreen() {
 
   return (
     <Animated.View style={styles.root}>
+      <NativeDateToolbar
+        onDateChange={handleSelectDate}
+        placement="right"
+        selectedDate={selectedDate}
+      />
+      <HistoryFilterToolbar actions={filterActions} />
       <PremiumScreen
         scrollable
         contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
@@ -315,6 +271,32 @@ export function HistoryScreen() {
         <View style={styles.dayContentContainer}>{dayContent}</View>
       </PremiumScreen>
     </Animated.View>
+  );
+}
+
+function HistoryFilterToolbar({ actions }: { actions: readonly NativeMenuAction[] }) {
+  const { theme } = useAppTheme();
+
+  return (
+    <Stack.Toolbar placement="left">
+      <Stack.Toolbar.Menu
+        accessibilityLabel="Filtros do histórico"
+        icon="line.3.horizontal.decrease"
+        separateBackground={false}
+        title="Filtros do histórico"
+        tintColor={theme.colors.textPrimary}
+      >
+        {actions.map((action) => (
+          <Stack.Toolbar.MenuAction
+            icon={action.systemImage as SFSymbol | undefined}
+            key={action.id}
+            onPress={action.onPress}
+          >
+            {action.title}
+          </Stack.Toolbar.MenuAction>
+        ))}
+      </Stack.Toolbar.Menu>
+    </Stack.Toolbar>
   );
 }
 

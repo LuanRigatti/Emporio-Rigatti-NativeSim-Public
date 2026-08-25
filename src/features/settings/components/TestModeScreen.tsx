@@ -1,32 +1,16 @@
-import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton, NativeToggle } from '@/components/native';
+import { NativeToggle } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useTestMode } from '@/hooks/useTestMode';
 import { useAppTheme } from '@/theme';
 
 export function TestModeScreen() {
   const { theme } = useAppTheme();
-  const router = useRouter();
   const { enabled, isReady, setEnabled } = useTestMode();
 
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      title="Modo Teste"
-    />
-  );
+  const header = <NativeGlassHeader mode="transparent" title="Modo Teste" />;
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>

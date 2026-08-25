@@ -2,30 +2,24 @@ import { useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeGlassBackButton } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useAppTheme } from '@/theme';
 
-export default function CostsRoute() {
+type CostsSettingsScreenProps = {
+  navigationPaths: {
+    car: string;
+    daily: string;
+    monthly: string;
+  };
+};
+
+export function CostsSettingsScreen({ navigationPaths }: CostsSettingsScreenProps) {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const header = (
-    <NativeGlassHeader
-      leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Configurações"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
-      }
-      mode="transparent"
-      title="Dados"
-    />
-  );
+
+  const header = <NativeGlassHeader mode="transparent" title="Dados" />;
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
@@ -39,20 +33,20 @@ export default function CostsRoute() {
         <SettingsSection>
           <SettingItem
             fallbackIcon="calendar"
-            onPress={() => router.push('/custos-mensais')}
+            onPress={() => router.push(navigationPaths.monthly)}
             systemName="calendar"
             title="Dados mensais"
           />
           <SettingItem
             fallbackIcon="calendar"
-            onPress={() => router.push('/custos-diarios')}
+            onPress={() => router.push(navigationPaths.daily)}
             systemName="calendar.day.timeline.left"
             title="Dados diários"
           />
           <SettingItem
             fallbackIcon="car"
             isLast
-            onPress={() => router.push('/dados-carro')}
+            onPress={() => router.push(navigationPaths.car)}
             systemName="car"
             title="Dados do Carro"
           />

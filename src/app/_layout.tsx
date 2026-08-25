@@ -21,12 +21,13 @@ import { firestoreDeliveryDataSource } from '@/services/deliveries';
 import { factoryReceiptDataSource } from '@/services/factory-purchases';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
-import { ThemeProvider } from '@/theme';
+import { ThemeProvider, useAppTheme } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
   const { status, user } = useSession();
+  const { resolvedMode } = useAppTheme();
   const pathname = usePathname();
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const isCacheHydrated =
@@ -101,6 +102,60 @@ function AppShell() {
           />
           <Stack.Screen name="(tabs)" options={{ gestureEnabled: false, headerShown: false }} />
           <Stack.Screen name="(lab)" options={{ gestureEnabled: true, headerShown: false }} />
+          <Stack.Screen
+            name="registrar-entrega"
+            options={{
+              animation: 'default',
+              gestureEnabled: true,
+              headerShadowVisible: false,
+              headerShown: true,
+              headerTitle: '',
+              headerTransparent: true,
+              unstable_nativeProps: {
+                headerConfig: {
+                  experimental_userInterfaceStyle: resolvedMode,
+                },
+              },
+            }}
+          >
+            <Stack.Screen.BackButton displayMode="minimal" />
+          </Stack.Screen>
+          <Stack.Screen
+            name="notas-fiscais-boletos"
+            options={{
+              animation: 'default',
+              gestureEnabled: true,
+              headerShadowVisible: false,
+              headerShown: true,
+              headerTitle: '',
+              headerTransparent: true,
+              unstable_nativeProps: {
+                headerConfig: {
+                  experimental_userInterfaceStyle: resolvedMode,
+                },
+              },
+            }}
+          >
+            <Stack.Screen.BackButton displayMode="minimal" />
+          </Stack.Screen>
+          <Stack.Screen
+            name="fabrica-compras"
+            options={{
+              animation: 'default',
+              gestureEnabled: true,
+              headerShadowVisible: false,
+              headerShown: true,
+              headerTitle: '',
+              headerTransparent: true,
+              unstable_nativeProps: {
+                headerConfig: {
+                  experimental_userInterfaceStyle: resolvedMode,
+                },
+              },
+            }}
+          >
+            <Stack.Screen.BackButton displayMode="minimal" />
+          </Stack.Screen>
         </Stack>
         <BiometricLockOverlay
           onRetry={biometricUnlock.retry}

@@ -8,28 +8,45 @@ import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import { useAppTheme } from '@/theme';
 
-export default function FactoryPurchasesMenuRoute() {
+type FactoryPurchasesMenuRouteProps = {
+  nativeHeader?: boolean;
+  navigationPaths?: {
+    register: string;
+    purchases: string;
+  };
+};
+
+export function FactoryPurchasesMenuRoute({
+  nativeHeader = false,
+  navigationPaths,
+}: FactoryPurchasesMenuRouteProps = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const paths = navigationPaths ?? {
+    register: '/fabrica-compras-registrar',
+    purchases: '/fabrica-compras',
+  };
 
   const handleOpenRegister = () => {
-    router.push('/fabrica-compras-registrar');
+    router.push(paths.register);
   };
 
   const handleOpenPurchases = () => {
-    router.push('/fabrica-compras');
+    router.push(paths.purchases);
   };
 
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Fábrica"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Fábrica"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       title="Compras e Fábrica"
@@ -64,6 +81,8 @@ export default function FactoryPurchasesMenuRoute() {
     </PremiumScreen>
   );
 }
+
+export default FactoryPurchasesMenuRoute;
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingTop: 32 },

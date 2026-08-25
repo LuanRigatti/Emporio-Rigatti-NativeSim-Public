@@ -1,0 +1,8 @@
+{
+  "name": "native-apple-intelligence",
+  "version": "0.1.0",
+  "description": "Optional on-device Apple Intelligence bridge for Home Search.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

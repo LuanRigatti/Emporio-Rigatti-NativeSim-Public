@@ -20,6 +20,10 @@ import {
   homeSearchFinancialMetricDefinition,
   homeSearchFinancialMetricValue,
 } from './HomeSearchFinancialMetrics';
+import {
+  appleIntelligenceSearchInterpreter,
+  type HomeSearchSearchInterpreter,
+} from './AppleIntelligenceSearchInterpreter';
 import { homeSearchQueryParser, normalizeHomeSearchText } from './HomeSearchQueryParser';
 import type {
   HomeSearchClientAggregation,
@@ -772,14 +776,37 @@ function countResults(results: readonly HomeSearchResult[]): HomeSearchDomainCou
 export class HomeSearchService {
   private latestRequest = 0;
 
-  public constructor(private readonly dataSource: HomeSearchDataSource) {}
+  public constructor(
+    private readonly dataSource: HomeSearchDataSource,
+    private readonly interpreter: HomeSearchSearchInterpreter | null =
+      appleIntelligenceSearchInterpreter,
+  ) {}
 
   public async search(original: string, referenceDate = new Date()): Promise<HomeSearchResponse> {
-    return this.searchParsed(homeSearchQueryParser.parse(original, referenceDate));
+    const request = ++this.latestRequest;
+    const fallbackQuery = homeSearchQueryParser.parse(original, referenceDate);
+    if (!fallbackQuery.normalized) return this.searchParsedInternal(fallbackQuery, request);
+
+    let interpretedQuery: HomeSearchParsedQuery | null = null;
+    if (this.interpreter) {
+      try {
+        interpretedQuery = (await this.interpreter.interpret(original, referenceDate)) ?? null;
+      } catch {
+        interpretedQuery = null;
+      }
+    }
+    return this.searchParsedInternal(interpretedQuery ?? fallbackQuery, request);
   }
 
   public async searchParsed(query: HomeSearchParsedQuery): Promise<HomeSearchResponse> {
     const request = ++this.latestRequest;
+    return this.searchParsedInternal(query, request);
+  }
+
+  private async searchParsedInternal(
+    query: HomeSearchParsedQuery,
+    request: number,
+  ): Promise<HomeSearchResponse> {
     const startedAt = Date.now();
     if (!query.normalized) {
       return {

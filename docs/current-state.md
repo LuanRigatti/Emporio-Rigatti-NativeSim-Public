@@ -352,117 +352,6 @@ sem criar uma segunda fonte de verdade:
 
 - Alterações validadas localmente via Fast Refresh no dispositivo físico; sem commit/push realizado.
 
-## Morph e Fusão Nativa de Liquid Glass (@expo/ui)
-
-### Funcionalidade implementada
-
-Criação do componente nativo reutilizável `NativeGlassMorphActionGroup` explorando as capacidades de Liquid Glass e transições de namespace nativas do `@expo/ui` (`ExpoUI` / SwiftUI):
-
-- Utilização exclusiva de componentes oficiais do `@expo/ui/swift-ui` (`Host`, `Namespace`, `GlassEffectContainer`, `HStack`, `Button`, `Image`).
-- Utilização dos modificadores SwiftUI nativos `glassEffect`, `glassEffectId`, `animation(Animation.spring(...))` e `buttonStyle('plain')`.
-- Transição orgânica entre estado recolhido (1 botão circular de 44x44 com SF Symbol `ellipsis`) e estado expandido (2 botões circulares de 44x44 com SF Symbols `xmark` e `plus`).
-- Fusão física / coalescência e separação da superfície de vidro com refração contínua durante a animação de mola (`GlassEffectContainer` com `spacing={8}`).
-- Inserção de card de demonstração seguro na tela de **Configurações** (`SettingsScreen.tsx`).
-
-### Comportamento final
-
-- Ao tocar no botão de teste em Configurações, o botão de vidro se expande e divide em dois controles com animação spring nativa sem flash e sem recarregar componentes React Native.
-- Ao tocar novamente, os botões realizam o morph inverso e se fundem novamente em uma única gota de vidro circular.
-- 100% interpretado via Hot Reload / Metro, sem necessidade de recompilação nativa no Xcode.
-
-### Arquivos principais
-
-- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.types.ts`
-- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroupSwiftUI.ios.tsx`
-- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroupFallback.tsx`
-- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.native.tsx`
-- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.tsx`
-- `src/components/native/NativeGlassMorphActionGroup/NativeGlassMorphActionGroup.web.tsx`
-- `src/components/native/NativeGlassMorphActionGroup/index.ts`
-- `src/components/native/index.ts`
-- `src/features/settings/components/SettingsScreen.tsx`
-
-### Flags e schema afetados
-
-- Nenhuma flag ou schema alterado.
-
-### Validações executadas
-
-- TypeScript (`npx tsc --noEmit`): 0 erros.
-- ESLint: 0 erros.
-- `git diff --check`: passou.
-
-### Limitações conhecidas
-
-- O efeito físico de coalescência/fusão de superfícies de vidro é renderizado nativamente no target SwiftUI de Liquid Glass do `@expo/ui`. Ambientes web ou Android utilizam o fallback gracioso correspondente.
-
-### Commit e publicação
-
-- Branch: `ajustes-antigravity`.
-- Mensagem: `fix(native): sincronizar animacao inicial do morph de liquid glass`.
-
-## Laboratório Cross-Screen de Liquid Glass Morph Nativo (iOS 26 / SwiftUI)
-
-### Funcionalidade implementada
-
-Evolução e consolidação do laboratório experimental de Liquid Glass Morph cross-screen entre telas distintas (`/teste-morph` ⇄ `/teste-1`), eliminando intermediários frágeis e integrando a deformação contínua de malha do SwiftUI/Metal:
-
-- **Host Persistente Único no Shell:** Centralização de um único container persistente no layout raiz (`TransientGlassMorphHost.tsx` em `_layout.tsx`), encapsulando o `NativeCrossScreenMorphView` em `<Host matchContents>` de `@expo/ui/swift-ui` para montagem UIKit válida no Expo SDK 57, mantendo uma única árvore SwiftUI com `@Namespace` e `GlassEffectContainer(spacing: 8)` ativa durante toda a navegação.
-- **Implementação Swift Canônica com `matchedGeometry`:** No módulo local `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift` (`nativeCrossScreenMorph`), aplicação do padrão oficial Apple com `.glassEffect(glassMaterial, in: .circle / .capsule)`, `glassEffectID(props.glassIdentity, in: namespace)` compartilhado e `.glassEffectTransition(.matchedGeometry)`.
-- **Eliminação de Hacks e Tint Branco:** Removidas medições manuais de coordenadas no JS, delays e manipulações de `opacity`. Removido `tint` explícito da lâmina de vidro no TSX para preservar o material `Glass.regular.interactive()` neutro e translúcido (sem fundo branco opaco).
-- **Botões Interativos com Material `.regular.interactive()`:** Ambos os ramos (círculo 44×44 com `ellipsis` e cápsula 100×44 com `plus` + `xmark`) utilizam botões nativos que respondem a toques e transmitem eventos à aplicação.
-- **Mola Nativa Apple com Overshoot Orgânico:** Animação governada por `.spring(duration: 0.46, bounce: 0.36)` dentro de `withAnimation` no Swift, produzindo estiramento contínuo com refração, leve overshoot elástico na expansão e acomodação fluida no retorno.
-- **Timing Imediato e Sincronizado:** O início do morph ocorre no mesmo tick de execução do `router.push('/teste-1')` e `router.back()`, transformando a geometria no topo enquanto a tela desliza por baixo.
-
-### Comportamento final
-
-1. **Tela A (`Teste Morph`)**:
-   - Cabeçalho canônico com botão Back nativo e o botão circular Liquid Glass 44×44 no topo direito (`ellipsis`) translúcido.
-   - Placeholder transparente no cabeçalho para garantir alinhamento e respiro sem renderizar Hosts conflitantes.
-2. **Ao tocar em `Teste 1` (Ida)**:
-   - `setMorphState('capsule')` e `router.push('/teste-1')` disparam instantaneamente.
-   - O botão de vidro deforma organicamente de círculo (44×44) para cápsula (100×44) com refração líquida, overshoot elástico e transição de ícones (`ellipsis` ⇄ `xmark` + `plus`).
-   - A tela `/teste-1` desliza suavemente por baixo sem cortar ou piscar o vidro.
-3. **Tela B (`Teste 1`) e Retorno (Volta)**:
-   - Exibe a cápsula de vidro ativa (100×44) translúcida.
-   - Ao tocar no botão de voltar (Back), `setMorphState('circle')` e `router.back()` disparam no mesmo tick.
-   - O vidro executa o morph reverso (cápsula $\rightarrow$ círculo) com undershoot elástico suave.
-
-### Arquivos principais
-
-- `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift`
-- `modules/native-liquid-glass/src/NativeLiquidGlass.tsx`
-- `src/components/native/CrossScreenGlassMorph/CrossScreenGlassMorphContext.tsx`
-- `src/components/native/CrossScreenGlassMorph/CrossScreenGlassMorphTarget.tsx`
-- `src/components/native/CrossScreenGlassMorph/TransientGlassMorphHost.tsx`
-- `src/components/native/CrossScreenGlassMorph/index.ts`
-- `src/app/teste-morph.tsx`
-- `src/app/teste-1.tsx`
-- `src/app/_layout.tsx`
-- `src/features/settings/components/SettingsScreen.tsx`
-
-### Flags e schema afetados
-
-- Nenhum schema Firestore afetado.
-- Nenhuma flag alterada.
-
-### Validações executadas
-
-- TypeScript (`npx tsc --noEmit`): 0 erros.
-- ESLint direcionado: 0 erros e 0 warnings.
-- Jest (`npm test`): 39 suítes e 374 testes passando com 100% de sucesso.
-- `git diff --check`: limpo.
-
-### Limitações conhecidas
-
-- Requer recompilação do Development Build no Mac/Xcode (`npx expo run:ios` ou EAS Build) para carregar o módulo Swift local com `.glassEffectTransition(.matchedGeometry)`.
-- Swipe-back interativo por gesto contínuo do UIKit requer interceptação do progresso nativo (`onTransitionProgress`), operando atualmente no disparo determinístico de navegação e foco.
-
-### Commit e publicação
-
-- Base commit: `cae55af` (`feat: add native Liquid Glass matched geometry morph`).
-- Ajustes de `<Host matchContents>` e remoção de `tint` validados localmente via Fast Refresh; aguardando autorização para novo commit.
-
 ## Bottom Sheets Nativos (Home Search e Registrar Entrega) e NativeInteractivePager
 
 ### Funcionalidade implementada
@@ -474,7 +363,6 @@ Evolução e consolidação do laboratório experimental de Liquid Glass Morph c
 
 2. **Correções Preventivas Swift nos Módulos Locais:**
    - `NativeInteractivePagerView.swift`: Limpeza de interpolação e escapes de string.
-   - `NativeLiquidGlassView.swift`: Substituição de inicializadores ambíguos `CGFloat.init` por closures explícitas `{ CGFloat($0) }`.
    - `NativeStartupSplashView.swift`: Limpeza de sintaxe.
 
 3. **Remoção Completa da Instrumentação de Geometria de Diagnóstico:**
@@ -495,7 +383,6 @@ Evolução e consolidação do laboratório experimental de Liquid Glass Morph c
 - `src/components/native/NativeBottomSheet/NativeBottomSheetSwiftUI.ios.tsx`
 - `src/features/home/components/HomeSearchResultsNative.ios.tsx`
 - `modules/native-interactive-pager/ios/NativeInteractivePagerView.swift`
-- `modules/native-liquid-glass/ios/NativeLiquidGlassView.swift`
 - `modules/native-startup-splash/ios/NativeStartupSplashView.swift`
 
 ### Flags e schema afetados
@@ -1866,6 +1753,63 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - HEAD de referência: `2f5becff5fe0c19fb1e596c255b70acf6701cb53`.
 - Não há commit/hash específico para esta alteração.
 - Nenhum commit ou push adicional foi realizado.
+
+## Botão voltar nativo nos atalhos da Home
+
+### Funcionalidade implementada
+
+- Restaurado o botão circular nativo com `chevron.left` nas três primeiras
+  rotas do Native Stack `(home-shortcuts)`:
+  `/registrar-entrega`, `/fabrica-compras` e `/notas-fiscais-boletos`.
+- O controle é declarado diretamente dentro de cada `Stack.Screen` usando
+  `Stack.Toolbar placement="left"` e `Stack.Toolbar.Button`, seguindo o padrão
+  validado no fluxo nativo de toolbar do app.
+
+### Comportamento final
+
+- Cada atalho aberto pela Home exibe somente o chevron, sem texto.
+- O toque no botão executa `router.back()` e retorna à Home.
+- O swipe-back continua sendo tratado pelo Stack pai, com a primeira rota do
+  Stack filho impedindo apenas um pop interno inexistente.
+- O isolamento `(home-shortcuts)` e a correção anterior do micro-shift foram
+  preservados.
+- Fábrica, Registrar entrega, Documentos, Histórico, Finanças e demais fluxos
+  não tiveram sua lógica alterada.
+
+### Arquivos principais
+
+- `src/app/(home-shortcuts)/_layout.tsx`
+- `src/app/(home-shortcuts)/registrar-entrega.tsx`
+- `src/app/(home-shortcuts)/fabrica-compras.tsx`
+- `src/app/(home-shortcuts)/notas-fiscais-boletos.tsx`
+- `src/app/_layout.tsx`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma dependência, Swift ou prebuild foi alterado.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado em `(home-shortcuts)`: passou.
+- `git diff --check`: passou; os avisos apresentados são apenas de
+  normalização LF/CRLF do working tree.
+
+### Limitações conhecidas
+
+- A confirmação visual final do botão e do swipe-back continua dependendo do
+  teste no iPhone Development Build.
+- A alteração permanece sem commit adicional.
+
+### Commit e publicação
+
+- Branch atual: `ajustes-codex`.
+- HEAD de referência: `5804b4c2a020b8383928f3abf867e738c95bf3aa`
+  (`feat: expand native navigation and toolbar interactions`).
+- A correção do botão voltar ainda não foi commitada nem publicada.
 
 ## Cards individuais de Entregas de hoje na Home
 

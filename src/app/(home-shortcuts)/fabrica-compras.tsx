@@ -82,6 +82,6 @@ export function FactoryPurchasesRoute({ nativeHeader = false }: { nativeHeader?:
   );
 }
 
-export default function FactoryPurchasesRootRoute() {
+export default function FactoryPurchasesHomeShortcutRoute() {
   return <FactoryPurchasesRoute nativeHeader />;
 }

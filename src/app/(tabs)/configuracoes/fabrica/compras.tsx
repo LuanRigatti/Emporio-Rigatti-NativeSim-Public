@@ -1,4 +1,4 @@
-import { FactoryPurchasesRoute } from '@/app/fabrica-compras';
+import { FactoryPurchasesRoute } from '@/app/(home-shortcuts)/fabrica-compras';
 
 export default function SettingsFactoryPurchasesRoute() {
   return <FactoryPurchasesRoute nativeHeader />;

@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { PremiumScreen } from '@/components/premium';
+import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { useFirestoreBackup } from '@/hooks/useFirestoreBackup';
 import { useFirestoreBackupDryRun } from '@/hooks/useFirestoreBackupDryRun';
 import { useFirestoreBackupRestore } from '@/hooks/useFirestoreBackupRestore';
@@ -128,37 +128,44 @@ export function BackupScreen() {
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
       <View style={[styles.section, { marginTop: theme.spacing.md }]}>
-        <SettingsSection>
-          <SettingItem
-            description={firestoreBackup.isBusy ? 'Gerando backup...' : 'Somente leitura'}
-            fallbackIcon="share-outline"
-            onPress={() => void firestoreBackup.exportBackup()}
-            systemName="square.and.arrow.up"
-            title="Exportar backup"
-          />
-          <SettingItem
-            description={
-              firestoreBackupDryRun.isBusy ? 'Validando backup...' : 'Dry-run somente leitura'
-            }
-            fallbackIcon="checkmark-circle-outline"
-            onPress={() => void firestoreBackupDryRun.validateBackup()}
-            systemName="checkmark.shield"
-            title="Validar backup"
-          />
-          <SettingItem
-            description={
-              firestoreBackupRestoreBusy
-                ? 'Restaurando backup...'
-                : 'Confirmação e dry-run obrigatórios'
-            }
-            fallbackIcon="download-outline"
-            isLast
-            onPress={() => void handleRestoreBackup()}
-            disabled={testModeEnabled}
-            systemName="arrow.down.doc"
-            title="Restaurar backup"
-          />
-        </SettingsSection>
+        <PremiumCard
+          style={{
+            borderRadius: theme.radius.xl + theme.spacing.md,
+            padding: theme.spacing.sm,
+          }}
+        >
+          <SettingsSection>
+            <SettingItem
+              description={firestoreBackup.isBusy ? 'Gerando backup...' : 'Somente leitura'}
+              fallbackIcon="share-outline"
+              onPress={() => void firestoreBackup.exportBackup()}
+              systemName="square.and.arrow.up"
+              title="Exportar backup"
+            />
+            <SettingItem
+              description={
+                firestoreBackupDryRun.isBusy ? 'Validando backup...' : 'Dry-run somente leitura'
+              }
+              fallbackIcon="checkmark-circle-outline"
+              onPress={() => void firestoreBackupDryRun.validateBackup()}
+              systemName="checkmark.shield"
+              title="Validar backup"
+            />
+            <SettingItem
+              description={
+                firestoreBackupRestoreBusy
+                  ? 'Restaurando backup...'
+                  : 'Confirmação e dry-run obrigatórios'
+              }
+              fallbackIcon="download-outline"
+              isLast
+              onPress={() => void handleRestoreBackup()}
+              disabled={testModeEnabled}
+              systemName="arrow.down.doc"
+              title="Restaurar backup"
+            />
+          </SettingsSection>
+        </PremiumCard>
       </View>
     </PremiumScreen>
   );

@@ -142,12 +142,6 @@ export function SettingsScreen() {
                 systemName="externaldrive"
                 title="Backup"
               />
-              <SettingItem
-                fallbackIcon="sparkles-outline"
-                onPress={() => router.push('/teste-morph')}
-                systemName="sparkles"
-                title="Teste Morph"
-              />
             </SettingsSection>
           </PremiumCard>
         </View>

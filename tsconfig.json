@@ -7,7 +7,6 @@
     "types": ["jest"],
     "paths": {
       "@/*": ["src/*"],
-      "native-liquid-glass": ["modules/native-liquid-glass/src"],
       "native-card-context-menu": ["modules/native-card-context-menu/src"]
     }
   },

@@ -1,8 +1,0 @@
-{
-  "name": "native-liquid-glass",
-  "version": "0.1.0",
-  "description": "Reusable SwiftUI Liquid Glass transitions for PAReact.",
-  "license": "MIT",
-  "author": "PAReact",
-  "homepage": "https://expo.dev"
-}

@@ -10,13 +10,14 @@ import { useAppTheme } from '@/theme';
 type Props = {
   detail: FinancialDailyDetail;
   metric: MonthlyFinancialDetailMetric;
+  animateRowEntrance?: boolean;
 };
 
 const cardLayoutTransition = LinearTransition.duration(200).easing(Easing.out(Easing.quad));
 const rowEnteringAnimation = FadeInDown.duration(200).springify().damping(30).stiffness(220);
 const rowExitingAnimation = FadeOutUp.duration(180);
 
-export function FinancialDayDetailCard({ detail, metric }: Props) {
+export function FinancialDayDetailCard({ detail, metric, animateRowEntrance = true }: Props) {
   const { resolvedMode, theme } = useAppTheme();
   const { summary } = detail;
   const rows = [
@@ -134,7 +135,7 @@ export function FinancialDayDetailCard({ detail, metric }: Props) {
     >
       {visibleRows.map((row) => (
         <Animated.View
-          entering={rowEnteringAnimation}
+          entering={animateRowEntrance ? rowEnteringAnimation : undefined}
           exiting={rowExitingAnimation}
           key={row.label}
           layout={cardLayoutTransition}

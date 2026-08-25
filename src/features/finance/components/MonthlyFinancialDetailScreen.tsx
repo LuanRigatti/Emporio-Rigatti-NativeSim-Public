@@ -70,6 +70,7 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
   const [selectedDate, setSelectedDate] = useState<string>();
   const isFirstFocus = useRef(true);
+  const [initialDataResolved, setInitialDataResolved] = useState(false);
   const copy = metricCopy[metric];
   const selectedMonthKey = formatMonthlyPeriodKey(selectedYear, selectedMonth);
   const { refresh, snapshot, loading } = useFinancialData(
@@ -110,6 +111,15 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
   );
 
   const isDataReady = !loading && routesLoaded && fuelCostsReady;
+  const animateDetailRows = initialDataResolved;
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (isDataReady && snapshot !== null && !initialDataResolved) {
+      setInitialDataResolved(true);
+    }
+  }, [initialDataResolved, isDataReady, snapshot]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const details = useMemo(
     () =>
@@ -202,7 +212,11 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
                   showAllLabels
                 />
               </PremiumCard>
-              <FinancialDayDetailCard detail={selectedDetail} metric={metric} />
+              <FinancialDayDetailCard
+                animateRowEntrance={animateDetailRows}
+                detail={selectedDetail}
+                metric={metric}
+              />
             </>
           ) : null}
         </PremiumScreen>

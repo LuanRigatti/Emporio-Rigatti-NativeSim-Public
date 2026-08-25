@@ -60,11 +60,14 @@ export default function SettingsLayout() {
       <Stack.Screen name="face-id">
         <Stack.Screen.BackButton displayMode="minimal" />
       </Stack.Screen>
-      <Stack.Screen name="modo-teste">
+      <Stack.Screen name="sistema">
         <Stack.Screen.BackButton displayMode="minimal" />
       </Stack.Screen>
+      <Stack.Screen name="modo-teste">
+        <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+      </Stack.Screen>
       <Stack.Screen name="backup">
-        <Stack.Screen.BackButton displayMode="minimal" />
+        <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
       </Stack.Screen>
       <Stack.Screen name="estoque">
         <Stack.Screen.BackButton displayMode="minimal" />

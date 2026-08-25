@@ -2,7 +2,7 @@ const androidMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
 
 module.exports = {
   expo: {
-    name: 'Rigatti',
+    name: 'Empório Rigatti',
     slug: 'PAReact',
     version: '1.0.0',
     orientation: 'portrait',

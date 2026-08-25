@@ -22,6 +22,7 @@ import { factoryReceiptDataSource } from '@/services/factory-purchases';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider } from '@/theme';
+import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -89,6 +90,7 @@ function AppShell() {
   return (
     <InitialCacheHydrationContext.Provider value={isCacheHydrated}>
       <>
+        <QuickActionRouter />
         <Stack screenOptions={{ animation: 'default', headerShown: false }}>
           <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
           <Stack.Screen

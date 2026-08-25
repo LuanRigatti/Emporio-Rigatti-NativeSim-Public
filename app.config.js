@@ -46,6 +46,7 @@ module.exports = {
     },
     plugins: [
       'expo-router',
+      './plugins/withHomeScreenQuickActions',
       'expo-font',
       [
         'expo-location',

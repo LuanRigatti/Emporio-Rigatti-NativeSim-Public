@@ -506,15 +506,11 @@ export function RegistrarDeliveryScreen() {
       theme.typography.body.lineHeight,
       theme.typography.callout.lineHeight + theme.typography.footnote.lineHeight + 2,
     );
-  const deliveryCardContentHeight =
-    theme.typography.headline.lineHeight -
-    theme.spacing.xs +
-    todayDeliveries.length * deliveryRowHeight +
-    Math.max(0, todayDeliveries.length - 1) * theme.spacing.xs;
   const deliveryCardHeight =
-    todayDeliveries.length <= 1
+    todayDeliveries.length === 0
       ? emptyDeliveryCardMinHeight
-      : theme.spacing.md * 2 + deliveryCardContentHeight;
+      : todayDeliveries.length * deliveryRowHeight +
+        Math.max(0, todayDeliveries.length - 1) * theme.spacing.xs;
   const deliveryCardHeightValue = useDerivedValue(
     () =>
       withTiming(deliveryCardHeight, {
@@ -605,148 +601,131 @@ export function RegistrarDeliveryScreen() {
         progressiveBlur
       >
         <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
-          <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
-            <PremiumCard
-              style={[
-                styles.deliveryCard,
-                {
-                  height: '100%',
-                },
-                todayDeliveries.length > 0
-                  ? {
-                      borderRadius: theme.radius.xl + theme.spacing.lg,
-                      padding: theme.spacing.md,
-                      position: 'relative',
-                    }
-                  : {
-                      borderRadius: theme.radius.xl + theme.spacing.lg,
-                      paddingVertical: theme.spacing.xxl * 2,
-                    },
-              ]}
-            >
-            <Animated.View style={[styles.fullWidth, styles.deliveryContent]}>
-              {todayDeliveries.length > 0 ? (
-                <>
-                  <View
-                    style={[
-                      styles.deliveryTitleSlot,
-                      {
-                        height: theme.typography.headline.lineHeight,
-                        marginTop: -theme.spacing.xs,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        theme.typography.headline,
-                        styles.deliveryDayTitle,
-                        { color: theme.colors.textPrimary },
-                      ]}
-                    >
-                      Hoje
-                    </Text>
-                  </View>
-                  <View style={[styles.fullWidth, styles.deliveryContentViewport]}>
-                  <View
-                    style={[
-                      styles.todayDeliveriesGroup,
-                      { gap: theme.spacing.xs },
-                    ]}
-                  >
-                    {todayDeliveries.map((delivery) => {
-                      const renderDeliveryItemRow = (preview = false) => (
-                        <View style={[
-                            styles.deliveryItemRow,
-                            {
-                              backgroundColor: preview
-                                ? theme.colors.surface
-                                : 'transparent',
-                              borderRadius: theme.radius.xl + theme.spacing.sm,
-                              height: deliveryRowHeight,
-                              overflow: preview ? 'hidden' : undefined,
-                              paddingHorizontal: theme.spacing.md,
-                              paddingVertical: theme.spacing.sm + theme.spacing.xs,
-                              width: '100%',
-                            },
-                          ]}
-                        >
-                          <View style={styles.deliveryItemCopy}>
-                            <Text
-                              style={[
-                                theme.typography.callout,
-                                { color: theme.colors.textPrimary, fontWeight: '700' },
-                              ]}
-                            >
-                              {delivery.cliente}
-                            </Text>
-                            <Text
-                              style={[
-                                theme.typography.footnote,
-                                { color: theme.colors.textSecondary },
-                              ]}
-                            >
-                              {maskQuantity(delivery.quantidadeBaldes)}
-                            </Text>
-                          </View>
+          {todayDeliveries.length > 0 ? (
+            <>
+              <View
+                style={[
+                  styles.deliveryTitleSlot,
+                  {
+                    height: theme.typography.headline.lineHeight,
+                    marginTop: -theme.spacing.xs,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    theme.typography.headline,
+                    styles.deliveryDayTitle,
+                    { color: theme.colors.textPrimary },
+                  ]}
+                >
+                  Hoje
+                </Text>
+              </View>
+              <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
+                <View style={[styles.todayDeliveriesGroup, { gap: theme.spacing.xs }]}>
+                  {todayDeliveries.map((delivery) => {
+                    const renderDeliveryItemRow = (preview = false) => (
+                      <View
+                        style={[
+                          styles.deliveryItemRow,
+                          {
+                            backgroundColor: preview ? theme.colors.surface : 'transparent',
+                            borderRadius: theme.radius.xl + theme.spacing.sm,
+                            height: deliveryRowHeight,
+                            overflow: preview ? 'hidden' : undefined,
+                            paddingHorizontal: theme.spacing.md,
+                            paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                            width: '100%',
+                          },
+                        ]}
+                      >
+                        <View style={styles.deliveryItemCopy}>
                           <Text
                             style={[
-                              theme.typography.body,
-                              { color: theme.colors.textPrimary, fontWeight: '600' },
+                              theme.typography.callout,
+                              { color: theme.colors.textPrimary, fontWeight: '700' },
                             ]}
                           >
-                            {maskText(delivery.valor)}
+                            {delivery.cliente}
+                          </Text>
+                          <Text
+                            style={[
+                              theme.typography.footnote,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            {maskQuantity(delivery.quantidadeBaldes)}
                           </Text>
                         </View>
-                      );
-                      const rowContent = renderDeliveryItemRow();
-                      const rowActions = [
-                        {
-                          destructive: true,
-                          disabled: testModeEnabled,
-                          id: 'delete-delivery',
-                          onPress: () => {
-                            void removeDelivery(delivery.id);
-                          },
-                          systemImage: 'trash' as const,
-                          title: 'Excluir',
-                        },
-                      ];
-
-                      return (
-                        <View
-                          key={delivery.id}
+                        <Text
                           style={[
-                            styles.deliveryContextMenu,
-                            {
-                              backgroundColor: theme.colors.surface,
-                              borderRadius: theme.radius.xl + theme.spacing.sm,
-                              height: deliveryRowHeight,
-                              overflow: 'hidden',
-                              width: '100%',
-                            },
+                            theme.typography.body,
+                            { color: theme.colors.textPrimary, fontWeight: '600' },
                           ]}
                         >
-                          <NativeCardContextMenu
-                            actions={rowActions}
-                            preview={renderDeliveryItemRow(true)}
-                            style={[
-                              styles.deliveryContextMenu,
-                              {
-                                borderRadius: theme.radius.xl + theme.spacing.sm,
-                                height: '100%',
-                                width: '100%',
-                              },
-                            ]}
-                          >
-                            {rowContent}
-                          </NativeCardContextMenu>
-                        </View>
-                      );
-                    })}
-                  </View>
-                  </View>
-                </>
-              ) : (
+                          {maskText(delivery.valor)}
+                        </Text>
+                      </View>
+                    );
+                    const rowContent = renderDeliveryItemRow();
+                    const rowActions = [
+                      {
+                        destructive: true,
+                        disabled: testModeEnabled,
+                        id: 'delete-delivery',
+                        onPress: () => {
+                          void removeDelivery(delivery.id);
+                        },
+                        systemImage: 'trash' as const,
+                        title: 'Excluir',
+                      },
+                    ];
+                    const cardStyle = [
+                      styles.deliveryItemCard,
+                      styles.fullWidth,
+                      {
+                        borderRadius: theme.radius.xl + theme.spacing.sm,
+                        height: deliveryRowHeight,
+                      },
+                    ];
+
+                    return (
+                      <NativeCardContextMenu
+                        key={delivery.id}
+                        actions={rowActions}
+                        preview={
+                          <PremiumCard style={cardStyle}>
+                            {renderDeliveryItemRow(true)}
+                          </PremiumCard>
+                        }
+                        style={[
+                          styles.deliveryContextMenu,
+                          {
+                            borderRadius: theme.radius.xl + theme.spacing.sm,
+                            height: deliveryRowHeight,
+                          },
+                        ]}
+                      >
+                        <PremiumCard style={cardStyle}>{rowContent}</PremiumCard>
+                      </NativeCardContextMenu>
+                    );
+                  })}
+                </View>
+              </Animated.View>
+            </>
+          ) : (
+            <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
+              <PremiumCard
+                style={[
+                  styles.emptyDeliveryCard,
+                  {
+                    borderRadius: theme.radius.xl + theme.spacing.lg,
+                    height: '100%',
+                    paddingVertical: theme.spacing.xxl * 2,
+                  },
+                ]}
+              >
                 <View style={styles.emptyStateCard}>
                   <Text
                     style={[
@@ -757,10 +736,9 @@ export function RegistrarDeliveryScreen() {
                     Nenhuma entrega hoje
                   </Text>
                 </View>
-              )}
+              </PremiumCard>
             </Animated.View>
-            </PremiumCard>
-          </Animated.View>
+          )}
         </View>
       </PremiumScreen>
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -899,9 +877,8 @@ const styles = StyleSheet.create({
   dailyDataRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   headerTrailingActions: { width: 104 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
-  deliveryCard: { gap: 8, overflow: 'visible' },
-  deliveryContent: { flex: 1 },
-  deliveryContentViewport: { flex: 1, overflow: 'hidden' },
+  emptyDeliveryCard: { width: '100%' },
+  deliveryItemCard: { padding: 0 },
   deliveryTitleSlot: { alignItems: 'center', justifyContent: 'center', width: '100%' },
   deliveryDayTitle: { textAlign: 'center' },
   todayDeliveriesGroup: { width: '100%' },

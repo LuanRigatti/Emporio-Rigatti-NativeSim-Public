@@ -1,8 +1,8 @@
 # Design System
 
-Status: congelado após a Etapa 18D.
+Status: fundação RN consolidada e congelada após a Etapa 18D.
 
-Este documento é o contrato público da camada visual do React Native. Novas telas devem compor os componentes e tokens descritos aqui. A criação de um novo componente visual, token ou variação pública exige uma nova decisão arquitetural antes da implementação.
+Este documento é o contrato público da camada visual do aplicativo. A fundação RN consolidada na Etapa 18D continua congelada: novas telas devem compor as abstrações existentes, e a criação de um novo componente visual genérico, token ou variação pública exige uma nova decisão arquitetural antes da implementação. As camadas `native`, `premium` e demais abstrações reutilizáveis já existentes também fazem parte do sistema visual aceito. Evoluções nativas baseadas em APIs oficiais da Apple ou do Expo são permitidas quando forem auditadas e reutilizáveis.
 
 ## Objetivo do Design System
 
@@ -18,10 +18,13 @@ src/components/
 ├── forms/         # entrada e seleção de dados
 ├── layout/        # telas, cabeçalhos, seções e espaçamento
 ├── lists/         # itens, listas agrupadas e gestos
+├── native/        # controles nativos e adaptadores com fallback
 ├── overlays/      # modal, sheet, confirmação e ações
+├── premium/       # composições visuais e materiais reutilizáveis
+├── routes/         # mapas e componentes visuais de rotas
 ├── typography/    # AppText e variantes tipográficas
 ├── types.ts       # tipos compartilhados da API visual
-└── index.ts       # único ponto de entrada público
+└── index.ts       # barrel público canônico
 
 src/theme/
 ├── ThemeProvider.tsx  # preferência e tema resolvido
@@ -31,7 +34,7 @@ src/theme/
 └── *.ts               # tokens semânticos
 ```
 
-O import público preferencial é `@/components`. A pasta `src/navigation` contém os navegadores do aplicativo e não é uma segunda API de componentes visuais.
+O import público preferencial é `@/components`. Os sub-barrels oficiais `@/components/native`, `@/components/premium`, `@/components/layout` e `@/components/routes` também são entradas válidas para abstrações especializadas existentes. `@/theme` é a entrada dos tokens e do tema. A pasta `src/navigation` contém os navegadores do aplicativo e não é uma segunda API de componentes visuais.
 
 ## Organização
 
@@ -41,7 +44,17 @@ O import público preferencial é `@/components`. A pasta `src/navigation` cont�
 - Os componentes podem conter apenas comportamento visual, acessibilidade, interação de apresentação e estados de UI.
 - `PaymentMethodSelector` é a única seleção de pagamento visual e aceita somente `Dinheiro` e `Pix`.
 - Valores ocultos continuam ocupando espaço por meio dos tokens de layout; ocultação não altera dados.
-- Ícones vêm de `@expo/vector-icons` ou dos tokens em `theme.icons`. Emojis e caracteres Unicode não são ícones de navegação.
+- Componentes RN podem usar os providers de ícones atuais (`@expo/vector-icons` ou `theme.icons`). Controles nativos iOS devem preferir SF Symbols quando apropriado. Emojis e caracteres Unicode não são ícones de navegação.
+
+## Camadas visuais atuais
+
+O sistema visual atual é composto por três camadas complementares:
+
+1. Componentes RN tradicionais, organizados nas categorias canônicas deste documento.
+2. Componentes RN com materiais e efeitos, como superfícies Liquid Glass, blur e fallbacks de plataforma.
+3. Controles nativos SwiftUI/UIKit via `@expo/ui`, Expo Router/Stack Toolbar ou módulos nativos locais.
+
+Todas as camadas recebem dados e ações da funcionalidade, mas não contêm regras de negócio. Controles nativos devem preservar comportamento, sizing intrínseco, interação e animações nativas sempre que possível. Não recriar em RN um comportamento que já possui implementação nativa oficial adequada.
 
 ## Componentes disponíveis
 
@@ -149,13 +162,27 @@ Usar `AppText` para textos novos, permitir font scaling e escolher a menor varia
 | `ConfirmationDialog` | `visible`, `title`, `message`, `confirmLabel`, `cancelLabel?`, `destructive?`, `loading?`, `onConfirm`, `onCancel`, acessibilidade | confirmação, loading, destrutivo        | Usar antes de excluir, renomear ou operação irreversível. Não usar para toda ação simples. |
 | `ActionSheet`        | `visible`, `title?`, `options`: `{ key, label, onPress, destructive?, disabled?, icon? }[]`, `onClose`, acessibilidade             | aberto, opção disabled/destructive      | Usar para poucas ações relacionadas. Não colocar regras de negócio no componente.          |
 
+### Componentes nativos e premium
+
+As seguintes abstrações já existentes e reutilizadas fazem parte do sistema visual atual. A lista registra responsabilidades e pontos de composição, sem substituir os tipos públicos de cada módulo.
+
+**Controles nativos e adaptadores:** `NativeButton`, `NativeToggle`, `NativeDropdown`, `NativePicker`, `NativeDatePicker`, `NativeBottomSheet`, `NativeSheet`, `NativeDialog`, `NativeSearchField`, `NativeAnimatedNumber`, `NativeCardContextMenu`, `NativeGlassHeader`, `NativeGlassBackButton`, `NativeGlassMenu`, `NativeDateToolbar`, `NativePeriodActionGroup`, `NativeTrackingStatusButton` e `NativeSwipeActionsList`.
+
+**Composições premium:** `PremiumCard`, `PremiumScreen`, `PremiumSection`, `PremiumMetric`, `SummaryCard`, `GlassSurface`, `GlassCard`, `GlassButton`, `GlassHeader`, `GlassSegmentedControl` e `GlassTabBar`.
+
+**Infraestrutura visual e mapas:** `ProgressiveBlur`, `NativeRouteMap` e `NativeTrackedRouteMap`.
+
+Essas abstrações devem ser reutilizadas antes da criação de uma composição específica de tela. Implementações nativas podem ter fallback seguro para Android, Web, Expo Go ou quando uma capability do dispositivo estiver indisponível.
+
 ## Tokens e temas
 
 ### Cores
 
-Os componentes acessam cores somente por `theme.colors`. Os tokens semânticos são `background`, `backgroundSecondary`, `surface`, `surfaceElevated`, `surfaceMuted`, `textPrimary`, `textSecondary`, `textTertiary`, `textInverse`, `textDisabled`, `separator`, `borderStrong`, `focus`, `primary`, `primaryPressed`, `secondary`, `brand`, `brandStrong`, `success`, `warning`, `danger`, `info`, `paid`, `unpaid`, `delivered`, `pending`, `revenue`, `profit`, `expense` e `overlay`, com valores próprios para tema claro e escuro.
+Os componentes acessam cores somente por `theme.colors`. Os tokens semânticos são `background`, `backgroundSecondary`, `surface`, `surfaceElevated`, `surfaceMuted`, `textPrimary`, `textSecondary`, `textTertiary`, `textInverse`, `textDisabled`, `separator`, `borderStrong`, `focus`, `primary`, `primaryPressed`, `secondary`, `brand`, `brandStrong`, `success`, `warning`, `danger`, `info`, `paid`, `unpaid`, `delivered`, `pending`, `revenue`, `profit`, `expense` e `overlay`, com valores próprios para tema claro e escuro. As semânticas atuais também incluem `contrastSurface`, `contrastContent`, `selectionSurface`, `selectionContent`, `successSurface`, `warningSurface`, `dangerSurface`, `infoSurface`, `glassSurface` e `glassBorder`.
 
 Não expor nomes de paleta como `blue500` para telas. Contraste, status e significado devem continuar semânticos e não depender apenas da cor.
+
+Materiais Liquid Glass e tint devem usar os tokens e helpers compartilhados, incluindo `getLiquidGlassTint`, `getSearchBarLiquidGlassTint`, `lightModeLiquidGlassTint`, `darkModeLiquidGlassTint` e as opacidades correspondentes. Não duplicar cores ou opacidades localmente.
 
 ### Tipografia
 
@@ -163,7 +190,7 @@ As fontes são do sistema e suportam escalonamento. A escala pública é `largeT
 
 ### Espaçamento, radius e tamanhos
 
-Use `theme.spacing` (`xxs`, `xs`, `sm`, `md`, `lg`, `xl`, `xxl`, `xxxl`, `screen`, `section`, `formGroup`, `safeAreaMinimum`), `theme.radius` (`sm`, `md`, `lg`, `card`, `xl`, `pill`) e `theme.sizes` para toque mínimo, campos, botões, tabs, ícones, avatares, skeleton e valores ocultos. O alvo mínimo de toque é `44` pontos.
+Use `theme.spacing` (`xxs`, `xs`, `sm`, `md`, `lg`, `xl`, `xxl`, `xxxl`, `screenLarge`, `screen`, `section`, `formGroup`, `safeAreaMinimum`), `theme.radius` (`sm`, `md`, `lg`, `card`, `xl`, `pill`) e `theme.sizes` para toque mínimo, campos, botões, tabs, ícones, avatares, skeleton e valores ocultos. O alvo mínimo de toque é `44` pontos.
 
 ### Sombras e bordas
 
@@ -218,7 +245,7 @@ Essas composições preservam nomes semânticos para a API das telas, mesmo quan
 ### Candidatos à remoção
 
 - `src/components/navigation/index.ts`: removido na Etapa 18D por duplicar `AppHeader` e `LargeTitleHeader` de `layout` e não possuir componente próprio.
-- `src/components/Charts/index.ts`: placeholder sem componente exportado; deve permanecer fora da API pública até que gráficos reais sejam aprovados e implementados com tokens.
+- `src/components/Charts/index.tsx`: exporta `FinancialSeriesChart`, componente compartilhado para séries financeiras; sua API e seus tokens devem permanecer coerentes com o contrato visual antes de novas variações.
 - Componentes legados nas pastas `Button`, `Card`, `Header`, `Input`, `Loading`, `Modal`, `SearchBar`, `BottomNavigation` e `EmptyState`: já removidos anteriormente por duplicarem a API canônica.
 
 ### Candidatos à fusão
@@ -232,4 +259,4 @@ Nenhum desses candidatos deve ser fundido ou removido sem avaliar imports públi
 
 ### Resultado
 
-O Design System está congelado. A partir desta etapa, telas novas devem reutilizar exclusivamente `@/components` e `@/theme`. Se uma composição existente não atender ao caso, a funcionalidade deve parar, documentar a lacuna e solicitar aprovação para evolução da API.
+A fundação RN do Design System está congelada. Telas novas devem reutilizar `@/components`, seus sub-barrels oficiais, as camadas `native`/`premium`/`routes` existentes e `@/theme`; não devem criar abstrações genéricas quando uma composição existente resolve o caso. Se uma composição existente não atender ao caso, a lacuna deve ser documentada e uma evolução da API pública exige necessidade comprovada e decisão arquitetural. APIs nativas oficiais Apple/Expo podem justificar evolução controlada da camada `native`, desde que preservem fallback, comportamento nativo e reutilização.

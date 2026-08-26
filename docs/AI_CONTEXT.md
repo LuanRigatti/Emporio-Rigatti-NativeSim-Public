@@ -131,49 +131,106 @@ Windows:
 
 Mac apenas quando houver recompilação nativa.
 
-Mudanças apenas em TS/TSX normalmente utilizam Fast Refresh.
+Mudanças apenas em TS/TSX/JS normalmente utilizam Fast Refresh.
 
-# Processo Obrigatório Antes de Qualquer Alteração
+## Auditoria proporcional ao escopo
 
-## Etapa 1 — Estudo do projeto
+Antes de qualquer alteração:
 
-Antes de modificar qualquer arquivo, faça uma análise completa do projeto.
+1. Leia este documento por completo.
+2. Leia o bloco `Snapshot operacional atual` no topo de
+   `docs/current-state.md`.
+3. Verifique o Git atual (`git status`, branch e `HEAD`) sem modificar o
+   histórico.
+4. Localize a funcionalidade solicitada e audite todos os arquivos,
+   componentes, hooks, services, tipos, providers, tokens, APIs nativas e
+   dependências diretamente relacionados.
+5. Expanda a auditoria para outras áreas somente quando houver evidência de
+   dependência estrutural, contrato compartilhado, persistência, navegação ou
+   impacto de plataforma.
 
-Mapeie:
+Não faça uma análise completa do projeto por padrão. O tamanho da auditoria
+deve acompanhar o risco e o alcance da tarefa.
 
-- estrutura de pastas;
-- navegação;
-- componentes compartilhados;
-- hooks;
-- providers;
-- services;
-- contextos;
-- utilitários;
-- tema;
-- estilos;
-- componentes nativos;
-- abstrações existentes.
+Exemplos de escopo:
 
-Não proponha alterações antes de compreender a arquitetura.
+- Bug visual em um card: audite a tela, o componente compartilhado, os tokens
+  e os componentes nativos envolvidos; não mapeie o Firestore inteiro.
+- Bug financeiro: audite o cálculo, o domínio de entrega, o datasource/cache e
+  os consumidores relevantes.
+- Bug de navegação: audite os layouts, stacks e rotas envolvidas.
+- Mudança estrutural ou nativa: amplie a auditoria arquitetural para todos os
+  navegadores, contratos e superfícies diretamente afetados.
 
-## Etapa 2 — Localização da funcionalidade
+## Código é fonte da verdade
 
-Identifique todos os arquivos relacionados ao problema.
+- A documentação fornece contexto e decisões, mas Git e código atual são a
+  fonte da verdade operacional.
+- Se houver divergência entre documentação e checkout, informe a divergência
+  antes de implementar e use o código/Git atual como referência.
+- Não trate uma seção histórica de `docs/current-state.md` como estado atual
+  apenas porque ela aparece mais adiante no arquivo.
 
-Nunca altere apenas o primeiro arquivo encontrado.
+## Root cause first
 
-Analise dependências e impactos.
+- Identifique a causa raiz antes de alterar o código.
+- Não aplique workaround visual quando a causa for estrutural.
+- Não esconda problemas com delay, zIndex, timeout ou estado duplicado sem
+  justificativa técnica comprovada.
 
-## Etapa 3 — Planejamento
+## Escopo mínimo
 
-Antes de escrever código, explique:
+- Altere somente os arquivos necessários para a tarefa.
+- Não aproveite a tarefa para limpar, refatorar ou redesenhar código não
+  relacionado.
+- Preserve alterações locais preexistentes e resolva conflitos por trechos,
+  sem sobrescrever trabalho fora do escopo.
 
-- causa do problema;
+## Git
+
+- Nunca faça commit ou push automaticamente; execute-os somente quando o
+  usuário pedir explicitamente.
+- Antes de um commit autorizado, liste exatamente os arquivos que entrarão e
+  revise o diff staged.
+- Não faça reset, squash ou revert de histórico publicado sem pedido explícito.
+- Preserve alterações locais não relacionadas.
+
+## Native iOS
+
+Preserve a preferência do projeto por APIs nativas e oficiais:
+
+- Expo SDK 57;
+- `@expo/ui` / SwiftUI;
+- Native Stack e NativeTabs;
+- SF Symbols;
+- Liquid Glass;
+- APIs oficiais da Apple;
+- módulo nativo local somente quando realmente necessário.
+
+Evite imitações em React Native quando existir uma implementação nativa
+oficial compatível e preserve a interação, o layout intrínseco e as animações
+nativas existentes.
+
+## Development Build
+
+Sempre diferencie o tipo de mudança:
+
+- TS/TSX/JS normalmente pode ser validado com Metro/Fast Refresh;
+- Swift, config plugin, Info.plist, capabilities ou módulo nativo exigem nova
+  Development Build;
+- informe explicitamente ao final se uma nova build é necessária.
+
+Não execute prebuild ou compile sem autorização explícita da tarefa.
+
+## Processo antes da implementação
+
+Depois da auditoria proporcional, registre de forma objetiva, antes de editar
+quando a tarefa envolver código:
+
+- causa raiz e evidências;
 - abordagem escolhida;
 - arquivos que serão alterados;
-- possíveis impactos.
-
-## Etapa 4 — Implementação
+- possíveis impactos e validações.
 
 Durante a implementação:
 
@@ -183,23 +240,40 @@ Durante a implementação:
 - preserve compatibilidade com Android, Web e Expo Go;
 - prefira soluções nativas para iOS quando disponíveis.
 
-## Etapa 5 — Validação
-
 Após implementar:
 
-- verificar TypeScript;
-- verificar ESLint;
-- revisar possíveis regressões;
-- explicar tecnicamente todas as alterações.
+- verifique TypeScript;
+- verifique ESLint direcionado;
+- execute testes relacionados;
+- execute `git diff --check`;
+- revise possíveis regressões e o Git status.
+
+## Resultado da tarefa
+
+O encerramento deve ser curto e informar:
+
+- causa raiz;
+- arquivos alterados;
+- comportamento antes/depois;
+- validações executadas;
+- se exige nova Development Build;
+- Git status;
+- sem sugestões extras não solicitadas.
 
 # Orientação Geral para Agentes de IA
 
-Sempre que receber uma nova tarefa:
+Em toda nova tarefa:
 
 1. Leia este documento por completo.
-2. Faça um "raio X" do projeto antes de editar qualquer arquivo.
-3. Entenda a arquitetura real implementada no código.
-4. Respeite os padrões existentes.
-5. Só então proponha ou implemente alterações.
+2. Consulte o Snapshot operacional atual antes do histórico detalhado.
+3. Verifique o Git e localize a funcionalidade.
+4. Faça auditoria proporcional ao escopo e amplie somente com evidência.
+5. Encontre a causa raiz, respeite os padrões existentes e só então proponha
+   ou implemente alterações.
 
-Nunca assuma a arquitetura do projeto sem antes analisá-la.
+Nunca assuma a arquitetura do projeto sem verificar o código e as
+dependências diretamente envolvidas.
+
+O histórico de features pertence a `docs/current-state.md`; este documento
+define regras de trabalho e não deve se transformar em um diário de
+implementações.

@@ -1,5 +1,126 @@
 # Estado atual do projeto
 
+# Snapshot operacional atual
+
+Este é o primeiro bloco a ser consultado por qualquer nova conversa ou agente
+de IA. Ele representa o estado operacional deste checkout; as seções posteriores
+preservam o histórico técnico e as decisões acumuladas.
+
+## Git
+
+- Branch atual: `ajustes-codex`.
+- HEAD: `11072fbf85a8a83736170cbcb39bcda8811bdf5a`.
+- Último commit: `feat: refine registrar delivery cards`.
+- Working tree: `docs/current-state.md` possui alterações locais preexistentes;
+  não há outros arquivos modificados ou não rastreados.
+
+## Aplicativo
+
+- Nome exibido configurado: `Empório Rigatti`.
+- Expo SDK: `57` (`expo ~57.0.10`).
+- Expo Router: `~57.0.10`.
+- React Native: `0.86.2`.
+- `bundleIdentifier`: `com.pareact.mobile`.
+- Alvo principal: iOS Development Build.
+
+## Estado nativo atual
+
+### VALIDADO NO IPHONE
+
+- NativeTabs e Native Stacks com navegação nativa, BackButtons, toolbar,
+  swipe-back, ProgressiveBlur e interações Liquid Glass nos fluxos reais já
+  validados.
+- Home Search com Bottom Sheet nativo, pager/preview de rotas e correções de
+  ghosting documentadas nas validações de Development Build.
+- Bottom Sheets nativos e cards de Registrar com Context Menu nativo conforme
+  o comportamento validado no histórico deste documento.
+- Home Screen Quick Actions: os quatro atalhos fixos foram compilados,
+  instalados e testados manualmente no iPhone físico.
+- Nome de exibição `Empório Rigatti`: incluído na compilação, instalado e
+  confirmado visualmente abaixo do ícone no iPhone.
+
+### IMPLEMENTADO, MAS EXIGE NOVA DEVELOPMENT BUILD
+
+- Apple Intelligence/Foundation Models: a implementação inicial foi compilada
+  e testada no iPhone; buscas estruturadas antigas funcionavam, mas o teste
+  revelou resultado vazio para linguagem natural. A correção posterior do
+  roteamento/bridge Swift ainda não foi recompilada no iPhone e exige uma nova
+  Development Build para validação. Até essa validação, Apple Intelligence não
+  deve ser considerado validado.
+
+### Componentes e módulos nativos relevantes
+
+- `@expo/ui`/SwiftUI, Native Stack e NativeTabs.
+- `NativeAppleIntelligence`, `NativeQuickActions`, `NativeStartupSplash`,
+  `NativeInteractivePager`, `NativeCardContextMenu` e
+  `NativeTrackedRouteMap`.
+- `NativeGlassHeader`, `NativeDateToolbar`, `NativeAnimatedNumber` e controles
+  Liquid Glass compartilhados.
+- Widgets, App Groups, Live Activities e Dynamic Island não foram adicionados.
+
+## Estado funcional recente
+
+- Home Search: Bottom Sheet imediato, parser fast path somente para consultas
+  válidas, caminho semântico Apple Intelligence, prewarm, suporte pt-BR e
+  cancelamento de gerações obsoletas.
+- Quick Actions: Registrar entrega, Registrar dados, Modo Teste e Histórico;
+  a ação é enfileirada até autenticação, hidratação e router estarem prontos.
+- NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global
+  sobre as tabs; BackButtons, toolbars, swipe-back e morphs nativos preservados.
+- Registrar: entrega e dados preservados; o atalho independente da Home usa
+  `/registrar-entrega`; a lista de Entregas usa cards individuais com
+  `PremiumCard` e `NativeCardContextMenu`.
+- Histórico: `NativeDateToolbar` textual no formato curto, filtro no mesmo
+  `Stack.Toolbar`, consultas, cards e ProgressiveBlur preservados.
+- Finanças: cards estáveis ao retornar de detalhes, `NativeAnimatedNumber` para
+  mudanças reais e gráfico animado no UI thread sem o stutter anterior.
+- Configurações: Native Stack dedicado para Clientes, Estoque, Localização,
+  Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
+  Action.
+- Localização/GPS: tracking, histórico e mapa preservados; montagem pesada do
+  mapa ocorre após `transitionEnd`.
+
+## Validações no iPhone
+
+### VALIDADO NO IPHONE
+
+- Navegação NativeTabs/Native Stack, BackButtons, swipe-back e interações
+  Liquid Glass dos fluxos reais registrados nas seções históricas.
+- Home Search nativo, pager/preview de rotas e cenários de ghosting registrados
+  como validados em Development Build.
+- Estabilidade visual dos cards e controles de Registrar conforme a última
+  validação documentada.
+- Home Screen Quick Actions: os quatro atalhos foram compilados e validados
+  manualmente no iPhone físico.
+- Nome exibido `Empório Rigatti`: confirmado visualmente no iPhone.
+
+### IMPLEMENTADO MAS AINDA NÃO VALIDADO
+
+- Correção mais recente do roteamento/bridge do Apple Intelligence/Foundation
+  Models, ainda pendente de recompilação e validação no iPhone.
+
+### PROBLEMAS CONHECIDOS / EM INVESTIGAÇÃO
+
+- Foundation Models depende de dispositivo, versão do iOS, disponibilidade do
+  recurso e suporte de locale; indisponibilidade deve seguir o fallback seguro.
+- Alguns detalhes visuais de módulos nativos, como a máscara UIKit do Context
+  Menu, continuam condicionados à versão efetivamente compilada do Development
+  Build.
+- Avisos de normalização LF/CRLF podem aparecer em `git diff --check` e no
+  Prettier/ESLint sem representar mudança funcional do app.
+
+## Trabalho atual
+
+Nenhuma tarefa ativa registrada.
+
+## Regras de leitura
+
+- Este snapshot representa o estado operacional atual.
+- As seções posteriores são histórico técnico e decisões acumuladas.
+- Em caso de divergência, código e Git atuais são a fonte da verdade.
+- Não assumir que um status antigo “não commitado” ainda seja verdadeiro apenas
+  porque aparece em uma seção histórica.
+
 Este documento é a referência operacional para novas tarefas. O conteúdo de
 `docs/migration/` que descreve o Ionic, o Realtime Database ou o schema antigo
 é histórico e não deve orientar novas implementações, salvo quando a tarefa
@@ -7,11 +128,11 @@ pedir uma auditoria histórica explícita.
 
 ## Identidade do aplicativo
 
-- Branch de trabalho: `upgrade/expo-sdk-57`.
-- Último commit funcional validado: `d806c32ac95a89950c8e2e85fc607e2c0cad0af7`
-  (`feat: expand Home Search metrics and route summaries`).
+- Branch de trabalho: `ajustes-codex`.
+- Último commit no checkout: `11072fbf85a8a83736170cbcb39bcda8811bdf5a`
+  (`feat: refine registrar delivery cards`).
 - Expo SDK 57 e Development Build iOS.
-- Nome exibido no iPhone: `Rigatti`.
+- Nome exibido configurado: `Empório Rigatti`.
 - `slug`: `PAReact`.
 - `bundleIdentifier`: `com.pareact.mobile`.
 - Google Sign-In + Firebase Auth continuam sendo a autenticação da conta.
@@ -2249,3 +2370,134 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
   (`fix: align splash background and bottom scroll spacing`).
 - Não há commit/hash específico para esta alteração.
 - Nenhum commit ou push adicional foi realizado.
+
+## Correção do roteamento e bridge do Apple Intelligence na Home Search
+
+### Funcionalidade implementada
+
+- O fast path do parser agora encerra a busca somente quando produz uma
+  consulta/intenção executável.
+- Consultas parcialmente interpretadas, como perguntas em linguagem natural,
+  seguem para o caminho semântico do Apple Intelligence.
+- O bridge nativo do Foundation Models retorna o resultado estruturado como
+  objeto compatível com Expo Modules, sem serialização obrigatória para JSON
+  string.
+- A camada JavaScript mantém compatibilidade com JSON string de builds
+  anteriores e faz fallback seguro para respostas inválidas.
+- A confiança mínima aceita para uma interpretação válida é `0.6`.
+- Logs DEV de diagnóstico distinguem `parser-success`,
+  `parser-failed -> semantic`, `semantic-start`, `semantic-success` e
+  `semantic-fallback`, sem registrar valores financeiros ou dados sensíveis.
+
+### Comportamento final
+
+- Consultas estruturadas realmente resolvidas pelo parser continuam rápidas e
+  não chamam o Apple Intelligence.
+- Consultas naturais ou parcialmente resolvidas são interpretadas pelo caminho
+  semântico antes de chegar ao `SearchService`.
+- Respostas estruturadas nativas e JSON strings válidas são normalizadas para
+  `SearchIntent`; respostas inválidas seguem fallback seguro em vez de serem
+  tratadas como resultado vazio silencioso.
+- Bottom Sheet imediato, prewarm, suporte pt-BR, cancelamento de gerações
+  obsoletas e a UI/resultados existentes foram preservados.
+
+### Arquivos principais
+
+- `modules/native-apple-intelligence/ios/NativeAppleIntelligenceModule.swift`
+- `src/features/home/search/AppleIntelligenceSearchInterpreter.ts`
+- `src/features/home/search/HomeSearchService.ts`
+- `tests/home/AppleIntelligenceSearchInterpreter.test.ts`
+- `tests/home/HomeSearchService.test.ts`
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache ou dado do Cloud Firestore
+  foi alterado.
+- Nenhuma dependência foi adicionada.
+- O contrato do bridge nativo foi ajustado para transportar o objeto
+  estruturado; não há alteração no contrato de persistência da busca.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado nos cinco arquivos da correção, com a regra de Prettier
+  desativada: passou.
+- Testes da Home Search (`npx.cmd jest tests/home --runInBand`): 8 suítes e
+  192 testes passando.
+- `git diff --check`: passou.
+
+### Limitações conhecidas
+
+- A alteração do bridge Swift exige uma nova compilação do Development Build
+  para ser instalada no iPhone; o restante do roteamento TypeScript pode ser
+  validado pelo Metro/Fast Refresh.
+- A disponibilidade efetiva do Foundation Models continua dependente do
+  dispositivo, versão do iOS e suporte de locale; indisponibilidade mantém o
+  fallback seguro.
+
+### Commit e publicação
+
+- Branch: `ajustes-codex`.
+- Commit: `12ee841edc6af1c76f366e2c6cc033f0b8f84ef4` (`fix: correct Apple
+  Intelligence search routing and bridge`).
+- Publicado em `origin/ajustes-codex`.
+
+## Registrar — Entregas em cards individuais
+
+### Funcionalidade implementada
+
+- A tela Registrar → Entregas deixou de envolver todas as entregas em um único
+  card externo.
+- Cada entrega agora é renderizada em seu próprio `PremiumCard`, com o mesmo
+  padrão de superfície, raio, espaçamento e tema usado pelo app.
+- O título de seção `Hoje` permanece fora dos cards.
+- O `NativeCardContextMenu` continua envolvendo cada entrega individualmente,
+  preservando a ação nativa de exclusão.
+
+### Comportamento final
+
+- Uma entrega aparece como um card individual; várias entregas aparecem como
+  cards separados com espaçamento uniforme.
+- Nome e quantidade permanecem à esquerda, e o valor permanece alinhado à
+  direita.
+- O estado vazio continua usando um único card de estado vazio.
+- Ordenação, seleção de cliente, criação, exclusão, mascaramento de valores,
+  botão Adicionar, scroll e navegação permanecem inalterados.
+- Light Mode e Dark Mode continuam consumindo os tokens do tema através do
+  `PremiumCard`.
+
+### Arquivos principais
+
+- `src/app/(tabs)/registrar/index.tsx`
+- Componentes reutilizados: `PremiumCard`, `NativeCardContextMenu` e
+  `PremiumScreen`.
+
+### Flags e schema afetados
+
+- Nenhuma flag de runtime foi criada ou alterada.
+- Nenhum schema, documento, coleção, regra, cache, serviço, cálculo ou dado do
+  Cloud Firestore foi alterado.
+- Nenhuma dependência foi adicionada.
+
+### Validações executadas
+
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado no fluxo Registrar, com a regra de Prettier desativada
+  para o ruído LF/CRLF existente: passou.
+- Testes relacionados a entregas: 4 suítes e 18 testes passando.
+- `git diff --check`: passou; apenas avisos de normalização LF/CRLF foram
+  emitidos.
+
+### Limitações conhecidas
+
+- A lista continua sendo uma `View` dentro do `ScrollView` existente, sem
+  virtualização adicional; não foi introduzida uma alteração estrutural de
+  performance.
+- A confirmação visual final nos estados sem entregas, com muitas entregas e
+  em Light/Dark Mode ainda depende de validação no iPhone Development Build.
+
+### Commit e publicação
+
+- Esta alteração ainda não foi commitada nem publicada.
+- Não há commit/hash específico para esta alteração.

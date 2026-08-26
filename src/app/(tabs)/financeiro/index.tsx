@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -23,6 +23,10 @@ export default function PrototypeFinanceiro() {
   const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
+  const [displayedHeroValues, setDisplayedHeroValues] = useState<{
+    faturamento: number | null;
+    lucroLiquido: number | null;
+  }>({ faturamento: null, lucroLiquido: null });
   const initialRouteSessions = routeTrackingRepository.getMemoryRouteHistory();
   const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>(
     () => initialRouteSessions ?? [],
@@ -104,6 +108,33 @@ export default function PrototypeFinanceiro() {
         : undefined,
     [automaticKilometersByDate, comparisonSnapshot, fuelCostByDate, selectedPeriod, snapshot],
   );
+  const currentFaturamentoValue = summary?.faturamento ?? null;
+  const currentLucroLiquidoValue = isNetProfitReady && summary ? summary.lucroLiquido : null;
+  const faturamentoReady = !loading && !refreshing && currentFaturamentoValue !== null;
+  const lucroLiquidoReady = isNetProfitReady && !refreshing && currentLucroLiquidoValue !== null;
+  const displayedFaturamentoValue = faturamentoReady
+    ? currentFaturamentoValue
+    : displayedHeroValues.faturamento;
+  const displayedLucroLiquidoValue = lucroLiquidoReady
+    ? currentLucroLiquidoValue
+    : displayedHeroValues.lucroLiquido;
+
+  /* eslint-disable react-hooks/set-state-in-effect -- stores only stable data, never animation frames. */
+  useEffect(() => {
+    if (!faturamentoReady && !lucroLiquidoReady) return;
+    setDisplayedHeroValues((current) => {
+      const next = {
+        faturamento: faturamentoReady ? currentFaturamentoValue : current.faturamento,
+        lucroLiquido: lucroLiquidoReady
+          ? currentLucroLiquidoValue
+          : current.lucroLiquido,
+      };
+      return next.faturamento === current.faturamento && next.lucroLiquido === current.lucroLiquido
+        ? current
+        : next;
+    });
+  }, [currentFaturamentoValue, currentLucroLiquidoValue, faturamentoReady, lucroLiquidoReady]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const header = (
     <NativeGlassHeader
@@ -179,8 +210,12 @@ export default function PrototypeFinanceiro() {
           <NativeAnimatedNumber
             animationEnabled={!loading && !refreshing}
             color={theme.colors.textPrimary}
-            text={summary ? formatCurrency(summary.faturamento) : ''}
-            value={summary?.faturamento ?? null}
+            text={
+              displayedFaturamentoValue !== null
+                ? formatCurrency(displayedFaturamentoValue)
+                : ''
+            }
+            value={displayedFaturamentoValue}
           />
         </PremiumCard>
         <PremiumCard
@@ -206,8 +241,12 @@ export default function PrototypeFinanceiro() {
           <NativeAnimatedNumber
             animationEnabled={isNetProfitReady && !refreshing}
             color={theme.colors.textPrimary}
-            text={isNetProfitReady && summary ? formatCurrency(summary.lucroLiquido) : ''}
-            value={isNetProfitReady && summary ? summary.lucroLiquido : null}
+            text={
+              displayedLucroLiquidoValue !== null
+                ? formatCurrency(displayedLucroLiquidoValue)
+                : ''
+            }
+            value={displayedLucroLiquidoValue}
           />
         </PremiumCard>
         <SummaryCard

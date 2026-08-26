@@ -7,7 +7,7 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -15,17 +15,21 @@ import Animated, {
   Easing,
   runOnJS,
   runOnUI,
-  useAnimatedReaction,
+  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 
 import type { FinancialSeriesPoint } from '@/types/data';
 import { useAppTheme } from '@/theme';
 import { getFinancialChartLabelIndexes, getFinancialChartYCoordinates } from '@/utils/data';
 import { triggerSelectionHaptic } from '@/utils/haptics';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type Props = {
   points: readonly FinancialSeriesPoint[];
@@ -55,30 +59,24 @@ export function FinancialSeriesChart({
   const paddingBottom = 36;
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingTop - paddingBottom;
-  const values = points.map((point) => point.value);
-  const yCoordinates = getFinancialChartYCoordinates(values, chartHeight, paddingTop);
-  const coordinates = points.map((_, index) => ({
-    x: points.length === 1 ? width / 2 : paddingX + (index / (points.length - 1)) * chartWidth,
-    y: yCoordinates[index] ?? paddingTop + chartHeight,
-  }));
-  const datasetKey = points.map((point) => `${point.key}:${point.value}`).join('|');
+  const values = useMemo(() => points.map((point) => point.value), [points]);
+  const yCoordinates = useMemo(
+    () => getFinancialChartYCoordinates(values, chartHeight, paddingTop),
+    [chartHeight, paddingTop, values],
+  );
+  const coordinates = useMemo(
+    () =>
+      points.map((_, index) => ({
+        x: points.length === 1 ? width / 2 : paddingX + (index / (points.length - 1)) * chartWidth,
+        y: yCoordinates[index] ?? paddingTop + chartHeight,
+      })),
+    [chartHeight, chartWidth, paddingTop, points, width, yCoordinates],
+  );
+  const datasetKey = useMemo(
+    () => points.map((point) => `${point.key}:${point.value}`).join('|'),
+    [points],
+  );
   const animationProgress = useSharedValue(0);
-  const [animationState, setAnimationState] = useState(() => ({
-    datasetKey,
-    progress: 0,
-  }));
-  const updateAnimationState = useCallback(
-    (progress: number, nextDatasetKey: string) =>
-      setAnimationState({ datasetKey: nextDatasetKey, progress }),
-    [],
-  );
-  useAnimatedReaction(
-    () => animationProgress.value,
-    (current, previous) => {
-      if (current !== previous) runOnJS(updateAnimationState)(current, datasetKey);
-    },
-    [datasetKey, updateAnimationState],
-  );
   useEffect(() => {
     runOnUI(startChartAnimation)(animationProgress);
 
@@ -100,10 +98,106 @@ export function FinancialSeriesChart({
     }
   }, [isInteracting, scrubX, scrubY, selectedPoint]);
 
-  const visibleProgress = animationState.datasetKey === datasetKey ? animationState.progress : 0;
-  const visibleCoordinates = getProgressiveCoordinates(coordinates, visibleProgress);
-  const linePath = buildSmoothPath(visibleCoordinates);
-  const areaPath = buildAreaPath(visibleCoordinates, height - paddingBottom);
+  const animatedLineProps = useAnimatedProps(() => {
+    'worklet';
+
+    const getVisibleCoordinates = (progress: number): ChartCoordinate[] => {
+      if (coordinates.length <= 1 || progress >= 1) return [...coordinates];
+      if (progress <= 0) return coordinates.length > 0 ? [coordinates[0]] : [];
+
+      const position = progress * (coordinates.length - 1);
+      const endIndex = Math.floor(position);
+      const segmentProgress = position - endIndex;
+      if (segmentProgress === 0) return coordinates.slice(0, endIndex + 1);
+
+      const start = coordinates[endIndex];
+      const end = coordinates[endIndex + 1];
+      return [
+        ...coordinates.slice(0, endIndex + 1),
+        {
+          x: start.x + (end.x - start.x) * segmentProgress,
+          y: start.y + (end.y - start.y) * segmentProgress,
+        },
+      ];
+    };
+    const buildSmoothPath = (visibleCoordinates: readonly ChartCoordinate[]): string => {
+      if (visibleCoordinates.length === 0) return '';
+      if (visibleCoordinates.length === 1) {
+        return `M ${visibleCoordinates[0].x} ${visibleCoordinates[0].y}`;
+      }
+
+      let path = `M ${visibleCoordinates[0].x} ${visibleCoordinates[0].y}`;
+      for (let index = 0; index < visibleCoordinates.length - 1; index += 1) {
+        const previous = visibleCoordinates[index - 1] ?? visibleCoordinates[index];
+        const start = visibleCoordinates[index];
+        const end = visibleCoordinates[index + 1];
+        const next = visibleCoordinates[index + 2] ?? end;
+        const smoothing = 0.75 / 6;
+        const controlStartX = start.x + (end.x - previous.x) * smoothing;
+        const controlStartY = start.y + (end.y - previous.y) * smoothing;
+        const controlEndX = end.x - (next.x - start.x) * smoothing;
+        const controlEndY = end.y - (next.y - start.y) * smoothing;
+        path += ` C ${controlStartX} ${controlStartY}, ${controlEndX} ${controlEndY}, ${end.x} ${end.y}`;
+      }
+      return path;
+    };
+
+    return { d: buildSmoothPath(getVisibleCoordinates(animationProgress.value)) };
+  });
+  const animatedAreaProps = useAnimatedProps(() => {
+    'worklet';
+
+    const getVisibleCoordinates = (progress: number): ChartCoordinate[] => {
+      if (coordinates.length <= 1 || progress >= 1) return [...coordinates];
+      if (progress <= 0) return coordinates.length > 0 ? [coordinates[0]] : [];
+
+      const position = progress * (coordinates.length - 1);
+      const endIndex = Math.floor(position);
+      const segmentProgress = position - endIndex;
+      if (segmentProgress === 0) return coordinates.slice(0, endIndex + 1);
+
+      const start = coordinates[endIndex];
+      const end = coordinates[endIndex + 1];
+      return [
+        ...coordinates.slice(0, endIndex + 1),
+        {
+          x: start.x + (end.x - start.x) * segmentProgress,
+          y: start.y + (end.y - start.y) * segmentProgress,
+        },
+      ];
+    };
+    const buildSmoothPath = (visibleCoordinates: readonly ChartCoordinate[]): string => {
+      if (visibleCoordinates.length === 0) return '';
+      if (visibleCoordinates.length === 1) {
+        return `M ${visibleCoordinates[0].x} ${visibleCoordinates[0].y}`;
+      }
+
+      let path = `M ${visibleCoordinates[0].x} ${visibleCoordinates[0].y}`;
+      for (let index = 0; index < visibleCoordinates.length - 1; index += 1) {
+        const previous = visibleCoordinates[index - 1] ?? visibleCoordinates[index];
+        const start = visibleCoordinates[index];
+        const end = visibleCoordinates[index + 1];
+        const next = visibleCoordinates[index + 2] ?? end;
+        const smoothing = 0.75 / 6;
+        const controlStartX = start.x + (end.x - previous.x) * smoothing;
+        const controlStartY = start.y + (end.y - previous.y) * smoothing;
+        const controlEndX = end.x - (next.x - start.x) * smoothing;
+        const controlEndY = end.y - (next.y - start.y) * smoothing;
+        path += ` C ${controlStartX} ${controlStartY}, ${controlEndX} ${controlEndY}, ${end.x} ${end.y}`;
+      }
+      return path;
+    };
+
+    const visibleCoordinates = getVisibleCoordinates(animationProgress.value);
+    if (visibleCoordinates.length === 0) return { d: '' };
+
+    const linePath = buildSmoothPath(visibleCoordinates);
+    const first = visibleCoordinates[0];
+    const last = visibleCoordinates[visibleCoordinates.length - 1];
+    return {
+      d: `${linePath} L ${last.x} ${height - paddingBottom} L ${first.x} ${height - paddingBottom} Z`,
+    };
+  });
   const gridColor = theme.colors.separator;
   const textColor = theme.colors.textSecondary;
   const strokeColor = color ?? theme.colors.primary;
@@ -231,22 +325,28 @@ export function FinancialSeriesChart({
               />
             );
           })}
-          {areaPath ? <Path d={areaPath} fill="url(#financialChartAreaFill)" /> : null}
-          <Path
-            d={linePath}
+          <AnimatedPath
+            animatedProps={animatedAreaProps}
+            fill="url(#financialChartAreaFill)"
+          />
+          <AnimatedPath
+            animatedProps={animatedLineProps}
             fill="none"
             stroke={strokeColor}
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={lineWidth}
           />
-          {coordinates.map((point, index) =>
-            index <= getLastVisibleMarkerIndex(coordinates.length, visibleProgress) ? (
-              <Fragment key={`${point.x}-${point.y}`}>
-                <Circle cx={point.x} cy={point.y} fill={strokeColor} r={3.5} />
-              </Fragment>
-            ) : null,
-          )}
+          {coordinates.map((point, index) => (
+            <AnimatedChartMarker
+              color={strokeColor}
+              index={index}
+              key={`${point.x}-${point.y}`}
+              point={point}
+              pointCount={coordinates.length}
+              progress={animationProgress}
+            />
+          ))}
           {labelIndexes.map((index) => {
             const point = points[index];
             return (
@@ -280,6 +380,30 @@ export function FinancialSeriesChart({
         </View>
       </View>
     </GestureDetector>
+  );
+}
+
+type AnimatedChartMarkerProps = {
+  color: string;
+  index: number;
+  point: ChartCoordinate;
+  pointCount: number;
+  progress: SharedValue<number>;
+};
+
+function AnimatedChartMarker({ color, index, point, pointCount, progress }: AnimatedChartMarkerProps) {
+  const animatedProps = useAnimatedProps(() => ({
+    opacity: pointCount <= 1 || progress.value >= index / (pointCount - 1) ? 1 : 0,
+  }));
+
+  return (
+    <AnimatedCircle
+      animatedProps={animatedProps}
+      cx={point.x}
+      cy={point.y}
+      fill={color}
+      r={3.5}
+    />
   );
 }
 
@@ -366,66 +490,6 @@ function startChartAnimation(progress: { value: number }) {
     withTiming(0, { duration: 0 }),
     withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.cubic) }),
   );
-}
-
-function getProgressiveCoordinates(
-  coordinates: readonly ChartCoordinate[],
-  progress: number,
-): ChartCoordinate[] {
-  if (coordinates.length <= 1 || progress >= 1) return [...coordinates];
-  if (progress <= 0) return coordinates.length > 0 ? [coordinates[0]] : [];
-
-  const position = progress * (coordinates.length - 1);
-  const endIndex = Math.floor(position);
-  const segmentProgress = position - endIndex;
-  if (segmentProgress === 0) return coordinates.slice(0, endIndex + 1);
-
-  const start = coordinates[endIndex];
-  const end = coordinates[endIndex + 1];
-  return [
-    ...coordinates.slice(0, endIndex + 1),
-    {
-      x: start.x + (end.x - start.x) * segmentProgress,
-      y: start.y + (end.y - start.y) * segmentProgress,
-    },
-  ];
-}
-
-function buildSmoothPath(coordinates: readonly ChartCoordinate[]): string {
-  if (coordinates.length === 0) return '';
-  if (coordinates.length === 1) return `M ${coordinates[0].x} ${coordinates[0].y}`;
-
-  let path = `M ${coordinates[0].x} ${coordinates[0].y}`;
-  for (let index = 0; index < coordinates.length - 1; index += 1) {
-    const previous = coordinates[index - 1] ?? coordinates[index];
-    const start = coordinates[index];
-    const end = coordinates[index + 1];
-    const next = coordinates[index + 2] ?? end;
-    const smoothing = 0.75 / 6;
-    const controlStart = {
-      x: start.x + (end.x - previous.x) * smoothing,
-      y: start.y + (end.y - previous.y) * smoothing,
-    };
-    const controlEnd = {
-      x: end.x - (next.x - start.x) * smoothing,
-      y: end.y - (next.y - start.y) * smoothing,
-    };
-    path += ` C ${controlStart.x} ${controlStart.y}, ${controlEnd.x} ${controlEnd.y}, ${end.x} ${end.y}`;
-  }
-  return path;
-}
-
-function buildAreaPath(coordinates: readonly ChartCoordinate[], baseline: number): string {
-  if (coordinates.length === 0) return '';
-  const linePath = buildSmoothPath(coordinates);
-  const first = coordinates[0];
-  const last = coordinates[coordinates.length - 1];
-  return `${linePath} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
-}
-
-function getLastVisibleMarkerIndex(pointCount: number, progress: number): number {
-  if (pointCount <= 1) return pointCount - 1;
-  return Math.min(pointCount - 1, Math.floor(progress * (pointCount - 1)));
 }
 
 const styles = StyleSheet.create({

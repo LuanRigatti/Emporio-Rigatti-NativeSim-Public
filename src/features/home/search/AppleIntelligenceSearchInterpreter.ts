@@ -16,6 +16,8 @@ import type {
   HomeSearchRouteMetric,
 } from './HomeSearchTypes';
 
+const MIN_INTERPRETATION_CONFIDENCE = 0.6;
+
 export type NativeAppleIntelligenceSearchIntent = {
   confidence: number;
   intent: string;
@@ -262,7 +264,7 @@ export function toHomeSearchParsedQuery(
   if (
     !intent ||
     !Number.isFinite(intent.confidence) ||
-    intent.confidence < 0.75 ||
+    intent.confidence < MIN_INTERPRETATION_CONFIDENCE ||
     intent.confidence > 1
   ) {
     return null;

@@ -741,6 +741,39 @@ describe('HomeSearchService', () => {
     expect(response.query.financialMetric).toBe('netProfit');
   });
 
+  it('does not stop at a partial parser match for natural-language financial questions', async () => {
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue({
+        ...new HomeSearchQueryParser().parse('lucro líquido julho', new Date(2026, 7, 13, 12)),
+        financialMetric: 'netProfit',
+      }),
+    };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+
+    await service.search('qual meu lucro em julho', new Date(2026, 7, 13, 12));
+
+    expect(interpreter.interpret).toHaveBeenCalledWith(
+      'qual meu lucro em julho',
+      new Date(2026, 7, 13, 12),
+    );
+  });
+
+  it.each([
+    'quanto dinheiro realmente ficou pra mim no mês anterior?',
+    'qual meu lucro líquido mês passado?',
+  ])('routes an unresolved natural-language metric question to Apple Intelligence: %s', async (query) => {
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue(
+        new HomeSearchQueryParser().parse('lucro líquido julho', new Date(2026, 7, 13, 12)),
+      ),
+    };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+
+    await service.search(query, new Date(2026, 7, 13, 12));
+
+    expect(interpreter.interpret).toHaveBeenCalledWith(query, new Date(2026, 7, 13, 12));
+  });
+
   it('ranks exact client match before prefix and related deliveries', async () => {
     const response = await new HomeSearchService(new FixedDataSource()).search('ANDR\u00c9');
 

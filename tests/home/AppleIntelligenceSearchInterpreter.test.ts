@@ -58,9 +58,33 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     expect(query).not.toHaveProperty('total');
   });
 
-  it('rejects low-confidence and unsupported intents so the parser can take over', () => {
+  it('accepts a valid structured intent at the observed model confidence', () => {
+    const query = toHomeSearchParsedQuery('qual meu lucro em julho', {
+      ...baseIntent,
+      confidence: 0.65,
+      month: 7,
+    });
+
+    expect(query).toMatchObject({
+      financialMetric: 'netProfit',
+      period: { kind: 'month', month: 7, year: 2026 },
+    });
+  });
+
+  it('converts a native object and a JSON string through the same bridge contract', () => {
+    expect(toHomeSearchParsedQuery('lucro líquido agosto', baseIntent)).toMatchObject({
+      financialMetric: 'netProfit',
+    });
     expect(
-      toHomeSearchParsedQuery('quanto eu lucrei?', { ...baseIntent, confidence: 0.74 }),
+      toHomeSearchParsedQuery('lucro líquido agosto', JSON.stringify(baseIntent)),
+    ).toMatchObject({
+      financialMetric: 'netProfit',
+    });
+  });
+
+  it('rejects invalid JSON and genuinely low-confidence or unsupported intents', () => {
+    expect(
+      toHomeSearchParsedQuery('quanto eu lucrei?', { ...baseIntent, confidence: 0.59 }),
     ).toBeNull();
     expect(
       toHomeSearchParsedQuery('quanto eu lucrei?', {
@@ -68,6 +92,7 @@ describe('Apple Intelligence Home Search intent conversion', () => {
         financialMetric: 'inventedMetric',
       }),
     ).toBeNull();
+    expect(toHomeSearchParsedQuery('quanto eu lucrei?', '{invalid-json')).toBeNull();
   });
 
   it('does not activate or bypass the existing Modo Teste presentation masking', () => {

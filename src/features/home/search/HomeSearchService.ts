@@ -773,15 +773,15 @@ function countResults(results: readonly HomeSearchResult[]): HomeSearchDomainCou
   );
 }
 
-const SEMANTIC_LANGUAGE_CUES =
-  /\b(quanto|quantos|quantas|qual|quais|como|me\s+diga|mostre|lucrei|sobrou|gastei|recebi|paguei|vendi|vendemos|tive|fiz|consumi|anteontem)\b/;
+const UNPARSED_NATURAL_LANGUAGE =
+  /\b(quanto|quantos|quantas|qual|quais|como|meu|minha|mim|eu|me\s+diga|mostre|lucrei|sobrou|gastei|recebi|paguei|vendi|vendemos|tive|fiz|consumi|anteontem|realmente|ficou)\b/;
 
 function homeSearchDevLog(event: string): void {
   if (__DEV__) console.info('[APPLE INTELLIGENCE]', event);
 }
 
-function shouldUseSemanticInterpreter(query: HomeSearchParsedQuery): boolean {
-  const hasStructuredParserMatch = Boolean(
+function parserProducedExecutableQuery(query: HomeSearchParsedQuery): boolean {
+  const hasStructuredParserResult = Boolean(
     query.periodSummary ||
       query.financialMetric ||
       query.factoryMetric ||
@@ -796,8 +796,12 @@ function shouldUseSemanticInterpreter(query: HomeSearchParsedQuery): boolean {
       query.money !== undefined,
   );
 
-  if (hasStructuredParserMatch) return false;
-  return SEMANTIC_LANGUAGE_CUES.test(query.normalized);
+  if (!query.text) return hasStructuredParserResult || Boolean(query.period);
+
+  // `text` is the parser's remaining entity/client text. A structured intent
+  // plus question/verb residue means the parser recognized fragments, but not
+  // the complete request, so semantic interpretation must get a chance.
+  return !UNPARSED_NATURAL_LANGUAGE.test(query.text);
 }
 
 export class HomeSearchService {
@@ -813,22 +817,29 @@ export class HomeSearchService {
     const request = ++this.latestRequest;
     const fallbackQuery = homeSearchQueryParser.parse(original, referenceDate);
     if (!fallbackQuery.normalized) {
-      homeSearchDevLog('parser fast path: empty query');
+      homeSearchDevLog('parser-success');
       return this.searchParsedInternal(fallbackQuery, request);
     }
 
-    if (!this.interpreter || !shouldUseSemanticInterpreter(fallbackQuery)) {
-      homeSearchDevLog('parser fast path');
+    if (parserProducedExecutableQuery(fallbackQuery)) {
+      homeSearchDevLog('parser-success');
       return this.searchParsedInternal(fallbackQuery, request);
     }
 
-    homeSearchDevLog('semantic path: Apple Intelligence');
+    homeSearchDevLog('parser-failed -> semantic');
+    if (!this.interpreter) {
+      homeSearchDevLog('semantic-fallback: interpreter-unavailable');
+      return this.searchParsedInternal(fallbackQuery, request);
+    }
+
+    homeSearchDevLog('semantic-start');
     let interpretedQuery: HomeSearchParsedQuery | null = null;
     try {
       interpretedQuery = (await this.interpreter.interpret(original, referenceDate)) ?? null;
     } catch {
       interpretedQuery = null;
     }
+    homeSearchDevLog(interpretedQuery ? 'semantic-success' : 'semantic-fallback');
     return this.searchParsedInternal(interpretedQuery ?? fallbackQuery, request);
   }
 

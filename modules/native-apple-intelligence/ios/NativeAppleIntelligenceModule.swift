@@ -8,7 +8,7 @@ import FoundationModels
 @available(iOS 26.0, *)
 @Generable
 private struct NativeAppleSearchIntentPayload {
-  @Guide(description: "Confidence from 0 to 1. Use a value below 0.75 when the query is ambiguous.")
+  @Guide(description: "Confidence from 0 to 1. Use a value below 0.6 when the query is ambiguous.")
   let confidence: Double
 
   @Guide(description: "One of: client, delivery, financialMetric, factoryMetric, routeMetric, carMetric, periodSummary, clientField, search.")
@@ -93,7 +93,7 @@ public final class NativeAppleIntelligenceModule: Module {
       Self.foundationModelsSupportsCurrentLocale
     }
 
-    AsyncFunction("interpret") { (query: String, referenceDateISO: String) async throws -> String? in
+    AsyncFunction("interpret") { (query: String, referenceDateISO: String) async throws -> [String: Any]? in
       guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
       return try await Self.interpret(query: query, referenceDateISO: referenceDateISO)
     }
@@ -133,7 +133,7 @@ private extension NativeAppleIntelligenceModule {
     return false
   }
 
-  static func interpret(query: String, referenceDateISO: String) async throws -> String? {
+  static func interpret(query: String, referenceDateISO: String) async throws -> [String: Any]? {
 #if canImport(FoundationModels)
     if #available(iOS 26.0, *) {
       let model = SystemLanguageModel.default
@@ -174,7 +174,7 @@ private extension NativeAppleIntelligenceModule {
           generating: NativeAppleSearchIntentPayload.self,
           includeSchemaInPrompt: true
         )
-        let encoded = try encode(response.content)
+        let encoded = encode(response.content)
         logger.info("generation finished durationMs=\(Int(Date().timeIntervalSince(startedAt) * 1000), privacy: .public) structuredResponse=received")
         return encoded
       } catch {
@@ -216,7 +216,7 @@ private extension NativeAppleIntelligenceModule {
       You receive no business records and must never invent, retrieve, calculate, or return financial values.
       Never return totals, prices, balances, percentages, revenue, profit, or any other computed result.
       Use only the allowed existing enum names described by each field. Use empty strings, -1, or false when unused.
-      Keep confidence below 0.75 whenever the request is ambiguous or an enum is uncertain.
+      Keep confidence below 0.6 whenever the request is ambiguous or an enum is uncertain.
       The reference date is supplied as a local calendar date so relative dates can be resolved.
       """)
   }
@@ -243,8 +243,8 @@ private extension NativeAppleIntelligenceModule {
 
 #if canImport(FoundationModels)
   @available(iOS 26.0, *)
-  static func encode(_ payload: NativeAppleSearchIntentPayload) throws -> String {
-    let object: [String: Any] = [
+  static func encode(_ payload: NativeAppleSearchIntentPayload) -> [String: Any] {
+    return [
       "confidence": payload.confidence,
       "intent": payload.intent,
       "text": payload.text,
@@ -268,11 +268,6 @@ private extension NativeAppleIntelligenceModule {
       "carMetric": payload.carMetric,
       "periodSummary": payload.periodSummary,
     ]
-    let data = try JSONSerialization.data(withJSONObject: object)
-    guard let json = String(data: data, encoding: .utf8) else {
-      throw NSError(domain: "NativeAppleIntelligence", code: 1)
-    }
-    return json
   }
 #endif
 }

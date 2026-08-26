@@ -1,4 +1,6 @@
-import { View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+
+import { useAppTheme } from '@/theme';
 
 import type { HomeSearchResponse } from '../search/HomeSearchTypes';
 import HomeSearchResultsFallback from './HomeSearchResultsFallback';
@@ -6,10 +8,27 @@ import { createHomeSearchResultVisualModel } from './HomeSearchResultsVisualMode
 
 type Props = {
   isLarge?: boolean;
+  loading: boolean;
   response: HomeSearchResponse | null;
 };
 
-export default function HomeSearchResultsContent({ response }: Props) {
-  if (!response) return <View />;
+export default function HomeSearchResultsContent({ loading, response }: Props) {
+  const { theme } = useAppTheme();
+  if (!response) {
+    return loading ? (
+      <View style={styles.loading}>
+        <ActivityIndicator color={theme.colors.textSecondary} />
+        <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
+          Buscando…
+        </Text>
+      </View>
+    ) : (
+      <View />
+    );
+  }
   return <HomeSearchResultsFallback model={createHomeSearchResultVisualModel(response)} />;
 }
+
+const styles = StyleSheet.create({
+  loading: { alignItems: 'center', gap: 8, justifyContent: 'center', minHeight: 120 },
+});

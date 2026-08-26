@@ -70,35 +70,32 @@ function reduce(
 const firstResult = response('Luciano');
 
 describe('HomeSearchPresentationFlow', () => {
-  it('does not publish visible before the implementation and content are ready', () => {
-    const resultReady = reduce([
-      { type: 'SEARCH_SUBMITTED', searchId: 1 },
-      { type: 'RESULT_RECEIVED', searchId: 1, response: firstResult },
-      { type: 'CONTENT_COMMITTED' },
-    ]);
+  it('presents the sheet immediately while the search is still in flight', () => {
+    const searching = reduce([{ type: 'SEARCH_SUBMITTED', searchId: 1 }]);
 
-    expect(resultReady.phase).toBe('resultReady');
-    expect(isHomeSearchSheetVisible(resultReady)).toBe(false);
+    expect(searching.phase).toBe('presenting');
+    expect(searching.response).toBeNull();
+    expect(searching.searchInFlight).toBe(true);
+    expect(isHomeSearchSheetVisible(searching)).toBe(true);
 
-    const ready = homeSearchPresentationReducer(resultReady, {
-      type: 'IMPLEMENTATION_READY',
+    const withResult = homeSearchPresentationReducer(searching, {
+      type: 'RESULT_RECEIVED',
+      searchId: 1,
+      response: firstResult,
     });
-    expect(ready.phase).toBe('readyToPresent');
-    expect(isHomeSearchSheetVisible(ready)).toBe(false);
+    expect(withResult.phase).toBe('presenting');
+    expect(withResult.response).toBe(firstResult);
+    expect(isHomeSearchSheetVisible(withResult)).toBe(true);
   });
 
-  it('keeps the fallback hidden while SwiftUI is loading', () => {
-    const state = reduce([
-      { type: 'SEARCH_SUBMITTED', searchId: 1 },
-      { type: 'RESULT_RECEIVED', searchId: 1, response: firstResult },
-      { type: 'CONTENT_COMMITTED' },
-    ]);
+  it('keeps the loading state visible while SwiftUI content is loading', () => {
+    const state = reduce([{ type: 'SEARCH_SUBMITTED', searchId: 1 }]);
 
     expect(state.implementationReady).toBe(false);
-    expect(isHomeSearchSheetVisible(state)).toBe(false);
+    expect(isHomeSearchSheetVisible(state)).toBe(true);
   });
 
-  it('creates only one false to true visibility cycle per presentation', () => {
+  it('does not request a second presentation for a result arriving after the sheet opens', () => {
     const ready = reduce([
       { type: 'IMPLEMENTATION_READY' },
       { type: 'SEARCH_SUBMITTED', searchId: 1 },
@@ -112,10 +109,11 @@ describe('HomeSearchPresentationFlow', () => {
       type: 'PRESENTATION_REQUESTED',
     });
 
-    expect(isHomeSearchSheetVisible(ready)).toBe(false);
+    expect(ready.phase).toBe('presenting');
+    expect(isHomeSearchSheetVisible(ready)).toBe(true);
     expect(isHomeSearchSheetVisible(presenting)).toBe(true);
     expect(duplicateRequest).toBe(presenting);
-    expect(duplicateRequest.presentationId).toBe(1);
+    expect(duplicateRequest.presentationId).toBe(0);
   });
 
   it('returns to idle only after the native onDismiss confirmation', () => {
@@ -161,8 +159,9 @@ describe('HomeSearchPresentationFlow', () => {
       dismissing,
     );
 
-    expect(readyAgain.phase).toBe('readyToPresent');
+    expect(readyAgain.phase).toBe('presenting');
     expect(readyAgain.response).toBe(secondResult);
+    expect(isHomeSearchSheetVisible(readyAgain)).toBe(true);
   });
 
   it('keeps the current sheet data mounted while a new search waits for dismissal', () => {
@@ -220,7 +219,8 @@ describe('HomeSearchPresentationFlow', () => {
     });
 
     expect(ready.response).toBe(nextResult);
-    expect(presenting.presentationId).toBe(1);
+    expect(presenting).toBe(ready);
+    expect(presenting.presentationId).toBe(0);
     expect(isHomeSearchSheetVisible(presenting)).toBe(true);
   });
 });

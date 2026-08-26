@@ -87,14 +87,14 @@ export function homeSearchPresentationReducer(
 
     case 'SEARCH_SUBMITTED': {
       const mustDismiss =
-        state.phase === 'presenting' || state.phase === 'presented' || state.phase === 'dismissing';
+        state.phase === 'presented' || state.phase === 'dismissing';
 
       return {
         ...state,
         activeSearchId: event.searchId,
         contentReady: false,
         pendingResponse: null,
-        phase: mustDismiss ? 'dismissing' : 'searching',
+        phase: mustDismiss ? 'dismissing' : 'presenting',
         response: mustDismiss ? state.response : null,
         searchInFlight: true,
       };
@@ -112,6 +112,14 @@ export function homeSearchPresentationReducer(
         return {
           ...state,
           pendingResponse: event.response,
+          searchInFlight: false,
+        };
+      }
+      if (state.phase === 'presenting' || state.phase === 'presented') {
+        return {
+          ...state,
+          contentReady: true,
+          response: event.response,
           searchInFlight: false,
         };
       }

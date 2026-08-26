@@ -773,6 +773,33 @@ function countResults(results: readonly HomeSearchResult[]): HomeSearchDomainCou
   );
 }
 
+const SEMANTIC_LANGUAGE_CUES =
+  /\b(quanto|quantos|quantas|qual|quais|como|me\s+diga|mostre|lucrei|sobrou|gastei|recebi|paguei|vendi|vendemos|tive|fiz|consumi|anteontem)\b/;
+
+function homeSearchDevLog(event: string): void {
+  if (__DEV__) console.info('[APPLE INTELLIGENCE]', event);
+}
+
+function shouldUseSemanticInterpreter(query: HomeSearchParsedQuery): boolean {
+  const hasStructuredParserMatch = Boolean(
+    query.periodSummary ||
+      query.financialMetric ||
+      query.factoryMetric ||
+      query.routeMetric ||
+      query.carMetric ||
+      query.clientField ||
+      query.factoryStatus ||
+      query.factoryPaymentDateUnsupported ||
+      query.paymentStatus ||
+      query.documentType ||
+      query.quantity !== undefined ||
+      query.money !== undefined,
+  );
+
+  if (hasStructuredParserMatch) return false;
+  return SEMANTIC_LANGUAGE_CUES.test(query.normalized);
+}
+
 export class HomeSearchService {
   private latestRequest = 0;
 
@@ -785,15 +812,22 @@ export class HomeSearchService {
   public async search(original: string, referenceDate = new Date()): Promise<HomeSearchResponse> {
     const request = ++this.latestRequest;
     const fallbackQuery = homeSearchQueryParser.parse(original, referenceDate);
-    if (!fallbackQuery.normalized) return this.searchParsedInternal(fallbackQuery, request);
+    if (!fallbackQuery.normalized) {
+      homeSearchDevLog('parser fast path: empty query');
+      return this.searchParsedInternal(fallbackQuery, request);
+    }
 
+    if (!this.interpreter || !shouldUseSemanticInterpreter(fallbackQuery)) {
+      homeSearchDevLog('parser fast path');
+      return this.searchParsedInternal(fallbackQuery, request);
+    }
+
+    homeSearchDevLog('semantic path: Apple Intelligence');
     let interpretedQuery: HomeSearchParsedQuery | null = null;
-    if (this.interpreter) {
-      try {
-        interpretedQuery = (await this.interpreter.interpret(original, referenceDate)) ?? null;
-      } catch {
-        interpretedQuery = null;
-      }
+    try {
+      interpretedQuery = (await this.interpreter.interpret(original, referenceDate)) ?? null;
+    } catch {
+      interpretedQuery = null;
     }
     return this.searchParsedInternal(interpretedQuery ?? fallbackQuery, request);
   }

@@ -13,6 +13,7 @@ const HOME_SEARCH_DETENTS: NonNullable<NativeBottomSheetProps['detents']> = [
 ];
 
 type Props = {
+  loading: boolean;
   onDismiss: () => void;
   onImplementationReady: (implementation: 'swiftui' | 'fallback') => void;
   onVisibleChange: (visible: boolean) => void;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export function HomeSearchResultsSheet({
+  loading,
   onDismiss,
   onImplementationReady,
   onVisibleChange,
@@ -39,7 +41,7 @@ export function HomeSearchResultsSheet({
 
   return (
     <NativeBottomSheet
-      content={<HomeSearchResultsContent isLarge={isLarge} response={response} />}
+      content={<HomeSearchResultsContent isLarge={isLarge} loading={loading} response={response} />}
       detents={HOME_SEARCH_DETENTS}
       hostSizing="viewport"
       items={[]}

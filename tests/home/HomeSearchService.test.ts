@@ -712,6 +712,35 @@ describe('HomeSearchService', () => {
     expect(dataSource.calls).toBe(0);
   });
 
+  it('uses the existing parser immediately for structured queries', async () => {
+    const interpreter = { interpret: jest.fn() };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+
+    await service.search('faturamento agosto', new Date(2026, 7, 13, 12));
+
+    expect(interpreter.interpret).not.toHaveBeenCalled();
+  });
+
+  it('uses Apple Intelligence only for natural-language semantic queries', async () => {
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue(
+        new HomeSearchQueryParser().parse('lucro líquido agosto', new Date(2026, 7, 13, 12)),
+      ),
+    };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+
+    const response = await service.search(
+      'Quanto eu lucrei em agosto?',
+      new Date(2026, 7, 13, 12),
+    );
+
+    expect(interpreter.interpret).toHaveBeenCalledWith(
+      'Quanto eu lucrei em agosto?',
+      new Date(2026, 7, 13, 12),
+    );
+    expect(response.query.financialMetric).toBe('netProfit');
+  });
+
   it('ranks exact client match before prefix and related deliveries', async () => {
     const response = await new HomeSearchService(new FixedDataSource()).search('ANDR\u00c9');
 

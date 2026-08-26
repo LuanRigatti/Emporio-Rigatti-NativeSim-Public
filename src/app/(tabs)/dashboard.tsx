@@ -13,6 +13,7 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
+import { prewarmAppleIntelligence } from '@/features/home/search/AppleIntelligenceSearchInterpreter';
 import {
   homeSearchPresentationReducer,
   initialHomeSearchPresentationState,
@@ -127,6 +128,10 @@ export default function Home() {
 
   const handleSearchTextChange = useCallback((value: string) => setSearchText(value), []);
 
+  const handleSearchFocusChange = useCallback((focused: boolean) => {
+    if (focused) void prewarmAppleIntelligence();
+  }, []);
+
   const handleSearchSubmit = useCallback(
     (submittedValue: string) => {
       const searchId = activeSearchId.current + 1;
@@ -240,6 +245,7 @@ export default function Home() {
           <NativeSearchField
             accessibilityLabel="Buscar clientes, entregas e filtros"
             onChangeText={handleSearchTextChange}
+            onFocusChange={handleSearchFocusChange}
             onPressHelp={handlePressHelp}
             onSubmit={handleSearchSubmit}
             placeholder="Busque clientes, entregas e filtros"
@@ -404,6 +410,7 @@ export default function Home() {
 
       </PremiumScreen>
       <HomeSearchResultsSheet
+        loading={searchFlow.searchInFlight}
         onDismiss={handleSearchSheetDismiss}
         onImplementationReady={handleSearchSheetImplementationReady}
         onVisibleChange={handleSearchSheetVisibleChange}

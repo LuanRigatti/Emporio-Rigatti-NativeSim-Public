@@ -43,16 +43,24 @@ export type NativeAppleIntelligenceSearchIntent = {
 
 type NativeAppleIntelligenceModule = {
   isAvailable?: boolean;
+  availability?: string;
+  localeIdentifier?: string;
+  supportsLocale?: boolean;
   interpret(
     query: string,
     referenceDateISO: string,
   ): Promise<string | NativeAppleIntelligenceSearchIntent | null>;
+  prewarm?: () => Promise<void>;
 };
 
 const nativeAppleIntelligence =
   Platform.OS === 'ios'
     ? requireOptionalNativeModule<NativeAppleIntelligenceModule>('NativeAppleIntelligence')
     : null;
+
+function appleIntelligenceDevLog(event: string, details?: unknown): void {
+  if (__DEV__) console.info('[APPLE INTELLIGENCE]', event, details ?? '');
+}
 
 const FINANCIAL_METRICS: ReadonlySet<HomeSearchFinancialMetric> = new Set([
   'bucketsSold',
@@ -370,18 +378,82 @@ export class AppleIntelligenceSearchInterpreter implements HomeSearchSearchInter
     original: string,
     referenceDate: Date,
   ): Promise<HomeSearchParsedQuery | null> {
-    if (!nativeAppleIntelligence?.isAvailable) return null;
+    if (!nativeAppleIntelligence) {
+      appleIntelligenceDevLog('fallback', { reason: 'nativeModuleUnavailable' });
+      return null;
+    }
+    appleIntelligenceDevLog('request', {
+      availability: nativeAppleIntelligence.availability ?? 'unknown',
+      locale: nativeAppleIntelligence.localeIdentifier ?? 'unknown',
+      modelIsAvailable: nativeAppleIntelligence.isAvailable ?? 'unknown',
+      queryLength: original.length,
+      supportsLocale: nativeAppleIntelligence.supportsLocale ?? 'unknown',
+    });
+    if (nativeAppleIntelligence.isAvailable === false) {
+      appleIntelligenceDevLog('fallback', { reason: 'modelUnavailable' });
+      return null;
+    }
+    const startedAt = Date.now();
     try {
       const rawIntent = await nativeAppleIntelligence.interpret(
         original,
-        referenceDate.toISOString(),
+        calendarDateISO(referenceDate),
       );
-      return toHomeSearchParsedQuery(original, rawIntent);
-    } catch {
+      const parsedIntent = toHomeSearchParsedQuery(original, rawIntent);
+      const rawObject = typeof rawIntent === 'string' ? parseJSON(rawIntent) : rawIntent;
+      appleIntelligenceDevLog('response', {
+        confidence: isRecord(rawObject) ? rawObject.confidence : undefined,
+        durationMs: Date.now() - startedAt,
+        parsed: parsedIntent
+          ? {
+              detectedTypes: parsedIntent.detectedTypes,
+              financialMetric: parsedIntent.financialMetric,
+              period: parsedIntent.period,
+              textLength: parsedIntent.text?.length ?? 0,
+            }
+          : null,
+        rawShape:
+          typeof rawIntent === 'string'
+            ? 'json-string'
+            : rawIntent && typeof rawIntent === 'object'
+              ? Object.keys(rawIntent)
+              : rawIntent === null
+                ? 'null'
+                : typeof rawIntent,
+      });
+      if (!parsedIntent) {
+        appleIntelligenceDevLog('fallback', {
+          reason: rawIntent ? 'structuredIntentRejected' : 'emptyStructuredIntent',
+        });
+      }
+      return parsedIntent;
+    } catch (error) {
+      appleIntelligenceDevLog('error', {
+        durationMs: Date.now() - startedAt,
+        message: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }
 }
 
+function calendarDateISO(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+export async function prewarmAppleIntelligence(): Promise<void> {
+  if (!nativeAppleIntelligence?.prewarm) return;
+  try {
+    await nativeAppleIntelligence.prewarm();
+    appleIntelligenceDevLog('prewarmCompleted');
+  } catch (error) {
+    appleIntelligenceDevLog('prewarmError', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export const appleIntelligenceSearchInterpreter: HomeSearchSearchInterpreter | null =
-  nativeAppleIntelligence?.isAvailable ? new AppleIntelligenceSearchInterpreter() : null;
+  nativeAppleIntelligence ? new AppleIntelligenceSearchInterpreter() : null;

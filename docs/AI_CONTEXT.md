@@ -4,7 +4,7 @@
 > Documento mestre para qualquer agente de IA (Codex, Gemini, Claude, Continue, Cursor, etc.)
 
 Para o estado atual do produto, schema, flags e áreas já validadas, consulte
-`docs/current-state.md`. Os documentos em `docs/migration/` são históricos.
+`docs/current-state.md`. O histórico da migração anterior permanece no histórico Git e não é contexto operacional.
 
 # Objetivo do Projeto
 

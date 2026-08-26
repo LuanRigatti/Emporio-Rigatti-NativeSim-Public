@@ -121,10 +121,10 @@ Nenhuma tarefa ativa registrada.
 - Não assumir que um status antigo “não commitado” ainda seja verdadeiro apenas
   porque aparece em uma seção histórica.
 
-Este documento é a referência operacional para novas tarefas. O conteúdo de
-`docs/migration/` que descreve o Ionic, o Realtime Database ou o schema antigo
-é histórico e não deve orientar novas implementações, salvo quando a tarefa
-pedir uma auditoria histórica explícita.
+Este documento é a referência operacional para novas tarefas. O material
+histórico da migração que descreve o Ionic, o Realtime Database ou o schema
+antigo permanece no histórico Git e não deve orientar novas implementações,
+salvo quando a tarefa pedir uma auditoria histórica explícita.
 
 ## Identidade do aplicativo
 

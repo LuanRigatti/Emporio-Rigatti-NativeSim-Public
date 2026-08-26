@@ -12,7 +12,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 4. O aplicativo atual é a fonte de comportamento. Para cada funcionalidade, analise os arquivos atuais de UI, hooks, services, repositories, tipos, Firebase, cálculos, validações, filtros, ordenações, navegação e regras de negócio.
 
-5. Não invente regras. Use o comportamento atual validado e `docs/migration/confirmed-decisions.md` como referência.
+5. Não invente regras. Use o comportamento atual validado, `docs/AI_CONTEXT.md` e o Snapshot operacional no topo de `docs/current-state.md` como referência.
 
 6. Quando algum comportamento não puder ser determinado, pare e informe claramente a dúvida.
 
@@ -38,9 +38,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 ## Estado atual e decisões de negócio/arquitetura confirmadas
 
-As decisões detalhadas e permanentes estão documentadas em `docs/migration/confirmed-decisions.md` e devem ser respeitadas em todas as implementações futuras.
-
-`docs/current-state.md` é a fonte principal do estado operacional atual. Os documentos em `docs/migration/` são históricos e não devem orientar novas implementações, salvo quando a tarefa pedir auditoria histórica explícita.
+`docs/AI_CONTEXT.md` e o Snapshot operacional no topo de `docs/current-state.md` são as fontes atuais de contexto e decisões. Quando a tarefa envolver UI ou design, consulte também `docs/design-system.md`. O histórico da migração anterior permanece apenas no histórico Git e não orienta novas implementações.
 
 O projeto atual usa Google/Firebase Auth e Cloud Firestore como persistência de negócio. O schema ativo é por usuário em `users/{uid}/...`, com documentos independentes e consultas granulares. O Firebase legado não é fonte de verdade e não deve ser acessado em novas funcionalidades, salvo solicitação explícita de auditoria.
 

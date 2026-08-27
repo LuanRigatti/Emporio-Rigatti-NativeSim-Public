@@ -1,10 +1,8 @@
-import { Stack, useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
-import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 
 import { SettingItem } from './SettingItem';
@@ -13,16 +11,6 @@ import { SettingsSection } from './SettingsSection';
 export function SettingsScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const { isAuthenticated, signOutMock } = useSession();
-
-  const handleSignOut = useCallback(async () => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    await signOutMock();
-    router.replace('/login');
-  }, [isAuthenticated, router, signOutMock]);
 
   const header = (
     <NativeGlassHeader
@@ -40,28 +28,8 @@ export function SettingsScreen() {
   );
   const menuHeader = <NativeGlassHeader includeTopSafeArea mode="transparent" title="" />;
 
-  const settingsToolbar = (
-    <Stack.Toolbar placement="right">
-      <Stack.Toolbar.Menu
-        accessibilityLabel="Mais opções das Configurações"
-        icon="ellipsis"
-        separateBackground={false}
-        title="Mais opções das Configurações"
-      >
-        <Stack.Toolbar.MenuAction
-          destructive
-          icon="rectangle.portrait.and.arrow.right"
-          onPress={() => void handleSignOut()}
-        >
-          Sair da conta
-        </Stack.Toolbar.MenuAction>
-      </Stack.Toolbar.Menu>
-    </Stack.Toolbar>
-  );
-
   return (
     <>
-      {settingsToolbar}
       <PremiumScreen
         contentContainerStyle={[
           styles.content,

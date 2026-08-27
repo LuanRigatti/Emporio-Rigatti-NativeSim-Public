@@ -73,6 +73,7 @@ export default function NativeBottomSheetSwiftUI({
   selectedItem: controlledSelectedItem,
   initialQuantity,
   initialDetent,
+  selectedDetent,
   glassSurface = false,
   presentationBackgroundMode = 'system',
   hostSizing = 'content',
@@ -82,7 +83,7 @@ export default function NativeBottomSheetSwiftUI({
     useTestModePresentation();
   const internalCardBackground =
     resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
-  const usesRegistrarGlassSurface = glassSurface && content == null;
+  const usesRegistrarSheetBehavior = content == null;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
@@ -414,16 +415,24 @@ export default function NativeBottomSheetSwiftUI({
       ? wrapWithGlassSurface(content)
       : content
     : registroSheetContent;
+  const presentationBackgroundModifier =
+    glassSurface || presentationBackgroundMode !== 'native'
+      ? presentationBackground(
+          glassSurface || presentationBackgroundMode === 'transparent'
+            ? NATIVE_SHEET_TRANSPARENT_BACKGROUND
+            : NATIVE_SHEET_PRESENTATION_BACKGROUND,
+        )
+      : null;
   const isListExpanded =
-    usesRegistrarGlassSurface &&
+    usesRegistrarSheetBehavior &&
     typeof currentDetent === 'object' &&
     'fraction' in currentDetent &&
     currentDetent.fraction === REGISTRAR_LIST_EXPANDED_DETENT.fraction;
   const detailTransitionNeedsExpandedDetent =
-    usesRegistrarGlassSurface && selectedItem && isListExpanded && !detailDetentSettled;
+    usesRegistrarSheetBehavior && selectedItem && isListExpanded && !detailDetentSettled;
   const sheetDetents =
     detents ??
-    (usesRegistrarGlassSurface
+    (usesRegistrarSheetBehavior
       ? selectedItem
         ? detailTransitionNeedsExpandedDetent
           ? ([REGISTRAR_LIST_COMPACT_DETENT, REGISTRAR_LIST_EXPANDED_DETENT] as const)
@@ -433,20 +442,21 @@ export default function NativeBottomSheetSwiftUI({
         ? ([initialDetent, 'large'] as const)
         : ([{ fraction: 0.48 }, 'large'] as const));
 
-  const selectedSheetDetent = usesRegistrarGlassSurface
+  const selectedSheetDetent = usesRegistrarSheetBehavior
     ? selectedItem
       ? REGISTRAR_DETAIL_DETENT
       : isListExpanded
         ? REGISTRAR_LIST_EXPANDED_DETENT
         : REGISTRAR_LIST_COMPACT_DETENT
     : undefined;
+  const presentationSelection = selectedDetent ?? selectedSheetDetent ?? initialDetent;
 
   const handleIsPresentedChange = (nextVisible: boolean) => {
     onVisibleChange(nextVisible);
   };
 
   const handleDetentChange = (detent: PresentationDetent) => {
-    if (glassSurface) {
+    if (usesRegistrarSheetBehavior) {
       setCurrentDetent(detent);
 
       if (
@@ -482,21 +492,17 @@ export default function NativeBottomSheetSwiftUI({
       >
         <Group
           modifiers={[
-            presentationBackground(
-              glassSurface || presentationBackgroundMode === 'transparent'
-                ? NATIVE_SHEET_TRANSPARENT_BACKGROUND
-                : NATIVE_SHEET_PRESENTATION_BACKGROUND,
-            ),
+            ...(presentationBackgroundModifier ? [presentationBackgroundModifier] : []),
             presentationDetents(
               [...sheetDetents],
-              glassSurface || initialDetent || onDetentChange
+              usesRegistrarSheetBehavior || initialDetent || selectedDetent || onDetentChange
                 ? {
-                    ...(selectedSheetDetent
-                      ? { selection: selectedSheetDetent }
+                    ...(presentationSelection
+                      ? { selection: presentationSelection }
                       : initialDetent
                         ? { selection: initialDetent }
                         : {}),
-                    ...(glassSurface || onDetentChange
+                    ...(usesRegistrarSheetBehavior || selectedDetent || onDetentChange
                       ? { onSelectionChange: handleDetentChange }
                       : {}),
                   }

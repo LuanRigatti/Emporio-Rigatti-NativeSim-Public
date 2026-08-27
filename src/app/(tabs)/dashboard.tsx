@@ -5,14 +5,15 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeSearchField } from '@/components/native';
-import { useAppTheme } from '@/theme';
-import { useAppSafeAreaInsets } from '@/providers';
+import { NativeAvatarButton, NativeSearchField } from '@/components/native';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
+import { HomeProfileSheet } from '@/features/home/profile/HomeProfileSheet';
 import { prewarmAppleIntelligence } from '@/features/home/search/AppleIntelligenceSearchInterpreter';
 import {
   homeSearchPresentationReducer,
@@ -43,7 +44,8 @@ function PreviewIcon({
 export default function Home() {
   const router = useRouter();
   const isFocused = useIsFocused();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
+  const { user } = useAuth();
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const insets = useAppSafeAreaInsets();
   const [focusEntryKey, setFocusEntryKey] = useState(0);
@@ -51,6 +53,7 @@ export default function Home() {
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
   const [isHelpSheetVisible, setIsHelpSheetVisible] = useState(false);
+  const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
   const [searchFlow, dispatchSearchFlow] = useReducer(
     homeSearchPresentationReducer,
     initialHomeSearchPresentationState,
@@ -211,6 +214,33 @@ export default function Home() {
     router.push('/fabrica-compras');
   };
 
+  const handleOpenProfile = useCallback(() => {
+    setIsProfileSheetVisible(true);
+  }, []);
+
+  const accountName = user?.displayName?.trim() || 'Conta';
+
+  const homeToolbar = (
+    <NativeGlassHeader
+      includeTopSafeArea
+      mode="transparent"
+      rightActions={
+        <NativeAvatarButton
+          accessibilityHint="Exibe os dados da conta e a opção de sair"
+          accessibilityLabel="Abrir perfil da conta"
+          avatarSize="medium"
+          containerSize={theme.sizes.touchTargetMinimum}
+          glassTint={getLiquidGlassTint(resolvedMode)}
+          haptic="light"
+          imageUri={user?.photoUrl}
+          name={accountName}
+          onPress={handleOpenProfile}
+        />
+      }
+      title=""
+    />
+  );
+
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -238,6 +268,8 @@ export default function Home() {
         }
         progressiveBlurTopOffset={0}
         progressiveBlur
+        overlayHeader={homeToolbar}
+        overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
       >
         <View style={styles.header}>{homeHeader}</View>
 
@@ -421,6 +453,10 @@ export default function Home() {
         onDismiss={handleHelpSheetDismiss}
         onSelectQuery={handleHelpSelectQuery}
         visible={isHelpSheetVisible}
+      />
+      <HomeProfileSheet
+        onVisibleChange={setIsProfileSheetVisible}
+        visible={isProfileSheetVisible}
       />
     </View>
   );

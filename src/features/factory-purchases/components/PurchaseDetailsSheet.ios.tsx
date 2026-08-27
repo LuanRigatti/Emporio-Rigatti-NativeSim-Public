@@ -234,7 +234,6 @@ export function PurchaseDetailsSheet({
           modifiers={[
             listStyle('plain'),
             scrollContentBackground('hidden'),
-            background('systemBackground'),
             // The native tap callback reads this ref only when the sheet is tapped.
             // eslint-disable-next-line react-hooks/refs
             onTapGesture(() => {
@@ -263,6 +262,7 @@ export function PurchaseDetailsSheet({
       items={[]}
       hostSizing="viewport"
       onVisibleChange={onVisibleChange}
+      presentationBackgroundMode="native"
       title="Detalhes da compra"
       visible={visible}
     />

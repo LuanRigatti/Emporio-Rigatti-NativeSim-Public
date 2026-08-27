@@ -66,6 +66,7 @@ export default function NativeDailyDataSheetSwiftUI({
   initialValues = EMPTY_VALUES,
   onSubmit,
   onVisibleChange,
+  presentationBackgroundMode = 'system',
   visible,
 }: NativeDailyDataSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
@@ -275,15 +276,21 @@ export default function NativeDailyDataSheetSwiftUI({
       {content}
     </ZStack>
   ) : content;
+  const presentationBackgroundModifier =
+    glassSurface || presentationBackgroundMode !== 'native'
+      ? presentationBackground(
+          glassSurface || presentationBackgroundMode === 'transparent'
+            ? '#00000000'
+            : NATIVE_SHEET_PRESENTATION_BACKGROUND,
+        )
+      : null;
 
   return (
     <Host matchContents>
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
-            presentationBackground(
-              glassSurface ? '#00000000' : NATIVE_SHEET_PRESENTATION_BACKGROUND,
-            ),
+            ...(presentationBackgroundModifier ? [presentationBackgroundModifier] : []),
             presentationDetents([{ fraction: 0.45 }]),
             presentationDragIndicator('visible'),
           ]}

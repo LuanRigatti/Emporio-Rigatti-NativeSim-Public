@@ -20,10 +20,13 @@ export type NativeMenuProps = {
   accessibilityLabel?: string;
 };
 
+export type NativeSheetDetent = 'medium' | 'large' | { fraction: number } | { height: number };
+
 export type NativeSheetProps = {
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
   children: ReactNode;
+  detents?: readonly NativeSheetDetent[];
   title?: string;
   accessibilityLabel?: string;
 };
@@ -154,6 +157,20 @@ export type NativeGlassIconButtonProps = {
   shape?: 'circle' | 'capsule';
   interactiveGlass?: boolean;
   labelSize?: number;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+export type NativeAvatarButtonProps = {
+  name: string;
+  imageUri?: string | null;
+  accessibilityLabel: string;
+  accessibilityHint?: string;
+  onPress: () => void;
+  glassTint?: string;
+  containerSize?: number;
+  avatarSize?: 'small' | 'medium' | 'large';
+  haptic?: NativeButtonHaptic;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };

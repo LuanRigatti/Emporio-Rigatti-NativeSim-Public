@@ -5,17 +5,17 @@ import type { NativeSheetProps } from '@/types/native-ui';
 
 export default function NativeSheetSwiftUI({
   children,
+  detents,
   onVisibleChange,
   visible,
 }: NativeSheetProps) {
+  const sheetDetents = detents ?? [{ fraction: 0.48 }, 'large'];
+
   return (
     <Host matchContents>
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
-          modifiers={[
-            presentationDetents([{ fraction: 0.48 }, 'large']),
-            presentationDragIndicator('visible'),
-          ]}
+          modifiers={[presentationDetents([...sheetDetents]), presentationDragIndicator('visible')]}
         >
           {children}
         </Group>

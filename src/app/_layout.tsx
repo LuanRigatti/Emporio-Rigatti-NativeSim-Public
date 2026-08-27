@@ -29,6 +29,9 @@ void SplashScreen.preventAutoHideAsync();
 function AppShell() {
   const { status, user } = useSession();
   const pathname = usePathname();
+  const isAuthenticated = status === 'authenticated' && Boolean(user?.id);
+  const isSessionLoading = status === 'loading';
+  const isStartupRoute = pathname === '/';
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const isCacheHydrated =
     status === 'loading'
@@ -37,8 +40,7 @@ function AppShell() {
         ? true
         : hydratedUserId === user.id;
   const biometricUnlock = useBiometricUnlock({
-    activeSession:
-      status === 'authenticated' && Boolean(user?.id) && pathname !== '/' && pathname !== '/login',
+    activeSession: isAuthenticated && pathname !== '/' && pathname !== '/login',
     relockOnBackground: true,
     sessionKey: user?.id,
   });
@@ -92,25 +94,37 @@ function AppShell() {
       <>
         <QuickActionRouter />
         <Stack screenOptions={{ animation: 'default', headerShown: false }}>
-          <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
-          <Stack.Screen
-            name="login"
-            options={{
-              animation: 'default',
-              animationTypeForReplace: 'push',
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen name="(tabs)" options={{ gestureEnabled: false, headerShown: false }} />
-          <Stack.Screen name="registrar" options={{ gestureEnabled: true, headerShown: false }} />
-          <Stack.Screen
-            name="configuracoes"
-            options={{ gestureEnabled: true, headerShown: false }}
-          />
-          <Stack.Screen
-            name="(home-shortcuts)"
-            options={{ gestureEnabled: true, headerShown: false }}
-          />
+          <Stack.Protected guard={isSessionLoading || isAuthenticated || isStartupRoute}>
+            <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
+          </Stack.Protected>
+          <Stack.Protected guard={!isSessionLoading && !isAuthenticated}>
+            <Stack.Screen
+              name="login"
+              options={{
+                animation: 'default',
+                animationTypeForReplace: 'push',
+                gestureEnabled: false,
+              }}
+            />
+          </Stack.Protected>
+          <Stack.Protected guard={isAuthenticated}>
+            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false, headerShown: false }} />
+            <Stack.Screen name="registrar" options={{ gestureEnabled: true, headerShown: false }} />
+            <Stack.Screen
+              name="configuracoes"
+              options={{ gestureEnabled: true, headerShown: false }}
+            />
+            <Stack.Screen
+              name="(home-shortcuts)"
+              options={{ gestureEnabled: true, headerShown: false }}
+            />
+            <Stack.Screen name="fabrica-compras-menu" />
+            <Stack.Screen name="fabrica-compras-registrar" />
+            <Stack.Screen name="fabrica-valor-balde" />
+            <Stack.Screen name="fabrica" />
+            <Stack.Screen name="pagamentos-em-aberto" />
+            <Stack.Screen name="dev/native-components-showcase" />
+          </Stack.Protected>
         </Stack>
         <BiometricLockOverlay
           onRetry={biometricUnlock.retry}

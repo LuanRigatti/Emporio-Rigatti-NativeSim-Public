@@ -22,7 +22,7 @@ export type NativeBottomSheetProps = {
   hostSizing?: 'content' | 'fill' | 'viewport';
   detents?: readonly NativeBottomSheetDetent[];
   glassSurface?: boolean;
-  presentationBackgroundMode?: 'system' | 'transparent';
+  presentationBackgroundMode?: 'native' | 'system' | 'transparent';
   visible: boolean;
   bucketPrice?: number;
   title: string;
@@ -39,4 +39,5 @@ export type NativeBottomSheetProps = {
   selectedItem?: NativeBottomSheetItem | null;
   initialQuantity?: number;
   initialDetent?: NativeBottomSheetDetent;
+  selectedDetent?: NativeBottomSheetDetent;
 };

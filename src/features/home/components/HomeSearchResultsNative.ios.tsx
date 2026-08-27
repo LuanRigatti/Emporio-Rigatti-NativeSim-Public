@@ -318,7 +318,7 @@ const COMPACT_ROUTE_PAGER_TOP_PADDING = 20;
 
 export default function HomeSearchResultsNative({ isLarge = false, model }: Props) {
   const { resolvedMode, theme } = useAppTheme();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
 
   const isRouteResult =
     Boolean(model.singleDayRoute) || model.items.some((item) => Boolean(item.route));

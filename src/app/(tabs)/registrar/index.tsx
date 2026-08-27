@@ -440,6 +440,7 @@ export function RegistrarDailyDataScreen() {
         </View>
       </View>
       <NativeDailyDataSheet
+        glassSurface
         initialValues={dailySheetInitialValues}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
@@ -766,6 +767,7 @@ export function RegistrarDeliveryScreen() {
       </View>
       <NativeBottomSheet
         bucketPrice={BUCKET_PRICE}
+        glassSurface
         hostSizing="viewport"
         items={clientItems}
         onConfirm={handleConfirm}

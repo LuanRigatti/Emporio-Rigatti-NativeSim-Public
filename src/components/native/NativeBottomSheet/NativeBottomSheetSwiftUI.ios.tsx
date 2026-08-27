@@ -41,7 +41,7 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import type { PresentationDetent } from '@expo/ui/swift-ui/modifiers';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { useAppTheme } from '@/theme';
@@ -51,6 +51,11 @@ import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
 import { roundedFont } from '../nativeTypography';
+
+const NATIVE_SHEET_TRANSPARENT_BACKGROUND = '#00000000';
+const REGISTRAR_LIST_COMPACT_DETENT = { fraction: 0.48 } as const;
+const REGISTRAR_LIST_EXPANDED_DETENT = { fraction: 0.78 } as const;
+const REGISTRAR_DETAIL_DETENT = { fraction: 0.48 } as const;
 
 export default function NativeBottomSheetSwiftUI({
   items,
@@ -68,15 +73,23 @@ export default function NativeBottomSheetSwiftUI({
   selectedItem: controlledSelectedItem,
   initialQuantity,
   initialDetent,
+  glassSurface = false,
+  presentationBackgroundMode = 'system',
   hostSizing = 'content',
 }: NativeBottomSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
     useTestModePresentation();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
+  const internalCardBackground =
+    resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
+  const usesRegistrarGlassSurface = glassSurface && content == null;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
+  const [currentDetent, setCurrentDetent] = useState<PresentationDetent>(
+    initialDetent ?? REGISTRAR_LIST_COMPACT_DETENT,
+  );
+  const [detailDetentSettled, setDetailDetentSettled] = useState(false);
   const selectedItem = controlledSelectedItem ?? null;
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
   const presentedQuantity = maskNumber(bucketQuantity);
@@ -93,6 +106,7 @@ export default function NativeBottomSheetSwiftUI({
       setBucketQuantity(1);
       setQuantityDirection('up');
       setSelectedDate(new Date());
+      setCurrentDetent(REGISTRAR_LIST_COMPACT_DETENT);
     }
   }, [visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -103,6 +117,12 @@ export default function NativeBottomSheetSwiftUI({
       setBucketQuantity(Math.max(1, Math.round(initialQuantity)));
     }
   }, [initialQuantity, visible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!selectedItem) setDetailDetentSettled(false);
+  }, [selectedItem]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSelect = (item: (typeof items)[number]) => {
@@ -127,7 +147,7 @@ export default function NativeBottomSheetSwiftUI({
       spacing={16}
       modifiers={[
         padding({ horizontal: 16, top: 14, bottom: 16 }),
-        frame({ maxWidth: 1000, alignment: 'top' }),
+        frame({ maxWidth: 1000, maxHeight: Infinity, alignment: 'top' }),
       ]}
     >
       <VStack
@@ -137,7 +157,7 @@ export default function NativeBottomSheetSwiftUI({
           frame({ maxWidth: Infinity, alignment: 'leading' }),
           padding({ horizontal: 8, vertical: 8 }),
           background(
-            cardBackground,
+            internalCardBackground,
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}
@@ -252,7 +272,7 @@ export default function NativeBottomSheetSwiftUI({
           frame({ maxWidth: Infinity, alignment: 'trailing' }),
           padding({ top: 8, trailing: 12, bottom: 12 }),
           background(
-            cardBackground,
+            internalCardBackground,
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}
@@ -341,7 +361,7 @@ export default function NativeBottomSheetSwiftUI({
     </ZStack>
   );
 
-  const registroSheetContent = (
+  const registroSheetContentBody = (
     <VStack
       alignment="leading"
       spacing={0}
@@ -364,18 +384,81 @@ export default function NativeBottomSheetSwiftUI({
     </VStack>
   );
 
-  const sheetContent = content ?? registroSheetContent;
+  const wrapWithGlassSurface = (surfaceContent: ReactNode) => (
+    <ZStack
+      alignment="topLeading"
+      modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}
+    >
+      <ZStack
+        modifiers={[
+          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+          glassEffect({
+            glass: { interactive: true, variant: 'regular' },
+            cornerRadius: theme.radius.card,
+            shape: 'roundedRectangle',
+          }),
+        ]}
+      >
+        <Spacer />
+      </ZStack>
+      {surfaceContent}
+    </ZStack>
+  );
+
+  const registroSheetContent = glassSurface
+    ? wrapWithGlassSurface(registroSheetContentBody)
+    : registroSheetContentBody;
+
+  const sheetContent = content
+    ? glassSurface
+      ? wrapWithGlassSurface(content)
+      : content
+    : registroSheetContent;
+  const isListExpanded =
+    usesRegistrarGlassSurface &&
+    typeof currentDetent === 'object' &&
+    'fraction' in currentDetent &&
+    currentDetent.fraction === REGISTRAR_LIST_EXPANDED_DETENT.fraction;
+  const detailTransitionNeedsExpandedDetent =
+    usesRegistrarGlassSurface && selectedItem && isListExpanded && !detailDetentSettled;
   const sheetDetents =
     detents ??
-    (initialDetent
-      ? ([initialDetent, 'large'] as const)
-      : ([{ fraction: 0.48 }, 'large'] as const));
+    (usesRegistrarGlassSurface
+      ? selectedItem
+        ? detailTransitionNeedsExpandedDetent
+          ? ([REGISTRAR_LIST_COMPACT_DETENT, REGISTRAR_LIST_EXPANDED_DETENT] as const)
+          : ([REGISTRAR_DETAIL_DETENT] as const)
+        : ([REGISTRAR_LIST_COMPACT_DETENT, REGISTRAR_LIST_EXPANDED_DETENT] as const)
+      : initialDetent
+        ? ([initialDetent, 'large'] as const)
+        : ([{ fraction: 0.48 }, 'large'] as const));
+
+  const selectedSheetDetent = usesRegistrarGlassSurface
+    ? selectedItem
+      ? REGISTRAR_DETAIL_DETENT
+      : isListExpanded
+        ? REGISTRAR_LIST_EXPANDED_DETENT
+        : REGISTRAR_LIST_COMPACT_DETENT
+    : undefined;
 
   const handleIsPresentedChange = (nextVisible: boolean) => {
     onVisibleChange(nextVisible);
   };
 
   const handleDetentChange = (detent: PresentationDetent) => {
+    if (glassSurface) {
+      setCurrentDetent(detent);
+
+      if (
+        selectedItem &&
+        typeof detent === 'object' &&
+        'fraction' in detent &&
+        detent.fraction === REGISTRAR_DETAIL_DETENT.fraction
+      ) {
+        setDetailDetentSettled(true);
+      }
+    }
+
     if (
       detent === 'medium' ||
       detent === 'large' ||
@@ -399,13 +482,23 @@ export default function NativeBottomSheetSwiftUI({
       >
         <Group
           modifiers={[
-            presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
+            presentationBackground(
+              glassSurface || presentationBackgroundMode === 'transparent'
+                ? NATIVE_SHEET_TRANSPARENT_BACKGROUND
+                : NATIVE_SHEET_PRESENTATION_BACKGROUND,
+            ),
             presentationDetents(
               [...sheetDetents],
-              initialDetent || onDetentChange
+              glassSurface || initialDetent || onDetentChange
                 ? {
-                    ...(initialDetent ? { selection: initialDetent } : {}),
-                    ...(onDetentChange ? { onSelectionChange: handleDetentChange } : {}),
+                    ...(selectedSheetDetent
+                      ? { selection: selectedSheetDetent }
+                      : initialDetent
+                        ? { selection: initialDetent }
+                        : {}),
+                    ...(glassSurface || onDetentChange
+                      ? { onSelectionChange: handleDetentChange }
+                      : {}),
                   }
                 : undefined,
             ),

@@ -50,6 +50,7 @@ export function HomeSearchResultsSheet({
       onDetentChange={(detent) => setIsLarge(detent === 'large')}
       onImplementationReady={onImplementationReady}
       onVisibleChange={handleVisibleChange}
+      presentationBackgroundMode="transparent"
       title="Resultados"
       visible={visible}
     />

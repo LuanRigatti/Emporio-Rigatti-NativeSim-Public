@@ -7,6 +7,7 @@ export type NativeDailyDataValues = {
 
 export type NativeDailyDataSheetProps = {
   visible: boolean;
+  glassSurface?: boolean;
   initialValues?: NativeDailyDataValues;
   onVisibleChange: (visible: boolean) => void;
   onSubmit: (values: NativeDailyDataValues) => void | Promise<void>;

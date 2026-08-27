@@ -61,7 +61,7 @@ export default function RegistrarDeliveryPagerRN({
   );
 
   return (
-    <View onLayout={handleLayout} style={styles.container}>
+    <View onLayout={handleLayout} pointerEvents="box-none" style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.pagerContent}
         horizontal
@@ -71,12 +71,17 @@ export default function RegistrarDeliveryPagerRN({
         ref={pagerRef}
         showsHorizontalScrollIndicator={false}
         style={styles.pager}
+        pointerEvents="box-none"
       >
-        <View style={[styles.page, { width: pagerWidth }]}>
-          <Host style={styles.nativePage}>{listPage}</Host>
+        <View pointerEvents="box-none" style={[styles.page, { width: pagerWidth }]}>
+          <Host pointerEvents="box-none" style={styles.nativePage}>
+            {listPage}
+          </Host>
         </View>
-        <View style={[styles.page, { width: pagerWidth }]}>
-          <Host style={styles.nativePage}>{detailPage}</Host>
+        <View pointerEvents="box-none" style={[styles.page, { width: pagerWidth }]}>
+          <Host pointerEvents="box-none" style={styles.nativePage}>
+            {detailPage}
+          </Host>
         </View>
       </ScrollView>
     </View>
@@ -85,20 +90,25 @@ export default function RegistrarDeliveryPagerRN({
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: 'transparent',
     flex: 1,
     width: '100%',
   },
   nativePage: {
+    backgroundColor: 'transparent',
     flex: 1,
   },
   page: {
+    backgroundColor: 'transparent',
     flex: 1,
   },
   pager: {
+    backgroundColor: 'transparent',
     flex: 1,
     width: '100%',
   },
   pagerContent: {
     alignItems: 'stretch',
+    backgroundColor: 'transparent',
   },
 });

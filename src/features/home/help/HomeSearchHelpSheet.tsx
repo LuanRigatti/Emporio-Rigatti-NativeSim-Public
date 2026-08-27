@@ -31,6 +31,7 @@ export function HomeSearchHelpSheet({ onDismiss, onSelectQuery, visible }: Props
       onDismiss={onDismiss}
       onVisibleChange={handleVisibleChange}
       title="O que posso pesquisar?"
+      presentationBackgroundMode="transparent"
       visible={visible}
     />
   );

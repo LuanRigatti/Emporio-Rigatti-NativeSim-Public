@@ -22,6 +22,7 @@ import {
   controlSize,
   disabled as disabledModifier,
   frame,
+  foregroundStyle,
   glassEffect,
   keyboardType,
   layoutPriority,
@@ -34,6 +35,7 @@ import {
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
+import { PlatformColor } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { getLiquidGlassTint, useAppTheme } from '@/theme';
@@ -60,6 +62,7 @@ const EMPTY_VALUES: NativeDailyDataValues = {
 };
 
 export default function NativeDailyDataSheetSwiftUI({
+  glassSurface = false,
   initialValues = EMPTY_VALUES,
   onSubmit,
   onVisibleChange,
@@ -67,7 +70,7 @@ export default function NativeDailyDataSheetSwiftUI({
 }: NativeDailyDataSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
   const estarState = useNativeState(initialValues.estar);
@@ -237,6 +240,7 @@ export default function NativeDailyDataSheetSwiftUI({
               roundedFont({}),
               buttonStyle('glassProminent'),
               controlSize('large'),
+              foregroundStyle(PlatformColor('label') as unknown as string),
               tint(getLiquidGlassTint(resolvedMode)),
               ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
             ]}
@@ -251,17 +255,40 @@ export default function NativeDailyDataSheetSwiftUI({
     </VStack>
   );
 
+  const sheetContent = glassSurface ? (
+    <ZStack
+      alignment="topLeading"
+      modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}
+    >
+      <ZStack
+        modifiers={[
+          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+          glassEffect({
+            glass: { interactive: true, variant: 'regular' },
+            cornerRadius: theme.radius.card,
+            shape: 'roundedRectangle',
+          }),
+        ]}
+      >
+        <Spacer />
+      </ZStack>
+      {content}
+    </ZStack>
+  ) : content;
+
   return (
     <Host matchContents>
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
-            presentationBackground(NATIVE_SHEET_PRESENTATION_BACKGROUND),
+            presentationBackground(
+              glassSurface ? '#00000000' : NATIVE_SHEET_PRESENTATION_BACKGROUND,
+            ),
             presentationDetents([{ fraction: 0.45 }]),
             presentationDragIndicator('visible'),
           ]}
         >
-          {content}
+          {sheetContent}
         </Group>
       </BottomSheet>
     </Host>

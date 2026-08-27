@@ -1,4 +1,4 @@
-import { Button, Divider, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   background,
@@ -47,7 +47,7 @@ function HelpExampleRow({
       <HStack
         spacing={spacing.sm}
         modifiers={[
-          padding({ leading: spacing.xl, trailing: spacing.md, vertical: spacing.xl }),
+          padding({ leading: spacing.xl, trailing: spacing.md, vertical: 21 }),
           frame({ maxWidth: Infinity, alignment: 'leading' }),
           contentShape(shapes.rectangle()),
         ]}
@@ -81,14 +81,14 @@ function HelpExampleRow({
 
 export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
   const { resolvedMode, theme } = useAppTheme();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background;
+  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
 
   return (
     <VStack
       alignment="leading"
       spacing={0}
       modifiers={[
-        padding({ horizontal: 16, top: spacing.xxxl + spacing.xxl, bottom: spacing.xxl }),
+        padding({ horizontal: 16, top: spacing.xxxl + spacing.lg, bottom: spacing.xxl }),
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
       ]}
     >
@@ -97,10 +97,21 @@ export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
         spacing={0}
         modifiers={[frame({ maxWidth: Infinity, alignment: 'topLeading' })]}
       >
+        <Text
+          modifiers={[
+            font({ textStyle: 'headline', weight: 'semibold', design: 'rounded' }),
+            foregroundStyle(PlatformColor('label') as unknown as string),
+            padding({ top: 6, bottom: 10 }),
+            frame({ maxWidth: Infinity, alignment: 'center' }),
+          ]}
+        >
+          Sugestões
+        </Text>
         <VStack
           alignment="leading"
           spacing={0}
           modifiers={[
+            padding({ vertical: spacing.xxs }),
             background(
               cardBackground,
               shapes.roundedRectangle({
@@ -111,14 +122,13 @@ export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
             frame({ maxWidth: Infinity, alignment: 'leading' }),
           ]}
         >
-          {HOME_SEARCH_HELP_SUGGESTIONS.map((suggestion, index) => (
+          {HOME_SEARCH_HELP_SUGGESTIONS.map((suggestion) => (
             <VStack
               key={suggestion.id}
               alignment="leading"
               spacing={0}
               modifiers={[frame({ maxWidth: Infinity })]}
             >
-              {index > 0 ? <Divider /> : null}
               <HelpExampleRow example={suggestion} onSelect={onSelectQuery} />
             </VStack>
           ))}

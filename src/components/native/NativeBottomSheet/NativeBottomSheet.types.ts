@@ -21,6 +21,8 @@ export type NativeBottomSheetProps = {
   content?: ReactNode;
   hostSizing?: 'content' | 'fill' | 'viewport';
   detents?: readonly NativeBottomSheetDetent[];
+  glassSurface?: boolean;
+  presentationBackgroundMode?: 'system' | 'transparent';
   visible: boolean;
   bucketPrice?: number;
   title: string;

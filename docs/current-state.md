@@ -9,10 +9,9 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- HEAD: `b7c22af4717b671adb88b68d1b208119cf9eb117`.
-- Último commit: `feat: refine native sheets and search interactions`.
-- Working tree: somente `docs/current-state.md` possui esta atualização
-  documental local; não há outros arquivos modificados ou não rastreados.
+- HEAD: `0440c632807a680ff1cf80b4c6b5eb73df85eda6`.
+- Último commit: `docs: consolidate current project state`.
+- Working tree: limpo.
 
 ## Aplicativo
 
@@ -144,8 +143,8 @@ salvo quando a tarefa pedir uma auditoria histórica explícita.
 ## Identidade do aplicativo
 
 - Branch de trabalho: `ajustes-codex`.
-- Último commit no checkout: `b7c22af4717b671adb88b68d1b208119cf9eb117`
-  (`feat: refine native sheets and search interactions`).
+- Último commit no checkout: `0440c632807a680ff1cf80b4c6b5eb73df85eda6`
+  (`docs: consolidate current project state`).
 - Expo SDK 57 e Development Build iOS.
 - Nome exibido configurado: `Empório Rigatti`.
 - `slug`: `PAReact`.

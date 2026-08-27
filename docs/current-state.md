@@ -9,10 +9,10 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- HEAD: `11072fbf85a8a83736170cbcb39bcda8811bdf5a`.
-- Último commit: `feat: refine registrar delivery cards`.
-- Working tree: `docs/current-state.md` possui alterações locais preexistentes;
-  não há outros arquivos modificados ou não rastreados.
+- HEAD: `b7c22af4717b671adb88b68d1b208119cf9eb117`.
+- Último commit: `feat: refine native sheets and search interactions`.
+- Working tree: somente `docs/current-state.md` possui esta atualização
+  documental local; não há outros arquivos modificados ou não rastreados.
 
 ## Aplicativo
 
@@ -61,15 +61,20 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Estado funcional recente
 
 - Home Search: Bottom Sheet imediato, parser fast path somente para consultas
-  válidas, caminho semântico Apple Intelligence, prewarm, suporte pt-BR e
-  cancelamento de gerações obsoletas.
+  válidas, caminho semântico Apple Intelligence, prewarm, suporte pt-BR,
+  cancelamento de gerações obsoletas e sheets de sugestões/resultados com
+  apresentação externa transparente e cards internos sólidos.
 - Quick Actions: Registrar entrega, Registrar dados, Modo Teste e Histórico;
   a ação é enfileirada até autenticação, hidratação e router estarem prontos.
 - NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global
   sobre as tabs; BackButtons, toolbars, swipe-back e morphs nativos preservados.
 - Registrar: entrega e dados preservados; o atalho independente da Home usa
   `/registrar-entrega`; a lista de Entregas usa cards individuais com
-  `PremiumCard` e `NativeCardContextMenu`.
+  `PremiumCard` e `NativeCardContextMenu`. O primeiro Bottom Sheet de entrega
+  mantém shell nativo interativo, lista em `0.48 ↔ 0.78`, formulário em
+  `0.48` e cards internos neutros.
+- Registrar Dados: Bottom Sheet nativo com shell Liquid Glass interativo,
+  detent `0.45`, dois cards internos neutros e controles nativos preservados.
 - Histórico: `NativeDateToolbar` textual no formato curto, filtro no mesmo
   `Stack.Toolbar`, consultas, cards e ProgressiveBlur preservados.
 - Finanças: cards estáveis ao retornar de detalhes, `NativeAnimatedNumber` para
@@ -77,6 +82,8 @@ preservam o histórico técnico e as decisões acumuladas.
 - Configurações: Native Stack dedicado para Clientes, Estoque, Localização,
   Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
   Action.
+- Sistema: experimentos isolados `Teste Liquid Glass` e `Teste Bottom Sheet
+  Glass` permanecem somente como laboratório visual.
 - Localização/GPS: tracking, histórico e mapa preservados; montagem pesada do
   mapa ocorre após `transitionEnd`.
 
@@ -98,11 +105,19 @@ preservam o histórico técnico e as decisões acumuladas.
 
 - Correção mais recente do roteamento/bridge do Apple Intelligence/Foundation
   Models, ainda pendente de recompilação e validação no iPhone.
+- Ajustes finais de Bottom Sheets, transparência da Home Search, detents e
+  experimentos Liquid Glass do commit `b7c22af`: TypeScript, ESLint, testes e
+  `git diff --check` foram validados localmente, mas não há nova confirmação
+  visual desses ajustes no iPhone registrada nesta sessão. Como o commit não
+  alterou Swift, config plugin, dependências ou capabilities, ele pode ser
+  testado via Metro/Fast Refresh na Development Build existente.
 
 ### PROBLEMAS CONHECIDOS / EM INVESTIGAÇÃO
 
 - Foundation Models depende de dispositivo, versão do iOS, disponibilidade do
   recurso e suporte de locale; indisponibilidade deve seguir o fallback seguro.
+- A validação visual final dos ajustes de composição e detents dos sheets do
+  commit `b7c22af` ainda precisa ser repetida no iPhone Development Build.
 - Alguns detalhes visuais de módulos nativos, como a máscara UIKit do Context
   Menu, continuam condicionados à versão efetivamente compilada do Development
   Build.
@@ -129,8 +144,8 @@ salvo quando a tarefa pedir uma auditoria histórica explícita.
 ## Identidade do aplicativo
 
 - Branch de trabalho: `ajustes-codex`.
-- Último commit no checkout: `11072fbf85a8a83736170cbcb39bcda8811bdf5a`
-  (`feat: refine registrar delivery cards`).
+- Último commit no checkout: `b7c22af4717b671adb88b68d1b208119cf9eb117`
+  (`feat: refine native sheets and search interactions`).
 - Expo SDK 57 e Development Build iOS.
 - Nome exibido configurado: `Empório Rigatti`.
 - `slug`: `PAReact`.
@@ -2501,3 +2516,58 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 
 - Esta alteração ainda não foi commitada nem publicada.
 - Não há commit/hash específico para esta alteração.
+
+## Consolidação da sessão atual — Native Sheets e Home Search
+
+### Funcionalidades implementadas
+
+- Bottom Sheet de Registrar Entrega com shell SwiftUI separado e
+  `glassEffect(interactive: true)`, lista nos detents `0.48 ↔ 0.78`, formulário
+  em `0.48`, transição nativa, scroll e drag/dismiss preservados.
+- Bottom Sheet de Registrar Dados com a mesma superfície nativa interativa,
+  detent `0.45`, dois cards internos neutros e controles de salvamento
+  preservados.
+- Bottom Sheets de sugestões e resultados da Home Search com apresentação
+  externa transparente; conteúdo interno sólido, cinco sugestões, cores e
+  espaçamentos finais preservados.
+- Search Bar continua nativa e sem tint customizado. Os experimentos isolados
+  `Teste Liquid Glass` e `Teste Bottom Sheet Glass` permanecem em
+  Configurações → Sistema.
+- Os cards reais da Home e da aba Registrar permanecem na implementação
+  anterior com `PremiumCard`/`AnimatedPressable`; não receberam Liquid Glass
+  nesta consolidação.
+
+### Arquivos principais
+
+- `src/components/native/NativeBottomSheet/NativeBottomSheetSwiftUI.ios.tsx`
+- `src/components/native/NativeBottomSheet/RegistrarDeliveryPagerRN.tsx`
+- `src/components/native/NativeDailyDataSheet/NativeDailyDataSheetSwiftUI.ios.tsx`
+- `src/components/native/NativeSearchField/NativeSearchFieldSwiftUI.ios.tsx`
+- `src/features/home/components/HomeSearchResultsSheet.tsx`
+- `src/features/home/components/HomeSearchResultsNative.ios.tsx`
+- `src/features/home/help/HomeSearchHelpSheet.tsx`
+- `src/features/home/help/HomeSearchHelpContent.ios.tsx`
+- `src/features/settings/components/SystemSettingsScreen.tsx`
+
+### Flags, schema e validações
+
+- Nenhuma flag, dependência, capability, schema, documento, coleção ou regra
+  do Cloud Firestore foi alterada.
+- TypeScript (`npm.cmd run typecheck`): passou.
+- ESLint direcionado nos arquivos da sessão: passou.
+- Testes relacionados de Home, entregas e custos: 16 suítes / 230 testes
+  passando.
+- `git diff --check`: passou; os avisos observados foram somente de
+  normalização LF/CRLF.
+
+### Estado de dispositivo e publicação
+
+- Não foi executada nova validação manual no iPhone durante esta consolidação;
+  a confirmação visual dos ajustes deste commit deve ser repetida no
+  Development Build existente.
+- Não houve alteração de Swift, config plugin, dependência ou capability nova;
+  os ajustes podem ser testados via Metro/Fast Refresh na Development Build
+  atual.
+- Commit publicado: `b7c22af4717b671adb88b68d1b208119cf9eb117`
+  (`feat: refine native sheets and search interactions`) na branch
+  `ajustes-codex`, sincronizada com `origin/ajustes-codex`.

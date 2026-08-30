@@ -28,6 +28,7 @@ import {
   glassEffect,
   keyboardType,
   padding,
+  presentationBackgroundInteraction as setPresentationBackgroundInteraction,
   presentationBackground,
   presentationDetents,
   presentationDragIndicator,
@@ -249,6 +250,7 @@ export default function NativeClientFormSheetSwiftUI({
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
+            setPresentationBackgroundInteraction('enabled'),
             presentationBackground('systemBackground'),
             presentationDetents(['large']),
             presentationDragIndicator('visible'),

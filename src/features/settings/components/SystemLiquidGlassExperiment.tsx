@@ -3,6 +3,7 @@ import { StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 type SystemLiquidGlassExperimentProps = {
   color: string;
   cornerRadius: number;
+  glassTint?: string;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   title?: string;

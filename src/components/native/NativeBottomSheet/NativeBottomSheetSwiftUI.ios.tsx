@@ -1,8 +1,8 @@
+import { BlurView } from 'expo-blur';
 import {
   BottomSheet,
   Button,
   DatePicker,
-  Divider,
   Group,
   HStack,
   Host,
@@ -18,21 +18,20 @@ import {
   accessibilityLabel,
   animation,
   Animation,
-  background,
   buttonStyle,
   contentShape,
   contentTransition,
   controlSize,
   disabled as disabledModifier,
   frame,
-  foregroundColor,
-  hidden,
   glassEffect,
   listRowBackground,
+  listRowInsets,
+  listRowSeparator,
   listStyle,
   offset,
-  onTapGesture,
   padding,
+  presentationBackgroundInteraction as setPresentationBackgroundInteraction,
   presentationBackground,
   presentationDetents,
   presentationDragIndicator,
@@ -42,9 +41,10 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import type { PresentationDetent } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState, type ReactNode } from 'react';
-import type { SFSymbol } from 'sf-symbols-typescript';
+import { StyleSheet, View } from 'react-native';
 
-import { useAppTheme } from '@/theme';
+import { spacing, useAppTheme } from '@/theme';
+import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
@@ -65,7 +65,6 @@ export default function NativeBottomSheetSwiftUI({
   onSelect,
   onDismiss,
   onVisibleChange,
-  title,
   visible,
   onConfirm,
   onDetentChange,
@@ -75,14 +74,13 @@ export default function NativeBottomSheetSwiftUI({
   initialDetent,
   selectedDetent,
   glassSurface = false,
+  presentationBackgroundInteraction: backgroundInteraction = 'enabled',
   presentationBackgroundMode = 'system',
   hostSizing = 'content',
 }: NativeBottomSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
     useTestModePresentation();
-  const internalCardBackground =
-    resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
   const usesRegistrarSheetBehavior = content == null;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
@@ -130,16 +128,36 @@ export default function NativeBottomSheetSwiftUI({
     onSelect?.(item);
   };
 
-  const titleView = (
-    <HStack
-      alignment="center"
-      spacing={6}
-      modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
-    >
-      <Text modifiers={[roundedFont({ size: 15, weight: 'bold' }), offset({ y: -6 })]}>
-        {title}
-      </Text>
-    </HStack>
+  const renderDetailSurface = () => (
+    <RNHostView matchContents={false}>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.detailSurface,
+          {
+            borderColor: theme.colors.separator,
+            borderRadius: theme.radius.xl + spacing.sm,
+          },
+        ]}
+      >
+        {resolvedMode !== 'dark' ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.lightDetailSurface]} />
+        ) : null}
+        {resolvedMode === 'dark' ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.darkDetailSurface]} />
+        ) : null}
+        <BlurView
+          key={resolvedMode}
+          intensity={70}
+          style={StyleSheet.absoluteFill}
+          tint={
+            resolvedMode === 'dark'
+              ? 'systemChromeMaterialDark'
+              : 'systemUltraThinMaterialLight'
+          }
+        />
+      </View>
+    </RNHostView>
   );
 
   const detailView = (
@@ -153,154 +171,199 @@ export default function NativeBottomSheetSwiftUI({
     >
       <VStack
         alignment="leading"
-        spacing={0}
-        modifiers={[
-          frame({ maxWidth: Infinity, alignment: 'leading' }),
-          padding({ horizontal: 8, vertical: 8 }),
-          background(
-            internalCardBackground,
-            shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
-          ),
-        ]}
+        spacing={spacing.xs}
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
       >
         {selectedItem ? (
-          <VStack alignment="leading" spacing={12}>
+          <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
             <HStack
-              alignment="center"
-              spacing={10}
-              modifiers={[frame({ maxWidth: 1000, alignment: 'center' })]}
+              modifiers={[frame({ maxWidth: 1000, alignment: 'trailing' }), padding({ trailing: 8 })]}
             >
-              <Text modifiers={[roundedFont({ size: 18, weight: 'semibold' })]}>
-                {selectedItem.title}
-              </Text>
+              <Button
+                modifiers={[
+                  buttonStyle('plain'),
+                  controlSize('regular'),
+                  frame({ width: 48, height: 48 }),
+                  glassEffect({
+                    glass: { interactive: true, variant: 'regular' },
+                    shape: 'circle',
+                  }),
+                  offset({ x: 4, y: -12 }),
+                  accessibilityLabel('Fechar'),
+                ]}
+                onPress={() => {
+                  triggerNativeButtonHaptic('light');
+                  onVisibleChange(false);
+                }}
+              >
+                <Image size={20} systemName="xmark" />
+              </Button>
             </HStack>
-            <Divider />
-          </VStack>
+            <Text modifiers={[roundedFont({ size: 18, weight: 'semibold' })]}>
+              {selectedItem.title}
+            </Text>
+          </ZStack>
         ) : null}
-        <VStack
-          alignment="leading"
-          spacing={0}
-          modifiers={[padding({ horizontal: 12, top: 0, bottom: 4 })]}
+        <ZStack
+          alignment="topLeading"
+          modifiers={[
+            frame({ maxWidth: Infinity, alignment: 'leading' }),
+            padding({ horizontal: 0, vertical: 0 }),
+            offset({ y: 4 }),
+          ]}
         >
-          <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
-            <Image size={18} systemName="calendar" />
-            <Text modifiers={[roundedFont({ size: 16, weight: 'bold' })]}>Data</Text>
-            <Spacer />
-            <DatePicker
-              displayedComponents={['date']}
-              modifiers={[roundedFont({})]}
-              onDateChange={setSelectedDate}
-              selection={selectedDate}
-            />
-          </HStack>
-          <Divider />
-          <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
-            <Image size={18} systemName="shippingbox" />
-            <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Baldes</Text>
-            <Spacer />
-            <Button
-              modifiers={[
-                buttonStyle('plain'),
-                controlSize('regular'),
-                glassEffect({
-                  glass: { interactive: true, variant: 'regular' },
-                  shape: 'circle',
-                }),
-                accessibilityLabel('Diminuir quantidade'),
-                disabledModifier(!selectedItem || testModeEnabled),
-              ]}
-              onPress={() => {
-                setQuantityDirection('down');
-                setBucketQuantity((value) => Math.max(1, value - 1));
-              }}
+          {renderDetailSurface()}
+          <VStack
+            alignment="leading"
+            spacing={spacing.xs}
+            modifiers={[offset({ y: 0 }), frame({ maxWidth: Infinity })]}
+          >
+            <VStack
+              alignment="leading"
+              spacing={spacing.xs}
+              modifiers={[padding({ leading: spacing.lg, trailing: spacing.md, vertical: spacing.xs })]}
             >
-              <ZStack
-                modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.rectangle())]}
+              <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
+                <Image size={18} systemName="calendar" />
+                <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Data</Text>
+                <Spacer />
+                <DatePicker
+                  displayedComponents={['date']}
+                  modifiers={[roundedFont({})]}
+                  onDateChange={setSelectedDate}
+                  selection={selectedDate}
+                />
+              </HStack>
+              <HStack
+                alignment="center"
+                spacing={8}
+                modifiers={[padding({ vertical: 8 }), offset({ y: 6 })]}
               >
-                <Image size={17} systemName="minus" />
-              </ZStack>
-            </Button>
-            <Text
-              modifiers={[
-                roundedFont({ size: 17, weight: 'semibold' }),
-                contentTransition('numericText', {
-                  countsDown: quantityDirection === 'down',
-                }),
-                animation(Animation.easeInOut({ duration: 0.18 }), bucketQuantity),
-              ]}
-            >
-              {presentedQuantity}
-            </Text>
-            <Button
-              modifiers={[
-                buttonStyle('plain'),
-                controlSize('regular'),
-                glassEffect({
-                  glass: { interactive: true, variant: 'regular' },
-                  shape: 'circle',
-                }),
-                accessibilityLabel('Aumentar quantidade'),
-                disabledModifier(!selectedItem || testModeEnabled),
-              ]}
-              onPress={() => {
-                setQuantityDirection('up');
-                setBucketQuantity((value) => value + 1);
-              }}
-            >
-              <ZStack
-                modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.rectangle())]}
+                <Image size={18} systemName="shippingbox" />
+                <Text
+                  modifiers={[roundedFont({ size: 17, weight: 'semibold' }), offset({ y: -2 })]}
+                >
+                  Baldes
+                </Text>
+                <Spacer />
+                <Button
+                  modifiers={[
+                    buttonStyle('plain'),
+                    controlSize('regular'),
+                    glassEffect({
+                      glass: { interactive: true, variant: 'regular' },
+                      shape: 'circle',
+                    }),
+                    accessibilityLabel('Diminuir quantidade'),
+                    disabledModifier(!selectedItem || testModeEnabled),
+                ]}
+                onPress={() => {
+                  triggerNativeButtonHaptic('light');
+                  setQuantityDirection('down');
+                  setBucketQuantity((value) => Math.max(1, value - 1));
+                  }}
+                >
+                  <ZStack
+                    modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.rectangle())]}
+                  >
+                    <Image size={17} systemName="minus" />
+                  </ZStack>
+                </Button>
+                <Text
+                  modifiers={[
+                    roundedFont({ size: 17, weight: 'semibold' }),
+                    contentTransition('numericText', {
+                      countsDown: quantityDirection === 'down',
+                    }),
+                    animation(Animation.easeInOut({ duration: 0.18 }), bucketQuantity),
+                  ]}
+                >
+                  {presentedQuantity}
+                </Text>
+                <Button
+                  modifiers={[
+                    buttonStyle('plain'),
+                    controlSize('regular'),
+                    glassEffect({
+                      glass: { interactive: true, variant: 'regular' },
+                      shape: 'circle',
+                    }),
+                    accessibilityLabel('Aumentar quantidade'),
+                    disabledModifier(!selectedItem || testModeEnabled),
+                ]}
+                onPress={() => {
+                  triggerNativeButtonHaptic('light');
+                  setQuantityDirection('up');
+                  setBucketQuantity((value) => value + 1);
+                  }}
+                >
+                  <ZStack
+                    modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.rectangle())]}
+                  >
+                    <Image size={17} systemName="plus" />
+                  </ZStack>
+                </Button>
+              </HStack>
+              <HStack
+                alignment="center"
+                spacing={8}
+                modifiers={[padding({ vertical: 8 }), offset({ y: 10 })]}
               >
-                <Image size={17} systemName="plus" />
-              </ZStack>
-            </Button>
-          </HStack>
-          <Divider />
-          <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
-            <Image size={16} systemName="brazilianrealsign" />
-            <Text modifiers={[roundedFont({ size: 16, weight: 'bold' })]}>Valor total</Text>
-            <Spacer />
-            <Text
-              modifiers={[roundedFont({ size: 17, weight: 'semibold' }), padding({ trailing: 16 })]}
-            >
-              {presentedTotal}
-            </Text>
-          </HStack>
-        </VStack>
+                <Image modifiers={[offset({ x: 4 })]} size={16} systemName="dollarsign" />
+                <Text
+                  modifiers={[roundedFont({ size: 17, weight: 'semibold' }), offset({ x: 8 })]}
+                >
+                  Valor total
+                </Text>
+                <Spacer />
+                <Text
+                  modifiers={[
+                    roundedFont({ size: 17, weight: 'semibold' }),
+                    padding({ trailing: 16 }),
+                  ]}
+                >
+                  {presentedTotal}
+                </Text>
+              </HStack>
+            </VStack>
+          </VStack>
+        </ZStack>
       </VStack>
-      <HStack
+      <ZStack
         alignment="center"
         modifiers={[
           frame({ maxWidth: Infinity, alignment: 'trailing' }),
-          padding({ top: 8, trailing: 12, bottom: 12 }),
-          background(
-            internalCardBackground,
-            shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
-          ),
+          padding({ leading: spacing.xs, vertical: spacing.sm, trailing: spacing.md }),
         ]}
       >
-        <Spacer />
-        <Button
-          label="Confirmar"
-          modifiers={[
-            roundedFont({}),
-            buttonStyle('glassProminent'),
-            controlSize('large'),
-            padding({ top: 4 }),
-            disabledModifier(!selectedItem || testModeEnabled),
-          ]}
-          onPress={() => {
-            if (!selectedItem || testModeEnabled) return;
+        <HStack
+          alignment="center"
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'trailing' })]}
+        >
+          <Spacer />
+          <Button
+            label="Confirmar"
+            modifiers={[
+              roundedFont({}),
+              buttonStyle('glassProminent'),
+              controlSize('large'),
+              offset({ x: 12 }),
+              disabledModifier(!selectedItem || testModeEnabled),
+            ]}
+            onPress={() => {
+              if (!selectedItem || testModeEnabled) return;
 
-            onConfirm?.({
-              bucketPrice: effectiveBucketPrice,
-              client: selectedItem,
-              date: selectedDate,
-              quantity: bucketQuantity,
-            });
-            onVisibleChange(false);
-          }}
-        />
-      </HStack>
+              onConfirm?.({
+                bucketPrice: effectiveBucketPrice,
+                client: selectedItem,
+                date: selectedDate,
+                quantity: bucketQuantity,
+              });
+              onVisibleChange(false);
+            }}
+          />
+        </HStack>
+      </ZStack>
     </VStack>
   );
 
@@ -310,56 +373,51 @@ export default function NativeBottomSheetSwiftUI({
       spacing={0}
       modifiers={[
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-        padding({ top: -38 }),
+        padding({ top: 1 }),
       ]}
     >
       <List
         modifiers={[
-          listStyle('insetGrouped'),
+          listStyle('plain'),
           scrollDisabled(false),
           scrollContentBackground('hidden'),
           padding({ horizontal: 0, bottom: 0 }),
         ]}
       >
         {items.map((item) => (
-          <HStack
+          <Button
             key={item.id}
-            alignment="center"
-            spacing={14}
             modifiers={[
-              frame({ height: 36, maxWidth: 1000 }),
+              buttonStyle('plain'),
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
               listRowBackground('clear'),
-              contentShape(shapes.rectangle()),
-              onTapGesture(() => handleSelect(item)),
+              listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
+              listRowSeparator('hidden'),
               accessibilityLabel(item.title),
             ]}
+            onPress={() => handleSelect(item)}
           >
-            <Image
-              color="#8B8B93"
-              size={26}
-              systemName={(item.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
-            />
-            <VStack alignment="leading" spacing={0}>
-              <Text modifiers={[roundedFont({ size: 17, weight: 'regular' })]}>{item.title}</Text>
-              <Text modifiers={[foregroundColor('#8B8B93'), roundedFont({ size: 14 })]}>
-                {item.subtitle ?? 'Selecionar'}
+            <HStack
+              alignment="center"
+              spacing={0}
+              modifiers={[
+                padding({
+                  leading: spacing.xxl,
+                  trailing: spacing.md,
+                  vertical: spacing.lg,
+                }),
+                frame({ maxWidth: Infinity, alignment: 'leading' }),
+                contentShape(shapes.rectangle()),
+              ]}
+            >
+              <Text modifiers={[roundedFont({ size: 18, weight: 'medium' })]}>
+                {item.title}
               </Text>
-            </VStack>
-            <Spacer />
-            <Image color="#8B8B93" size={15} systemName="chevron.right" />
-          </HStack>
+            </HStack>
+          </Button>
         ))}
       </List>
     </VStack>
-  );
-
-  const headerView = (
-    <ZStack
-      alignment="center"
-      modifiers={[frame({ maxWidth: 1000 }), hidden(Boolean(selectedItem))]}
-    >
-      {titleView}
-    </ZStack>
   );
 
   const registroSheetContentBody = (
@@ -371,9 +429,6 @@ export default function NativeBottomSheetSwiftUI({
         padding({ horizontal: 0, top: 12, bottom: 0 }),
       ]}
     >
-      <Spacer minLength={8} />
-      {headerView}
-      <Spacer minLength={8} />
       <RNHostView matchContents={false}>
         <RegistrarDeliveryPagerRN
           detailPage={detailView}
@@ -480,6 +535,7 @@ export default function NativeBottomSheetSwiftUI({
 
   return (
     <Host
+      colorScheme={resolvedMode}
       matchContents={hostSizing === 'content' ? { horizontal: true } : false}
       useViewportSizeMeasurement={hostSizing === 'viewport'}
     >
@@ -492,6 +548,7 @@ export default function NativeBottomSheetSwiftUI({
       >
         <Group
           modifiers={[
+            setPresentationBackgroundInteraction(backgroundInteraction),
             ...(presentationBackgroundModifier ? [presentationBackgroundModifier] : []),
             presentationDetents(
               [...sheetDetents],
@@ -517,3 +574,18 @@ export default function NativeBottomSheetSwiftUI({
     </Host>
   );
 }
+
+const styles = StyleSheet.create({
+  detailSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  lightDetailSurface: {
+    backgroundColor: 'rgba(208, 208, 208, 0.38)',
+  },
+  darkDetailSurface: {
+    backgroundColor: 'rgba(80, 80, 84, 0.40)',
+  },
+});

@@ -9,9 +9,8 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- HEAD: `0440c632807a680ff1cf80b4c6b5eb73df85eda6`.
-- Último commit: `docs: consolidate current project state`.
-- Working tree: limpo.
+- HEAD: commit desta consolidação (`feat: consolidate native sheets and search`).
+- Working tree: limpo após a consolidação desta sessão.
 
 ## Aplicativo
 
@@ -47,6 +46,34 @@ preservam o histórico técnico e as decisões acumuladas.
   Development Build para validação. Até essa validação, Apple Intelligence não
   deve ser considerado validado.
 
+### IMPLEMENTADO NESTA CONSOLIDAÇÃO, AGUARDANDO VALIDAÇÃO VISUAL
+
+- `NativeBottomSheet` e `NativeSheet` aceitam e aplicam
+  `presentationBackgroundInteraction="enabled"` por padrão, removendo o dimming
+  dos Bottom Sheets reais sem alterar dialogs, menus ou telas full-screen.
+- Registrar Entrega mantém shell, detents, drag, pager e seleção nativos; a
+  seleção de clientes exibe somente os nomes, e o detalhe preserva os controles
+  nativos, haptics e cards internos definidos no fluxo atual.
+- Registrar Dados mantém o detent `0.45`, cards internos com `BlurView` nativo,
+  controles e ação `Adicionar`, além da ausência de dimming.
+- Home Search mantém Search Field nativo; o botão `?` desfoca o campo e aguarda
+  os eventos nativos do teclado, enquanto a Home fecha o sheet de sugestões ao
+  perder foco ou navegar para outra rota.
+- Perfil da Home mantém somente o detent `0.58`, sem scroll interno nem
+  expansão; o card de Nome/E-mail/Método usa `BlurView` com tratamento light/dark
+  e o logout existente permanece inalterado.
+- Configurações → Sistema mantém os dois laboratórios isolados: o teste de
+  Liquid Glass aceita tint branco de 60% no próprio material, e o teste de
+  Bottom Sheet usa o card sólido baseado nos tokens do tema e sem dimming.
+- Tipos públicos e adaptadores nativos foram atualizados somente para suportar
+  a interação de background dos sheets e os fluxos acima. Não houve alteração de
+  Firebase, Firestore, schema, regras financeiras ou dependências.
+
+Todas as alterações desta consolidação são TS/TSX sobre APIs nativas já
+existentes. Não exigem nova Development Build; podem ser testadas via
+Fast Refresh na Development Build atual, embora a confirmação visual final ainda
+precise ser repetida no iPhone.
+
 ### Componentes e módulos nativos relevantes
 
 - `@expo/ui`/SwiftUI, Native Stack e NativeTabs.
@@ -62,7 +89,8 @@ preservam o histórico técnico e as decisões acumuladas.
 - Home Search: Bottom Sheet imediato, parser fast path somente para consultas
   válidas, caminho semântico Apple Intelligence, prewarm, suporte pt-BR,
   cancelamento de gerações obsoletas e sheets de sugestões/resultados com
-  apresentação externa transparente e cards internos sólidos.
+  apresentação externa transparente, interação com o background habilitada e
+  itens de sugestão nativos preservados.
 - Quick Actions: Registrar entrega, Registrar dados, Modo Teste e Histórico;
   a ação é enfileirada até autenticação, hidratação e router estarem prontos.
 - NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global
@@ -71,9 +99,15 @@ preservam o histórico técnico e as decisões acumuladas.
   `/registrar-entrega`; a lista de Entregas usa cards individuais com
   `PremiumCard` e `NativeCardContextMenu`. O primeiro Bottom Sheet de entrega
   mantém shell nativo interativo, lista em `0.48 ↔ 0.78`, formulário em
-  `0.48` e cards internos neutros.
+  `0.48`, seleção minimalista de clientes, cards internos e ausência de dimming.
 - Registrar Dados: Bottom Sheet nativo com shell Liquid Glass interativo,
-  detent `0.45`, dois cards internos neutros e controles nativos preservados.
+  detent `0.45`, dois cards internos translúcidos com `BlurView` e controles
+  nativos preservados.
+- Fábrica: o Bottom Sheet de detalhes mantém os cards opacos originais; o fluxo
+  continua usando a abstração nativa compartilhada e não contém o experimento de
+  translucidez descartado.
+- Perfil: sheet fixo em `0.58`, conteúdo sem scroll interno, card de conta fosco
+  com `BlurView` e logout Firebase existente preservado.
 - Histórico: `NativeDateToolbar` textual no formato curto, filtro no mesmo
   `Stack.Toolbar`, consultas, cards e ProgressiveBlur preservados.
 - Finanças: cards estáveis ao retornar de detalhes, `NativeAnimatedNumber` para
@@ -104,12 +138,10 @@ preservam o histórico técnico e as decisões acumuladas.
 
 - Correção mais recente do roteamento/bridge do Apple Intelligence/Foundation
   Models, ainda pendente de recompilação e validação no iPhone.
-- Ajustes finais de Bottom Sheets, transparência da Home Search, detents e
-  experimentos Liquid Glass do commit `b7c22af`: TypeScript, ESLint, testes e
-  `git diff --check` foram validados localmente, mas não há nova confirmação
-  visual desses ajustes no iPhone registrada nesta sessão. Como o commit não
-  alterou Swift, config plugin, dependências ou capabilities, ele pode ser
-  testado via Metro/Fast Refresh na Development Build existente.
+- Ajustes finais de Bottom Sheets, transparência da Home Search, detents,
+  Perfil, Registrar e experimentos Liquid Glass desta consolidação: TypeScript,
+  lint funcional e `git diff --check` foram validados localmente, mas ainda não
+  há nova confirmação visual desses ajustes no iPhone.
 
 ### PROBLEMAS CONHECIDOS / EM INVESTIGAÇÃO
 
@@ -120,6 +152,9 @@ preservam o histórico técnico e as decisões acumuladas.
 - Alguns detalhes visuais de módulos nativos, como a máscara UIKit do Context
   Menu, continuam condicionados à versão efetivamente compilada do Development
   Build.
+- O teste automatizado de `tests/factory/PurchaseDetailsSheet.test.ts` não inicia
+  neste ambiente por `react-native-worklets` (`loadUnpackers` indefinido); nenhum
+  teste é executado antes dessa falha de infraestrutura.
 - Avisos de normalização LF/CRLF podem aparecer em `git diff --check` e no
   Prettier/ESLint sem representar mudança funcional do app.
 

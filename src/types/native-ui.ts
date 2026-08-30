@@ -21,12 +21,14 @@ export type NativeMenuProps = {
 };
 
 export type NativeSheetDetent = 'medium' | 'large' | { fraction: number } | { height: number };
+export type NativeSheetBackgroundInteraction = 'automatic' | 'enabled' | 'disabled';
 
 export type NativeSheetProps = {
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
   children: ReactNode;
   detents?: readonly NativeSheetDetent[];
+  presentationBackgroundInteraction?: NativeSheetBackgroundInteraction;
   title?: string;
   accessibilityLabel?: string;
 };

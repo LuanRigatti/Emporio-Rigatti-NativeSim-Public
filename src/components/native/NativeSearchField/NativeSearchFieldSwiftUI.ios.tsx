@@ -1,4 +1,5 @@
 import { Button, HStack, Host, Image, TextField, useNativeState } from '@expo/ui/swift-ui';
+import type { TextFieldRef } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   animation,
@@ -14,7 +15,7 @@ import {
   submitLabel,
 } from '@expo/ui/swift-ui/modifiers';
 import { PlatformColor } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { roundedFont } from '../nativeTypography';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
@@ -30,6 +31,7 @@ export default function NativeSearchFieldSwiftUI({
   value,
 }: NativeSearchFieldProps) {
   const text = useNativeState(value);
+  const textFieldRef = useRef<TextFieldRef>(null);
   const [focused, setFocused] = useState(false);
 
   const handleNativeSubmit = () => {
@@ -71,6 +73,7 @@ export default function NativeSearchFieldSwiftUI({
         />
         <TextField
           axis="horizontal"
+          ref={textFieldRef}
           modifiers={[
             roundedFont({ size: 18 }),
             frame({ maxWidth: 1000 }),
@@ -99,6 +102,7 @@ export default function NativeSearchFieldSwiftUI({
             onPress={() => {
               triggerLightImpactHaptic();
               onPressHelp();
+              void textFieldRef.current?.blur();
             }}
           >
             <Image color="#8B8B93" size={18} systemName="questionmark.circle" />

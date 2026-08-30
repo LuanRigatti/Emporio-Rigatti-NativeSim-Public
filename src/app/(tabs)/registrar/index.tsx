@@ -773,6 +773,7 @@ export function RegistrarDeliveryScreen() {
         onPageSettled={handleSheetPageSettled}
         onSelect={handleSelectClient}
         onVisibleChange={handleSheetVisibleChange}
+        presentationBackgroundInteraction="enabled"
         presentationBackgroundMode="native"
         selectedItem={selectedClient}
         title="Adicionar entrega"

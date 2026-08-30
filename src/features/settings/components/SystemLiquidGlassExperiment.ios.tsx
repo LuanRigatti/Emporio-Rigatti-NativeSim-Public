@@ -12,6 +12,7 @@ import { type StyleProp, type ViewStyle } from 'react-native';
 type SystemLiquidGlassExperimentProps = {
   color: string;
   cornerRadius: number;
+  glassTint?: string;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   title?: string;
@@ -21,6 +22,7 @@ type SystemLiquidGlassExperimentProps = {
 export default function SystemLiquidGlassExperiment({
   color,
   cornerRadius,
+  glassTint,
   onPress,
   style,
   title = 'Teste Liquid Glass',
@@ -34,7 +36,7 @@ export default function SystemLiquidGlassExperiment({
           padding({ horizontal: 18, vertical: 14 }),
           frame({ alignment: 'leading', height: 56, width }),
           glassEffect({
-            glass: { interactive: true, variant: 'regular' },
+            glass: { interactive: true, tint: glassTint, variant: 'regular' },
             cornerRadius,
             shape: 'roundedRectangle',
           }),

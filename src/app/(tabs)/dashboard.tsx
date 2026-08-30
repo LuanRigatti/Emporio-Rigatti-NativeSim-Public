@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useIsFocused, useRouter } from 'expo-router';
+import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
@@ -54,6 +54,13 @@ export default function Home() {
   const [searchText, setSearchText] = useState('');
   const [isHelpSheetVisible, setIsHelpSheetVisible] = useState(false);
   const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
+  const helpKeyboardWillHideSubscription = useRef<
+    ReturnType<typeof Keyboard.addListener> | null
+  >(null);
+  const helpKeyboardDidHideSubscription = useRef<
+    ReturnType<typeof Keyboard.addListener> | null
+  >(null);
+  const helpPresentationPending = useRef(false);
   const [searchFlow, dispatchSearchFlow] = useReducer(
     homeSearchPresentationReducer,
     initialHomeSearchPresentationState,
@@ -170,10 +177,52 @@ export default function Home() {
     [],
   );
 
-  const handlePressHelp = useCallback(() => {
-    Keyboard.dismiss();
-    setIsHelpSheetVisible(true);
+  const clearHelpKeyboardListeners = useCallback(() => {
+    helpKeyboardWillHideSubscription.current?.remove();
+    helpKeyboardWillHideSubscription.current = null;
+    helpKeyboardDidHideSubscription.current?.remove();
+    helpKeyboardDidHideSubscription.current = null;
   }, []);
+
+  const presentHelpSheet = useCallback(() => {
+    clearHelpKeyboardListeners();
+
+    if (!helpPresentationPending.current) return;
+
+    helpPresentationPending.current = false;
+    setIsHelpSheetVisible(true);
+  }, [clearHelpKeyboardListeners]);
+
+  const handlePressHelp = useCallback(() => {
+    if (isHelpSheetVisible || helpPresentationPending.current) return;
+
+    helpPresentationPending.current = true;
+    if (!Keyboard.isVisible()) {
+      presentHelpSheet();
+      return;
+    }
+
+    clearHelpKeyboardListeners();
+    helpKeyboardWillHideSubscription.current = Keyboard.addListener(
+      'keyboardWillHide',
+      presentHelpSheet,
+    );
+    helpKeyboardDidHideSubscription.current = Keyboard.addListener(
+      'keyboardDidHide',
+      presentHelpSheet,
+    );
+    Keyboard.dismiss();
+  }, [clearHelpKeyboardListeners, isHelpSheetVisible, presentHelpSheet]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        clearHelpKeyboardListeners();
+        helpPresentationPending.current = false;
+        setIsHelpSheetVisible(false);
+      };
+    }, [clearHelpKeyboardListeners]),
+  );
 
   const handleHelpSelectQuery = useCallback(
     (selectedQuery: string) => {

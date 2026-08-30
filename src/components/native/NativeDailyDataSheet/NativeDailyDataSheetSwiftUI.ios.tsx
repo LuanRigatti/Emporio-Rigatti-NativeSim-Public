@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import {
   BottomSheet,
   Button,
@@ -6,6 +7,7 @@ import {
   HStack,
   Host,
   Image,
+  RNHostView,
   Spacer,
   Text,
   TextField,
@@ -28,17 +30,17 @@ import {
   layoutPriority,
   offset,
   padding,
+  presentationBackgroundInteraction as setPresentationBackgroundInteraction,
   presentationBackground,
   presentationDetents,
   presentationDragIndicator,
-  shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
-import { PlatformColor } from 'react-native';
+import { PlatformColor, StyleSheet, View } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import {
@@ -71,7 +73,6 @@ export default function NativeDailyDataSheetSwiftUI({
 }: NativeDailyDataSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
   const estarState = useNativeState(initialValues.estar);
@@ -116,6 +117,38 @@ export default function NativeDailyDataSheetSwiftUI({
       setSubmitting(false);
     }
   };
+
+  const renderGlassSurface = () => (
+    <RNHostView matchContents={false}>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.detailSurface,
+          {
+            borderColor: theme.colors.separator,
+            borderRadius: theme.radius.xl + spacing.sm,
+          },
+        ]}
+      >
+        {resolvedMode !== 'dark' ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.lightDetailSurface]} />
+        ) : null}
+        {resolvedMode === 'dark' ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.darkDetailSurface]} />
+        ) : null}
+        <BlurView
+          key={resolvedMode}
+          intensity={70}
+          style={StyleSheet.absoluteFill}
+          tint={
+            resolvedMode === 'dark'
+              ? 'systemChromeMaterialDark'
+              : 'systemUltraThinMaterialLight'
+          }
+        />
+      </View>
+    </RNHostView>
+  );
 
   const field = (
     label: string,
@@ -202,19 +235,20 @@ export default function NativeDailyDataSheetSwiftUI({
           padding({ horizontal: 2 }),
         ]}
       >
-        <VStack
-          alignment="leading"
-          spacing={0}
-          modifiers={[
-            padding({ leading: 24, trailing: 0, vertical: 4 }),
-            frame({ maxWidth: Infinity, alignment: 'leading' }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
-            ),
-            padding({ top: 4 }),
-          ]}
+        <ZStack
+          alignment="topLeading"
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
         >
+          {renderGlassSurface()}
+          <VStack
+            alignment="leading"
+            spacing={0}
+            modifiers={[
+              padding({ leading: 24, trailing: 0, vertical: 4 }),
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
+              padding({ top: 4 }),
+            ]}
+          >
           {field('Estar', 'briefcase', estarState, 'estar', true)}
           <Divider />
           {field('Outros', 'ellipsis.circle', otherState, 'other', true)}
@@ -222,25 +256,28 @@ export default function NativeDailyDataSheetSwiftUI({
           {field('Km', 'speedometer', kilometersState, 'kilometers')}
           <Divider />
           {field('Combust\u00edvel', 'fuelpump', fuelPriceState, 'fuelPrice', true)}
-        </VStack>
+          </VStack>
+        </ZStack>
 
-        <HStack
+        <ZStack
+          alignment="center"
           modifiers={[
             frame({ maxWidth: Infinity, alignment: 'trailing' }),
-            padding({ top: 8, trailing: 8, bottom: 8 }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
-            ),
+            padding({ top: 8, leading: spacing.sm, trailing: 8, bottom: 8 }),
           ]}
         >
-          <Spacer />
+          <HStack
+            alignment="center"
+            modifiers={[frame({ maxWidth: Infinity, alignment: 'trailing' })]}
+          >
+            <Spacer />
             <Button
               label="Adicionar"
             modifiers={[
               roundedFont({}),
               buttonStyle('glassProminent'),
               controlSize('large'),
+              offset({ y: -8 }),
               foregroundStyle(PlatformColor('label') as unknown as string),
               tint(getLiquidGlassTint(resolvedMode)),
               ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
@@ -250,8 +287,9 @@ export default function NativeDailyDataSheetSwiftUI({
               triggerNativeButtonHaptic('light');
               void handleSubmit();
             }}
-          />
-        </HStack>
+            />
+          </HStack>
+        </ZStack>
       </VStack>
     </VStack>
   );
@@ -290,6 +328,7 @@ export default function NativeDailyDataSheetSwiftUI({
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
+            setPresentationBackgroundInteraction('enabled'),
             ...(presentationBackgroundModifier ? [presentationBackgroundModifier] : []),
             presentationDetents([{ fraction: 0.45 }]),
             presentationDragIndicator('visible'),
@@ -301,3 +340,18 @@ export default function NativeDailyDataSheetSwiftUI({
     </Host>
   );
 }
+
+const styles = StyleSheet.create({
+  darkDetailSurface: {
+    backgroundColor: 'rgba(80, 80, 84, 0.40)',
+  },
+  detailSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  lightDetailSurface: {
+    backgroundColor: 'rgba(208, 208, 208, 0.38)',
+  },
+});

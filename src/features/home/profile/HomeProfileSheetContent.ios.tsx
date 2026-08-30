@@ -1,12 +1,14 @@
+import { BlurView } from 'expo-blur';
 import {
   Button,
-  Divider,
   HStack,
   Image,
+  RNHostView,
   ScrollView,
   Spacer,
   Text,
   VStack,
+  ZStack,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityHint,
@@ -17,9 +19,10 @@ import {
   font,
   foregroundColor,
   frame,
-  glassEffect,
   padding,
+  scrollDisabled,
 } from '@expo/ui/swift-ui/modifiers';
+import { StyleSheet, View } from 'react-native';
 
 import { NativeAvatarButton } from '@/components/native';
 import { getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
@@ -39,7 +42,7 @@ export default function HomeProfileSheetContent({
   const { resolvedMode, theme } = useAppTheme();
 
   return (
-    <ScrollView showsIndicators={false}>
+    <ScrollView showsIndicators={false} modifiers={[scrollDisabled(true)]}>
       <VStack
         alignment="leading"
         spacing={0}
@@ -88,29 +91,50 @@ export default function HomeProfileSheetContent({
         <VStack
           alignment="leading"
           spacing={0}
-          modifiers={[padding({ top: spacing.xxxl }), frame({ maxWidth: Infinity })]}
+          modifiers={[padding({ top: spacing.xxl }), frame({ maxWidth: Infinity })]}
         >
-          <Button
+          <ZStack
+            alignment="topLeading"
             modifiers={[
-              buttonStyle('plain'),
               frame({ alignment: 'leading', maxWidth: Infinity }),
-              glassEffect({
-                glass: { interactive: true, variant: 'regular' },
-                cornerRadius: theme.radius.xl + spacing.xxs,
-                shape: 'roundedRectangle',
-              }),
               accessibilityLabel('Informações da conta'),
             ]}
-            onPress={() => undefined}
           >
+            <RNHostView matchContents={false}>
+              <View
+                pointerEvents="none"
+                style={[styles.accountSurface, { borderColor: theme.colors.separator }]}
+              >
+                {resolvedMode !== 'dark' ? (
+                  <View
+                    pointerEvents="none"
+                    style={[StyleSheet.absoluteFill, styles.lightAccountSurface]}
+                  />
+                ) : null}
+                {resolvedMode === 'dark' ? (
+                  <View
+                    pointerEvents="none"
+                    style={[StyleSheet.absoluteFill, styles.darkAccountSurface]}
+                  />
+                ) : null}
+                <BlurView
+                  key={resolvedMode}
+                  intensity={70}
+                  style={StyleSheet.absoluteFill}
+                  tint={
+                    resolvedMode === 'dark'
+                      ? 'systemChromeMaterialDark'
+                      : 'systemUltraThinMaterialLight'
+                  }
+                />
+              </View>
+            </RNHostView>
             <VStack alignment="leading" spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
               <ProfileRow label="Nome" value={displayName} />
-              <Divider />
               <ProfileRow label="E-mail" value={email} />
-              <Divider />
               <ProfileRow label="Método" value="Google" />
             </VStack>
-          </Button>
+          </ZStack>
         </VStack>
 
         {error ? (
@@ -193,3 +217,19 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
     </HStack>
   );
 }
+
+const styles = StyleSheet.create({
+  accountSurface: {
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    flex: 1,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  lightAccountSurface: {
+    backgroundColor: 'rgba(208, 208, 208, 0.38)',
+  },
+  darkAccountSurface: {
+    backgroundColor: 'rgba(19, 20, 23, 0.40)',
+  },
+});

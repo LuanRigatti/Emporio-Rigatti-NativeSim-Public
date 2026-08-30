@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import type { NativeSheetBackgroundInteraction } from '@/types/native-ui';
+
 export type NativeBottomSheetItem = {
   id: string;
   title: string;
@@ -22,6 +24,7 @@ export type NativeBottomSheetProps = {
   hostSizing?: 'content' | 'fill' | 'viewport';
   detents?: readonly NativeBottomSheetDetent[];
   glassSurface?: boolean;
+  presentationBackgroundInteraction?: NativeSheetBackgroundInteraction;
   presentationBackgroundMode?: 'native' | 'system' | 'transparent';
   visible: boolean;
   bucketPrice?: number;

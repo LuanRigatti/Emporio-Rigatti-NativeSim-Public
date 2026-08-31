@@ -12,17 +12,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { NativeGlassHeader } from '@/components/layout';
 import {
-  NativeBottomSheet,
   NativeCardContextMenu,
   NativeDailyDataSheet,
   NativeGlassIconButton,
 } from '@/components/native';
-import type {
-  NativeBottomSheetConfirmation,
-  NativeBottomSheetItem,
-  NativeDailyDataValues,
-} from '@/components/native';
+import type { NativeDailyDataValues } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
+import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -34,7 +31,6 @@ import { toHistoryDelivery } from '@/services/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type { Delivery } from '@/types/data';
 
-const BUCKET_PRICE = 49.8;
 const DELIVERY_CARD_GROWTH_DURATION = 200;
 
 type DeliverySortMode = 'latest' | 'alphabetical' | 'quantity';
@@ -456,23 +452,10 @@ export function RegistrarDeliveryScreen() {
   const { resolvedMode, theme } = useAppTheme();
   const { quantity: maskQuantity, text: maskText, enabled: testModeEnabled } =
     useTestModePresentation();
-  const [sheetVisible, setSheetVisible] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<NativeBottomSheetItem | null>(null);
   const dark = colorScheme === 'dark';
   const { clients } = useClients();
-  const clientItems = useMemo<NativeBottomSheetItem[]>(
-    () =>
-      clients.map((client) => ({
-        bucketPrice: client.currentPrice,
-        id: client.clientId,
-        title: client.canonicalName,
-        systemImage: 'person.crop.circle.fill',
-      })),
-    [clients],
-  );
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [deliverySortMode, setDeliverySortMode] = useState<DeliverySortMode>('latest');
-  const [recentlyAddedDeliveryIds, setRecentlyAddedDeliveryIds] = useState<readonly string[]>([]);
   const {
     allDeliveries: sourceDeliveries,
     create,
@@ -481,6 +464,8 @@ export function RegistrarDeliveryScreen() {
     mode: 'today',
     date: currentDate,
   });
+  const registrarDeliverySheet = useRegistrarDeliverySheet({ clients, create });
+  const { recentlyAddedDeliveryIds } = registrarDeliverySheet;
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());
@@ -524,58 +509,9 @@ export function RegistrarDeliveryScreen() {
     height: deliveryCardHeightValue.value,
   }));
 
-  const openSheet = () => {
-    triggerLightImpactHaptic();
-    setSelectedClient(null);
-    setSheetVisible(true);
-  };
-  const handleConfirm = (confirmation: NativeBottomSheetConfirmation) => {
-    if (testModeEnabled) return;
-    const currentClient = clients.find((client) => client.clientId === confirmation.client.id);
-    if (!currentClient?.clientId || !currentClient.address) return;
-    const bucketPrice = currentClient.currentPrice ?? confirmation.bucketPrice;
-    void create({
-      address: currentClient.address,
-      addressConfirmed: true,
-      clientId: currentClient.clientId,
-      clientName: confirmation.client.title,
-      date: todayIso(confirmation.date),
-      delivered: false,
-      invoiceStatus: 'a_emitir',
-      quantity: confirmation.quantity,
-      status: 'Não Pago',
-      value: bucketPrice * confirmation.quantity,
-      valueWasManuallyChanged: false,
-      historicalUnitPrice: bucketPrice,
-    }).then((created) => {
-      setRecentlyAddedDeliveryIds((current) => [
-        created.id,
-        ...current.filter((deliveryId) => deliveryId !== created.id),
-      ]);
-    }).catch(() => undefined);
-    setSheetVisible(false);
-  };
-
   const handleDeliverySortChange = useCallback((sortMode: DeliverySortMode) => {
     triggerSelectionHaptic();
     setDeliverySortMode(sortMode);
-  }, []);
-  const handleSelectClient = useCallback(
-    (item: NativeBottomSheetItem) => {
-      const currentClient = clients.find((client) => client.clientId === item.id);
-      setSelectedClient({
-        ...item,
-        bucketPrice: currentClient?.currentPrice ?? item.bucketPrice,
-      });
-    },
-    [clients],
-  );
-  const handleSheetVisibleChange = useCallback((visible: boolean) => {
-    setSheetVisible(visible);
-    if (!visible) setSelectedClient(null);
-  }, []);
-  const handleSheetPageSettled = useCallback((page: number) => {
-    if (page === 0) setSelectedClient(null);
   }, []);
 
   const header = (
@@ -760,27 +696,12 @@ export function RegistrarDeliveryScreen() {
             interactiveGlass
             label="Adicionar"
             labelSize={18}
-            onPress={openSheet}
+            onPress={registrarDeliverySheet.openSheet}
             shape="capsule"
           />
         </View>
       </View>
-      <NativeBottomSheet
-        bucketPrice={BUCKET_PRICE}
-        hostSizing="viewport"
-        items={clientItems}
-        onConfirm={handleConfirm}
-        onPageSettled={handleSheetPageSettled}
-        onSelect={handleSelectClient}
-        onVisibleChange={handleSheetVisibleChange}
-        presentationBackgroundInteraction="enabled"
-        presentationBackgroundMode="native"
-        selectedItem={selectedClient}
-        title="Adicionar entrega"
-        titleSystemImage="plus"
-        subtitle="Escolha o cliente"
-        visible={sheetVisible}
-      />
+      <RegistrarDeliverySheet controller={registrarDeliverySheet} />
     </View>
   );
 }

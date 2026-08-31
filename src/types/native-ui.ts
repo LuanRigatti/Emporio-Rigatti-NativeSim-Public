@@ -29,6 +29,7 @@ export type NativeSheetProps = {
   children: ReactNode;
   detents?: readonly NativeSheetDetent[];
   presentationBackgroundInteraction?: NativeSheetBackgroundInteraction;
+  presentationBackgroundColor?: string;
   title?: string;
   accessibilityLabel?: string;
 };

@@ -105,6 +105,16 @@ export interface FinancialComparisonResult {
   lucroLiquido: FinancialComparison;
 }
 
+export interface FinancialMonthlyComparisonResult {
+  inicioAtual: string;
+  fimAtual: string;
+  inicioAnterior: string;
+  fimAnterior: string;
+  faturamento: FinancialComparison;
+  quantidadeEntregas: FinancialComparison;
+  lucroLiquido: FinancialComparison;
+}
+
 export interface FinancialDeliveryDayComparison {
   currentDeliveryDays: number;
   previousDeliveryDays: number;

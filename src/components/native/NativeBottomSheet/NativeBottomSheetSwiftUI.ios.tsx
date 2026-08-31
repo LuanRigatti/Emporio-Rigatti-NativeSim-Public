@@ -41,7 +41,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import type { PresentationDetent } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { spacing, useAppTheme } from '@/theme';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
@@ -78,6 +78,7 @@ export default function NativeBottomSheetSwiftUI({
   presentationBackgroundMode = 'system',
   hostSizing = 'content',
 }: NativeBottomSheetProps) {
+  const { width } = useWindowDimensions();
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
     useTestModePresentation();
@@ -537,6 +538,8 @@ export default function NativeBottomSheetSwiftUI({
     <Host
       colorScheme={resolvedMode}
       matchContents={hostSizing === 'content' ? { horizontal: true } : false}
+      pointerEvents="none"
+      style={{ position: 'absolute', width }}
       useViewportSizeMeasurement={hostSizing === 'viewport'}
     >
       <BottomSheet

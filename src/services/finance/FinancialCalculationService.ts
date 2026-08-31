@@ -7,6 +7,7 @@ import type {
   FinancialComparison,
   FinancialComparisonResult,
   FinancialDeliveryDayComparison,
+  FinancialMonthlyComparisonResult,
   FinancialPeriod,
   FinancialSummary,
   MonthlyExpenses,
@@ -57,6 +58,11 @@ function endOfMonth(month: string): string {
   return formatLocalDate(new Date(year, monthNumber, 0, 12));
 }
 
+function daysInMonth(month: string): number {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return new Date(year, monthNumber, 0).getDate();
+}
+
 function startOfWeek(value: string): string {
   const date = localDate(value) ?? new Date();
   date.setDate(date.getDate() - date.getDay());
@@ -103,6 +109,26 @@ function comparison(
 function previousMonthKey(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number);
   return formatLocalDate(new Date(year, monthNumber - 2, 1, 12)).slice(0, 7);
+}
+
+function monthlyComparisonRanges(
+  monthA: string,
+  monthB: string,
+  today: Date,
+): { monthA: { start: string; end: string }; monthB: { start: string; end: string } } {
+  const activeMonth = todayIso(today).slice(0, 7);
+  const currentMonthIsPartial = today.getDate() < daysInMonth(activeMonth);
+  const comparesActiveMonth = monthA === activeMonth || monthB === activeMonth;
+  const endForMonth = (month: string): string => {
+    if (!currentMonthIsPartial || !comparesActiveMonth) return endOfMonth(month);
+    if (month === activeMonth) return todayIso(today);
+    return `${month}-${String(Math.min(today.getDate(), daysInMonth(month))).padStart(2, '0')}`;
+  };
+
+  return {
+    monthA: { start: `${monthA}-01`, end: endForMonth(monthA) },
+    monthB: { start: `${monthB}-01`, end: endForMonth(monthB) },
+  };
 }
 
 export class FinancialCalculationService {
@@ -557,6 +583,68 @@ export class FinancialCalculationService {
       currentDeliveryDays: cutoffs.comparableN,
       previousDeliveryDays: cutoffs.comparableN,
       faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
+      lucroLiquido: comparison(currentSummary.lucroLiquido, previousSummary.lucroLiquido, true),
+    };
+  }
+
+  public compareCalendarMonths(input: FinancialCalculationInput): FinancialMonthlyComparisonResult {
+    const today = input.today ?? new Date();
+    const currentMonth = input.filters.mesSelecionado ?? todayIso(today).slice(0, 7);
+    const previousMonth = previousMonthKey(currentMonth);
+    const ranges = monthlyComparisonRanges(currentMonth, previousMonth, today);
+    const calculateMonth = (
+      month: string,
+      range: { start: string; end: string },
+    ): FinancialSummary => {
+      const filters: FinancialCalculationFilters = {
+        ...input.filters,
+        mesSelecionado: month,
+        periodo: 'mes',
+      };
+      const deliveries = this.filterDeliveries(input.deliveries, filters, today).filter((item) => {
+        const date = isoDate(item.data);
+        return date >= range.start && date <= range.end;
+      });
+      const dailyExpenses = Object.fromEntries(
+        Object.entries(input.dailyExpenses).filter(([key, expense]) => {
+          const date = isoDate(expense.data ?? key);
+          return date >= range.start && date <= range.end;
+        }),
+      );
+      const filterDateValues = (values: Readonly<Record<string, number>> | undefined) =>
+        values
+          ? Object.fromEntries(
+              Object.entries(values).filter(([key]) => {
+                const date = isoDate(key);
+                return date >= range.start && date <= range.end;
+              }),
+            )
+          : undefined;
+
+      return this.calculateResumo({
+        ...input,
+        automaticKilometersByDate: filterDateValues(input.automaticKilometersByDate),
+        dailyExpenses,
+        deliveries,
+        filters,
+        fuelCostByDate: filterDateValues(input.fuelCostByDate),
+        today,
+      });
+    };
+
+    const currentSummary = calculateMonth(currentMonth, ranges.monthA);
+    const previousSummary = calculateMonth(previousMonth, ranges.monthB);
+
+    return {
+      inicioAtual: ranges.monthA.start,
+      fimAtual: ranges.monthA.end,
+      inicioAnterior: ranges.monthB.start,
+      fimAnterior: ranges.monthB.end,
+      faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
+      quantidadeEntregas: comparison(
+        currentSummary.quantidadeEntregas,
+        previousSummary.quantidadeEntregas,
+      ),
       lucroLiquido: comparison(currentSummary.lucroLiquido, previousSummary.lucroLiquido, true),
     };
   }

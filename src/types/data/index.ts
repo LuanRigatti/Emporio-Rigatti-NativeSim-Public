@@ -58,6 +58,7 @@ export type {
   FinancialComparison,
   FinancialDeliveryDayComparison,
   FinancialComparisonResult,
+  FinancialMonthlyComparisonResult,
   FinancialMetric,
   FinancialPeriodSelection,
   FinancialPeriod,

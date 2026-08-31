@@ -1,5 +1,6 @@
 import { BottomSheet, Group, Host } from '@expo/ui/swift-ui';
 import {
+  presentationBackground,
   presentationBackgroundInteraction as setPresentationBackgroundInteraction,
   presentationDetents,
   presentationDragIndicator,
@@ -12,6 +13,7 @@ export default function NativeSheetSwiftUI({
   detents,
   onVisibleChange,
   presentationBackgroundInteraction: backgroundInteraction = 'enabled',
+  presentationBackgroundColor,
   visible,
 }: NativeSheetProps) {
   const sheetDetents = detents ?? [{ fraction: 0.48 }, 'large'];
@@ -19,6 +21,7 @@ export default function NativeSheetSwiftUI({
     presentationDetents([...sheetDetents]),
     presentationDragIndicator('visible'),
     setPresentationBackgroundInteraction(backgroundInteraction),
+    ...(presentationBackgroundColor ? [presentationBackground(presentationBackgroundColor)] : []),
   ];
 
   return (

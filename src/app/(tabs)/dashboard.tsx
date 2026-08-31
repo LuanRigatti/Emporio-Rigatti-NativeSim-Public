@@ -2,18 +2,18 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Keyboard, StyleSheet, Text, View } from 'react-native';
-import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
-import { Badge } from '@/components/feedback';
+import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeAvatarButton, NativeCardContextMenu, NativeSearchField } from '@/components/native';
-import { financialCalculationService } from '@/services/finance';
-import { getLiquidGlassTint, lightTheme, useAppTheme } from '@/theme';
+import { NativeAvatarButton, NativeSearchField } from '@/components/native';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { formatDateAsDayMonthYear } from '@/utils/groupItemsByDate';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
+import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
+import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
+import { useOpenPaymentClients } from '@/features/open-payments/hooks/useOpenPaymentClients';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
 import { HomeProfileSheet } from '@/features/home/profile/HomeProfileSheet';
@@ -28,7 +28,7 @@ import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoice
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { toHistoryDelivery } from '@/services/data';
-import { formatClientName, normalizeClientKey, todayIso } from '@/utils/data';
+import { todayIso } from '@/utils/data';
 
 function PreviewIcon({
   color,
@@ -49,11 +49,7 @@ export default function Home() {
   const isFocused = useIsFocused();
   const { resolvedMode, theme } = useAppTheme();
   const { user } = useAuth();
-  const {
-    currency: maskCurrency,
-    enabled: testModeEnabled,
-    text: maskText,
-  } = useTestModePresentation();
+  const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const insets = useAppSafeAreaInsets();
   const [focusEntryKey, setFocusEntryKey] = useState(0);
   const wasFocused = useRef(false);
@@ -61,12 +57,12 @@ export default function Home() {
   const [searchText, setSearchText] = useState('');
   const [isHelpSheetVisible, setIsHelpSheetVisible] = useState(false);
   const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
-  const helpKeyboardWillHideSubscription = useRef<
-    ReturnType<typeof Keyboard.addListener> | null
-  >(null);
-  const helpKeyboardDidHideSubscription = useRef<
-    ReturnType<typeof Keyboard.addListener> | null
-  >(null);
+  const helpKeyboardWillHideSubscription = useRef<ReturnType<typeof Keyboard.addListener> | null>(
+    null,
+  );
+  const helpKeyboardDidHideSubscription = useRef<ReturnType<typeof Keyboard.addListener> | null>(
+    null,
+  );
   const helpPresentationPending = useRef(false);
   const [searchFlow, dispatchSearchFlow] = useReducer(
     homeSearchPresentationReducer,
@@ -76,10 +72,16 @@ export default function Home() {
   const { search: runHomeSearch } = useHomeSearch();
   const {
     deliveries: dailyDeliveries,
+    create: createDelivery,
     remove: removeDelivery,
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
   const { clients } = useClients();
+  const registrarDeliverySheet = useRegistrarDeliverySheet({
+    clients,
+    create: createDelivery,
+  });
+  const { openSheet: openRegistrarDeliverySheet } = registrarDeliverySheet;
   const eligibleClientIds = useMemo(
     () =>
       clients
@@ -91,11 +93,7 @@ export default function Home() {
     clientIds: eligibleClientIds,
     mode: 'all',
   });
-  const { deliveries: openPaymentDeliveries, editMany } = useDeliveries({
-    deliveryStatus: 'Entregue',
-    mode: 'all',
-    status: 'Não Pago',
-  });
+  const { clientCards: openPaymentClientCards } = useOpenPaymentClients();
   const historyDeliveries = useMemo(
     () => dailyDeliveries.map(toHistoryDelivery),
     [dailyDeliveries],
@@ -109,21 +107,6 @@ export default function Home() {
   const openDocumentsCount = useMemo(
     () => countOpenDocuments(invoiceDeliveries, clients),
     [invoiceDeliveries, clients],
-  );
-  const openPaymentClientCards = useMemo(
-    () =>
-      financialCalculationService
-        .rankClients(openPaymentDeliveries, { periodo: 'todos' })
-        .filter((client) => client.valor > 0)
-        .map((client) => ({
-          ...client,
-          deliveries: openPaymentDeliveries.filter(
-            (delivery) =>
-              normalizeClientKey(formatClientName(delivery.cliente)) ===
-              normalizeClientKey(client.nome),
-          ),
-        })),
-    [openPaymentDeliveries],
   );
   useEffect(() => {
     if (isFocused && !wasFocused.current) {
@@ -152,15 +135,6 @@ export default function Home() {
       void toggleDelivery(deliveryId);
     },
     [testModeEnabled, toggleDelivery],
-  );
-
-  const handleOpenPayment = useCallback(
-    (deliveryId: string) => {
-      if (testModeEnabled) return;
-      triggerLightImpactHaptic();
-      void editMany([deliveryId], { status: 'Pago' });
-    },
-    [editMany, testModeEnabled],
   );
 
   const handleTodayDeliveryDelete = useCallback(
@@ -205,12 +179,9 @@ export default function Home() {
     [],
   );
 
-  const handleSearchSheetVisibleChange = useCallback(
-    (nextVisible: boolean) => {
-      dispatchSearchFlow({ type: 'NATIVE_VISIBILITY_CHANGED', visible: nextVisible });
-    },
-    [],
-  );
+  const handleSearchSheetVisibleChange = useCallback((nextVisible: boolean) => {
+    dispatchSearchFlow({ type: 'NATIVE_VISIBILITY_CHANGED', visible: nextVisible });
+  }, []);
 
   const clearHelpKeyboardListeners = useCallback(() => {
     helpKeyboardWillHideSubscription.current?.remove();
@@ -280,17 +251,7 @@ export default function Home() {
 
   const handleOpenRecebimentos = () => {
     triggerLightImpactHaptic();
-    router.push('/pagamentos-em-aberto');
-  };
-
-  const handleOpenRegistrarEntrega = () => {
-    triggerLightImpactHaptic();
-    router.push('/registrar-entrega');
-  };
-
-  const handleOpenDocumentos = () => {
-    triggerLightImpactHaptic();
-    router.push('/notas-fiscais-boletos');
+    router.push('/em-aberto');
   };
 
   const handleOpenFactory = () => {
@@ -298,60 +259,14 @@ export default function Home() {
     router.push('/fabrica-compras');
   };
 
-  const openPaymentCardMinHeight =
-    theme.spacing.md * 2 +
-    theme.typography.callout.lineHeight +
-    theme.spacing.xxs / 2 +
-    theme.typography.footnote.lineHeight;
+  const handleOpenRegistrarEntrega = useCallback(() => {
+    openRegistrarDeliverySheet();
+  }, [openRegistrarDeliverySheet]);
 
-  const renderOpenPaymentRow = (
-    client: (typeof openPaymentClientCards)[number],
-    preview = false,
-  ) => (
-    <View
-      style={[
-        styles.openPaymentCard,
-        {
-          backgroundColor: preview ? theme.colors.surface : 'transparent',
-          borderRadius: theme.radius.xl + theme.spacing.sm,
-          overflow: preview ? 'hidden' : undefined,
-          padding: theme.spacing.md,
-          minHeight: openPaymentCardMinHeight,
-          width: '100%',
-        },
-      ]}
-    >
-      <Text
-        style={[
-          theme.typography.callout,
-          {
-            color: theme.colors.textPrimary,
-            fontSize: theme.typography.callout.fontSize + 1,
-            fontWeight: theme.typography.headline.fontWeight,
-            marginLeft: theme.spacing.xxs,
-          },
-        ]}
-      >
-        {client.nome}
-      </Text>
-      <Badge
-        label={maskCurrency(client.valor)}
-        labelStyle={[
-          theme.typography.footnote,
-          {
-            color: resolvedMode === 'dark' ? theme.colors.danger : lightTheme.colors.danger,
-            fontWeight: theme.typography.headline.fontWeight,
-          },
-        ]}
-        style={{
-          backgroundColor:
-            resolvedMode === 'dark' ? theme.colors.dangerSurface : lightTheme.colors.dangerSurface,
-          transform: [{ translateY: 10 }],
-        }}
-        tone="danger"
-      />
-    </View>
-  );
+  const handleOpenDocumentos = () => {
+    triggerLightImpactHaptic();
+    router.push('/notas-fiscais-boletos');
+  };
 
   const handleOpenProfile = useCallback(() => {
     setIsProfileSheetVisible(true);
@@ -401,6 +316,7 @@ export default function Home() {
           gap: theme.spacing.lg,
           marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xxxl,
+          paddingHorizontal: 0,
         }}
         progressiveBlurHeight={
           theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
@@ -410,25 +326,48 @@ export default function Home() {
         overlayHeader={homeToolbar}
         overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
       >
-        <View style={styles.header}>{homeHeader}</View>
+        <View
+          style={[
+            styles.paddedHomeContent,
+            { gap: theme.spacing.lg, paddingHorizontal: theme.layout.screenHorizontalPadding },
+          ]}
+        >
+          <View style={styles.header}>{homeHeader}</View>
 
-        <View style={{ marginBottom: theme.spacing.xs, marginTop: 0 }}>
-          <NativeSearchField
-            accessibilityLabel="Buscar clientes, entregas e filtros"
-            onChangeText={handleSearchTextChange}
-            onFocusChange={handleSearchFocusChange}
-            onPressHelp={handlePressHelp}
-            onSubmit={handleSearchSubmit}
-            placeholder="Busque clientes, entregas e filtros"
-            focusEntryKey={focusEntryKey}
-            value={searchText}
-          />
+          <View style={{ marginBottom: theme.spacing.xs, marginTop: 0 }}>
+            <NativeSearchField
+              accessibilityLabel="Buscar clientes, entregas e filtros"
+              onChangeText={handleSearchTextChange}
+              onFocusChange={handleSearchFocusChange}
+              onPressHelp={handlePressHelp}
+              onSubmit={handleSearchSubmit}
+              placeholder="Busque clientes, entregas e filtros"
+              focusEntryKey={focusEntryKey}
+              value={searchText}
+            />
+          </View>
         </View>
 
-        <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.widgetRow,
+            {
+              gap: theme.spacing.sm,
+              paddingLeft: theme.spacing.xs,
+              paddingRight: theme.spacing.xs,
+            },
+          ]}
+          decelerationRate="fast"
+          directionalLockEnabled
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          snapToAlignment="start"
+          snapToInterval={178 + theme.spacing.sm}
+          style={styles.widgetCarousel}
+        >
           <PremiumCard
             accessibilityLabel="Abrir Registrar Entrega"
-            disablePressAnimation
             onPress={handleOpenRegistrarEntrega}
             style={[
               styles.widgetCard,
@@ -448,8 +387,34 @@ export default function Home() {
             </View>
           </PremiumCard>
           <PremiumCard
+            accessibilityLabel="Abrir recebimentos em aberto"
+            onPress={handleOpenRecebimentos}
+            style={[
+              styles.widgetCard,
+              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+            ]}
+          >
+            <View style={styles.widgetHeader}>
+              <PreviewIcon
+                color={
+                  openPaymentClientCards.length > 0
+                    ? theme.colors.danger
+                    : theme.colors.textSecondary
+                }
+                name="cash-outline"
+              />
+              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+            </View>
+            <View
+              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+            >
+              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                Em aberto
+              </Text>
+            </View>
+          </PremiumCard>
+          <PremiumCard
             accessibilityLabel="Abrir documentos"
-            disablePressAnimation
             onPress={handleOpenDocumentos}
             style={[
               styles.widgetCard,
@@ -474,138 +439,35 @@ export default function Home() {
               </Text>
             </View>
           </PremiumCard>
-        </View>
-
-        <View style={styles.shortcutCards}>
-          <View
+          <PremiumCard
+            accessibilityLabel="Abrir Fábrica"
+            onPress={handleOpenFactory}
             style={[
-              styles.openPaymentCardContainer,
-              {
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                overflow: 'hidden',
-                width: '100%',
-              },
+              styles.widgetCard,
+              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
             ]}
           >
-            <AnimatedPressable
-              accessibilityLabel="Abrir Fábrica"
-              accessibilityRole="button"
-              disablePressAnimation
-              onPress={handleOpenFactory}
-              style={styles.openPaymentContextMenu}
-            >
-              <View
-                style={[
-                  styles.openPaymentCard,
-                  {
-                    backgroundColor: 'transparent',
-                    borderRadius: theme.radius.xl + theme.spacing.sm,
-                    minHeight: openPaymentCardMinHeight,
-                    padding: theme.spacing.md,
-                    width: '100%',
-                  },
-                ]}
-              >
-                <View
-                  style={{
-                    alignItems: 'center',
-                    flexDirection: 'row',
-                    gap: theme.spacing.sm,
-                  }}
-                >
-                  <View style={{ transform: [{ translateY: -2 }] }}>
-                    <PreviewIcon
-                      color={theme.colors.textSecondary}
-                      name="business-outline"
-                      size={theme.sizes.iconSmall}
-                    />
-                  </View>
-                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                    Fábrica
-                  </Text>
-                </View>
-                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-              </View>
-            </AnimatedPressable>
-          </View>
-        </View>
-
-        <TodayDeliveriesCard
-          deliveries={todayDeliveries}
-          onDelete={handleTodayDeliveryDelete}
-          onToggleStatus={handleTodayStatusToggle}
-        />
-
-        <View style={[styles.openPaymentsSection, { gap: theme.spacing.md }]}>
-          <AnimatedPressable
-            accessibilityLabel="Abrir recebimentos em aberto"
-            accessibilityRole="button"
-            disablePressAnimation
-            onPress={handleOpenRecebimentos}
-            style={styles.openPaymentsSectionHeader}
-          >
-            <Text
-              style={[
-                theme.typography.headline,
-                { color: theme.colors.textPrimary, marginLeft: theme.spacing.lg },
-              ]}
-            >
-              Em aberto
-            </Text>
-            <View
-              style={{
-                marginRight: theme.spacing.lg,
-                transform: [{ translateX: theme.spacing.xxs / 2 + 2 }],
-              }}
-            >
+            <View style={styles.widgetHeader}>
+              <PreviewIcon color={theme.colors.textSecondary} name="business-outline" />
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
-          </AnimatedPressable>
-          {openPaymentClientCards.length > 0 ? (
-            <View style={[styles.openPaymentCards, { gap: theme.spacing.xs }]}>
-              {openPaymentClientCards.map((client) => (
-                <View
-                  key={client.nome}
-                  style={[
-                    styles.openPaymentCardContainer,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderRadius: theme.radius.xl + theme.spacing.sm,
-                      overflow: 'hidden',
-                      minHeight: openPaymentCardMinHeight,
-                      width: '100%',
-                    },
-                  ]}
-                >
-                  <NativeCardContextMenu
-                    actions={client.deliveries.map((delivery) => ({
-                      id: `complete-payment-${delivery.id}`,
-                      disabled: testModeEnabled,
-                      onPress: () => handleOpenPayment(delivery.id),
-                      systemImage: 'checkmark.circle.fill' as const,
-                      title:
-                        client.deliveries.length === 1
-                          ? 'Pago'
-                          : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
-                    }))}
-                    preview={renderOpenPaymentRow(client, true)}
-                    style={[
-                      styles.openPaymentContextMenu,
-                      {
-                        borderRadius: theme.radius.xl + theme.spacing.sm,
-                        minHeight: openPaymentCardMinHeight,
-                      },
-                    ]}
-                  >
-                    {renderOpenPaymentRow(client)}
-                  </NativeCardContextMenu>
-                </View>
-              ))}
+            <View
+              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+            >
+              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                Fábrica
+              </Text>
             </View>
-          ) : null}
-        </View>
+          </PremiumCard>
+        </ScrollView>
 
+        <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
+          <TodayDeliveriesCard
+            deliveries={todayDeliveries}
+            onDelete={handleTodayDeliveryDelete}
+            onToggleStatus={handleTodayStatusToggle}
+          />
+        </View>
       </PremiumScreen>
       <HomeSearchResultsSheet
         loading={searchFlow.searchInFlight}
@@ -620,6 +482,7 @@ export default function Home() {
         onSelectQuery={handleHelpSelectQuery}
         visible={isHelpSheetVisible}
       />
+      <RegistrarDeliverySheet controller={registrarDeliverySheet} />
       <HomeProfileSheet
         onVisibleChange={setIsProfileSheetVisible}
         visible={isProfileSheetVisible}
@@ -631,23 +494,8 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
-  shortcutCards: { width: '100%' },
-  openPaymentsSection: { width: '100%' },
-  openPaymentsSectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  openPaymentCards: { width: '100%' },
-  openPaymentCardContainer: { overflow: 'hidden', width: '100%' },
-  openPaymentContextMenu: { width: '100%' },
-  openPaymentCard: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
+  paddedHomeContent: { width: '100%' },
+  widgetCarousel: { width: '100%' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
   widgetCard: { width: 178 },
   widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

@@ -63,6 +63,7 @@ export function SystemSettingsScreen() {
       <NativeSheet
         onVisibleChange={setIsBottomSheetVisible}
         presentationBackgroundInteraction="enabled"
+        presentationBackgroundColor={resolvedMode === 'light' ? '#FFFFFF' : undefined}
         title="Teste Bottom Sheet Glass"
         visible={isBottomSheetVisible}
       >

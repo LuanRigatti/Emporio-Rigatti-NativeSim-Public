@@ -17,6 +17,12 @@ type UseFinancialDataOptions = {
   displayMonth?: string;
 };
 
+type ResolvedFinancialSnapshot = {
+  snapshot: UserDataSnapshot | null;
+  comparisonSnapshot: UserDataSnapshot | null;
+  scopeKey?: string;
+};
+
 export function useFinancialData(
   query: DailyMonthlyQuery = { loadAll: true },
   options: UseFinancialDataOptions = {},
@@ -36,12 +42,13 @@ export function useFinancialData(
   const hasInitialCachedSnapshot =
     initialCachedSnapshot !== null &&
     snapshotsEquivalent(initialCachedSnapshot, initialCacheEntry?.snapshot ?? initialCachedSnapshot);
-  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(
-    hasInitialCachedSnapshot ? initialCachedSnapshot : null,
-  );
-  const [comparisonSnapshot, setComparisonSnapshot] = useState<UserDataSnapshot | null>(
-    hasInitialCachedSnapshot ? initialCacheEntry?.comparisonSnapshot ?? null : null,
-  );
+  const [resolvedSnapshot, setResolvedSnapshot] = useState<ResolvedFinancialSnapshot>(() => ({
+    snapshot: hasInitialCachedSnapshot ? initialCachedSnapshot : null,
+    comparisonSnapshot: hasInitialCachedSnapshot
+      ? initialCacheEntry?.comparisonSnapshot ?? null
+      : null,
+    scopeKey: hasInitialCachedSnapshot ? snapshotScopeKey : undefined,
+  }));
   const [loading, setLoading] = useState(!hasInitialCachedSnapshot);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -52,6 +59,24 @@ export function useFinancialData(
   const snapshotScopeRef = useRef<string | undefined>(
     hasInitialCachedSnapshot ? snapshotScopeKey : undefined,
   );
+  const { comparisonSnapshot, scopeKey: resolvedSnapshotScopeKey, snapshot } = resolvedSnapshot;
+  const hasSnapshotForRequestedScope =
+    snapshot !== null && resolvedSnapshotScopeKey === snapshotScopeKey;
+  const hasCachedSnapshotForRequestedScope =
+    !hasSnapshotForRequestedScope && hasInitialCachedSnapshot && initialCachedSnapshot !== null;
+  const visibleSnapshot = hasCachedSnapshotForRequestedScope ? initialCachedSnapshot : snapshot;
+  const visibleComparisonSnapshot = hasCachedSnapshotForRequestedScope
+    ? initialCacheEntry?.comparisonSnapshot ?? null
+    : comparisonSnapshot;
+  const visibleSnapshotScopeKey = hasCachedSnapshotForRequestedScope
+    ? snapshotScopeKey
+    : resolvedSnapshotScopeKey;
+  const visibleLoading = hasCachedSnapshotForRequestedScope
+    ? false
+    : snapshot === null || resolvedSnapshotScopeKey !== snapshotScopeKey
+      ? true
+      : loading;
+  const visibleRefreshing = hasCachedSnapshotForRequestedScope ? false : refreshing;
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -65,10 +90,6 @@ export function useFinancialData(
       if (isRefresh) setRefreshing(true);
       else if (snapshotRef.current === null || snapshotScopeRef.current !== snapshotScopeKey) {
         setLoading(true);
-        snapshotRef.current = null;
-        snapshotScopeRef.current = undefined;
-        setSnapshot(null);
-        setComparisonSnapshot(null);
       }
       setError(undefined);
 
@@ -86,8 +107,11 @@ export function useFinancialData(
           if (snapshotsEquivalent(cachedSnapshot, cachedEntry.snapshot)) {
             snapshotRef.current = cachedSnapshot;
             snapshotScopeRef.current = snapshotScopeKey;
-            setSnapshot(cachedSnapshot);
-            setComparisonSnapshot(cachedEntry.comparisonSnapshot);
+            setResolvedSnapshot({
+              comparisonSnapshot: cachedEntry.comparisonSnapshot,
+              scopeKey: snapshotScopeKey,
+              snapshot: cachedSnapshot,
+            });
             setLoading(false);
             setRefreshing(true);
           }
@@ -110,21 +134,38 @@ export function useFinancialData(
           const visibleSnapshot = scopeSnapshotToDisplayMonth(sourceSnapshot, displayMonth);
           snapshotRef.current = visibleSnapshot;
           snapshotScopeRef.current = snapshotScopeKey;
-          setComparisonSnapshot((current) =>
-            current && snapshotsEquivalent(current, sourceSnapshot) ? current : sourceSnapshot,
-          );
-          setSnapshot((current) =>
-            current && snapshotsEquivalent(current, visibleSnapshot) ? current : visibleSnapshot,
-          );
+          setResolvedSnapshot((current) => {
+            const nextComparisonSnapshot =
+              current.comparisonSnapshot &&
+              snapshotsEquivalent(current.comparisonSnapshot, sourceSnapshot)
+                ? current.comparisonSnapshot
+                : sourceSnapshot;
+            const nextSnapshot =
+              current.snapshot && snapshotsEquivalent(current.snapshot, visibleSnapshot)
+                ? current.snapshot
+                : visibleSnapshot;
+            if (
+              current.comparisonSnapshot === nextComparisonSnapshot &&
+              current.scopeKey === snapshotScopeKey &&
+              current.snapshot === nextSnapshot
+            ) {
+              return current;
+            }
+            return {
+              comparisonSnapshot: nextComparisonSnapshot,
+              scopeKey: snapshotScopeKey,
+              snapshot: nextSnapshot,
+            };
+          });
         };
         if (ENABLE_FIRESTORE_CLIENTS_DELIVERIES && deliveryFilters) {
           try {
             const deliveries = await firestoreDeliveryDataSource.load(userId, deliveryFilters);
             if (!isCurrent()) return;
-            publishSnapshot({
+            latestSourceSnapshot = {
               ...latestSourceSnapshot,
               entregas: deliveries,
-            });
+            };
           } catch (remoteError) {
             if (__DEV__)
               console.warn('[useFinancialData] Firestore deliveries fallback local.', remoteError);
@@ -139,11 +180,11 @@ export function useFinancialData(
           try {
             const costs = await firestoreDailyMonthlyDataSource.load(userId, stableQuery);
             if (!isCurrent()) return;
-            publishSnapshot({
+            latestSourceSnapshot = {
               ...latestSourceSnapshot,
               gastosDiarios: costs.gastosDiarios,
               gastosMensais: costs.gastosMensais,
-            });
+            };
           } catch (remoteError) {
             if (__DEV__) console.warn('[useFinancialData] Firestore fallback local.', remoteError);
             remoteDataComplete = false;
@@ -196,10 +237,11 @@ export function useFinancialData(
   const reload = useCallback(() => load(true), [load]);
 
   return {
-    snapshot,
-    comparisonSnapshot,
-    loading,
-    refreshing,
+    snapshot: visibleSnapshot,
+    comparisonSnapshot: visibleComparisonSnapshot,
+    snapshotScopeKey: visibleSnapshotScopeKey,
+    loading: visibleLoading,
+    refreshing: visibleRefreshing,
     error,
     reload,
     refresh: reload,

@@ -233,6 +233,93 @@ describe('useFinancialData hydration', () => {
     });
   });
 
+  it('keeps the previous complete snapshot until the next period is complete', async () => {
+    const octoberDelivery = {
+      cliente: 'Ana Costa',
+      data: '2027-10-20',
+      entregue: true,
+      id: 'delivery-october',
+      quantidade: 2,
+      status: 'NÃ£o Pago',
+      valor: 100,
+    };
+    const novemberDelivery = {
+      ...octoberDelivery,
+      data: '2027-11-20',
+      id: 'delivery-november',
+      valor: 200,
+    };
+    let resolveNovemberDeliveries: ((value: typeof novemberDelivery[]) => void) | undefined;
+    let resolveNovemberCosts:
+      | ((value: { gastosDiarios: Record<string, never>; gastosMensais: Record<string, never> }) => void)
+      | undefined;
+    mockLoadAppData.mockResolvedValue({ ...snapshot, entregas: [] });
+    mockLoadDeliveries.mockImplementation((_, filters: { startDate: string }) => {
+      if (filters.startDate === '2027-10-01') return Promise.resolve([octoberDelivery]);
+      return new Promise((resolve) => {
+        resolveNovemberDeliveries = resolve;
+      });
+    });
+    mockLoadCosts.mockImplementation((_, query: { month: string }) => {
+      if (query.month === '2027-10') {
+        return Promise.resolve({ gastosDiarios: {}, gastosMensais: {} });
+      }
+      return new Promise((resolve) => {
+        resolveNovemberCosts = resolve;
+      });
+    });
+
+    let query = { month: '2027-10' };
+    let displayMonth = '2027-10';
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(query, { displayMonth });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(current?.snapshot?.entregas).toEqual([octoberDelivery]);
+    expect(current?.snapshotScopeKey).toBe('2027-10');
+    expect(current?.loading).toBe(false);
+
+    query = { month: '2027-11' };
+    displayMonth = '2027-11';
+    await act(async () => {
+      renderer?.update(createElement(Harness));
+      await Promise.resolve();
+    });
+
+    expect(current?.snapshot?.entregas).toEqual([octoberDelivery]);
+    expect(current?.snapshotScopeKey).toBe('2027-10');
+    expect(current?.loading).toBe(true);
+
+    resolveNovemberDeliveries?.([novemberDelivery]);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(current?.snapshot?.entregas).toEqual([octoberDelivery]);
+    expect(current?.snapshotScopeKey).toBe('2027-10');
+    expect(current?.loading).toBe(true);
+
+    resolveNovemberCosts?.({ gastosDiarios: {}, gastosMensais: {} });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(current?.snapshot?.entregas).toEqual([novemberDelivery]);
+    expect(current?.snapshotScopeKey).toBe('2027-11');
+    expect(current?.loading).toBe(false);
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
   it('does not retain the previous period after switching to an empty period', async () => {
     const julyDelivery = {
       cliente: 'Ana Costa',

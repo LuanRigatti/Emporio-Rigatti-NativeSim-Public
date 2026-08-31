@@ -33,10 +33,12 @@ export default function PrototypeFinanceiro() {
   );
   const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-  const { comparisonSnapshot, loading, refreshing, snapshot } = useFinancialData(
+  const { comparisonSnapshot, snapshot, snapshotScopeKey } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
     { displayMonth: selectedPeriod, enabled: isFocused },
   );
+  const displayedPeriod = isMonthlyPeriod(snapshotScopeKey) ? snapshotScopeKey : selectedPeriod;
+  const { month: displayedMonth, year: displayedYear } = parsePeriodKey(displayedPeriod);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,7 +80,8 @@ export default function PrototypeFinanceiro() {
     routeSessions,
   );
 
-  const isNetProfitReady = !loading && routesLoaded && fuelCostsReady;
+  const hasStableSnapshot = snapshot !== null && snapshotScopeKey === displayedPeriod;
+  const isNetProfitReady = hasStableSnapshot && routesLoaded && fuelCostsReady;
 
   const summary = useMemo(
     () =>
@@ -86,32 +89,32 @@ export default function PrototypeFinanceiro() {
         ? financialCalculationService.calculateResumo({
             deliveries: snapshot.entregas,
             dailyExpenses: snapshot.gastosDiarios,
-            filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
+            filters: { mesSelecionado: displayedPeriod, periodo: 'mes' },
             monthlyExpenses: snapshot.gastosMensais,
             automaticKilometersByDate,
             fuelCostByDate,
           })
         : undefined,
-    [automaticKilometersByDate, fuelCostByDate, selectedPeriod, snapshot],
+    [automaticKilometersByDate, displayedPeriod, fuelCostByDate, snapshot],
   );
   const comparison = useMemo(
     () =>
-      snapshot
-        ? financialCalculationService.compareByDeliveryDays({
-            deliveries: comparisonSnapshot?.entregas ?? snapshot.entregas,
-            dailyExpenses: comparisonSnapshot?.gastosDiarios ?? snapshot.gastosDiarios,
-            filters: { mesSelecionado: selectedPeriod, periodo: 'mes' },
-            monthlyExpenses: comparisonSnapshot?.gastosMensais ?? snapshot.gastosMensais,
+      snapshot && comparisonSnapshot
+        ? financialCalculationService.compareCalendarMonths({
+            deliveries: comparisonSnapshot.entregas,
+            dailyExpenses: comparisonSnapshot.gastosDiarios,
+            filters: { mesSelecionado: displayedPeriod, periodo: 'mes' },
+            monthlyExpenses: comparisonSnapshot.gastosMensais,
             automaticKilometersByDate,
             fuelCostByDate,
           })
         : undefined,
-    [automaticKilometersByDate, comparisonSnapshot, fuelCostByDate, selectedPeriod, snapshot],
+    [automaticKilometersByDate, comparisonSnapshot, displayedPeriod, fuelCostByDate, snapshot],
   );
   const currentFaturamentoValue = summary?.faturamento ?? null;
   const currentLucroLiquidoValue = isNetProfitReady && summary ? summary.lucroLiquido : null;
-  const faturamentoReady = !loading && !refreshing && currentFaturamentoValue !== null;
-  const lucroLiquidoReady = isNetProfitReady && !refreshing && currentLucroLiquidoValue !== null;
+  const faturamentoReady = hasStableSnapshot && currentFaturamentoValue !== null;
+  const lucroLiquidoReady = isNetProfitReady && currentLucroLiquidoValue !== null;
   const displayedFaturamentoValue = faturamentoReady
     ? currentFaturamentoValue
     : displayedHeroValues.faturamento;
@@ -154,7 +157,7 @@ export default function PrototypeFinanceiro() {
     triggerLightImpactHaptic();
     router.push({
       pathname: '/financeiro/faturamento-mensal',
-      params: { period: selectedPeriod },
+      params: { period: displayedPeriod },
     });
   };
 
@@ -162,7 +165,7 @@ export default function PrototypeFinanceiro() {
     triggerLightImpactHaptic();
     router.push({
       pathname: '/financeiro/lucro-liquido-mensal',
-      params: { period: selectedPeriod },
+      params: { period: displayedPeriod },
     });
   };
 
@@ -172,8 +175,8 @@ export default function PrototypeFinanceiro() {
         composition="combined"
         onMonthChange={setSelectedMonth}
         onYearChange={setSelectedYear}
-        selectedMonth={selectedMonth}
-        selectedYear={selectedYear}
+        selectedMonth={displayedMonth}
+        selectedYear={displayedYear}
       />
       <PremiumScreen
         contentContainerStyle={[
@@ -205,10 +208,13 @@ export default function PrototypeFinanceiro() {
                 size={theme.sizes.iconSmall}
               />
             </View>
-            <FinancialTrendIndicator comparison={comparison?.faturamento} />
+            <FinancialTrendIndicator
+              comparison={comparison?.faturamento}
+              visible={comparison !== undefined}
+            />
           </View>
           <NativeAnimatedNumber
-            animationEnabled={!loading && !refreshing}
+            animationEnabled={faturamentoReady}
             color={theme.colors.textPrimary}
             text={
               displayedFaturamentoValue !== null
@@ -236,10 +242,11 @@ export default function PrototypeFinanceiro() {
             </View>
             <FinancialTrendIndicator
               comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
+              visible={isNetProfitReady && comparison !== undefined}
             />
           </View>
           <NativeAnimatedNumber
-            animationEnabled={isNetProfitReady && !refreshing}
+            animationEnabled={lucroLiquidoReady}
             color={theme.colors.textPrimary}
             text={
               displayedLucroLiquidoValue !== null
@@ -321,6 +328,15 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
     style: 'currency',
   }).format(value);
+}
+
+function isMonthlyPeriod(value: string | undefined): value is string {
+  return value !== undefined && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+function parsePeriodKey(value: string): { month: number; year: number } {
+  const [year, month] = value.split('-').map(Number);
+  return { month, year };
 }
 
 const styles = StyleSheet.create({

@@ -123,6 +123,7 @@ function AppShell() {
             <Stack.Screen name="fabrica-valor-balde" />
             <Stack.Screen name="fabrica" />
             <Stack.Screen name="pagamentos-em-aberto" />
+            <Stack.Screen name="em-aberto" />
             <Stack.Screen name="dev/native-components-showcase" />
           </Stack.Protected>
         </Stack>

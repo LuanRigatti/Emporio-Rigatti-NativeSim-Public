@@ -379,6 +379,127 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.diferenca).toBe(-100);
   });
 
+  it('compares a completed month with the complete previous calendar month', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-last-day', data: '2026-08-31', valor: 200 }),
+        delivery({ id: 'previous-last-day', data: '2026-07-31', valor: 100 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-09-01T12:00:00'),
+    });
+
+    expect(result.inicioAtual).toBe('2026-08-01');
+    expect(result.fimAtual).toBe('2026-08-31');
+    expect(result.inicioAnterior).toBe('2026-07-01');
+    expect(result.fimAnterior).toBe('2026-07-31');
+    expect(result.faturamento.atual).toBe(200);
+    expect(result.faturamento.anterior).toBe(100);
+    expect(result.faturamento.percentual).toBe(100);
+    expect(result.faturamento.subiu).toBe(true);
+  });
+
+  it('compares an active month through today with the same calendar interval before it', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-through-15', data: '2026-08-15', valor: 200 }),
+        delivery({ id: 'current-after-15', data: '2026-08-16', valor: 1000 }),
+        delivery({ id: 'previous-through-15', data: '2026-07-15', valor: 100 }),
+        delivery({ id: 'previous-after-15', data: '2026-07-16', valor: 1000 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-08-15T12:00:00'),
+    });
+
+    expect(result.fimAtual).toBe('2026-08-15');
+    expect(result.fimAnterior).toBe('2026-07-15');
+    expect(result.faturamento.atual).toBe(200);
+    expect(result.faturamento.anterior).toBe(100);
+    expect(result.faturamento.percentual).toBe(100);
+  });
+
+  it('treats the last calendar day as a complete month', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-last-day-active', data: '2026-08-31', valor: 200 }),
+        delivery({ id: 'previous-last-day-active', data: '2026-07-31', valor: 100 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-08-31T12:00:00'),
+    });
+
+    expect(result.fimAtual).toBe('2026-08-31');
+    expect(result.fimAnterior).toBe('2026-07-31');
+  });
+
+  it('keeps the revenue trend sign aligned with a calendar-month decrease', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-lower', data: '2026-08-20', valor: 100 }),
+        delivery({ id: 'previous-higher', data: '2026-07-20', valor: 200 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-09-01T12:00:00'),
+    });
+
+    expect(result.faturamento.diferenca).toBe(-100);
+    expect(result.faturamento.percentual).toBe(-50);
+    expect(result.faturamento.subiu).toBe(false);
+  });
+
+  it('keeps the net profit trend sign aligned with increases and decreases', () => {
+    const lower = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-net-lower', data: '2026-08-20', valor: 100 }),
+        delivery({ id: 'previous-net-higher', data: '2026-07-20', valor: 200 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-09-01T12:00:00'),
+    });
+    const higher = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-net-higher', data: '2026-08-20', valor: 300 }),
+        delivery({ id: 'previous-net-lower', data: '2026-07-20', valor: 200 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-09-01T12:00:00'),
+    });
+
+    expect(lower.lucroLiquido.diferenca).toBe(-100);
+    expect(lower.lucroLiquido.percentual).toBeCloseTo(-60.6060606, 7);
+    expect(lower.lucroLiquido.subiu).toBe(false);
+    expect(higher.lucroLiquido.diferenca).toBe(100);
+    expect(higher.lucroLiquido.percentual).toBeCloseTo(60.6060606, 7);
+    expect(higher.lucroLiquido.subiu).toBe(true);
+  });
+
+  it('keeps the existing zero-denominator fallback for calendar months', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [delivery({ id: 'current-only', data: '2026-08-20', valor: 100 })],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-09-01T12:00:00'),
+    });
+
+    expect(result.faturamento.anterior).toBe(0);
+    expect(result.faturamento.percentual).toBe(100);
+    expect(result.lucroLiquido.anterior).toBe(0);
+    expect(result.lucroLiquido.percentual).toBe(100);
+  });
+
   it('returns neutral comparison when before the first scheduled route of the month', () => {
     const result = service.compareByDeliveryDays({
       deliveries: [delivery({ id: 'current-1', data: '2026-08-01', valor: 100 })],

@@ -7,12 +7,19 @@ import { AnimatedPressable, type AnimatedPressableProps } from './AnimatedPressa
 
 export type PremiumCardProps = {
   children: ReactNode;
+  disablePressAnimation?: boolean;
   onPress?: AnimatedPressableProps['onPress'];
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 };
 
-export function PremiumCard({ children, onPress, style, accessibilityLabel }: PremiumCardProps) {
+export function PremiumCard({
+  children,
+  disablePressAnimation,
+  onPress,
+  style,
+  accessibilityLabel,
+}: PremiumCardProps) {
   const { resolvedMode, theme } = useAppTheme();
   const cardStyle = [
     styles.card,
@@ -29,6 +36,7 @@ export function PremiumCard({ children, onPress, style, accessibilityLabel }: Pr
   if (onPress) {
     return (
       <AnimatedPressable
+        disablePressAnimation={disablePressAnimation}
         onPress={onPress}
         style={cardStyle}
         accessibilityRole="button"

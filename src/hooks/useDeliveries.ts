@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { useAuth } from '@/providers';
 import { ENABLE_FIRESTORE_CLIENTS_DELIVERIES } from '@/config/featureFlags';
@@ -24,10 +24,15 @@ import type {
 import { DeliveryRepository } from '@/repositories/DeliveryRepository';
 import { todayIso } from '@/utils/data';
 
+const EMPTY_SUBSCRIBE = () => () => {};
+const ZERO_REVISION = () => 0;
+
 export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   const { user } = useAuth();
   const firestoreEnabled = ENABLE_FIRESTORE_CLIENTS_DELIVERIES;
   const filterSignature = JSON.stringify(filters);
+  // The serialized signature intentionally controls this reference's stability.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableFilters = useMemo(() => filters, [filterSignature]);
   const emptySnapshot = useCallback(
     (entregas: Delivery[]): UserDataSnapshot => ({
@@ -39,9 +44,14 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     }),
     [],
   );
-  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(() =>
-    firestoreEnabled ? emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)) : null,
+  const firestoreRevision = useSyncExternalStore(
+    firestoreEnabled ? firestoreDeliveryDataSource.subscribe : EMPTY_SUBSCRIBE,
+    firestoreEnabled ? firestoreDeliveryDataSource.getRevision : ZERO_REVISION,
+    firestoreEnabled ? firestoreDeliveryDataSource.getRevision : ZERO_REVISION,
   );
+  const [snapshot, setSnapshot] = useState<UserDataSnapshot | null>(null);
+  const [firestoreFallbackSnapshot, setFirestoreFallbackSnapshot] =
+    useState<UserDataSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -55,10 +65,10 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
       try {
         if (firestoreEnabled) {
           try {
-            const result = await firestoreDeliveryDataSource.load(user.id, stableFilters);
-            setSnapshot(emptySnapshot(result));
+            await firestoreDeliveryDataSource.load(user.id, stableFilters);
+            setFirestoreFallbackSnapshot(null);
           } catch {
-            setSnapshot(emptySnapshot([...mockDeliveryDataSource.getAll()]));
+            setFirestoreFallbackSnapshot(emptySnapshot([...mockDeliveryDataSource.getAll()]));
           }
           return;
         }
@@ -88,25 +98,28 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   );
 
   useEffect(() => {
-    if (!firestoreEnabled) return undefined;
-    return firestoreDeliveryDataSource.subscribe(() => {
-      setSnapshot(emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)));
-    });
-  }, [emptySnapshot, firestoreEnabled, stableFilters]);
-
-  useEffect(() => {
     const timer = setTimeout(() => void load(), 0);
     return () => clearTimeout(timer);
   }, [load]);
 
+  const firestoreSnapshot = useMemo(
+    () => emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)),
+    // The external revision intentionally invalidates this derived snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [emptySnapshot, firestoreRevision, stableFilters],
+  );
+  const currentSnapshot = firestoreEnabled
+    ? (firestoreFallbackSnapshot ?? firestoreSnapshot)
+    : snapshot;
+
   const deliveries = useMemo(
-    () => (snapshot ? deliveryQueryService.filter(snapshot.entregas, stableFilters) : []),
-    [stableFilters, snapshot],
+    () => (currentSnapshot ? deliveryQueryService.filter(currentSnapshot.entregas, stableFilters) : []),
+    [currentSnapshot, stableFilters],
   );
 
   const refreshFirestoreState = useCallback(() => {
-    setSnapshot(emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)));
-  }, [emptySnapshot, stableFilters]);
+    setFirestoreFallbackSnapshot(null);
+  }, []);
 
   const mutate = useCallback(
     async (operation: (service: DeliveryMutationService) => Promise<void>) => {
@@ -222,8 +235,8 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
 
   return {
     deliveries,
-    allDeliveries: snapshot?.entregas ?? [],
-    snapshot,
+    allDeliveries: currentSnapshot?.entregas ?? [],
+    snapshot: currentSnapshot,
     loading,
     refreshing,
     error,

@@ -6,6 +6,8 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  type StyleProp,
+  type TextStyle,
   View,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -347,10 +349,11 @@ export type BadgeProps = {
   label: string;
   tone?: FeedbackTone | 'neutral';
   icon?: ReactNode;
+  labelStyle?: StyleProp<TextStyle>;
   style?: ViewComponentStyle;
 };
 
-export function Badge({ label, tone = 'neutral', icon, style }: BadgeProps) {
+export function Badge({ label, tone = 'neutral', icon, labelStyle, style }: BadgeProps) {
   const { theme } = useAppTheme();
   const color = tone === 'neutral' ? theme.colors.textSecondary : theme.colors[tone];
   const backgroundColor =
@@ -375,7 +378,7 @@ export function Badge({ label, tone = 'neutral', icon, style }: BadgeProps) {
           {icon}
         </View>
       ) : null}
-      <Text style={[theme.typography.caption, { color }]}>{label}</Text>
+      <Text style={[theme.typography.caption, { color }, labelStyle]}>{label}</Text>
     </View>
   );
 }

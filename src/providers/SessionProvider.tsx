@@ -34,7 +34,7 @@ export interface SessionContextValue {
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
 type SessionProviderProps = {
-  children: ReactNode;
+  children?: ReactNode;
   dataSource?: AuthDataSource;
 };
 
@@ -46,25 +46,53 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
 
   useEffect(() => {
     let mounted = true;
+    let initializationResolved = false;
+    let initialAuthError: string | null = null;
+    let pendingUser: AuthUser | null = null;
+    let resolveFirstAuthState: () => void = () => undefined;
+    const firstAuthState = new Promise<void>((resolve) => {
+      resolveFirstAuthState = resolve;
+    });
+
     const unsubscribe = dataSource.subscribe(
       (nextUser) => {
         if (!mounted) return;
+        pendingUser = nextUser;
+        resolveFirstAuthState();
+        if (!initializationResolved) return;
         setUser(nextUser);
         setStatus(nextUser ? 'authenticated' : 'unauthenticated');
         setError(null);
       },
       (authError) => {
         if (!mounted) return;
+        const message = mapAuthError(authError, 'session').message;
+        if (!initializationResolved) {
+          initialAuthError = message;
+          resolveFirstAuthState();
+          return;
+        }
         setUser(null);
         setStatus('error');
-        setError(mapAuthError(authError, 'session').message);
+        setError(message);
       },
     );
 
-    void (dataSource.restore ? dataSource.restore() : Promise.resolve())
+    const restorePromise = dataSource.restore
+      ? Promise.resolve().then(() => dataSource.restore?.())
+      : firstAuthState;
+
+    void restorePromise
       .then(() => {
         if (!mounted) return;
-        const restoredUser = dataSource.getCurrentUser();
+        initializationResolved = true;
+        if (initialAuthError) {
+          setUser(null);
+          setStatus('error');
+          setError(initialAuthError);
+          return;
+        }
+        const restoredUser = dataSource.restore ? dataSource.getCurrentUser() : pendingUser;
         setUser(restoredUser);
         setStatus(restoredUser ? 'authenticated' : 'unauthenticated');
       })

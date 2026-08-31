@@ -127,6 +127,97 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     expect(result).toEqual(cachedDeliveries);
   });
 
+  it('hydrates the historical cache for first-render filtered queries', async () => {
+    const cachedDeliveries: Delivery[] = [
+      {
+        id: 'del-open-cached',
+        clientId: 'client:andre',
+        cliente: 'André',
+        data: '2026-08-12',
+        quantidade: 4,
+        valor: 200,
+        status: 'Não Pago',
+        entregue: true,
+      },
+    ];
+    await firestoreHistoricalDeliveryCache.write('uid-test', cachedDeliveries);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    await dataSource.hydrateFromCache('uid-test', '2026-08-30');
+
+    expect(
+      dataSource.getCached({ mode: 'all', status: 'Não Pago', deliveryStatus: 'Entregue' }),
+    ).toEqual(cachedDeliveries);
+    expect(mockedGetDocs).not.toHaveBeenCalled();
+  });
+
+  it('loads and persists historical deliveries during hydration when the cache is missing', async () => {
+    const firestoreDelivery = {
+      id: 'del-bootstrap-history',
+      data: () => ({
+        clientId: 'client:andre',
+        clientNameSnapshot: 'André',
+        date: '2026-08-29',
+        quantity: 2,
+        totalValue: 100,
+        status: 'Não Pago',
+        delivered: true,
+      }),
+    };
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      docs: [firestoreDelivery],
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    await dataSource.hydrateFromCache('uid-test', '2026-08-30');
+
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
+    expect(
+      dataSource.getCached({ mode: 'all', status: 'Não Pago', deliveryStatus: 'Entregue' }),
+    ).toEqual([
+      expect.objectContaining({
+        cliente: 'André',
+        id: 'del-bootstrap-history',
+      }),
+    ]);
+    expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toEqual([
+      expect.objectContaining({ id: 'del-bootstrap-history' }),
+    ]);
+  });
+
+  it('keeps historical deliveries when the daily cache is unavailable', async () => {
+    const cachedDeliveries: Delivery[] = [
+      {
+        id: 'del-today-historical',
+        cliente: 'André',
+        data: '2026-08-30',
+        quantidade: 1,
+        valor: 50,
+        status: 'Não Pago',
+        entregue: true,
+      },
+    ];
+    await firestoreHistoricalDeliveryCache.write('uid-test', cachedDeliveries);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    await dataSource.hydrateFromCache('uid-test', '2026-08-30');
+
+    expect(dataSource.getCached({ mode: 'today', date: '2026-08-30' })).toEqual(cachedDeliveries);
+  });
+
+  it('publishes a revision when hydration updates the cached records', async () => {
+    const listener = jest.fn();
+    const dataSource = new FirestoreDeliveryDataSource();
+    const initialRevision = dataSource.getRevision();
+    dataSource.subscribe(listener);
+
+    await dataSource.hydrateFromCache('uid-test', '2026-08-30');
+
+    expect(dataSource.getRevision()).toBe(initialRevision + 1);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it('invalidates historical cache when a new delivery is created', async () => {
     await firestoreHistoricalDeliveryCache.write('uid-test', [
       {

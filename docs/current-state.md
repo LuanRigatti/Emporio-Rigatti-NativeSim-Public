@@ -9,8 +9,9 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- HEAD: commit desta consolidação (`feat: consolidate native sheets and search`).
-- Working tree: limpo após a consolidação desta sessão.
+- Base Git desta consolidação: `07b1758` (`feat: consolidate native sheets and search`).
+- O commit desta consolidação reúne as alterações válidas atualmente aplicadas;
+  após ele, o working tree deve permanecer limpo.
 
 ## Aplicativo
 
@@ -46,7 +47,7 @@ preservam o histórico técnico e as decisões acumuladas.
   Development Build para validação. Até essa validação, Apple Intelligence não
   deve ser considerado validado.
 
-### IMPLEMENTADO NESTA CONSOLIDAÇÃO, AGUARDANDO VALIDAÇÃO VISUAL
+### IMPLEMENTADO, PENDENTE DE VALIDAÇÃO VISUAL NO IPHONE
 
 - `NativeBottomSheet` e `NativeSheet` aceitam e aplicam
   `presentationBackgroundInteraction="enabled"` por padrão, removendo o dimming
@@ -59,20 +60,34 @@ preservam o histórico técnico e as decisões acumuladas.
 - Home Search mantém Search Field nativo; o botão `?` desfoca o campo e aguarda
   os eventos nativos do teclado, enquanto a Home fecha o sheet de sugestões ao
   perder foco ou navegar para outra rota.
+- A Home exibe a seção `Em aberto` com um header navegável, cards individuais por
+  cliente, valores/badges reativos e `NativeCardContextMenu` para quitar cada
+  entrega na granularidade correta. `Fábrica` permanece em card separado, com
+  ícone, chevron e navegação preservados.
 - Perfil da Home mantém somente o detent `0.58`, sem scroll interno nem
   expansão; o card de Nome/E-mail/Método usa `BlurView` com tratamento light/dark
   e o logout existente permanece inalterado.
 - Configurações → Sistema mantém os dois laboratórios isolados: o teste de
   Liquid Glass aceita tint branco de 60% no próprio material, e o teste de
   Bottom Sheet usa o card sólido baseado nos tokens do tema e sem dimming.
-- Tipos públicos e adaptadores nativos foram atualizados somente para suportar
-  a interação de background dos sheets e os fluxos acima. Não houve alteração de
-  Firebase, Firestore, schema, regras financeiras ou dependências.
+- A sessão Firebase só deixa de estar em `loading` após o primeiro estado real
+  de autenticação; com usuário autenticado, a hidratação inicial aguarda cache de
+  clientes, cache diário, histórico de entregas, recibos da Fábrica e fontes
+  necessárias antes de revelar a Home.
+- O `FirestoreDeliveryDataSource` hidrata o histórico no bootstrap quando o
+  cache não existe, persiste o resultado no `FirestoreHistoricalDeliveryCache`
+  e expõe revisão externa para que a Home derive os dados já hidratados no
+  primeiro render. O cache continua sendo somente cache do Firestore.
+- A animação de pressão dos cards clicáveis da Home pode ser desativada apenas
+  nesses cards; o comportamento padrão dos componentes reutilizáveis permanece
+  preservado.
+- Não há instrumentação `[HomeStartupTrace]`, blobs, `Card Glass`, `Card Blur` ou
+  outros experimentos visuais descartados no estado final.
 
-Todas as alterações desta consolidação são TS/TSX sobre APIs nativas já
-existentes. Não exigem nova Development Build; podem ser testadas via
-Fast Refresh na Development Build atual, embora a confirmação visual final ainda
-precise ser repetida no iPhone.
+As alterações atuais são TS/TSX sobre APIs nativas já existentes. Não exigem nova
+Development Build; podem ser testadas via Fast Refresh na Development Build atual,
+embora a confirmação visual final do startup/cache ainda precise ser repetida no
+iPhone.
 
 ### Componentes e módulos nativos relevantes
 
@@ -147,8 +162,8 @@ precise ser repetida no iPhone.
 
 - Foundation Models depende de dispositivo, versão do iOS, disponibilidade do
   recurso e suporte de locale; indisponibilidade deve seguir o fallback seguro.
-- A validação visual final dos ajustes de composição e detents dos sheets do
-  commit `b7c22af` ainda precisa ser repetida no iPhone Development Build.
+- A validação visual final dos ajustes recentes de composição e detents dos
+  sheets ainda precisa ser repetida no iPhone Development Build.
 - Alguns detalhes visuais de módulos nativos, como a máscara UIKit do Context
   Menu, continuam condicionados à versão efetivamente compilada do Development
   Build.

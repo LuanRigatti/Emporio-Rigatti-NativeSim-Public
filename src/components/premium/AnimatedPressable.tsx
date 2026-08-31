@@ -7,6 +7,7 @@ import { useAppTheme } from '@/theme';
 export type AnimatedPressableProps = Omit<PressableProps, 'onPressIn' | 'onPressOut'> & {
   children: ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
+  disablePressAnimation?: boolean;
   scaleOnPress?: number;
   onPressIn?: PressableProps['onPressIn'];
   onPressOut?: PressableProps['onPressOut'];
@@ -15,6 +16,7 @@ export type AnimatedPressableProps = Omit<PressableProps, 'onPressIn' | 'onPress
 export function AnimatedPressable({
   children,
   containerStyle,
+  disablePressAnimation = false,
   scaleOnPress,
   onPressIn,
   onPressOut,
@@ -25,7 +27,7 @@ export function AnimatedPressable({
   const pressedScale = scaleOnPress ?? theme.animations.scale.pressed;
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ scale: disablePressAnimation ? 1 : scale.value }],
   }));
 
   return (
@@ -33,23 +35,27 @@ export function AnimatedPressable({
       <Pressable
         {...props}
         onPressIn={(event) => {
-          scale.set(
-            withTiming(reduceMotionEnabled ? 1 : pressedScale, {
-              duration: reduceMotionEnabled
-                ? theme.animations.duration.instant
-                : theme.animations.duration.fast,
-            }),
-          );
+          if (!disablePressAnimation) {
+            scale.set(
+              withTiming(reduceMotionEnabled ? 1 : pressedScale, {
+                duration: reduceMotionEnabled
+                  ? theme.animations.duration.instant
+                  : theme.animations.duration.fast,
+              }),
+            );
+          }
           onPressIn?.(event);
         }}
         onPressOut={(event) => {
-          scale.set(
-            withTiming(1, {
-              duration: reduceMotionEnabled
-                ? theme.animations.duration.instant
-                : theme.animations.duration.fast,
-            }),
-          );
+          if (!disablePressAnimation) {
+            scale.set(
+              withTiming(1, {
+                duration: reduceMotionEnabled
+                  ? theme.animations.duration.instant
+                  : theme.animations.duration.fast,
+              }),
+            );
+          }
           onPressOut?.(event);
         }}
       >

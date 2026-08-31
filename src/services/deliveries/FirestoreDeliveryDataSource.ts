@@ -136,6 +136,9 @@ export class FirestoreDeliveryDataSource {
   private readonly records = new Map<string, Delivery>();
   private readonly listeners = new Set<Listener>();
   private activeUid?: string;
+  private revision = 0;
+
+  public getRevision = (): number => this.revision;
 
   public subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
@@ -166,11 +169,27 @@ export class FirestoreDeliveryDataSource {
     if (this.activeUid && this.activeUid !== uid) this.records.clear();
     this.activeUid = uid;
 
-    const cached = await firestoreDeliveryCacheService.read(uid, date);
-    for (const [id, delivery] of this.records) {
-      if (delivery.data === date) this.records.delete(id);
+    let [historicalCached, cached] = await Promise.all([
+      firestoreHistoricalDeliveryCache.read(uid),
+      firestoreDeliveryCacheService.read(uid, date),
+    ]);
+    if (historicalCached === null) {
+      const previousFallbackState = this.isUsingLocalFallback;
+      try {
+        historicalCached = await this.fetchAllHistoricalFromFirestore(uid);
+        this.isUsingLocalFallback = false;
+        await firestoreHistoricalDeliveryCache.write(uid, historicalCached);
+      } catch {
+        this.isUsingLocalFallback = previousFallbackState;
+      }
     }
-    cached?.forEach((delivery) => this.records.set(delivery.id, delivery));
+    historicalCached?.forEach((delivery) => this.records.set(delivery.id, delivery));
+    if (cached !== null) {
+      for (const [id, delivery] of this.records) {
+        if (delivery.data === date) this.records.delete(id);
+      }
+      cached.forEach((delivery) => this.records.set(delivery.id, delivery));
+    }
     this.publish();
     return cached !== null;
   }
@@ -261,49 +280,13 @@ export class FirestoreDeliveryDataSource {
     this.activeUid = uid;
 
     const cached = await firestoreHistoricalDeliveryCache.read(uid);
-    if (cached && cached.length > 0) {
+    if (cached !== null) {
       cached.forEach((delivery) => this.records.set(delivery.id, delivery));
       return cached;
     }
 
     try {
-      const { getDocs, limit, orderBy, query, startAfter } = await getFirestoreOps();
-      const deliveryCollection = await collectionFor(uid);
-      const BATCH_SIZE = 250;
-      const loaded: Delivery[] = [];
-      let lastVisibleDoc: unknown = null;
-      let hasMore = true;
-
-      while (hasMore) {
-        const constraints: Parameters<typeof query>[1][] = [
-          orderBy('date', 'desc'),
-          limit(BATCH_SIZE),
-        ];
-        if (lastVisibleDoc) {
-          constraints.push(startAfter(lastVisibleDoc));
-        }
-
-        const snapshot = await getDocs(query(deliveryCollection, ...constraints));
-        if (snapshot.empty) {
-          break;
-        }
-
-        snapshot.docs.forEach((docSnapshot) => {
-          const delivery = mapDocument(
-            docSnapshot.id,
-            docSnapshot.data() as FirestoreDeliveryDocument,
-          );
-          loaded.push(delivery);
-          this.records.set(delivery.id, delivery);
-        });
-
-        if (snapshot.docs.length < BATCH_SIZE) {
-          hasMore = false;
-        } else {
-          lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
-        }
-      }
-
+      const loaded = await this.fetchAllHistoricalFromFirestore(uid);
       this.isUsingLocalFallback = false;
       this.publish();
       await firestoreHistoricalDeliveryCache.write(uid, loaded);
@@ -312,6 +295,45 @@ export class FirestoreDeliveryDataSource {
       this.isUsingLocalFallback = true;
       throw error;
     }
+  }
+
+  private async fetchAllHistoricalFromFirestore(uid: string): Promise<Delivery[]> {
+    const { getDocs, limit, orderBy, query, startAfter } = await getFirestoreOps();
+    const deliveryCollection = await collectionFor(uid);
+    const BATCH_SIZE = 250;
+    const loaded: Delivery[] = [];
+    let lastVisibleDoc: unknown = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      const constraints: Parameters<typeof query>[1][] = [
+        orderBy('date', 'desc'),
+        limit(BATCH_SIZE),
+      ];
+      if (lastVisibleDoc) {
+        constraints.push(startAfter(lastVisibleDoc));
+      }
+
+      const snapshot = await getDocs(query(deliveryCollection, ...constraints));
+      if (snapshot.empty) break;
+
+      snapshot.docs.forEach((docSnapshot) => {
+        const delivery = mapDocument(
+          docSnapshot.id,
+          docSnapshot.data() as FirestoreDeliveryDocument,
+        );
+        loaded.push(delivery);
+        this.records.set(delivery.id, delivery);
+      });
+
+      if (snapshot.docs.length < BATCH_SIZE) {
+        hasMore = false;
+      } else {
+        lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
+      }
+    }
+
+    return loaded;
   }
 
   public async create(uid: string, draft: DeliveryDraft): Promise<Delivery> {
@@ -526,6 +548,7 @@ export class FirestoreDeliveryDataSource {
   }
 
   private publish(): void {
+    this.revision += 1;
     this.listeners.forEach((listener) => listener());
   }
 }

@@ -3,7 +3,14 @@ import Constants from 'expo-constants';
 export type AppVariant = 'default' | 'final';
 
 export function getAppVariant(): AppVariant {
-  return Constants.expoConfig?.extra?.appVariant === 'final' ? 'final' : 'default';
+  if (
+    Constants.expoConfig?.extra?.appVariant === 'final' ||
+    Constants.expoConfig?.ios?.bundleIdentifier === 'com.pareact.mobile.final'
+  ) {
+    return 'final';
+  }
+
+  return 'default';
 }
 
 export function getAppScheme(): string {

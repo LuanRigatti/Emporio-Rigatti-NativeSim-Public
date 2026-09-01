@@ -10,14 +10,16 @@ export interface GoogleClientIds {
 }
 
 export function getGoogleClientIds(): GoogleClientIds {
-  const finalIosClientId =
+  const configuredIosClientId =
     typeof Constants.expoConfig?.extra?.googleIosClientId === 'string'
       ? Constants.expoConfig.extra.googleIosClientId
       : undefined;
+  const fallbackIosClientId =
+    getAppVariant() === 'final' ? undefined : process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
   return {
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    iosClientId: getAppVariant() === 'final' ? finalIosClientId : process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    iosClientId: configuredIosClientId || fallbackIosClientId,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
   };
 }

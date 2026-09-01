@@ -12,6 +12,13 @@ function readPlistString(contents, key) {
   return match?.[1]?.trim();
 }
 
+function getReversedClientId(clientId) {
+  const suffix = '.apps.googleusercontent.com';
+  return clientId.endsWith(suffix)
+    ? `com.googleusercontent.apps.${clientId.slice(0, -suffix.length)}`
+    : undefined;
+}
+
 if (!fs.existsSync(plistPath)) {
   console.error(
     '[ios:prebuild:final] GoogleService-Info.final.plist não encontrado. Baixe o plist do app iOS com bundle ID com.pareact.mobile.final no Firebase antes do prebuild.',
@@ -38,6 +45,13 @@ if (!clientId || !reversedClientId) {
   process.exit(1);
 }
 
+if (getReversedClientId(clientId) !== reversedClientId) {
+  console.error(
+    '[ios:prebuild:final] CLIENT_ID e REVERSED_CLIENT_ID do plist Final não correspondem entre si.',
+  );
+  process.exit(1);
+}
+
 process.env.APP_VARIANT = 'final';
 const appConfigPath = path.join(projectRoot, 'app.config.js');
 delete require.cache[require.resolve(appConfigPath)];
@@ -52,6 +66,7 @@ if (
   appConfig.name !== 'Empório Rigatti Final' ||
   appConfig.ios?.bundleIdentifier !== expectedBundleIdentifier ||
   appConfig.ios?.googleServicesFile !== './GoogleService-Info.final.plist' ||
+  appConfig.extra?.appVariant !== 'final' ||
   appConfig.extra?.googleIosClientId !== clientId ||
   !configuredSchemes.includes('pareact-final') ||
   !configuredSchemes.includes(reversedClientId) ||

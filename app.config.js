@@ -18,16 +18,15 @@ function readPlistString(filePath, key) {
   return match?.[1]?.trim();
 }
 
-const finalGoogleServicesPath = path.resolve(process.cwd(), 'GoogleService-Info.final.plist');
-const finalGoogleIosClientId = isFinalVariant
-  ? readPlistString(finalGoogleServicesPath, 'CLIENT_ID')
-  : undefined;
-const finalGoogleReversedClientId = isFinalVariant
-  ? readPlistString(finalGoogleServicesPath, 'REVERSED_CLIENT_ID')
-  : undefined;
+const selectedGoogleServicesPath = path.resolve(process.cwd(), googleServicesFile);
+const selectedGoogleIosClientId = readPlistString(selectedGoogleServicesPath, 'CLIENT_ID');
+const selectedGoogleReversedClientId = readPlistString(
+  selectedGoogleServicesPath,
+  'REVERSED_CLIENT_ID',
+);
 const configuredScheme =
-  isFinalVariant && finalGoogleReversedClientId
-    ? [appScheme, finalGoogleReversedClientId]
+  isFinalVariant && selectedGoogleReversedClientId
+    ? [appScheme, selectedGoogleReversedClientId]
     : appScheme;
 
 module.exports = {
@@ -74,14 +73,10 @@ module.exports = {
     experiments: {
       tsconfigPaths: true,
     },
-    ...(isFinalVariant
-      ? {
-          extra: {
-            appVariant: 'final',
-            ...(finalGoogleIosClientId ? { googleIosClientId: finalGoogleIosClientId } : {}),
-          },
-        }
-      : {}),
+    extra: {
+      ...(isFinalVariant ? { appVariant: 'final' } : {}),
+      ...(selectedGoogleIosClientId ? { googleIosClientId: selectedGoogleIosClientId } : {}),
+    },
     plugins: [
       'expo-router',
       ...(isFinalVariant ? [['expo-dev-client', { addGeneratedScheme: false }]] : []),

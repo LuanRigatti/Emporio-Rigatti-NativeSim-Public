@@ -1,22 +1,16 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeSheet } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
-import { lightModeLiquidGlassTint, useAppTheme } from '@/theme';
+import { useAppTheme } from '@/theme';
 
 import { SettingItem } from './SettingItem';
 import { SettingsSection } from './SettingsSection';
-import SystemBottomSheetGlassContent from './SystemBottomSheetGlassContent';
-import LiquidGlassInteractionExperiment from './SystemLiquidGlassExperiment';
 
 export function SystemSettingsScreen() {
-  const { resolvedMode, theme } = useAppTheme();
+  const { theme } = useAppTheme();
   const router = useRouter();
-  const { width: windowWidth } = useWindowDimensions();
-  const [isBottomSheetVisible, setIsBottomSheetVisible] = useState(false);
 
   const header = <NativeGlassHeader mode="transparent" title="Sistema" />;
 
@@ -45,30 +39,6 @@ export function SystemSettingsScreen() {
           />
         </SettingsSection>
       </PremiumCard>
-      <LiquidGlassInteractionExperiment
-        color={theme.colors.textPrimary}
-        cornerRadius={theme.radius.card}
-        glassTint={resolvedMode === 'light' ? lightModeLiquidGlassTint : undefined}
-        style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}
-        width={Math.max(0, windowWidth - theme.layout.screenHorizontalPadding * 2)}
-      />
-      <LiquidGlassInteractionExperiment
-        color={theme.colors.textPrimary}
-        cornerRadius={theme.radius.card}
-        onPress={() => setIsBottomSheetVisible(true)}
-        style={{ alignSelf: 'stretch', marginTop: theme.spacing.md }}
-        title="Teste Bottom Sheet Glass"
-        width={Math.max(0, windowWidth - theme.layout.screenHorizontalPadding * 2)}
-      />
-      <NativeSheet
-        onVisibleChange={setIsBottomSheetVisible}
-        presentationBackgroundInteraction="enabled"
-        presentationBackgroundColor={resolvedMode === 'light' ? '#FFFFFF' : undefined}
-        title="Teste Bottom Sheet Glass"
-        visible={isBottomSheetVisible}
-      >
-        <SystemBottomSheetGlassContent />
-      </NativeSheet>
     </PremiumScreen>
   );
 }

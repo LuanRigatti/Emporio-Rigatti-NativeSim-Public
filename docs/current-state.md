@@ -9,9 +9,11 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta consolidação: `07b1758` (`feat: consolidate native sheets and search`).
-- O commit desta consolidação reúne as alterações válidas atualmente aplicadas;
-  após ele, o working tree deve permanecer limpo.
+- Base Git desta atualização: `0acfb23e877d8b12733e626acff71969fb892b10`
+  (`feat: refine home and search flows`), HEAD anterior a esta publicação.
+- Este snapshot descreve o estado funcional versionado pela atualização atual;
+  o hash do commit resultante permanece somente no histórico Git para evitar
+  referência autorreferente no documento.
 
 ## Aplicativo
 
@@ -67,9 +69,9 @@ preservam o histórico técnico e as decisões acumuladas.
 - Perfil da Home mantém somente o detent `0.58`, sem scroll interno nem
   expansão; o card de Nome/E-mail/Método usa `BlurView` com tratamento light/dark
   e o logout existente permanece inalterado.
-- Configurações → Sistema mantém os dois laboratórios isolados: o teste de
-  Liquid Glass aceita tint branco de 60% no próprio material, e o teste de
-  Bottom Sheet usa o card sólido baseado nos tokens do tema e sem dimming.
+- Configurações → Sistema mantém apenas os fluxos funcionais de Modo Teste e
+  Backup; os botões, cards e conteúdos experimentais de Liquid Glass e Bottom
+  Sheet Glass foram removidos, sem alterar os demais itens de Sistema.
 - A sessão Firebase só deixa de estar em `loading` após o primeiro estado real
   de autenticação; com usuário autenticado, a hidratação inicial aguarda cache de
   clientes, cache diário, histórico de entregas, recibos da Fábrica e fontes
@@ -81,6 +83,9 @@ preservam o histórico técnico e as decisões acumuladas.
 - A animação de pressão dos cards clicáveis da Home pode ser desativada apenas
   nesses cards; o comportamento padrão dos componentes reutilizáveis permanece
   preservado.
+- Os cards de Entregas de hoje na Home, Registrar Entrega e Histórico usam
+  transições suaves de entrada/saída e layout com Reanimated, respeitando
+  Reduce Motion; conteúdo, context menus, dados e handlers permanecem iguais.
 - Não há instrumentação `[HomeStartupTrace]`, blobs, `Card Glass`, `Card Blur` ou
   outros experimentos visuais descartados no estado final.
 
@@ -111,8 +116,10 @@ iPhone.
 - NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global
   sobre as tabs; BackButtons, toolbars, swipe-back e morphs nativos preservados.
 - Registrar: entrega e dados preservados; o atalho independente da Home usa
-  `/registrar-entrega`; a lista de Entregas usa cards individuais com
-  `PremiumCard` e `NativeCardContextMenu`. O primeiro Bottom Sheet de entrega
+  `/registrar-entrega`, enquanto o card da Home abre diretamente o Bottom Sheet
+  compartilhado; a lista de Entregas usa cards individuais com
+  `PremiumCard` e `NativeCardContextMenu`, com entrada/saída suave dos cards.
+  O primeiro Bottom Sheet de entrega
   mantém shell nativo interativo, lista em `0.48 ↔ 0.78`, formulário em
   `0.48`, seleção minimalista de clientes, cards internos e ausência de dimming.
 - Registrar Dados: Bottom Sheet nativo com shell Liquid Glass interativo,
@@ -124,14 +131,15 @@ iPhone.
 - Perfil: sheet fixo em `0.58`, conteúdo sem scroll interno, card de conta fosco
   com `BlurView` e logout Firebase existente preservado.
 - Histórico: `NativeDateToolbar` textual no formato curto, filtro no mesmo
-  `Stack.Toolbar`, consultas, cards e ProgressiveBlur preservados.
+  `Stack.Toolbar`, consultas, cards com transição suave e ProgressiveBlur
+  preservados.
 - Finanças: cards estáveis ao retornar de detalhes, `NativeAnimatedNumber` para
   mudanças reais e gráfico animado no UI thread sem o stutter anterior.
 - Configurações: Native Stack dedicado para Clientes, Estoque, Localização,
   Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
   Action.
-- Sistema: experimentos isolados `Teste Liquid Glass` e `Teste Bottom Sheet
-  Glass` permanecem somente como laboratório visual.
+- Sistema: os laboratórios visuais `Teste Liquid Glass` e `Teste Bottom Sheet
+  Glass` foram removidos; Modo Teste e Backup permanecem disponíveis.
 - Localização/GPS: tracking, histórico e mapa preservados; montagem pesada do
   mapa ocorre após `transitionEnd`.
 
@@ -154,9 +162,10 @@ iPhone.
 - Correção mais recente do roteamento/bridge do Apple Intelligence/Foundation
   Models, ainda pendente de recompilação e validação no iPhone.
 - Ajustes finais de Bottom Sheets, transparência da Home Search, detents,
-  Perfil, Registrar e experimentos Liquid Glass desta consolidação: TypeScript,
-  lint funcional e `git diff --check` foram validados localmente, mas ainda não
-  há nova confirmação visual desses ajustes no iPhone.
+  Perfil, Registrar, empty state da Home e transições dos cards desta
+  atualização: TypeScript, lint funcional, testes direcionados e
+  `git diff --check` foram validados localmente, mas ainda não há nova
+  confirmação visual desses ajustes no iPhone.
 
 ### PROBLEMAS CONHECIDOS / EM INVESTIGAÇÃO
 
@@ -2580,7 +2589,7 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
   externa transparente; conteúdo interno sólido, cinco sugestões, cores e
   espaçamentos finais preservados.
 - Search Bar continua nativa e sem tint customizado. Os experimentos isolados
-  `Teste Liquid Glass` e `Teste Bottom Sheet Glass` permanecem em
+  `Teste Liquid Glass` e `Teste Bottom Sheet Glass` foram removidos de
   Configurações → Sistema.
 - Os cards reais da Home e da aba Registrar permanecem na implementação
   anterior com `PremiumCard`/`AnimatedPressable`; não receberam Liquid Glass

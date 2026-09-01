@@ -6,6 +6,8 @@ import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
+  FadeOut,
+  LinearTransition,
   useAnimatedStyle,
   useDerivedValue,
   withTiming,
@@ -449,7 +451,7 @@ export function RegistrarDailyDataScreen() {
 export function RegistrarDeliveryScreen() {
   const colorScheme = useColorScheme();
   const insets = useAppSafeAreaInsets();
-  const { resolvedMode, theme } = useAppTheme();
+  const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const { quantity: maskQuantity, text: maskText, enabled: testModeEnabled } =
     useTestModePresentation();
   const dark = colorScheme === 'dark';
@@ -508,6 +510,10 @@ export function RegistrarDeliveryScreen() {
   const deliveryCardAnimatedStyle = useAnimatedStyle(() => ({
     height: deliveryCardHeightValue.value,
   }));
+  const deliveryItemTransitionDuration = reduceMotionEnabled
+    ? 0
+    : theme.animations.duration.standard;
+  const deliveryItemLayoutTransition = LinearTransition.duration(deliveryItemTransitionDuration);
 
   const handleDeliverySortChange = useCallback((sortMode: DeliverySortMode) => {
     triggerSelectionHaptic();
@@ -628,24 +634,31 @@ export function RegistrarDeliveryScreen() {
                     ];
 
                     return (
-                      <NativeCardContextMenu
+                      <Animated.View
+                        entering={FadeIn.duration(deliveryItemTransitionDuration)}
+                        exiting={FadeOut.duration(deliveryItemTransitionDuration)}
                         key={delivery.id}
-                        actions={rowActions}
-                        preview={
-                          <PremiumCard style={cardStyle}>
-                            {renderDeliveryItemRow(true)}
-                          </PremiumCard>
-                        }
-                        style={[
-                          styles.deliveryContextMenu,
-                          {
-                            borderRadius: theme.radius.xl + theme.spacing.sm,
-                            height: deliveryRowHeight,
-                          },
-                        ]}
+                        layout={deliveryItemLayoutTransition}
+                        style={styles.fullWidth}
                       >
-                        <PremiumCard style={cardStyle}>{rowContent}</PremiumCard>
-                      </NativeCardContextMenu>
+                        <NativeCardContextMenu
+                          actions={rowActions}
+                          preview={
+                            <PremiumCard style={cardStyle}>
+                              {renderDeliveryItemRow(true)}
+                            </PremiumCard>
+                          }
+                          style={[
+                            styles.deliveryContextMenu,
+                            {
+                              borderRadius: theme.radius.xl + theme.spacing.sm,
+                              height: deliveryRowHeight,
+                            },
+                          ]}
+                        >
+                          <PremiumCard style={cardStyle}>{rowContent}</PremiumCard>
+                        </NativeCardContextMenu>
+                      </Animated.View>
                     );
                   })}
                 </View>

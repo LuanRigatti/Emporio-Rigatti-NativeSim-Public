@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
   paddedHomeContent: { width: '100%' },
-  widgetCarousel: { width: '100%' },
+  widgetCarousel: { flexGrow: 0, width: '100%' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
   widgetCard: { width: 178 },
   widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

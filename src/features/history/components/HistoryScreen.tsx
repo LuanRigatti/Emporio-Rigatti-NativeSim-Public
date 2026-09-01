@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { Stack, useFocusEffect } from 'expo-router';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
@@ -126,13 +126,26 @@ export function HistoryScreen() {
           >
             {visibleDeliveries.length > 0 ? (
               visibleDeliveries.map((delivery) => (
-                <DeliveryCard
-                  contained
-                  delivery={delivery}
+                <Animated.View
+                  entering={FadeIn.duration(
+                    reduceMotionEnabled ? 0 : theme.animations.duration.standard,
+                  )}
+                  exiting={FadeOut.duration(
+                    reduceMotionEnabled ? 0 : theme.animations.duration.standard,
+                  )}
                   key={delivery.id}
-                  onDelete={() => handleDeleteDelivery(delivery.id)}
-                  onToggleStatus={() => handleToggleStatus(delivery.id)}
-                />
+                  layout={LinearTransition.duration(
+                    reduceMotionEnabled ? 0 : theme.animations.duration.standard,
+                  )}
+                  style={styles.fullWidth}
+                >
+                  <DeliveryCard
+                    contained
+                    delivery={delivery}
+                    onDelete={() => handleDeleteDelivery(delivery.id)}
+                    onToggleStatus={() => handleToggleStatus(delivery.id)}
+                  />
+                </Animated.View>
               ))
             ) : (
               <Animated.View
@@ -307,6 +320,7 @@ const styles = StyleSheet.create({
   emptyState: { alignSelf: 'stretch', width: '100%' },
   emptyList: { flexGrow: 1 },
   emptyCard: { width: '100%' },
+  fullWidth: { width: '100%' },
   list: { width: '100%' },
   topBucketSummary: { alignItems: 'flex-end', width: '100%' },
 });

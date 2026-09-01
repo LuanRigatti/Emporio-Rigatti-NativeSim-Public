@@ -147,16 +147,14 @@ export default function NativeBottomSheetSwiftUI({
         {resolvedMode === 'dark' ? (
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.darkDetailSurface]} />
         ) : null}
-        <BlurView
-          key={resolvedMode}
-          intensity={70}
-          style={StyleSheet.absoluteFill}
-          tint={
-            resolvedMode === 'dark'
-              ? 'systemChromeMaterialDark'
-              : 'systemUltraThinMaterialLight'
-          }
-        />
+        {resolvedMode === 'dark' ? (
+          <BlurView
+            key={resolvedMode}
+            intensity={70}
+            style={StyleSheet.absoluteFill}
+            tint="systemChromeMaterialDark"
+          />
+        ) : null}
       </View>
     </RNHostView>
   );
@@ -586,7 +584,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   lightDetailSurface: {
-    backgroundColor: 'rgba(208, 208, 208, 0.38)',
+    backgroundColor: '#FFFFFF',
   },
   darkDetailSurface: {
     backgroundColor: 'rgba(80, 80, 84, 0.40)',

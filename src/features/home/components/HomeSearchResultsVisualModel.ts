@@ -480,25 +480,26 @@ function periodSummarySections(result: HomeSearchPeriodSummaryResult): HomeSearc
   const financial = result.data.financial;
   const factory = result.data.factory;
   const routes = result.data.routes;
+  const financialRows = [
+    row('deliveries', 'Entregas', formatNumber(financial.quantidadeEntregas), {
+      monospaced: true,
+    }),
+    row('buckets', 'Baldes', formatNumber(financial.quantidadeBaldes), { monospaced: true }),
+    row('revenue', 'Faturamento', formatCurrency(financial.faturamento), { monospaced: true }),
+    row('paid', 'Pago', formatCurrency(financial.valoresPagos), {
+      monospaced: true,
+      tone: 'success',
+    }),
+    row('pending', 'Pendente', formatCurrency(financial.valoresPendentes), {
+      monospaced: true,
+      tone: financial.valoresPendentes > 0 ? 'warning' : 'success',
+    }),
+    row('net-profit', 'Lucro líquido', formatCurrency(financial.lucroLiquido), {
+      monospaced: true,
+    }),
+  ];
   return [
-    section('period-financial', 'Finanças', 'chart.bar.fill', [
-      row('deliveries', 'Entregas', formatNumber(financial.quantidadeEntregas), {
-        monospaced: true,
-      }),
-      row('buckets', 'Baldes', formatNumber(financial.quantidadeBaldes), { monospaced: true }),
-      row('revenue', 'Faturamento', formatCurrency(financial.faturamento), { monospaced: true }),
-      row('paid', 'Pago', formatCurrency(financial.valoresPagos), {
-        monospaced: true,
-        tone: 'success',
-      }),
-      row('pending', 'Pendente', formatCurrency(financial.valoresPendentes), {
-        monospaced: true,
-        tone: financial.valoresPendentes > 0 ? 'warning' : 'success',
-      }),
-      row('net-profit', 'Lucro líquido', formatCurrency(financial.lucroLiquido), {
-        monospaced: true,
-      }),
-    ]),
+    section('period-financial', 'Finanças', 'chart.bar.fill', financialRows),
     section('period-operations', 'Operação', 'shippingbox', [
       row('factory-receipts', 'Compras da fábrica', formatNumber(factory.receiptCount), {
         monospaced: true,

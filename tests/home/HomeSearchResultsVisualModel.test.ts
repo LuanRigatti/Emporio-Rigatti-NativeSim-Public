@@ -417,5 +417,28 @@ describe('HomeSearchResultVisualModel', () => {
     expect(opSection?.rows.find((r) => r.id === 'routes')?.value).toBe('3');
     expect(opSection?.rows.find((r) => r.id === 'distance')?.label).toBe('Quilometragem total');
     expect(opSection?.rows.find((r) => r.id === 'distance')?.value).toBe('126,85 km');
+
+    const todayModel = createHomeSearchResultVisualModel(
+      response(
+        {
+          ...baseQuery,
+          normalized: 'resumo hoje',
+          original: 'resumo hoje',
+          period: { kind: 'date', date: '2026-08-31' },
+          periodSummary: true,
+        },
+        [periodSummaryResult],
+      ),
+    );
+    expect(todayModel.sections.map((section) => section.id)).toEqual([
+      'period-financial',
+      'period-operations',
+    ]);
+    expect(todayModel.sections[0].rows.at(-1)?.id).toBe('net-profit');
+    expect(todayModel.sections[1].rows.at(-1)).toMatchObject({
+      id: 'distance',
+      label: 'Quilometragem total',
+      value: '126,85 km',
+    });
   });
 });

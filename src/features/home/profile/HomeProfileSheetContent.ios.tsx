@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import {
   Button,
   HStack,
@@ -19,6 +18,7 @@ import {
   font,
   foregroundColor,
   frame,
+  offset,
   padding,
   scrollDisabled,
 } from '@expo/ui/swift-ui/modifiers';
@@ -41,6 +41,41 @@ export default function HomeProfileSheetContent({
 }: HomeProfileSheetContentProps) {
   const { resolvedMode, theme } = useAppTheme();
 
+  const signOutButton = (
+    <Button
+      role="destructive"
+      modifiers={[
+        buttonStyle('glass'),
+        controlSize('large'),
+        accessibilityLabel(isSigningOut ? 'Saindo da conta' : 'Sair da conta'),
+        accessibilityHint('Encerra a sessão atual'),
+        ...(isSigningOut ? [disabledModifier(true)] : []),
+        offset({ y: -40 }),
+      ]}
+      onPress={() => {
+        if (isSigningOut) return;
+        triggerNativeButtonHaptic('light');
+        onSignOut();
+      }}
+    >
+      <HStack alignment="center" spacing={spacing.xs}>
+        <Image
+          color={theme.colors.danger}
+          size={18}
+          systemName="rectangle.portrait.and.arrow.right"
+        />
+        <Text
+          modifiers={[
+            font({ textStyle: 'headline', design: 'rounded' }),
+            foregroundColor(theme.colors.danger),
+          ]}
+        >
+          {isSigningOut ? 'Saindo...' : 'Sair'}
+        </Text>
+      </HStack>
+    </Button>
+  );
+
   return (
     <ScrollView showsIndicators={false} modifiers={[scrollDisabled(true)]}>
       <VStack
@@ -51,47 +86,62 @@ export default function HomeProfileSheetContent({
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
         ]}
       >
-        <VStack alignment="center" spacing={8} modifiers={[frame({ maxWidth: Infinity })]}>
-          <HStack
+        <ZStack alignment="topTrailing" modifiers={[frame({ maxWidth: Infinity })]}>
+          <VStack
             alignment="center"
-            spacing={0}
-            modifiers={[padding({ leading: spacing.xxxl }), frame({ maxWidth: Infinity })]}
-          >
-            <NativeAvatarButton
-              accessibilityHint="Expande o painel do perfil"
-              accessibilityLabel="Expandir perfil"
-              avatarSize="large"
-              containerSize={theme.sizes.avatarLarge}
-              glassTint={getLiquidGlassTint(resolvedMode)}
-              imageUri={imageUri}
-              name={displayName}
-              onPress={() => onPhotoPress?.()}
-            />
-          </HStack>
-          <Text
+            spacing={8}
             modifiers={[
-              font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
-              foregroundColor(theme.colors.textPrimary),
-              frame({ maxWidth: Infinity, alignment: 'center' }),
+              frame({ maxWidth: Infinity }),
+              padding({ top: spacing.sm }),
+              offset({ y: 16 }),
             ]}
           >
-            {displayName}
-          </Text>
-          <Text
-            modifiers={[
-              font({ textStyle: 'subheadline', design: 'rounded' }),
-              foregroundColor(theme.colors.textSecondary),
-              frame({ maxWidth: Infinity, alignment: 'center' }),
-            ]}
-          >
-            {email}
-          </Text>
-        </VStack>
+            <HStack
+              alignment="center"
+              spacing={0}
+              modifiers={[padding({ leading: spacing.xxxl }), frame({ maxWidth: Infinity })]}
+            >
+              <NativeAvatarButton
+                accessibilityHint="Expande o painel do perfil"
+                accessibilityLabel="Expandir perfil"
+                avatarSize="large"
+                containerSize={theme.sizes.avatarLarge}
+                glassTint={getLiquidGlassTint(resolvedMode)}
+                imageUri={imageUri}
+                name={displayName}
+                onPress={() => onPhotoPress?.()}
+              />
+            </HStack>
+            <Text
+              modifiers={[
+                font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
+                foregroundColor(theme.colors.textPrimary),
+                frame({ maxWidth: Infinity, alignment: 'center' }),
+              ]}
+            >
+              {displayName}
+            </Text>
+            <Text
+              modifiers={[
+                font({ textStyle: 'subheadline', design: 'rounded' }),
+                foregroundColor(theme.colors.textSecondary),
+                frame({ maxWidth: Infinity, alignment: 'center' }),
+              ]}
+            >
+              {email}
+            </Text>
+          </VStack>
+          {signOutButton}
+        </ZStack>
 
         <VStack
           alignment="leading"
           spacing={0}
-          modifiers={[padding({ top: spacing.xxl }), frame({ maxWidth: Infinity })]}
+          modifiers={[
+            padding({ top: spacing.xxl }),
+            frame({ maxWidth: Infinity }),
+            offset({ y: 16 }),
+          ]}
         >
           <ZStack
             alignment="topLeading"
@@ -114,19 +164,9 @@ export default function HomeProfileSheetContent({
                 {resolvedMode === 'dark' ? (
                   <View
                     pointerEvents="none"
-                    style={[StyleSheet.absoluteFill, styles.darkAccountSurface]}
+                    style={[StyleSheet.absoluteFill, { backgroundColor: '#2A2A2A' }]}
                   />
                 ) : null}
-                <BlurView
-                  key={resolvedMode}
-                  intensity={70}
-                  style={StyleSheet.absoluteFill}
-                  tint={
-                    resolvedMode === 'dark'
-                      ? 'systemChromeMaterialDark'
-                      : 'systemUltraThinMaterialLight'
-                  }
-                />
               </View>
             </RNHostView>
             <VStack alignment="leading" spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
@@ -149,39 +189,6 @@ export default function HomeProfileSheetContent({
           </Text>
         ) : null}
 
-        <Button
-          role="destructive"
-          modifiers={[
-            buttonStyle('glass'),
-            controlSize('large'),
-            frame({ maxWidth: Infinity }),
-            accessibilityLabel(isSigningOut ? 'Saindo da conta' : 'Sair da conta'),
-            accessibilityHint('Encerra a sessão atual'),
-            ...(isSigningOut ? [disabledModifier(true)] : []),
-            padding({ top: spacing.xl }),
-          ]}
-          onPress={() => {
-            if (isSigningOut) return;
-            triggerNativeButtonHaptic('light');
-            onSignOut();
-          }}
-        >
-          <HStack alignment="center" spacing={spacing.xs}>
-            <Image
-              color={theme.colors.danger}
-              size={18}
-              systemName="rectangle.portrait.and.arrow.right"
-            />
-            <Text
-              modifiers={[
-                font({ textStyle: 'headline', design: 'rounded' }),
-                foregroundColor(theme.colors.danger),
-              ]}
-            >
-              {isSigningOut ? 'Saindo...' : 'Sair'}
-            </Text>
-          </HStack>
-        </Button>
       </VStack>
     </ScrollView>
   );
@@ -227,9 +234,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   lightAccountSurface: {
-    backgroundColor: 'rgba(208, 208, 208, 0.38)',
-  },
-  darkAccountSurface: {
-    backgroundColor: 'rgba(19, 20, 23, 0.40)',
+    backgroundColor: '#FFFFFF',
   },
 });

@@ -24,9 +24,11 @@ import {
   isHomeSearchSheetVisible,
 } from '@/features/home/hooks/HomeSearchPresentationFlow';
 import { useHomeSearch } from '@/features/home/hooks/useHomeSearch';
-import { countOpenDocuments, formatOpenDocumentsLabel } from '@/features/invoices';
+import { countOpenDocuments } from '@/features/invoices';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
+import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
+import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 
@@ -49,7 +51,11 @@ export default function Home() {
   const isFocused = useIsFocused();
   const { resolvedMode, theme } = useAppTheme();
   const { user } = useAuth();
-  const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
+  const {
+    currency: maskCurrency,
+    enabled: testModeEnabled,
+    text: maskText,
+  } = useTestModePresentation();
   const insets = useAppSafeAreaInsets();
   const [focusEntryKey, setFocusEntryKey] = useState(0);
   const wasFocused = useRef(false);
@@ -77,6 +83,7 @@ export default function Home() {
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
   const { clients } = useClients();
+  const { purchases: factoryPurchases } = useFactoryPurchases();
   const registrarDeliverySheet = useRegistrarDeliverySheet({
     clients,
     create: createDelivery,
@@ -93,7 +100,7 @@ export default function Home() {
     clientIds: eligibleClientIds,
     mode: 'all',
   });
-  const { clientCards: openPaymentClientCards } = useOpenPaymentClients();
+  const { clientCards: openPaymentClientCards, totalOpenAmount } = useOpenPaymentClients();
   const historyDeliveries = useMemo(
     () => dailyDeliveries.map(toHistoryDelivery),
     [dailyDeliveries],
@@ -107,6 +114,10 @@ export default function Home() {
   const openDocumentsCount = useMemo(
     () => countOpenDocuments(invoiceDeliveries, clients),
     [invoiceDeliveries, clients],
+  );
+  const factoryOpenAmount = useMemo(
+    () => factoryPurchaseCalculationService.summarize(factoryPurchases).openValue,
+    [factoryPurchases],
   );
   useEffect(() => {
     if (isFocused && !wasFocused.current) {
@@ -379,10 +390,22 @@ export default function Home() {
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
             <View
-              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              style={[
+                styles.widgetCopy,
+                {
+                  gap: theme.spacing.xxs,
+                  minHeight: theme.typography.headline.lineHeight * 2,
+                },
+              ]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                 Registrar Entrega
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+              >
+                {maskText(`${dailyDeliveries.length} hoje`)}
               </Text>
             </View>
           </PremiumCard>
@@ -406,10 +429,22 @@ export default function Home() {
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
             <View
-              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              style={[
+                styles.widgetCopy,
+                {
+                  gap: theme.spacing.xxs,
+                  minHeight: theme.typography.headline.lineHeight * 2,
+                },
+              ]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                 Em aberto
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+              >
+                {maskCurrency(totalOpenAmount)}
               </Text>
             </View>
           </PremiumCard>
@@ -432,10 +467,22 @@ export default function Home() {
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
             <View
-              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              style={[
+                styles.widgetCopy,
+                {
+                  gap: theme.spacing.xxs,
+                  minHeight: theme.typography.headline.lineHeight * 2,
+                },
+              ]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {maskText(formatOpenDocumentsLabel(openDocumentsCount))}
+                Documentos
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+              >
+                {maskText(`${openDocumentsCount} em aberto`)}
               </Text>
             </View>
           </PremiumCard>
@@ -452,10 +499,22 @@ export default function Home() {
               <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
             </View>
             <View
-              style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              style={[
+                styles.widgetCopy,
+                {
+                  gap: theme.spacing.xxs,
+                  minHeight: theme.typography.headline.lineHeight * 2,
+                },
+              ]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                 Fábrica
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+              >
+                {maskCurrency(factoryOpenAmount)}
               </Text>
             </View>
           </PremiumCard>

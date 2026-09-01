@@ -1,10 +1,12 @@
 import {
   Divider,
+  HStack,
   Image,
   Label,
   LabeledContent,
   RNHostView,
   ScrollView,
+  Spacer,
   Text,
   VStack,
 } from '@expo/ui/swift-ui';
@@ -44,6 +46,45 @@ type Props = {
 const asSymbol = (value: string) => value as SFSymbol;
 const monospacedLabelValues = new Set(['Início', 'Fim', 'Duração']);
 const COMPACT_TITLE_OFFSET_Y = 6;
+const SHORT_MONTH_NAMES: Record<string, string> = {
+  abril: 'abr',
+  agosto: 'ago',
+  dezembro: 'dez',
+  fevereiro: 'fev',
+  janeiro: 'jan',
+  julho: 'jul',
+  junho: 'jun',
+  março: 'mar',
+  maio: 'mai',
+  novembro: 'nov',
+  outubro: 'out',
+  setembro: 'set',
+};
+
+function isTodaySummaryQuery(query?: string): boolean {
+  return query?.trim().toLowerCase() === 'resumo hoje';
+}
+
+function isSummaryQuery(query?: string): boolean {
+  return query?.trim().toLowerCase().startsWith('resumo') ?? false;
+}
+
+function isCompactFinancialMetricQuery(query?: string): boolean {
+  const normalized = query
+    ?.trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return normalized?.startsWith('faturamento') || normalized?.startsWith('lucro liquido')
+    ? true
+    : false;
+}
+
+function compactTodayLabel(title: string): string {
+  const match = /^(\d{1,2}) de (.+) de \d{4}$/.exec(title);
+  if (!match) return `Hoje · ${title}`;
+  return `Hoje · ${match[1]} ${SHORT_MONTH_NAMES[match[2]] ?? match[2]}`;
+}
 
 function semanticStyle(tone: HomeSearchVisualTone = 'primary') {
   if (tone === 'success') return foregroundStyle(PlatformColor('systemGreen') as unknown as string);
@@ -57,16 +98,76 @@ function semanticStyle(tone: HomeSearchVisualTone = 'primary') {
 }
 
 function ResultHeader({
+  compactFinancialMetric = false,
+  compactSummary = false,
   isLarge = false,
   query,
   result,
 }: {
+  compactFinancialMetric?: boolean;
+  compactSummary?: boolean;
   isLarge?: boolean;
   query?: string;
   result: HomeSearchVisualResult;
 }) {
   const { text: maskText } = useTestModePresentation();
   if (!result.header) return null;
+  if (compactSummary) {
+    const [deliverySummary, revenueSummary] = result.metric?.value.split(' · ') ?? [];
+    return (
+      <VStack alignment="leading" spacing={spacing.sm}>
+        <Text
+          modifiers={[
+            font({ size: 14, design: 'rounded' }),
+            semanticStyle('secondary'),
+            padding({ horizontal: spacing.md }),
+            offset({ y: -spacing.sm }),
+          ]}
+        >
+          {isTodaySummaryQuery(query)
+            ? compactTodayLabel(result.header.title)
+            : result.header.title}
+        </Text>
+        <HStack
+          alignment="center"
+          spacing={spacing.md}
+          modifiers={[
+            padding({ horizontal: spacing.md }),
+            frame({ maxWidth: Infinity, alignment: 'leading' }),
+          ]}
+        >
+          <Text
+            modifiers={[font({ size: 18, weight: 'semibold', design: 'rounded' })]}
+          >
+            {maskText(deliverySummary ?? '')}
+          </Text>
+          <Spacer />
+          <Text
+            modifiers={[font({ size: 18, weight: 'semibold', design: 'rounded' })]}
+          >
+            {maskText(revenueSummary ?? '')}
+          </Text>
+        </HStack>
+      </VStack>
+    );
+  }
+  if (compactFinancialMetric && result.metric) {
+    return (
+      <VStack alignment="leading" spacing={spacing.sm}>
+        <Text
+          modifiers={[
+            font({ size: 14, design: 'rounded' }),
+            semanticStyle('secondary'),
+            padding({ horizontal: spacing.md }),
+            offset({ y: -spacing.sm }),
+          ]}
+        >
+          {result.header.title}
+        </Text>
+        <ResultMetric compact metric={result.metric} />
+      </VStack>
+    );
+  }
   const context = result.hideQueryContext
     ? undefined
     : (result.context ?? (query !== result.header.title ? query : undefined));
@@ -131,13 +232,23 @@ function ResultHeader({
   );
 }
 
-function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualModel['metric']> }) {
+function ResultMetric({
+  compact = false,
+  metric,
+}: {
+  compact?: boolean;
+  metric: NonNullable<HomeSearchResultVisualModel['metric']>;
+}) {
   const { text: maskText } = useTestModePresentation();
   return (
     <VStack alignment="leading" spacing={spacing.xxs}>
       <Text
         modifiers={[
-          font({ textStyle: 'largeTitle', weight: 'bold', design: 'rounded' }),
+          font(
+            compact
+              ? { size: 18, weight: 'semibold', design: 'rounded' }
+              : { textStyle: 'largeTitle', weight: 'bold', design: 'rounded' },
+          ),
           semanticStyle(metric.tone),
           ...(metric.monospaced ? [monospacedDigit()] : []),
         ]}
@@ -158,7 +269,13 @@ function ResultMetric({ metric }: { metric: NonNullable<HomeSearchResultVisualMo
   );
 }
 
-function ResultValueRow({ row }: { row: HomeSearchVisualRow }) {
+function ResultValueRow({
+  neutralizeTone = false,
+  row,
+}: {
+  neutralizeTone?: boolean;
+  row: HomeSearchVisualRow;
+}) {
   const { text: maskText } = useTestModePresentation();
   const monospaced = row.monospaced || monospacedLabelValues.has(row.label);
   return (
@@ -178,7 +295,7 @@ function ResultValueRow({ row }: { row: HomeSearchVisualRow }) {
         <Text
           modifiers={[
             font({ textStyle: 'body', weight: 'semibold', design: 'rounded' }),
-            semanticStyle(row.tone),
+            ...(neutralizeTone ? [semanticStyle()] : [semanticStyle(row.tone)]),
             ...(monospaced ? [monospacedDigit()] : []),
           ]}
         >
@@ -191,9 +308,11 @@ function ResultValueRow({ row }: { row: HomeSearchVisualRow }) {
 
 function ResultSection({
   cardBackground,
+  neutralizeTones = false,
   section,
 }: {
   cardBackground: string;
+  neutralizeTones?: boolean;
   section: HomeSearchVisualSection;
 }) {
   const sectionContent = (
@@ -221,7 +340,7 @@ function ResultSection({
       <VStack alignment="leading" spacing={0} modifiers={[padding({ bottom: spacing.sm })]}>
         {section.rows.map((row, index) => (
           <VStack key={row.id} alignment="leading" spacing={0}>
-            <ResultValueRow row={row} />
+            <ResultValueRow neutralizeTone={neutralizeTones} row={row} />
             {index < section.rows.length - 1 ? <Divider /> : null}
           </VStack>
         ))}
@@ -285,14 +404,23 @@ const SEARCH_RESULT_HORIZONTAL_INSET = 16;
 function ResultContent({
   cardBackground,
   isLarge,
+  neutralizeTones = false,
   query,
   result,
 }: {
   cardBackground?: string;
   isLarge?: boolean;
+  neutralizeTones?: boolean;
   query?: string;
   result: HomeSearchVisualResult;
 }) {
+  const compactSummary =
+    isSummaryQuery(query) && result.sections.some((section) => section.id === 'period-financial');
+  const compactFinancialMetric =
+    !compactSummary &&
+    isCompactFinancialMetricQuery(query) &&
+    result.sections.some((section) => section.id === 'financial-context');
+  const compactHeader = compactSummary || compactFinancialMetric;
   return (
     <VStack
       alignment="leading"
@@ -301,14 +429,25 @@ function ResultContent({
         result.route ? [frame({ maxHeight: Infinity, alignment: 'topLeading' })] : undefined
       }
     >
-      <ResultHeader isLarge={isLarge} query={query} result={result} />
-      {result.metric ? <ResultMetric metric={result.metric} /> : null}
+      <ResultHeader
+        compactFinancialMetric={compactFinancialMetric}
+        compactSummary={compactSummary}
+        isLarge={isLarge}
+        query={query}
+        result={result}
+      />
+      {!compactHeader && result.metric ? <ResultMetric metric={result.metric} /> : null}
       {result.state ? <ResultState result={result} /> : null}
       {result.route ? (
         <HomeSearchRoutePreview isLarge={Boolean(isLarge)} sessionIds={result.route.sessionIds} />
       ) : null}
       {result.sections.map((section) => (
-        <ResultSection cardBackground={cardBackground ?? ''} key={section.id} section={section} />
+        <ResultSection
+          cardBackground={cardBackground ?? ''}
+          key={section.id}
+          neutralizeTones={neutralizeTones}
+          section={section}
+        />
       ))}
     </VStack>
   );
@@ -317,8 +456,8 @@ function ResultContent({
 const COMPACT_ROUTE_PAGER_TOP_PADDING = 20;
 
 export default function HomeSearchResultsNative({ isLarge = false, model }: Props) {
-  const { resolvedMode, theme } = useAppTheme();
-  const cardBackground = resolvedMode === 'dark' ? theme.colors.surface : '#F2EFEB';
+  const { resolvedMode } = useAppTheme();
+  const cardBackground = resolvedMode === 'dark' ? '#2A2A2A' : '#FFFFFF';
 
   const isRouteResult =
     Boolean(model.singleDayRoute) || model.items.some((item) => Boolean(item.route));
@@ -376,6 +515,7 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
             cardBackground={cardBackground}
             isLarge={isLarge}
             key={result.id}
+            neutralizeTones={isSummaryQuery(model.query)}
             query={model.query}
             result={result}
           />

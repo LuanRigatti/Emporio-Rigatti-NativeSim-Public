@@ -34,6 +34,10 @@ export function useOpenPaymentClients() {
         })),
     [deliveries],
   );
+  const totalOpenAmount = useMemo(
+    () => financialCalculationService.calculatePendente(deliveries),
+    [deliveries],
+  );
 
   const markDeliveryPaid = useCallback(
     (deliveryId: string) => {
@@ -44,5 +48,5 @@ export function useOpenPaymentClients() {
     [editMany, testModeEnabled],
   );
 
-  return { clientCards, markDeliveryPaid, testModeEnabled };
+  return { clientCards, markDeliveryPaid, testModeEnabled, totalOpenAmount };
 }

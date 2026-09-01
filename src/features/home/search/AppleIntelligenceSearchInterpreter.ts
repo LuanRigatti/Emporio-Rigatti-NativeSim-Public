@@ -16,8 +16,6 @@ import type {
   HomeSearchRouteMetric,
 } from './HomeSearchTypes';
 
-const MIN_INTERPRETATION_CONFIDENCE = 0.6;
-
 export type NativeAppleIntelligenceSearchIntent = {
   confidence: number;
   intent: string;
@@ -62,6 +60,24 @@ const nativeAppleIntelligence =
 
 function appleIntelligenceDevLog(event: string, details?: unknown): void {
   if (__DEV__) console.info('[APPLE INTELLIGENCE]', event, details ?? '');
+}
+
+function sanitizeNativeIntentPayload(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, fieldValue]) => {
+      if (key === 'text') return [key, '<redacted>'];
+      if (key === 'money' && typeof fieldValue === 'number' && fieldValue >= 0) {
+        return [key, '<redacted>'];
+      }
+      return [key, fieldValue];
+    }),
+  );
+}
+
+function logParserRejection(stage: string, details: Record<string, unknown> = {}): void {
+  appleIntelligenceDevLog('structured-intent-rejected', { stage, ...details });
 }
 
 const FINANCIAL_METRICS: ReadonlySet<HomeSearchFinancialMetric> = new Set([
@@ -261,20 +277,22 @@ export function toHomeSearchParsedQuery(
   rawIntent: unknown,
 ): HomeSearchParsedQuery | null {
   const intent = readNativeIntent(rawIntent);
-  if (
-    !intent ||
-    !Number.isFinite(intent.confidence) ||
-    intent.confidence < MIN_INTERPRETATION_CONFIDENCE ||
-    intent.confidence > 1
-  ) {
+  if (!intent) {
+    logParserRejection('decode', { reason: 'payloadIsNotAnObjectOrValidJson' });
     return null;
   }
 
   const intentKind = intent.intent.toLowerCase();
-  if (!SUPPORTED_INTENTS.has(intentKind)) return null;
+  if (!SUPPORTED_INTENTS.has(intentKind)) {
+    logParserRejection('intent', { reason: 'unsupportedValue' });
+    return null;
+  }
 
   const periodResult = buildPeriod(intent);
-  if (!periodResult.valid) return null;
+  if (!periodResult.valid) {
+    logParserRejection('period', { reason: 'invalidPeriodFields' });
+    return null;
+  }
 
   const query: HomeSearchParsedQuery = {
     original,
@@ -299,35 +317,41 @@ export function toHomeSearchParsedQuery(
     query.paymentStatus = intent.paymentStatus;
     addDetectedType(query.detectedTypes, 'paymentStatus');
   } else if (intent.paymentStatus) {
+    logParserRejection('paymentStatus', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.documentType, DOCUMENT_TYPES)) {
     query.documentType = intent.documentType;
     addDetectedType(query.detectedTypes, 'document');
   } else if (intent.documentType) {
+    logParserRejection('documentType', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.financialMetric, FINANCIAL_METRICS)) {
     query.financialMetric = intent.financialMetric;
     addDetectedType(query.detectedTypes, 'financialMetric');
   } else if (intent.financialMetric) {
+    logParserRejection('financialMetric', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.clientField, CLIENT_FIELDS)) {
     query.clientField = intent.clientField;
     addDetectedType(query.detectedTypes, 'clientField');
   } else if (intent.clientField) {
+    logParserRejection('clientField', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.factoryMetric, FACTORY_METRICS)) {
     query.factoryMetric = intent.factoryMetric;
     addDetectedType(query.detectedTypes, 'factoryMetric');
   } else if (intent.factoryMetric) {
+    logParserRejection('factoryMetric', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.factoryStatus, FACTORY_STATUSES)) {
     query.factoryStatus = intent.factoryStatus;
   } else if (intent.factoryStatus) {
+    logParserRejection('factoryStatus', { reason: 'unsupportedValue' });
     return null;
   }
   if (intent.factoryPaymentDateUnsupported) query.factoryPaymentDateUnsupported = true;
@@ -335,12 +359,14 @@ export function toHomeSearchParsedQuery(
     query.routeMetric = intent.routeMetric;
     addDetectedType(query.detectedTypes, 'routeMetric');
   } else if (intent.routeMetric) {
+    logParserRejection('routeMetric', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.carMetric, CAR_METRICS)) {
     query.carMetric = intent.carMetric;
     addDetectedType(query.detectedTypes, 'carMetric');
   } else if (intent.carMetric) {
+    logParserRejection('carMetric', { reason: 'unsupportedValue' });
     return null;
   }
 
@@ -349,11 +375,26 @@ export function toHomeSearchParsedQuery(
     addDetectedType(query.detectedTypes, 'periodSummary');
   }
 
-  if (intentKind === 'financialmetric' && !query.financialMetric) return null;
-  if (intentKind === 'factorymetric' && !query.factoryMetric) return null;
-  if (intentKind === 'routemetric' && !query.routeMetric) return null;
-  if (intentKind === 'carmetric' && !query.carMetric) return null;
-  if (intentKind === 'clientfield' && !query.clientField) return null;
+  if (intentKind === 'financialmetric' && !query.financialMetric) {
+    logParserRejection('intent', { reason: 'missingFinancialMetric' });
+    return null;
+  }
+  if (intentKind === 'factorymetric' && !query.factoryMetric) {
+    logParserRejection('intent', { reason: 'missingFactoryMetric' });
+    return null;
+  }
+  if (intentKind === 'routemetric' && !query.routeMetric) {
+    logParserRejection('intent', { reason: 'missingRouteMetric' });
+    return null;
+  }
+  if (intentKind === 'carmetric' && !query.carMetric) {
+    logParserRejection('intent', { reason: 'missingCarMetric' });
+    return null;
+  }
+  if (intentKind === 'clientfield' && !query.clientField) {
+    logParserRejection('intent', { reason: 'missingClientField' });
+    return null;
+  }
 
   const hasMeaningfulIntent =
     query.text ||
@@ -368,7 +409,12 @@ export function toHomeSearchParsedQuery(
     query.routeMetric ||
     query.carMetric ||
     query.periodSummary;
-  return hasMeaningfulIntent ? query : null;
+  if (!hasMeaningfulIntent) {
+    logParserRejection('intent', { reason: 'noMeaningfulField' });
+    return null;
+  }
+
+  return query;
 }
 
 export interface HomeSearchSearchInterpreter {
@@ -401,8 +447,19 @@ export class AppleIntelligenceSearchInterpreter implements HomeSearchSearchInter
         original,
         calendarDateISO(referenceDate),
       );
-      const parsedIntent = toHomeSearchParsedQuery(original, rawIntent);
       const rawObject = typeof rawIntent === 'string' ? parseJSON(rawIntent) : rawIntent;
+      appleIntelligenceDevLog('raw-response', {
+        payload: sanitizeNativeIntentPayload(rawObject),
+        type:
+          typeof rawIntent === 'string'
+            ? 'json-string'
+            : rawIntent && typeof rawIntent === 'object'
+              ? 'object'
+              : rawIntent === null
+                ? 'null'
+                : typeof rawIntent,
+      });
+      const parsedIntent = toHomeSearchParsedQuery(original, rawIntent);
       appleIntelligenceDevLog('response', {
         confidence: isRecord(rawObject) ? rawObject.confidence : undefined,
         durationMs: Date.now() - startedAt,

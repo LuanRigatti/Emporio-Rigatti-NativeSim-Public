@@ -11,13 +11,15 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(description: "Confidence from 0 to 1. Use a value below 0.6 when the query is ambiguous.")
   let confidence: Double
 
-  @Guide(description: "One of: client, delivery, financialMetric, factoryMetric, routeMetric, carMetric, periodSummary, clientField, search.")
+  @Guide(description: "The intent kind. Use exactly one of the allowed values.")
+  @Guide(.anyOf(["client", "delivery", "financialMetric", "factoryMetric", "routeMetric", "carMetric", "periodSummary", "clientField", "search"]))
   let intent: String
 
   @Guide(description: "Only the client or entity text to search for. Empty when there is no entity text.")
   let text: String
 
-  @Guide(description: "One of: none, date, dayMonth, month, year, range.")
+  @Guide(description: "The period kind. Use date for today/yesterday/tomorrow, month for the current/previous/named calendar month, year for a calendar year, range for an explicit date range, and none when no period is requested.")
+  @Guide(.anyOf(["none", "date", "dayMonth", "month", "year", "range"]))
   let periodKind: String
 
   @Guide(description: "ISO date YYYY-MM-DD, or empty when unused.")
@@ -32,10 +34,10 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(description: "Day number 1-31, or -1 when unused.")
   let day: Int
 
-  @Guide(description: "Month number 1-12, or -1 when unused.")
+  @Guide(description: "Month number 1-12. Required when periodKind is month; use -1 only when the period does not use a month.")
   let month: Int
 
-  @Guide(description: "Four digit year, or -1 when unused.")
+  @Guide(description: "Four digit calendar year. Required when periodKind is month; use -1 only when the period does not use a year.")
   let year: Int
 
   @Guide(description: "Bucket quantity, or -1 when unused. Never calculate it.")
@@ -44,31 +46,39 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(description: "Money amount explicitly written by the user, or -1 when unused. Never calculate it.")
   let money: Double
 
-  @Guide(description: "One of: paid, open, or empty.")
+  @Guide(description: "Use open for unpaid/pending customer deliveries when the query asks what is still open; use paid for paid deliveries; use empty when not requested.")
+  @Guide(.anyOf(["", "paid", "open"]))
   let paymentStatus: String
 
-  @Guide(description: "One of: invoice, boleto, or empty.")
+  @Guide(description: "Use exactly invoice, boleto, or empty when no document type is requested.")
+  @Guide(.anyOf(["", "invoice", "boleto"]))
   let documentType: String
 
-  @Guide(description: "One existing financial metric name, or empty. Never return a value.")
+  @Guide(description: "Use exactly one allowed metric name, or empty only when the intent is not financialMetric. Mapping: faturamento, faturei, receita, total vendido -> revenue; lucro or lucro líquido -> netProfit; em aberto, a receber, valor pendente -> receivable; baldes vendidos -> bucketsSold; lucro bruto -> grossProfit; recebido -> received; and use the remaining existing metric names for their matching concepts. Never return a calculated value.")
+  @Guide(.anyOf(["", "bucketsSold", "revenue", "grossProfit", "netProfit", "received", "receivable", "bucketCost", "fuelCost", "otherCosts", "electricityCost", "averageDeliveryCost", "grossMargin", "netMargin", "salePerBucket", "profitPerBucket", "costPerBucket"]))
   let financialMetric: String
 
-  @Guide(description: "Existing client field name, or empty.")
+  @Guide(description: "Use exactly one existing client field name or empty.")
+  @Guide(.anyOf(["", "currentPrice", "address", "usesInvoice", "usesBoleto"]))
   let clientField: String
 
-  @Guide(description: "One existing factory metric name, or empty.")
+  @Guide(description: "Use exactly one existing factory metric name or empty.")
+  @Guide(.anyOf(["", "purchases", "bucketsPurchased", "purchaseValue", "payments", "paidValue", "openValue"]))
   let factoryMetric: String
 
-  @Guide(description: "One of: paid, partial, open, outstanding, or empty.")
+  @Guide(description: "Use exactly one factory payment status or empty.")
+  @Guide(.anyOf(["", "paid", "partial", "open", "outstanding"]))
   let factoryStatus: String
 
   @Guide(description: "True only when the query asks for factory payment dates, which the existing search marks as unsupported.")
   let factoryPaymentDateUnsupported: Bool
 
-  @Guide(description: "One existing route metric name, or empty.")
+  @Guide(description: "Use exactly one existing route metric name or empty.")
+  @Guide(.anyOf(["", "distance", "routes"]))
   let routeMetric: String
 
-  @Guide(description: "One existing car metric name, or empty.")
+  @Guide(description: "Use exactly one existing car metric name or empty.")
+  @Guide(.anyOf(["", "gasolineAutonomy", "alcoholAutonomy", "consumption"]))
   let carMetric: String
 
   @Guide(description: "True only for a request for a period summary.")
@@ -162,10 +172,18 @@ private extension NativeAppleIntelligenceModule {
         Reference date (local calendar day): \(referenceDateISO)
         Return a structured intent only. Do not answer the user and do not calculate anything.
 
+        Rules for this query:
+        - Use the exact enum names from the schema, never translated labels.
+        - If intent=financialMetric, fill financialMetric with the best matching allowed metric; do not leave it empty.
+        - If periodKind=month, fill both month and year. For "mês passado" or "mês anterior", calculate the previous calendar month from the reference date.
+        - Foundation Models only interprets the request. The app calculates all values after parsing.
+
         Examples:
-        "Quanto eu lucrei em agosto?" means financialMetric=netProfit and periodKind=month.
-        "Quanto sobrou pra mim em agosto?" means financialMetric=netProfit and periodKind=month.
-        "Quantos baldes vendi anteontem?" means financialMetric=bucketsSold and periodKind=date, using the local calendar day two days before the reference date.
+        "Qual meu lucro no mes passado?" means intent=financialMetric, financialMetric=netProfit, periodKind=month, month/year equal to the calendar month immediately before the reference date.
+        "Quanto eu lucrei em agosto?" means intent=financialMetric, financialMetric=netProfit, periodKind=month, month=8, year equal to the reference date's year.
+        "Quanto faturei em agosto?" means intent=financialMetric, financialMetric=revenue, periodKind=month, month=8, year equal to the reference date's year.
+        "Quanto tenho em aberto?" means intent=financialMetric, financialMetric=receivable, paymentStatus=open, periodKind=none.
+        "Quantas entregas fiz hoje?" means intent=delivery, periodKind=date, date equal to the reference date.
         """
       logger.info("generation started")
       do {
@@ -215,7 +233,10 @@ private extension NativeAppleIntelligenceModule {
       You interpret Portuguese search text for a business app. Return only the structured intent fields.
       You receive no business records and must never invent, retrieve, calculate, or return financial values.
       Never return totals, prices, balances, percentages, revenue, profit, or any other computed result.
-      Use only the allowed existing enum names described by each field. Use empty strings, -1, or false when unused.
+      Use only the allowed values from the structured schema. For intent=financialMetric, financialMetric must never be empty: use revenue for faturamento/faturei/receita/total vendido, netProfit for lucro/lucro líquido, receivable for em aberto/a receber/valor pendente, bucketsSold for baldes vendidos, grossProfit for lucro bruto, and received for recebido.
+      For an explicit request about unpaid amounts, also set paymentStatus=open when applicable. Use empty strings, -1, or false only when a field is unused.
+      For periodKind=month, always fill both month and year with the requested calendar month. Never return month=-1 or year=-1 for a monthly period.
+      Resolve relative periods from the supplied reference date: hoje is that date, ontem is one day before, mês atual is its month, and mês passado/mês anterior is the immediately preceding calendar month, including crossing a year boundary. A named month without a year uses the reference date's year, following the app's existing search semantics.
       Keep confidence below 0.6 whenever the request is ambiguous or an enum is uncertain.
       The reference date is supplied as a local calendar date so relative dates can be resolved.
       """)

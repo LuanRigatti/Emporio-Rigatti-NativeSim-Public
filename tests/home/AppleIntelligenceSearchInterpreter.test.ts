@@ -58,10 +58,10 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     expect(query).not.toHaveProperty('total');
   });
 
-  it('accepts a valid structured intent at the observed model confidence', () => {
+  it('accepts a structurally valid intent even when model confidence is low', () => {
     const query = toHomeSearchParsedQuery('qual meu lucro em julho', {
       ...baseIntent,
-      confidence: 0.65,
+      confidence: 0,
       month: 7,
     });
 
@@ -82,10 +82,7 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     });
   });
 
-  it('rejects invalid JSON and genuinely low-confidence or unsupported intents', () => {
-    expect(
-      toHomeSearchParsedQuery('quanto eu lucrei?', { ...baseIntent, confidence: 0.59 }),
-    ).toBeNull();
+  it('rejects invalid JSON and unsupported structured fields', () => {
     expect(
       toHomeSearchParsedQuery('quanto eu lucrei?', {
         ...baseIntent,
@@ -93,6 +90,101 @@ describe('Apple Intelligence Home Search intent conversion', () => {
       }),
     ).toBeNull();
     expect(toHomeSearchParsedQuery('quanto eu lucrei?', '{invalid-json')).toBeNull();
+  });
+
+  it.each([
+    {
+      query: 'Qual meu lucro no mes passado?',
+      payload: {
+        ...baseIntent,
+        confidence: 0,
+        month: 8,
+        year: 2026,
+      },
+      expected: {
+        financialMetric: 'netProfit',
+        period: { kind: 'month', month: 8, year: 2026 },
+      },
+    },
+    {
+      query: 'Quanto faturei em agosto?',
+      payload: {
+        ...baseIntent,
+        confidence: 0,
+        financialMetric: '',
+        month: 8,
+        year: 2026,
+      },
+      expected: null,
+    },
+    {
+      query: 'Quanto tenho em aberto?',
+      payload: {
+        ...baseIntent,
+        confidence: 0.3,
+        financialMetric: '',
+        paymentStatus: 'open',
+        periodKind: 'none',
+        month: -1,
+        year: -1,
+      },
+      expected: null,
+    },
+    {
+      query: 'Quantas entregas fiz hoje?',
+      payload: {
+        ...baseIntent,
+        confidence: 0.2,
+        intent: 'delivery',
+        financialMetric: '',
+        periodKind: 'date',
+        date: '2026-09-01',
+        month: -1,
+        year: -1,
+      },
+      expected: {
+        period: { kind: 'date', date: '2026-09-01' },
+      },
+    },
+  ])('handles captured Foundation Models payload: $query', ({ query, payload, expected }) => {
+    const parsed = toHomeSearchParsedQuery(query, payload);
+
+    if (expected === null) {
+      expect(parsed).toBeNull();
+      return;
+    }
+
+    expect(parsed).toMatchObject(expected);
+  });
+
+  it('accepts the native metric fields required by the financial examples', () => {
+    expect(
+      toHomeSearchParsedQuery('Quanto faturei em agosto?', {
+        ...baseIntent,
+        confidence: 0,
+        financialMetric: 'revenue',
+        month: 8,
+        year: 2026,
+      }),
+    ).toMatchObject({
+      financialMetric: 'revenue',
+      period: { kind: 'month', month: 8, year: 2026 },
+    });
+
+    expect(
+      toHomeSearchParsedQuery('Quanto tenho em aberto?', {
+        ...baseIntent,
+        confidence: 0.3,
+        financialMetric: 'receivable',
+        paymentStatus: 'open',
+        periodKind: 'none',
+        month: -1,
+        year: -1,
+      }),
+    ).toMatchObject({
+      financialMetric: 'receivable',
+      paymentStatus: 'open',
+    });
   });
 
   it('does not activate or bypass the existing Modo Teste presentation masking', () => {

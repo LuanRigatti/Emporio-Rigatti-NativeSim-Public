@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 
 import { AuthUserFacingError } from './AuthErrorMapper';
+import { getGoogleClientIds } from './googleConfig';
 
 type GoogleSignInModule = typeof import('@react-native-google-signin/google-signin');
 
@@ -19,8 +20,7 @@ export async function signInWithNativeGoogle(): Promise<GoogleCredential> {
     );
   }
 
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const { iosClientId, webClientId } = getGoogleClientIds();
 
   if (!iosClientId || !webClientId) {
     throw new AuthUserFacingError(

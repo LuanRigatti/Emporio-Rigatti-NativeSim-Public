@@ -1,18 +1,41 @@
+const fs = require('fs');
+const path = require('path');
+
 const androidMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
+const isFinalVariant = process.env.APP_VARIANT === 'final';
+const appName = isFinalVariant ? 'Empório Rigatti Final' : 'Empório Rigatti';
+const appScheme = isFinalVariant ? 'pareact-final' : 'pareact';
+const appBundleIdentifier = isFinalVariant ? 'com.pareact.mobile.final' : 'com.pareact.mobile';
+const googleServicesFile = isFinalVariant
+  ? './GoogleService-Info.final.plist'
+  : './GoogleService-Info.plist';
+
+function readPlistString(filePath, key) {
+  if (!fs.existsSync(filePath)) return undefined;
+
+  const contents = fs.readFileSync(filePath, 'utf8');
+  const match = contents.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]*)</string>`));
+  return match?.[1]?.trim();
+}
+
+const finalGoogleServicesPath = path.resolve(process.cwd(), 'GoogleService-Info.final.plist');
+const finalGoogleIosClientId = isFinalVariant
+  ? readPlistString(finalGoogleServicesPath, 'CLIENT_ID')
+  : undefined;
 
 module.exports = {
   expo: {
-    name: 'Empório Rigatti',
+    name: appName,
     slug: 'PAReact',
     version: '1.0.0',
     orientation: 'portrait',
-    scheme: 'pareact',
+    scheme: appScheme,
     icon: './assets/icon.png',
     userInterfaceStyle: 'automatic',
     ios: {
-      bundleIdentifier: 'com.pareact.mobile',
+      bundleIdentifier: appBundleIdentifier,
       buildNumber: '1',
-      googleServicesFile: './GoogleService-Info.plist',
+      googleServicesFile,
       icon: {
         dark: './assets/app-icon-dark.png',
         light: './assets/app-icon-light.png',
@@ -44,8 +67,17 @@ module.exports = {
     experiments: {
       tsconfigPaths: true,
     },
+    ...(isFinalVariant
+      ? {
+          extra: {
+            appVariant: 'final',
+            ...(finalGoogleIosClientId ? { googleIosClientId: finalGoogleIosClientId } : {}),
+          },
+        }
+      : {}),
     plugins: [
       'expo-router',
+      ...(isFinalVariant ? [['expo-dev-client', { addGeneratedScheme: false }]] : []),
       './plugins/withHomeScreenQuickActions',
       'expo-font',
       [

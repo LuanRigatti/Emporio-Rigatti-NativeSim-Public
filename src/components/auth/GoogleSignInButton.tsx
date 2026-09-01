@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { useState } from 'react';
 
 import { SecondaryButton } from '@/components/buttons';
+import { getAppScheme } from '@/config';
 import { AuthUserFacingError } from '@/services/auth';
 import {
   getGoogleClientIdForCurrentPlatform,
@@ -94,6 +95,7 @@ function ConfiguredGoogleSignInButton({
   onCredential,
   onError,
 }: ConfiguredGoogleSignInButtonProps) {
+  const appScheme = getAppScheme();
   const [request, , promptAsync] = useIdTokenAuthRequest(
     {
       webClientId: clientIds.webClientId,
@@ -102,8 +104,8 @@ function ConfiguredGoogleSignInButton({
       selectAccount: true,
     },
     {
-      native: 'pareact://oauthredirect',
-      scheme: 'pareact',
+      native: `${appScheme}://oauthredirect`,
+      scheme: appScheme,
     },
   );
   const [requesting, setRequesting] = useState(false);

@@ -1,4 +1,7 @@
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+
+import { getAppVariant } from '@/config';
 
 export interface GoogleClientIds {
   webClientId?: string;
@@ -7,9 +10,14 @@ export interface GoogleClientIds {
 }
 
 export function getGoogleClientIds(): GoogleClientIds {
+  const finalIosClientId =
+    typeof Constants.expoConfig?.extra?.googleIosClientId === 'string'
+      ? Constants.expoConfig.extra.googleIosClientId
+      : undefined;
+
   return {
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    iosClientId: getAppVariant() === 'final' ? finalIosClientId : process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
   };
 }

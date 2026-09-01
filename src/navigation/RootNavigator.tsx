@@ -7,6 +7,7 @@ import {
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Linking } from 'react-native';
 
+import { getAppScheme } from '@/config';
 import { useAppTheme } from '@/theme';
 import { useAuth } from '@/providers';
 import { notificationService } from '@/services/notifications';
@@ -18,10 +19,15 @@ import { DesignSystemShowcase, PremiumTabBarShowcase } from '@/screens/dev';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const appScheme = getAppScheme();
+const appSchemePrefixes = [
+  `${appScheme}://`,
+  ...(appScheme === 'pareact' ? [] : ['pareact://']),
+];
 
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [
-    'pareact://',
+    ...appSchemePrefixes,
     'https://venda-e-faturamento.web.app',
     'http://localhost',
     'http://127.0.0.1',

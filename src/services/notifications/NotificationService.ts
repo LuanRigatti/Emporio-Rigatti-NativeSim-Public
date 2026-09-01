@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Linking, Platform } from 'react-native';
 
+import { getAppScheme } from '@/config';
 import { PushTokenRepository } from '@/repositories';
 import type {
   AppNotificationEvent,
@@ -46,8 +47,9 @@ function normalizeKind(value: unknown): NotificationKind {
 function safeUrl(value: unknown): string | undefined {
   if (typeof value !== 'string' || value.trim() === '') return undefined;
   const url = value.trim();
+  const appSchemes = new Set([`${getAppScheme()}://`, 'pareact://']);
   if (
-    url.startsWith('pareact://') ||
+    [...appSchemes].some((scheme) => url.startsWith(scheme)) ||
     url.startsWith('/') ||
     url.startsWith('https://venda-e-faturamento.web.app')
   ) {

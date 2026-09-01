@@ -70,6 +70,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
+    "ios:prebuild:final": "node scripts/prebuild-ios-final.js",
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",

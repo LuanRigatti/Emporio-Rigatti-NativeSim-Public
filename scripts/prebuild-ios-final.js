@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { IOSConfig } = require('@expo/config-plugins');
 
 const projectRoot = path.resolve(process.cwd());
 const plistPath = path.join(projectRoot, 'GoogleService-Info.final.plist');
@@ -33,6 +34,31 @@ if (bundleIdentifier !== expectedBundleIdentifier) {
 if (!clientId || !reversedClientId) {
   console.error(
     '[ios:prebuild:final] GoogleService-Info.final.plist precisa conter CLIENT_ID e REVERSED_CLIENT_ID.',
+  );
+  process.exit(1);
+}
+
+process.env.APP_VARIANT = 'final';
+const appConfigPath = path.join(projectRoot, 'app.config.js');
+delete require.cache[require.resolve(appConfigPath)];
+const appConfig = require(appConfigPath).expo;
+const configuredSchemes = Array.isArray(appConfig.scheme)
+  ? appConfig.scheme
+  : [appConfig.scheme];
+const generatedInfoPlist = IOSConfig.Scheme.setScheme(appConfig, {});
+const generatedUrlSchemes = IOSConfig.Scheme.getSchemesFromPlist(generatedInfoPlist);
+
+if (
+  appConfig.name !== 'Empório Rigatti Final' ||
+  appConfig.ios?.bundleIdentifier !== expectedBundleIdentifier ||
+  appConfig.ios?.googleServicesFile !== './GoogleService-Info.final.plist' ||
+  appConfig.extra?.googleIosClientId !== clientId ||
+  !configuredSchemes.includes('pareact-final') ||
+  !configuredSchemes.includes(reversedClientId) ||
+  !generatedUrlSchemes.includes(reversedClientId)
+) {
+  console.error(
+    '[ios:prebuild:final] O REVERSED_CLIENT_ID do plist Final não está presente no CFBundleURLTypes que o Expo gerará.',
   );
   process.exit(1);
 }

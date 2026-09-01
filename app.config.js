@@ -22,6 +22,13 @@ const finalGoogleServicesPath = path.resolve(process.cwd(), 'GoogleService-Info.
 const finalGoogleIosClientId = isFinalVariant
   ? readPlistString(finalGoogleServicesPath, 'CLIENT_ID')
   : undefined;
+const finalGoogleReversedClientId = isFinalVariant
+  ? readPlistString(finalGoogleServicesPath, 'REVERSED_CLIENT_ID')
+  : undefined;
+const configuredScheme =
+  isFinalVariant && finalGoogleReversedClientId
+    ? [appScheme, finalGoogleReversedClientId]
+    : appScheme;
 
 module.exports = {
   expo: {
@@ -29,7 +36,7 @@ module.exports = {
     slug: 'PAReact',
     version: '1.0.0',
     orientation: 'portrait',
-    scheme: appScheme,
+    scheme: configuredScheme,
     icon: './assets/icon.png',
     userInterfaceStyle: 'automatic',
     ios: {

@@ -58,11 +58,6 @@ function endOfMonth(month: string): string {
   return formatLocalDate(new Date(year, monthNumber, 0, 12));
 }
 
-function daysInMonth(month: string): number {
-  const [year, monthNumber] = month.split('-').map(Number);
-  return new Date(year, monthNumber, 0).getDate();
-}
-
 function startOfWeek(value: string): string {
   const date = localDate(value) ?? new Date();
   date.setDate(date.getDate() - date.getDay());
@@ -109,26 +104,6 @@ function comparison(
 function previousMonthKey(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number);
   return formatLocalDate(new Date(year, monthNumber - 2, 1, 12)).slice(0, 7);
-}
-
-function monthlyComparisonRanges(
-  monthA: string,
-  monthB: string,
-  today: Date,
-): { monthA: { start: string; end: string }; monthB: { start: string; end: string } } {
-  const activeMonth = todayIso(today).slice(0, 7);
-  const currentMonthIsPartial = today.getDate() < daysInMonth(activeMonth);
-  const comparesActiveMonth = monthA === activeMonth || monthB === activeMonth;
-  const endForMonth = (month: string): string => {
-    if (!currentMonthIsPartial || !comparesActiveMonth) return endOfMonth(month);
-    if (month === activeMonth) return todayIso(today);
-    return `${month}-${String(Math.min(today.getDate(), daysInMonth(month))).padStart(2, '0')}`;
-  };
-
-  return {
-    monthA: { start: `${monthA}-01`, end: endForMonth(monthA) },
-    monthB: { start: `${monthB}-01`, end: endForMonth(monthB) },
-  };
 }
 
 export class FinancialCalculationService {
@@ -591,55 +566,76 @@ export class FinancialCalculationService {
     const today = input.today ?? new Date();
     const currentMonth = input.filters.mesSelecionado ?? todayIso(today).slice(0, 7);
     const previousMonth = previousMonthKey(currentMonth);
-    const ranges = monthlyComparisonRanges(currentMonth, previousMonth, today);
-    const calculateMonth = (
-      month: string,
-      range: { start: string; end: string },
-    ): FinancialSummary => {
-      const filters: FinancialCalculationFilters = {
-        ...input.filters,
-        mesSelecionado: month,
-        periodo: 'mes',
-      };
-      const deliveries = this.filterDeliveries(input.deliveries, filters, today).filter((item) => {
-        const date = isoDate(item.data);
-        return date >= range.start && date <= range.end;
-      });
-      const dailyExpenses = Object.fromEntries(
-        Object.entries(input.dailyExpenses).filter(([key, expense]) => {
-          const date = isoDate(expense.data ?? key);
-          return date >= range.start && date <= range.end;
-        }),
-      );
-      const filterDateValues = (values: Readonly<Record<string, number>> | undefined) =>
-        values
-          ? Object.fromEntries(
-              Object.entries(values).filter(([key]) => {
-                const date = isoDate(key);
-                return date >= range.start && date <= range.end;
-              }),
-            )
-          : undefined;
-
-      return this.calculateResumo({
-        ...input,
-        automaticKilometersByDate: filterDateValues(input.automaticKilometersByDate),
-        dailyExpenses,
-        deliveries,
-        filters,
-        fuelCostByDate: filterDateValues(input.fuelCostByDate),
-        today,
-      });
-    };
-
-    const currentSummary = calculateMonth(currentMonth, ranges.monthA);
-    const previousSummary = calculateMonth(previousMonth, ranges.monthB);
+    const todayDate = todayIso(today);
+    const activeMonth = todayDate.slice(0, 7);
+    const getMonthFilters = (month: string): FinancialCalculationFilters => ({
+      ...input.filters,
+      mesSelecionado: month,
+      periodo: 'mes',
+    });
+    const currentFilters = getMonthFilters(currentMonth);
+    const previousFilters = getMonthFilters(previousMonth);
+    const currentMonthDeliveries = this.filterDeliveries(input.deliveries, currentFilters, today);
+    const previousMonthDeliveries = this.filterDeliveries(input.deliveries, previousFilters, today);
+    const getRealDeliveryDates = (deliveries: Delivery[], month: string): string[] =>
+      [...new Set(deliveries.map((delivery) => isoDate(delivery.data)))]
+        .filter(
+          (date) => date.startsWith(`${month}-`) && (month !== activeMonth || date <= todayDate),
+        )
+        .sort();
+    const currentDeliveryDates = getRealDeliveryDates(currentMonthDeliveries, currentMonth);
+    const previousDeliveryDates = getRealDeliveryDates(previousMonthDeliveries, previousMonth);
+    const comparableN = Math.min(currentDeliveryDates.length, previousDeliveryDates.length);
+    const currentDates = new Set(currentDeliveryDates.slice(0, comparableN));
+    const previousDates = new Set(previousDeliveryDates.slice(0, comparableN));
+    const currentDeliveries = currentMonthDeliveries.filter((delivery) =>
+      currentDates.has(isoDate(delivery.data)),
+    );
+    const previousDeliveries = previousMonthDeliveries.filter((delivery) =>
+      previousDates.has(isoDate(delivery.data)),
+    );
+    const filterByDates = <T extends { data?: string }>(
+      values: Readonly<Record<string, T>>,
+      dates: Set<string>,
+    ) =>
+      Object.fromEntries(
+        Object.entries(values).filter(([key, value]) => dates.has(isoDate(value.data ?? key))),
+      ) as Record<string, T>;
+    const filterDateValues = (
+      values: Readonly<Record<string, number>> | undefined,
+      dates: Set<string>,
+    ) =>
+      values
+        ? Object.fromEntries(Object.entries(values).filter(([key]) => dates.has(isoDate(key))))
+        : undefined;
+    const currentSummary = this.calculateResumo({
+      ...input,
+      automaticKilometersByDate: filterDateValues(input.automaticKilometersByDate, currentDates),
+      dailyExpenses: filterByDates(input.dailyExpenses, currentDates),
+      deliveries: currentDeliveries,
+      filters: currentFilters,
+      fuelCostByDate: filterDateValues(input.fuelCostByDate, currentDates),
+      today,
+    });
+    const previousSummary = this.calculateResumo({
+      ...input,
+      automaticKilometersByDate: filterDateValues(input.automaticKilometersByDate, previousDates),
+      dailyExpenses: filterByDates(input.dailyExpenses, previousDates),
+      deliveries: previousDeliveries,
+      filters: previousFilters,
+      fuelCostByDate: filterDateValues(input.fuelCostByDate, previousDates),
+      today,
+    });
+    const currentStart = `${currentMonth}-01`;
+    const previousStart = `${previousMonth}-01`;
+    const currentEnd = currentDeliveryDates[comparableN - 1] ?? currentStart;
+    const previousEnd = previousDeliveryDates[comparableN - 1] ?? previousStart;
 
     return {
-      inicioAtual: ranges.monthA.start,
-      fimAtual: ranges.monthA.end,
-      inicioAnterior: ranges.monthB.start,
-      fimAnterior: ranges.monthB.end,
+      inicioAtual: currentStart,
+      fimAtual: currentEnd,
+      inicioAnterior: previousStart,
+      fimAnterior: previousEnd,
       faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
       quantidadeEntregas: comparison(
         currentSummary.quantidadeEntregas,

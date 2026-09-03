@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassBackButton } from '@/components/native';
-import { PremiumScreen } from '@/components/premium';
+import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
+import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { OpenPaymentClientCards } from './OpenPaymentClientCards';
 import { useOpenPaymentClients } from '../hooks/useOpenPaymentClients';
@@ -12,7 +13,9 @@ import { useOpenPaymentClients } from '../hooks/useOpenPaymentClients';
 export function OpenPaymentClientsScreen() {
   const router = useRouter();
   const { theme } = useAppTheme();
-  const { clientCards, markDeliveryPaid, testModeEnabled } = useOpenPaymentClients();
+  const { currency: maskCurrency } = useTestModePresentation();
+  const { clientCards, markDeliveryPaid, testModeEnabled, totalOpenAmount } =
+    useOpenPaymentClients();
 
   const header = (
     <NativeGlassHeader
@@ -41,11 +44,38 @@ export function OpenPaymentClientsScreen() {
     >
       <View style={[styles.content, { marginTop: theme.spacing.xxl }]}>
         {clientCards.length > 0 ? (
-          <OpenPaymentClientCards
-            clients={clientCards}
-            onMarkAsPaid={markDeliveryPaid}
-            testModeEnabled={testModeEnabled}
-          />
+          <>
+            <OpenPaymentClientCards
+              clients={clientCards}
+              onMarkAsPaid={markDeliveryPaid}
+              testModeEnabled={testModeEnabled}
+            />
+            <GlassCard
+              style={[
+                styles.totalCard,
+                {
+                  borderRadius: theme.radius.lg,
+                  marginRight: theme.spacing.xs,
+                  marginTop: theme.spacing.xs + theme.spacing.md,
+                  paddingHorizontal: theme.spacing.sm,
+                  paddingVertical: theme.spacing.xs,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  theme.typography.body,
+                  {
+                    color: theme.colors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: theme.typography.headline.fontWeight,
+                  },
+                ]}
+              >
+                {maskCurrency(totalOpenAmount)}
+              </Text>
+            </GlassCard>
+          </>
         ) : (
           <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
             Nenhum recebimento em aberto
@@ -59,4 +89,5 @@ export function OpenPaymentClientsScreen() {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { width: '100%' },
+  totalCard: { alignSelf: 'flex-end' },
 });

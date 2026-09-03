@@ -8,6 +8,7 @@ export default function NativeSegmentedControlExpo({
   onSelectedIndexChange,
   options,
   selectedIndex,
+  style,
 }: NativeSegmentedControlProps) {
   const { theme } = useAppTheme();
 
@@ -22,6 +23,7 @@ export default function NativeSegmentedControlExpo({
           borderRadius: theme.radius.pill,
           padding: theme.spacing.xxs,
         },
+        style,
       ]}
     >
       {options.map((option, index) => {

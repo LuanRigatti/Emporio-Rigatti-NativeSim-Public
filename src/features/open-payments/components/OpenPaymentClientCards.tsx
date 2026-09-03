@@ -81,37 +81,45 @@ export function OpenPaymentClientCards({
         <View
           key={client.nome}
           style={[
-            styles.cardContainer,
-            {
-              backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.xl + theme.spacing.sm,
-              minHeight: cardMinHeight,
-              width: '100%',
-            },
+            styles.cardShadow,
+            { borderRadius: theme.radius.xl + theme.spacing.sm, height: cardMinHeight },
+            resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
           ]}
         >
-          <NativeCardContextMenu
-            actions={client.deliveries.map((delivery) => ({
-              id: `complete-payment-${delivery.id}`,
-              disabled: testModeEnabled,
-              onPress: () => onMarkAsPaid(delivery.id),
-              systemImage: 'checkmark.circle.fill' as const,
-              title:
-                client.deliveries.length === 1
-                  ? 'Pago'
-                  : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
-            }))}
-            preview={renderRow(client, true)}
+          <View
             style={[
-              styles.contextMenu,
+              styles.cardContainer,
               {
+                backgroundColor: theme.colors.surface,
                 borderRadius: theme.radius.xl + theme.spacing.sm,
-                minHeight: cardMinHeight,
+                height: cardMinHeight,
+                width: '100%',
               },
             ]}
           >
-            {renderRow(client)}
-          </NativeCardContextMenu>
+            <NativeCardContextMenu
+              actions={client.deliveries.map((delivery) => ({
+                id: `complete-payment-${delivery.id}`,
+                disabled: testModeEnabled,
+                onPress: () => onMarkAsPaid(delivery.id),
+                systemImage: 'checkmark.circle.fill' as const,
+                title:
+                  client.deliveries.length === 1
+                    ? 'Pago'
+                    : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
+              }))}
+              preview={renderRow(client, true)}
+              style={[
+                styles.contextMenu,
+                {
+                  borderRadius: theme.radius.xl + theme.spacing.sm,
+                  height: '100%',
+                },
+              ]}
+            >
+              {renderRow(client)}
+            </NativeCardContextMenu>
+          </View>
         </View>
       ))}
     </View>
@@ -120,6 +128,7 @@ export function OpenPaymentClientCards({
 
 const styles = StyleSheet.create({
   cards: { width: '100%' },
+  cardShadow: { width: '100%' },
   cardContainer: { overflow: 'hidden', width: '100%' },
   contextMenu: { width: '100%' },
   card: {

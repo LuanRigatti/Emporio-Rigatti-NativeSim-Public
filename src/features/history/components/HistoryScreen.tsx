@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
-import { Stack, useFocusEffect } from 'expo-router';
-import type { SFSymbol } from 'sf-symbols-typescript';
+import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
+import { useFocusEffect } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeDateToolbar, type NativeMenuAction } from '@/components/native';
+import { NativeDateToolbar, NativeSegmentedControl } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
@@ -17,7 +16,21 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
+import { HistoryCompactDeliveryCard } from './HistoryCompactDeliveryCard';
 import type { HistoryFilter } from './FilterChips';
+import {
+  createHistoryWeekGroups,
+  formatHistoryDayHeading,
+  getHistoryMonthRange,
+  getHistoryWeekRange,
+  groupHistoryDeliveriesByDate,
+  type HistoryDateRange,
+} from '../utils/historyPeriodUtils';
+
+type HistoryViewMode = 'day' | 'week' | 'month';
+
+const HISTORY_VIEW_MODE_OPTIONS = ['Dia', 'Semana', 'Mês'] as const;
+const HISTORY_VIEW_MODES: readonly HistoryViewMode[] = ['day', 'week', 'month'];
 
 function filterDayDeliveries<T extends { status: string }>(
   deliveries: readonly T[],
@@ -37,15 +50,18 @@ function filterDayDeliveries<T extends { status: string }>(
 export function HistoryScreen() {
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
-  const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
+  const { enabled: testModeEnabled } = useTestModePresentation();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
+  const [viewMode, setViewMode] = useState<HistoryViewMode>('day');
   const {
     reload: refresh,
     remove: removeDelivery,
     deliveries,
     toggleDelivered: toggleDelivery,
-  } = useDeliveries({ mode: 'today', date: selectedDate });
+  } = useDeliveries({ mode: 'all' });
   const allDeliveries = useMemo(() => deliveries.map(toHistoryDelivery), [deliveries]);
+  const selectedYear = Number(selectedDate.slice(0, 4));
+  const weekGroups = useMemo(() => createHistoryWeekGroups(selectedYear), [selectedYear]);
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(
     () => insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm,
@@ -60,22 +76,6 @@ export function HistoryScreen() {
     setSelectedDate(date);
     setSelectedFilter('Todos');
   }, []);
-
-  const requestDatePage = useCallback((date: string, resetFilter = true) => {
-    setSelectedDate(date);
-    if (resetFilter) setSelectedFilter('Todos');
-  }, []);
-
-  const handleSelectFilter = useCallback(
-    (filter: HistoryFilter) => {
-      setSelectedFilter(filter);
-
-      if (filter === 'Hoje') {
-        requestDatePage(todayIso(), false);
-      }
-    },
-    [requestDatePage],
-  );
 
   const handleToggleStatus = useCallback(
     (deliveryId: string) => {
@@ -98,27 +98,16 @@ export function HistoryScreen() {
     (date: string) => {
       const dayDeliveries = allDeliveries.filter((delivery) => delivery.data === date);
       const visibleDeliveries = filterDayDeliveries(dayDeliveries, selectedFilter);
-      const dayBucketCount = dayDeliveries.reduce(
-        (total, delivery) => total + delivery.quantidadeBaldes,
-        0,
-      );
 
       return (
         <>
-          {dayDeliveries.length > 0 ? (
-            <View style={[styles.topBucketSummary, { paddingRight: theme.spacing.lg }]}>
-              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-                {maskQuantity(dayBucketCount)}
-              </Text>
-            </View>
-          ) : null}
           <Animated.View
             entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
             style={[
               styles.list,
               {
                 gap: theme.spacing.sm,
-                marginTop: theme.spacing.md,
+                marginTop: theme.spacing.xs,
                 paddingBottom: theme.spacing.lg,
                 ...(visibleDeliveries.length === 0 ? styles.emptyList : null),
               },
@@ -128,9 +117,6 @@ export function HistoryScreen() {
               visibleDeliveries.map((delivery) => (
                 <Animated.View
                   entering={FadeIn.duration(
-                    reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-                  )}
-                  exiting={FadeOut.duration(
                     reduceMotionEnabled ? 0 : theme.animations.duration.standard,
                   )}
                   key={delivery.id}
@@ -169,33 +155,123 @@ export function HistoryScreen() {
       allDeliveries,
       handleDeleteDelivery,
       handleToggleStatus,
-      maskQuantity,
       reduceMotionEnabled,
       selectedFilter,
       theme,
     ],
   );
 
-  const filterActions: readonly NativeMenuAction[] = [
-    {
-      id: 'completed',
-      onPress: () => handleSelectFilter('Concluídas'),
-      systemImage: 'checkmark.circle',
-      title: 'Concluídas',
+  const renderGroupedContent = useCallback(
+    (range: HistoryDateRange) => {
+      const periodDeliveries = allDeliveries.filter(
+        (delivery) => delivery.data >= range.startDate && delivery.data <= range.endDate,
+      );
+      const visibleDeliveries =
+        selectedFilter === 'Hoje'
+          ? periodDeliveries.filter((delivery) => delivery.data === todayIso())
+          : filterDayDeliveries(periodDeliveries, selectedFilter);
+      const dayGroups = groupHistoryDeliveriesByDate(visibleDeliveries, range);
+
+      if (dayGroups.length === 0) {
+        return (
+          <Animated.View
+            entering={FadeInDown.duration(
+              reduceMotionEnabled ? 0 : theme.animations.duration.standard,
+            )}
+            style={styles.periodEmpty}
+          >
+            <GlassCard
+              style={[styles.emptyCard, { borderRadius: theme.radius.xl + theme.spacing.md }]}
+            >
+              <EmptyState />
+            </GlassCard>
+          </Animated.View>
+        );
+      }
+
+      return (
+        <View style={[styles.periodSections, { gap: theme.spacing.lg }]}>
+          {dayGroups.map((group) => (
+            <View key={group.date} style={[styles.periodSection, { gap: theme.spacing.xs }]}>
+              <View
+                style={[
+                  styles.dayHeadingRow,
+                  { gap: theme.spacing.xs, paddingHorizontal: theme.spacing.xl },
+                ]}
+              >
+                <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                  {formatHistoryDayHeading(group.date)}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.miniCards,
+                  { gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md },
+                ]}
+              >
+                {Array.from({ length: Math.ceil(group.deliveries.length / 3) }, (_, rowIndex) => {
+                  const first = group.deliveries[rowIndex * 3];
+                  const second = group.deliveries[rowIndex * 3 + 1];
+                  const third = group.deliveries[rowIndex * 3 + 2];
+
+                  return (
+                    <View
+                      key={`${group.date}-${rowIndex}`}
+                      style={[styles.miniCardsRow, { gap: theme.spacing.sm }]}
+                    >
+                      <View style={styles.miniCardSlot}>
+                        {first ? (
+                          <HistoryCompactDeliveryCard
+                            delivery={first}
+                            onDelete={() => handleDeleteDelivery(first.id)}
+                          />
+                        ) : null}
+                      </View>
+                      <View style={styles.miniCardSlot}>
+                        {second ? (
+                          <HistoryCompactDeliveryCard
+                            delivery={second}
+                            onDelete={() => handleDeleteDelivery(second.id)}
+                          />
+                        ) : null}
+                      </View>
+                      <View style={styles.miniCardSlot}>
+                        {third ? (
+                          <HistoryCompactDeliveryCard
+                            delivery={third}
+                            onDelete={() => handleDeleteDelivery(third.id)}
+                          />
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </View>
+      );
     },
-    {
-      id: 'pending',
-      onPress: () => handleSelectFilter('Pendentes'),
-      systemImage: 'clock',
-      title: 'Pendentes',
-    },
-    {
-      id: 'today',
-      onPress: () => handleSelectFilter('Hoje'),
-      systemImage: 'calendar',
-      title: 'Hoje',
-    },
-  ];
+    [allDeliveries, handleDeleteDelivery, reduceMotionEnabled, selectedFilter, theme],
+  );
+
+  const renderCurrentModeContent = useCallback(() => {
+    if (viewMode === 'day') return renderDayContent(selectedDate);
+    return renderGroupedContent(
+      viewMode === 'week' ? getHistoryWeekRange(selectedDate) : getHistoryMonthRange(selectedDate),
+    );
+  }, [renderDayContent, renderGroupedContent, selectedDate, viewMode]);
+
+  const handleSelectWeek = useCallback((weekStart: string) => {
+    setSelectedDate(weekStart);
+    setSelectedFilter('Todos');
+  }, []);
+
+  const handleSelectViewMode = useCallback((index: number) => {
+    const nextMode = HISTORY_VIEW_MODES[index];
+    if (nextMode) setViewMode(nextMode);
+  }, []);
+
   const filterHeader = (
     <NativeGlassHeader
       includeTopSafeArea
@@ -240,7 +316,28 @@ export function HistoryScreen() {
       >
         {header}
       </View>
-      {renderDayContent(selectedDate)}
+      <View
+        style={[
+          styles.modeControl,
+          {
+            marginBottom: viewMode === 'day' ? theme.spacing.xs : theme.spacing.lg,
+            marginTop: theme.spacing.md,
+          },
+        ]}
+      >
+        <NativeSegmentedControl
+          accessibilityLabel="Modo de visualização do histórico"
+          onSelectedIndexChange={handleSelectViewMode}
+          options={HISTORY_VIEW_MODE_OPTIONS}
+          selectedIndex={HISTORY_VIEW_MODES.indexOf(viewMode)}
+          style={{
+            alignSelf: 'center',
+            height: 63,
+            width: '97%',
+          }}
+        />
+      </View>
+      {renderCurrentModeContent()}
     </>
   );
   const dayContentStyle = {
@@ -261,11 +358,13 @@ export function HistoryScreen() {
   return (
     <Animated.View style={styles.root}>
       <NativeDateToolbar
+        mode={viewMode}
         onDateChange={handleSelectDate}
+        onWeekChange={handleSelectWeek}
         placement="right"
         selectedDate={selectedDate}
+        weekGroups={weekGroups}
       />
-      <HistoryFilterToolbar actions={filterActions} />
       <PremiumScreen
         scrollable
         contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
@@ -273,10 +372,7 @@ export function HistoryScreen() {
         overlayHeaderUnderlay
         onOverlayHeaderLayout={setOverlayHeaderHeight}
         progressiveBlurHeight={
-          insets.top +
-          theme.sizes.touchTargetMinimum * 2 +
-          theme.spacing.xs +
-          theme.spacing.sm
+          insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm
         }
         progressiveBlurTopOffset={-theme.spacing.xl}
         progressiveBlur
@@ -287,40 +383,31 @@ export function HistoryScreen() {
   );
 }
 
-function HistoryFilterToolbar({ actions }: { actions: readonly NativeMenuAction[] }) {
-  const { theme } = useAppTheme();
-
-  return (
-    <Stack.Toolbar placement="left">
-      <Stack.Toolbar.Menu
-        accessibilityLabel="Filtros do histórico"
-        icon="line.3.horizontal.decrease"
-        separateBackground={false}
-        title="Filtros do histórico"
-        tintColor={theme.colors.textPrimary}
-      >
-        {actions.map((action) => (
-          <Stack.Toolbar.MenuAction
-            icon={action.systemImage as SFSymbol | undefined}
-            key={action.id}
-            onPress={action.onPress}
-          >
-            {action.title}
-          </Stack.Toolbar.MenuAction>
-        ))}
-      </Stack.Toolbar.Menu>
-    </Stack.Toolbar>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
   dayContentContainer: { position: 'relative' },
+  dayHeadingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   header: { minHeight: 44 },
   emptyState: { alignSelf: 'stretch', width: '100%' },
   emptyList: { flexGrow: 1 },
   emptyCard: { width: '100%' },
   fullWidth: { width: '100%' },
   list: { width: '100%' },
-  topBucketSummary: { alignItems: 'flex-end', width: '100%' },
+  miniCardSlot: { alignItems: 'stretch', flex: 1, minWidth: 0 },
+  miniCards: { width: '100%' },
+  miniCardsRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    width: '100%',
+  },
+  modeControl: { width: '100%' },
+  periodEmpty: { width: '100%' },
+  periodSection: { width: '100%' },
+  periodSections: { width: '100%' },
 });

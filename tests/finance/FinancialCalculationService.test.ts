@@ -379,7 +379,7 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.diferenca).toBe(-100);
   });
 
-  it('compares a completed month with the complete previous calendar month', () => {
+  it('compares the first real delivery dates when the selected month is complete', () => {
     const result = service.compareCalendarMonths({
       deliveries: [
         delivery({ id: 'current-last-day', data: '2026-08-31', valor: 200 }),
@@ -401,7 +401,7 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.subiu).toBe(true);
   });
 
-  it('compares an active month through today with the same calendar interval before it', () => {
+  it('compares the active month through its real delivery dates', () => {
     const result = service.compareCalendarMonths({
       deliveries: [
         delivery({ id: 'current-through-15', data: '2026-08-15', valor: 200 }),
@@ -422,7 +422,7 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.percentual).toBe(100);
   });
 
-  it('treats the last calendar day as a complete month', () => {
+  it('includes a real delivery on the last calendar day of the selected month', () => {
     const result = service.compareCalendarMonths({
       deliveries: [
         delivery({ id: 'current-last-day-active', data: '2026-08-31', valor: 200 }),
@@ -485,9 +485,12 @@ describe('FinancialCalculationService', () => {
     expect(higher.lucroLiquido.subiu).toBe(true);
   });
 
-  it('keeps the existing zero-denominator fallback for calendar months', () => {
+  it('keeps the zero-denominator fallback for comparable real delivery dates', () => {
     const result = service.compareCalendarMonths({
-      deliveries: [delivery({ id: 'current-only', data: '2026-08-20', valor: 100 })],
+      deliveries: [
+        delivery({ id: 'current-only', data: '2026-08-20', valor: 100 }),
+        delivery({ id: 'previous-zero', data: '2026-07-20', valor: 0, quantidade: 0 }),
+      ],
       dailyExpenses: {},
       monthlyExpenses: {},
       filters: { periodo: 'mes', mesSelecionado: '2026-08' },
@@ -498,6 +501,106 @@ describe('FinancialCalculationService', () => {
     expect(result.faturamento.percentual).toBe(100);
     expect(result.lucroLiquido.anterior).toBe(0);
     expect(result.lucroLiquido.percentual).toBe(100);
+  });
+
+  it('compares the first real delivery day instead of the first calendar day', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-first', data: '2026-09-03', valor: 120 }),
+        delivery({ id: 'current-later', data: '2026-09-10', valor: 1000 }),
+        delivery({ id: 'previous-first', data: '2026-08-05', valor: 60 }),
+        delivery({ id: 'previous-later', data: '2026-08-20', valor: 1000 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-09' },
+      today: new Date('2026-09-03T12:00:00'),
+    });
+
+    expect(result.faturamento.atual).toBe(120);
+    expect(result.faturamento.anterior).toBe(60);
+    expect(result.faturamento.percentual).toBe(100);
+    expect(result.fimAtual).toBe('2026-09-03');
+    expect(result.fimAnterior).toBe('2026-08-05');
+  });
+
+  it('includes multiple deliveries on each ordinal real delivery day', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-first-a', data: '2026-09-03', valor: 100 }),
+        delivery({ id: 'current-first-b', data: '2026-09-03', valor: 50 }),
+        delivery({ id: 'current-second', data: '2026-09-10', valor: 200 }),
+        delivery({ id: 'previous-first', data: '2026-08-05', valor: 80 }),
+        delivery({ id: 'previous-second-a', data: '2026-08-12', valor: 20 }),
+        delivery({ id: 'previous-second-b', data: '2026-08-12', valor: 10 }),
+        delivery({ id: 'previous-after-n', data: '2026-08-20', valor: 1000 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-09' },
+      today: new Date('2026-09-10T12:00:00'),
+    });
+
+    expect(result.faturamento.atual).toBe(350);
+    expect(result.faturamento.anterior).toBe(110);
+    expect(result.fimAtual).toBe('2026-09-10');
+    expect(result.fimAnterior).toBe('2026-08-12');
+  });
+
+  it('skips dates without deliveries while accumulating the same ordinal N', () => {
+    const result = service.compareCalendarMonths({
+      deliveries: [
+        delivery({ id: 'current-day-one', data: '2026-09-03', valor: 100 }),
+        delivery({ id: 'current-day-two', data: '2026-09-10', valor: 200 }),
+        delivery({ id: 'previous-day-one', data: '2026-08-01', valor: 50 }),
+        delivery({ id: 'previous-day-two', data: '2026-08-20', valor: 50 }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-09' },
+      today: new Date('2026-09-10T12:00:00'),
+    });
+
+    expect(result.faturamento.atual).toBe(300);
+    expect(result.faturamento.anterior).toBe(100);
+  });
+
+  it('uses the same comparable N for revenue and net profit when month dates differ', () => {
+    const currentDeliveries = [
+      delivery({ id: 'current-first', data: '2026-09-02', valor: 100 }),
+      delivery({ id: 'current-second', data: '2026-09-12', valor: 200 }),
+    ];
+    const previousDeliveries = [
+      delivery({ id: 'previous-first', data: '2026-08-07', valor: 50 }),
+      delivery({ id: 'previous-second', data: '2026-08-20', valor: 100 }),
+      delivery({ id: 'previous-third', data: '2026-08-31', valor: 1000 }),
+    ];
+    const result = service.compareCalendarMonths({
+      deliveries: [...currentDeliveries, ...previousDeliveries],
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-09' },
+      today: new Date('2026-10-01T12:00:00'),
+    });
+    const expectedCurrent = service.calculateResumo({
+      deliveries: currentDeliveries,
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-09' },
+      today: new Date('2026-10-01T12:00:00'),
+    });
+    const expectedPrevious = service.calculateResumo({
+      deliveries: previousDeliveries.slice(0, 2),
+      dailyExpenses: {},
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-08' },
+      today: new Date('2026-10-01T12:00:00'),
+    });
+
+    expect(result.faturamento.atual).toBe(expectedCurrent.faturamento);
+    expect(result.faturamento.anterior).toBe(expectedPrevious.faturamento);
+    expect(result.lucroLiquido.atual).toBe(expectedCurrent.lucroLiquido);
+    expect(result.lucroLiquido.anterior).toBe(expectedPrevious.lucroLiquido);
   });
 
   it('returns neutral comparison when before the first scheduled route of the month', () => {

@@ -64,6 +64,7 @@ export type NativeSegmentedControlProps = {
   onSelectedIndexChange: (index: number) => void;
   accessibilityLabel?: string;
   systemImages?: readonly string[];
+  style?: StyleProp<ViewStyle>;
 };
 
 export type NativeListItem = {

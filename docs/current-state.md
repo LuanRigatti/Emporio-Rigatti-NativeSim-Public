@@ -9,15 +9,20 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `0acfb23e877d8b12733e626acff71969fb892b10`
-  (`feat: refine home and search flows`), HEAD anterior a esta publicação.
+- Base Git desta atualização: `5a7a0794941b431f06fd1846a85bce7596cb914b`
+  (`fix: improve Apple Intelligence
+  structured intent generation`), HEAD anterior a esta publicação.
 - Este snapshot descreve o estado funcional versionado pela atualização atual;
   o hash do commit resultante permanece somente no histórico Git para evitar
   referência autorreferente no documento.
 
 ## Aplicativo
 
-- Nome exibido configurado: `Empório Rigatti`.
+- Nome exibido da variante padrão: `Empório Rigatti`.
+- Variante Final: `Empório Rigatti Final`, com `APP_VARIANT=final`, bundle ID
+  `com.pareact.mobile.final`, scheme `pareact-final` e
+  `GoogleService-Info.final.plist`; a variante padrão permanece em
+  `com.pareact.mobile`, usa `pareact` e `GoogleService-Info.plist`.
 - Expo SDK: `57` (`expo ~57.0.10`).
 - Expo Router: `~57.0.10`.
 - React Native: `0.86.2`.
@@ -62,10 +67,10 @@ preservam o histórico técnico e as decisões acumuladas.
 - Home Search mantém Search Field nativo; o botão `?` desfoca o campo e aguarda
   os eventos nativos do teclado, enquanto a Home fecha o sheet de sugestões ao
   perder foco ou navegar para outra rota.
-- A Home exibe a seção `Em aberto` com um header navegável, cards individuais por
-  cliente, valores/badges reativos e `NativeCardContextMenu` para quitar cada
-  entrega na granularidade correta. `Fábrica` permanece em card separado, com
-  ícone, chevron e navegação preservados.
+- A Home exibe os atalhos em carrossel horizontal, na ordem Registrar Entrega,
+  Em aberto, Documentos e Fábrica. O atalho Em aberto mostra o total real e
+  mantém somente o ícone semântico vermelho quando há saldo; seus clientes e
+  `NativeCardContextMenu` ficam na rota `/em-aberto`.
 - Perfil da Home mantém somente o detent `0.58`, sem scroll interno nem
   expansão; o card de Nome/E-mail/Método usa `BlurView` com tratamento light/dark
   e o logout existente permanece inalterado.
@@ -80,12 +85,13 @@ preservam o histórico técnico e as decisões acumuladas.
   cache não existe, persiste o resultado no `FirestoreHistoricalDeliveryCache`
   e expõe revisão externa para que a Home derive os dados já hidratados no
   primeiro render. O cache continua sendo somente cache do Firestore.
-- A animação de pressão dos cards clicáveis da Home pode ser desativada apenas
-  nesses cards; o comportamento padrão dos componentes reutilizáveis permanece
-  preservado.
+- Os cards clicáveis da Home mantêm o feedback de pressão restaurado, sem
+  alterar os handlers ou a navegação.
 - Os cards de Entregas de hoje na Home, Registrar Entrega e Histórico usam
   transições suaves de entrada/saída e layout com Reanimated, respeitando
   Reduce Motion; conteúdo, context menus, dados e handlers permanecem iguais.
+- Entregas de hoje exibe um empty state quando não há entregas e troca para os
+  cards reais de forma reativa quando uma entrega é criada.
 - Não há instrumentação `[HomeStartupTrace]`, blobs, `Card Glass`, `Card Blur` ou
   outros experimentos visuais descartados no estado final.
 
@@ -101,7 +107,7 @@ iPhone.
   `NativeInteractivePager`, `NativeCardContextMenu` e
   `NativeTrackedRouteMap`.
 - `NativeGlassHeader`, `NativeDateToolbar`, `NativeAnimatedNumber` e controles
-  Liquid Glass compartilhados.
+  Liquid Glass compartilhados, além de `NativeSegmentedControl`.
 - Widgets, App Groups, Live Activities e Dynamic Island não foram adicionados.
 
 ## Estado funcional recente
@@ -130,11 +136,17 @@ iPhone.
   translucidez descartado.
 - Perfil: sheet fixo em `0.58`, conteúdo sem scroll interno, card de conta fosco
   com `BlurView` e logout Firebase existente preservado.
-- Histórico: `NativeDateToolbar` textual no formato curto, filtro no mesmo
-  `Stack.Toolbar`, consultas, cards com transição suave e ProgressiveBlur
-  preservados.
+- Histórico: barra nativa `Dia | Semana | Mês`, `NativeDateToolbar` sensível ao
+  modo com seleção de dia, mês e semana interna do mês, dados derivados do
+  mesmo cache de entregas e mini-cards compactos em três colunas nos modos
+  Semana/Mês. O modo Dia preserva os cards originais; não há filtro no toolbar.
+- Em aberto: cards por cliente usam a mesma fonte real de recebimentos, sombra
+  no light mode, context menu nativo para marcar entregas como pagas e total
+  em um pequeno card alinhado abaixo da lista.
 - Finanças: cards estáveis ao retornar de detalhes, `NativeAnimatedNumber` para
-  mudanças reais e gráfico animado no UI thread sem o stutter anterior.
+  mudanças reais e gráfico animado no UI thread sem o stutter anterior; a
+  comparação mensal usa os mesmos N primeiros dias reais com entrega em cada
+  mês, mantendo as fórmulas e o tratamento de denominador zero.
 - Configurações: Native Stack dedicado para Clientes, Estoque, Localização,
   Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
   Action.

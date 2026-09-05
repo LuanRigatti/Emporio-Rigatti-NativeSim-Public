@@ -9,8 +9,8 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `7c6c85f`
-  (`feat: refine history and finance flows`), estado anterior à publicação
+- Base Git desta atualização: `02f1e6c`
+  (`feat: consolidate latest app updates`), estado anterior à publicação
   desta atualização.
 - Este snapshot descreve o estado funcional versionado pela atualização atual;
   o commit de publicação deve ser consultado no histórico Git para evitar
@@ -77,9 +77,15 @@ preservam o histórico técnico e as decisões acumuladas.
 - Configurações → Sistema mantém apenas os fluxos funcionais de Modo Teste e
   Backup; os botões, cards e conteúdos experimentais de Liquid Glass e Bottom
   Sheet Glass foram removidos, sem alterar os demais itens de Sistema.
-- Os detalhes de Faturamento Mensal e Lucro Líquido Mensal agora vivem em
-  `src/app/financeiro/`, fora de `NativeTabs`, mantendo as mesmas rotas e
-  deixando a tab bar na cena Financeira anterior durante o swipe-back nativo.
+- Faturamento Mensal e Lucro Líquido Mensal voltaram para
+  `src/app/(tabs)/financeiro/`, no mesmo Native Stack da tela principal. O
+  `FinancePeriodToolbar` continua usando `Stack.Toolbar` nativo com
+  `separateBackground={false}`, e os detalhes mantêm `BackButton` e swipe-back
+  nativos; essa estrutura restaura o caminho necessário para o morph Liquid
+  Glass nativo entre o seletor combinado e os controles Mês/Ano. A tab bar
+  permanece visível no detalhe por enquanto: embora o SDK 57 ofereça
+  `NativeTabs hidden`, a ocultação dinâmica pode remontar o navigator e resetar
+  estado, então não foi aplicada sem uma solução segura para este fluxo.
 - A sessão Firebase só deixa de estar em `loading` após o primeiro estado real
   de autenticação; com usuário autenticado, a hidratação inicial aguarda cache de
   clientes, cache diário, histórico de entregas, recibos da Fábrica e fontes
@@ -153,9 +159,10 @@ iPhone.
   financeiro usa `NativeAnimatedNumber` com sizing horizontal opt-in somente
   no `FinancialDayDetailCard`, sem alterar o comportamento padrão dos demais
   consumidores.
-- Finanças: os detalhes mensais são apresentados por um Stack raiz dedicado,
-  fora do NativeTabs, para preservar a animação nativa de entrada/retorno e a
-  tab bar junto da cena anterior.
+- Finanças: os detalhes mensais pertencem novamente ao Stack de
+  `src/app/(tabs)/financeiro`, preservando o BackButton, swipe-back e o morph
+  nativos do toolbar; a tab bar continua visível nos detalhes até existir uma
+  solução oficial segura que não remonte o navigator.
 - Configurações: Native Stack dedicado para Clientes, Estoque, Localização,
   Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
   Action.

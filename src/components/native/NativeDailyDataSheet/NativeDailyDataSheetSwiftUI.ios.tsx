@@ -20,6 +20,7 @@ import {
   autocorrectionDisabled,
   background,
   buttonStyle,
+  contentShape,
   cornerRadius,
   controlSize,
   disabled as disabledModifier,
@@ -35,6 +36,7 @@ import {
   presentationBackground,
   presentationDetents,
   presentationDragIndicator,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -282,16 +284,9 @@ export default function NativeDailyDataSheetSwiftUI({
             modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}
           >
             <Button
-              label="Adicionar"
               modifiers={[
-                roundedFont({ size: 17, weight: 'semibold' }),
                 buttonStyle('plain'),
                 controlSize('large'),
-                foregroundStyle(theme.colors.contrastContent),
-                padding({ horizontal: 28, vertical: 14 }),
-                frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
-                background(theme.colors.contrastSurface),
-                cornerRadius(999),
                 offset({ y: -8 }),
                 ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
               ]}
@@ -300,7 +295,21 @@ export default function NativeDailyDataSheetSwiftUI({
                 triggerNativeButtonHaptic('light');
                 void handleSubmit();
               }}
-            />
+            >
+              <Text
+                modifiers={[
+                  roundedFont({ size: 17, weight: 'semibold' }),
+                  foregroundStyle(theme.colors.contrastContent),
+                  padding({ horizontal: 28, vertical: 14 }),
+                  frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
+                  background(theme.colors.contrastSurface),
+                  cornerRadius(999),
+                  contentShape(shapes.capsule()),
+                ]}
+              >
+                Adicionar
+              </Text>
+            </Button>
           </HStack>
         </ZStack>
       </VStack>

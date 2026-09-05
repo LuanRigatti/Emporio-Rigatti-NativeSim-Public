@@ -9,8 +9,8 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `02f1e6c`
-  (`feat: consolidate latest app updates`), estado anterior à publicação
+- Base Git desta atualização: `0e71367`
+  (`fix: restore native finance detail navigation morph`), estado anterior à publicação
   desta atualização.
 - Este snapshot descreve o estado funcional versionado pela atualização atual;
   o commit de publicação deve ser consultado no histórico Git para evitar
@@ -28,6 +28,103 @@ preservam o histórico técnico e as decisões acumuladas.
 - React Native: `0.86.2`.
 - `bundleIdentifier`: `com.pareact.mobile`.
 - Alvo principal: iOS Development Build.
+
+## Snapshot funcional auditado — fechamento atual
+
+Este bloco é a fonte resumida do estado atual do código para o fechamento em
+`ajustes-codex`. O working tree foi auditado antes da publicação: as alterações
+pendentes pertencem às melhorias abaixo, não há arquivos acidentais nem
+instrumentação temporária de diagnóstico. Após o único commit e push previstos,
+o status esperado é limpo.
+
+### Home
+
+- A Home mantém os cards, carrossel, Search Bar, `Em aberto`, Documentos,
+  Fábrica e `Entregas de hoje` com os dados e handlers existentes.
+- O card `Registrar Entrega` navega para `/registrar-entrega`; não abre um
+  Bottom Sheet diretamente sobre a Home. A tela de destino usa o fluxo normal
+  compartilhado de `RegistrarDeliverySheet` e não há auto-open adicional.
+- `Entregas de hoje` mantém layout final explícito em largura total para a row e
+  o `NativeCardContextMenu`, com transições Reanimated e sem logs de startup,
+  cores diagnósticas ou instrumentação `[TodayCardStartup]` residual.
+- Ao abrir Sugestões ou resultados pela Search Bar, a Home monta um único
+  `BlurView` atrás do sheet com intensidade `24`, `pointerEvents="none"` e
+  fade de opacidade nativo do React Native (`200 ms` na entrada e `180 ms` na
+  saída). A intensidade não é animada e o sheet não recebe blur.
+- O blur é controlado pelo estado real dos sheets de Search/Sugestões e é
+  removido ao concluir o fechamento, sem `setTimeout`.
+
+### Registrar Entrega e Dados Diários
+
+- Registrar Entrega mantém o `RegistrarDeliverySheet` compartilhado, seleção de
+  cliente, pager/detalhes, detents, gestos, Liquid Glass, callbacks e a máquina
+  de estados `closed → presented → dismissing → closed`.
+- O sheet usa tint escuro opt-in `rgba(0, 0, 0, 0.38)` e preserva a superfície
+  nativa; o light mode não recebe esse tint específico.
+- O botão `Confirmar` é uma cápsula nativa de `84%` da largura disponível e
+  `58 pt` de altura. Seu conteúdo SwiftUI ocupa o frame completo e usa
+  `contentShape(.capsule())`, portanto toda a cápsula é clicável.
+- A lista de clientes mantém os chevrons nativos e o toque na linha inteira.
+- O Bottom Sheet de Dados Diários usa o mesmo tint escuro `0.38` e o mesmo CTA
+  visual de cápsula. O botão `Adicionar` também tem o conteúdo SwiftUI
+  expandido para a cápsula inteira, preservando disabled, loading e callback.
+
+### Perfil
+
+- O Bottom Sheet de Perfil permanece no detent único `0.5`, com o conteúdo e o
+  shell nativos atuais.
+- O e-mail não aparece mais abaixo do nome; continua disponível no card de
+  informações da conta.
+- O nome exibido pode ser tocado para abrir a edição nativa com `TextField`,
+  `Cancelar` e `Salvar`. O salvamento normaliza o texto e usa somente Firebase
+  Auth `updateProfile(user, { displayName })`; não altera documentos Firestore,
+  UID, e-mail, provider Google, tokens ou configuração de autenticação.
+- O botão `Sair` usa a mesma cápsula sólida do `Confirmar`, com toda a área
+  clicável por `contentShape(.capsule())`; a ação de logout e seu estado de
+  loading permanecem os mesmos.
+
+### Finanças
+
+- `NativeAnimatedNumber` mantém `horizontalSizing: 'intrinsic' | 'fill'`, com
+  padrão `intrinsic`. O modo `fill` é usado somente pelo wrapper direito do
+  `FinancialDayDetailCard`; os labels/ícones da esquerda permanecem fora desse
+  wrapper e o texto SwiftUI fica trailing dentro do espaço restante.
+- Faturamento Mensal e Lucro Líquido Mensal permanecem dentro do mesmo Native
+  Stack da aba `financeiro`, com `Stack.Screen.BackButton`, swipe-to-back nativo
+  e `FinancePeriodToolbar` preservado.
+- A estrutura `Stack.Toolbar` com `separateBackground={false}` permanece
+  responsável pelo seletor Mês/Ano e pelo morph Liquid Glass nativo entre a
+  tela principal e os detalhes. Nenhuma animação custom foi adicionada.
+- A tab bar mantém o comportamento atual confirmado no código: continua
+  visível nos detalhes financeiros; não foi aplicado hack para ocultá-la.
+
+### Bottom Sheets nativos e tint escuro
+
+- O tint `rgba(0, 0, 0, 0.38)` é opt-in, não global, e está aplicado aos sheets
+  de Registrar Entrega, Perfil, resultados da Home Search, Sugestões/Ajuda,
+  Dados Diários e Detalhes da compra da Fábrica.
+- Esses fluxos continuam usando `glassSurface`/`glassEffect`, blur,
+  translucidez, detents, drag indicator e gestos nativos. Não foram mantidos
+  contornos, strokes, gradientes ou reflexos custom descartados.
+- O `PurchaseDetailsSheet` permanece estruturalmente com a composição atual;
+  as tentativas descartadas de `hostSizing`, `maxHeight`, `ignoreSafeArea` e
+  máscaras do corte inferior não fazem parte do estado final.
+
+### Autenticação e persistência do perfil
+
+- Com `ENABLE_FIREBASE_AUTH = true`, a edição de nome usa `FirebaseAuthDataSource`
+  → `AuthService` → `FirebaseAuthRepository.updateDisplayName`.
+- O Firestore continua reservado aos dados de negócio existentes; nenhum write
+  de documento é disparado pela edição do nome. O caminho mock, quando
+  explicitamente habilitado, persiste somente a sessão mock no AsyncStorage.
+
+### Validação e instrumentação
+
+- Não há `[TodayCardStartup]`, `performance.now()` de diagnóstico, traces de
+  dismiss, cores diagnósticas ou helpers temporários no estado atual.
+- Logs operacionais existentes de fallback, rota e integração Apple Intelligence
+  permanecem porque fazem parte dos fluxos reais e não são instrumentação deste
+  fechamento.
 
 ## Estado nativo atual
 
@@ -66,14 +163,16 @@ preservam o histórico técnico e as decisões acumuladas.
   controles e ação `Adicionar`, além da ausência de dimming.
 - Home Search mantém Search Field nativo; o botão `?` desfoca o campo e aguarda
   os eventos nativos do teclado, enquanto a Home fecha o sheet de sugestões ao
-  perder foco ou navegar para outra rota.
+  perder foco ou navegar para outra rota. Enquanto os sheets de resultados ou
+  Sugestões estão visíveis, a Home recebe `BlurView` com intensidade `24` e
+  fade de opacidade sem alterar a intensidade do blur.
 - A Home exibe os atalhos em carrossel horizontal, na ordem Registrar Entrega,
   Em aberto, Documentos e Fábrica. O atalho Em aberto mostra o total real e
   mantém somente o ícone semântico vermelho quando há saldo; seus clientes e
   `NativeCardContextMenu` ficam na rota `/em-aberto`.
-- Perfil da Home mantém somente o detent `0.58`, sem scroll interno nem
-  expansão; o card de Nome/E-mail/Método usa `BlurView` com tratamento light/dark
-  e o logout existente permanece inalterado.
+- Perfil da Home mantém somente o detent `0.5`, sem expansão; o card de
+  Nome/E-mail/Método usa `BlurView` com tratamento light/dark, o nome é editável
+  via Firebase Auth e o logout usa a cápsula nativa compartilhada.
 - Configurações → Sistema mantém apenas os fluxos funcionais de Modo Teste e
   Backup; os botões, cards e conteúdos experimentais de Liquid Glass e Bottom
   Sheet Glass foram removidos, sem alterar os demais itens de Sistema.
@@ -130,21 +229,22 @@ iPhone.
   a ação é enfileirada até autenticação, hidratação e router estarem prontos.
 - NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global
   sobre as tabs; BackButtons, toolbars, swipe-back e morphs nativos preservados.
-- Registrar: entrega e dados preservados; o atalho independente da Home usa
-  `/registrar-entrega`, enquanto o card da Home abre diretamente o Bottom Sheet
-  compartilhado; a lista de Entregas usa cards individuais com
+- Registrar: entrega e dados preservados; o atalho da Home navega para
+  `/registrar-entrega` e a tela usa o Bottom Sheet compartilhado sem auto-open;
+  a lista de Entregas usa cards individuais com
   `PremiumCard` e `NativeCardContextMenu`, com entrada/saída suave dos cards.
   O primeiro Bottom Sheet de entrega
   mantém shell nativo interativo, lista em `0.48 ↔ 0.78`, formulário em
   `0.48`, seleção minimalista de clientes, cards internos e ausência de dimming.
 - Registrar Dados: Bottom Sheet nativo com shell Liquid Glass interativo,
-  detent `0.45`, dois cards internos translúcidos com `BlurView` e controles
-  nativos preservados.
+  detent `0.45`, dois cards internos translúcidos com `BlurView` e o botão
+  `Adicionar` no mesmo padrão de cápsula do `Confirmar`, com hit area integral.
 - Fábrica: o Bottom Sheet de detalhes mantém os cards opacos originais; o fluxo
   continua usando a abstração nativa compartilhada e não contém o experimento de
   translucidez descartado.
-- Perfil: sheet fixo em `0.58`, conteúdo sem scroll interno, card de conta fosco
-  com `BlurView` e logout Firebase existente preservado.
+- Perfil: sheet fixo em `0.5`, card de conta fosco com `BlurView`, e-mail removido
+  da área sob o nome, edição de `displayName` via Firebase Auth e logout em
+  cápsula nativa com hit area integral.
 - Histórico: barra nativa `Dia | Semana | Mês`, `NativeDateToolbar` sensível ao
   modo com seleção de dia, mês e semana interna do mês, dados derivados do
   mesmo cache de entregas e mini-cards compactos em três colunas nos modos

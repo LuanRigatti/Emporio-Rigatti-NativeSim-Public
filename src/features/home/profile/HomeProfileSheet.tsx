@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
@@ -7,7 +7,7 @@ import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
 
 import HomeProfileSheetContent from './HomeProfileSheetContent';
 
-const PROFILE_SHEET_INITIAL_DETENT = { fraction: 0.58 } as const;
+const PROFILE_SHEET_INITIAL_DETENT = { fraction: 0.5 } as const;
 const PROFILE_SHEET_DETENTS: NonNullable<NativeBottomSheetProps['detents']> = [
   PROFILE_SHEET_INITIAL_DETENT,
 ];
@@ -18,9 +18,10 @@ type Props = {
 };
 
 export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
-  const { error, isLoading, signOut, user } = useAuth();
+  const { error, isLoading, signOut, updateDisplayName, user } = useAuth();
   const { resolvedMode } = useAppTheme();
   const useDarkGlassSurface = resolvedMode === 'dark';
+  const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -33,6 +34,18 @@ export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
   const handleDismiss = useCallback(() => {
     onVisibleChange(false);
   }, [onVisibleChange]);
+
+  const handleDisplayNameChange = useCallback(
+    async (nextDisplayName: string) => {
+      setIsUpdatingDisplayName(true);
+      try {
+        await updateDisplayName(nextDisplayName);
+      } finally {
+        setIsUpdatingDisplayName(false);
+      }
+    },
+    [updateDisplayName],
+  );
 
   if (!user) return null;
 
@@ -47,7 +60,9 @@ export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
           email={email}
           error={error}
           imageUri={user.photoUrl ?? undefined}
+          isUpdatingDisplayName={isUpdatingDisplayName}
           isSigningOut={isLoading}
+          onDisplayNameChange={handleDisplayNameChange}
           onSignOut={() => void handleSignOut()}
         />
       }

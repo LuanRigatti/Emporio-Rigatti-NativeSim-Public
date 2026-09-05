@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
   type Auth,
   type User as FirebaseUser,
 } from 'firebase/auth';
@@ -69,6 +70,14 @@ export class FirebaseAuthRepository implements AuthRepository {
     const credential = GoogleAuthProvider.credential(idToken, accessToken);
     const result = await signInWithCredential(this.auth, credential);
     return mapUser(result.user) as AuthUser;
+  }
+
+  public async updateDisplayName(displayName: string): Promise<AuthUser> {
+    const user = this.auth.currentUser;
+    if (!user) throw new Error('Nenhuma sessão autenticada.');
+
+    await updateProfile(user, { displayName });
+    return mapUser(user) as AuthUser;
   }
 
   public async signOut(): Promise<void> {

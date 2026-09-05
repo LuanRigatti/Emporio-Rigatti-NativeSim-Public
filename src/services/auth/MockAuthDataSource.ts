@@ -93,6 +93,14 @@ export class MockAuthDataSource implements AuthDataSource {
     return MOCK_USER;
   }
 
+  public async updateDisplayName(displayName: string): Promise<AuthUser> {
+    if (!this.currentUser) throw new Error('Nenhuma sessão autenticada.');
+
+    const nextUser = { ...this.currentUser, displayName };
+    this.setUser(nextUser);
+    return nextUser;
+  }
+
   public async signOut(): Promise<void> {
     this.setUser(null);
   }

@@ -1,28 +1,38 @@
 import {
   Button,
   HStack,
-  Image,
   RNHostView,
   ScrollView,
   Spacer,
   Text,
+  TextField,
+  type TextFieldRef,
   VStack,
   ZStack,
+  useNativeState,
 } from '@expo/ui/swift-ui';
 import {
   accessibilityHint,
   accessibilityLabel,
+  autocorrectionDisabled,
+  background,
   buttonStyle,
+  contentShape,
   controlSize,
+  cornerRadius,
   disabled as disabledModifier,
   font,
   foregroundColor,
+  foregroundStyle,
   frame,
+  glassEffect,
   offset,
   padding,
   scrollDisabled,
+  shapes,
 } from '@expo/ui/swift-ui/modifiers';
-import { StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { NativeAvatarButton } from '@/components/native';
 import { getCardSurfaceColor, getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
@@ -35,22 +45,119 @@ export default function HomeProfileSheetContent({
   email,
   error,
   imageUri,
+  isUpdatingDisplayName = false,
   isSigningOut,
+  onDisplayNameChange,
   onPhotoPress,
   onSignOut,
 }: HomeProfileSheetContentProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const signOutButtonWidth = width * 0.84;
+  const [isEditingName, setIsEditingName] = useState(false);
+  const nameDraftRef = useRef(displayName);
+  const nameDraftState = useNativeState(displayName);
+  const nameFieldRef = useRef<TextFieldRef>(null);
+
+  const beginNameEditing = () => {
+    nameDraftRef.current = displayName;
+    nameDraftState.set(displayName);
+    setIsEditingName(true);
+  };
+
+  const cancelNameEditing = () => {
+    nameFieldRef.current?.blur();
+    setIsEditingName(false);
+  };
+
+  const saveName = async () => {
+    const nextDisplayName = nameDraftRef.current.trim();
+    if (!nextDisplayName || !onDisplayNameChange || isUpdatingDisplayName) return;
+
+    try {
+      await onDisplayNameChange(nextDisplayName);
+      nameFieldRef.current?.blur();
+      setIsEditingName(false);
+    } catch {
+      // The parent keeps the editor open and exposes the mapped error in the sheet.
+    }
+  };
+
+  const nameContent = isEditingName ? (
+    <VStack
+      alignment="center"
+      spacing={spacing.sm}
+      modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}
+    >
+      <TextField
+        axis="horizontal"
+        modifiers={[
+          font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
+          autocorrectionDisabled(true),
+          frame({ maxWidth: 300, height: 48, alignment: 'center' }),
+          glassEffect({
+            glass: { interactive: true, variant: 'regular' },
+            cornerRadius: 16,
+            shape: 'roundedRectangle',
+          }),
+          padding({ horizontal: spacing.md }),
+          ...(isUpdatingDisplayName ? [disabledModifier(true)] : []),
+        ]}
+        onTextChange={(value) => {
+          nameDraftRef.current = value;
+        }}
+        placeholder="Nome"
+        ref={nameFieldRef}
+        text={nameDraftState}
+      />
+      <HStack alignment="center" spacing={spacing.sm}>
+        <Button
+          label="Cancelar"
+          modifiers={[buttonStyle('glass'), controlSize('small')]}
+          onPress={cancelNameEditing}
+        />
+        <Button
+          label="Salvar"
+          modifiers={[
+            buttonStyle('glassProminent'),
+            controlSize('small'),
+            ...(isUpdatingDisplayName ? [disabledModifier(true)] : []),
+          ]}
+          onPress={() => void saveName()}
+        />
+      </HStack>
+    </VStack>
+  ) : (
+    <Button
+      modifiers={[
+        buttonStyle('plain'),
+        accessibilityLabel(`Editar nome ${displayName}`),
+        accessibilityHint('Abre a edição do nome da conta'),
+        frame({ maxWidth: Infinity, alignment: 'center' }),
+      ]}
+      onPress={beginNameEditing}
+    >
+      <Text
+        modifiers={[
+          font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
+          foregroundColor(theme.colors.textPrimary),
+        ]}
+      >
+        {displayName}
+      </Text>
+    </Button>
+  );
 
   const signOutButton = (
     <Button
       role="destructive"
       modifiers={[
-        buttonStyle('glass'),
+        buttonStyle('plain'),
         controlSize('large'),
+        offset({ y: 16 }),
         accessibilityLabel(isSigningOut ? 'Saindo da conta' : 'Sair da conta'),
         accessibilityHint('Encerra a sessão atual'),
         ...(isSigningOut ? [disabledModifier(true)] : []),
-        offset({ y: -40 }),
       ]}
       onPress={() => {
         if (isSigningOut) return;
@@ -58,21 +165,18 @@ export default function HomeProfileSheetContent({
         onSignOut();
       }}
     >
-      <HStack alignment="center" spacing={spacing.xs}>
-        <Image
-          color={theme.colors.danger}
-          size={18}
-          systemName="rectangle.portrait.and.arrow.right"
-        />
-        <Text
-          modifiers={[
-            font({ textStyle: 'headline', design: 'rounded' }),
-            foregroundColor(theme.colors.danger),
-          ]}
-        >
-          {isSigningOut ? 'Saindo...' : 'Sair'}
-        </Text>
-      </HStack>
+      <Text
+        modifiers={[
+          foregroundStyle(theme.colors.contrastContent),
+          padding({ horizontal: 28, vertical: 14 }),
+          frame({ width: signOutButtonWidth, height: 58, alignment: 'center' }),
+          background(theme.colors.contrastSurface),
+          cornerRadius(999),
+          contentShape(shapes.capsule()),
+        ]}
+      >
+        {isSigningOut ? 'Saindo...' : 'Sair'}
+      </Text>
     </Button>
   );
 
@@ -82,7 +186,7 @@ export default function HomeProfileSheetContent({
         alignment="leading"
         spacing={0}
         modifiers={[
-          padding({ horizontal: spacing.md, top: spacing.xxxl + spacing.lg, bottom: spacing.xxxl }),
+          padding({ horizontal: spacing.md, top: spacing.xxl, bottom: spacing.xxxl }),
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
         ]}
       >
@@ -99,7 +203,11 @@ export default function HomeProfileSheetContent({
             <HStack
               alignment="center"
               spacing={0}
-              modifiers={[padding({ leading: spacing.xxxl }), frame({ maxWidth: Infinity })]}
+              modifiers={[
+                padding({ leading: spacing.xxxl }),
+                frame({ maxWidth: Infinity }),
+                offset({ y: -6 }),
+              ]}
             >
               <NativeAvatarButton
                 accessibilityHint="Expande o painel do perfil"
@@ -112,26 +220,8 @@ export default function HomeProfileSheetContent({
                 onPress={() => onPhotoPress?.()}
               />
             </HStack>
-            <Text
-              modifiers={[
-                font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
-                foregroundColor(theme.colors.textPrimary),
-                frame({ maxWidth: Infinity, alignment: 'center' }),
-              ]}
-            >
-              {displayName}
-            </Text>
-            <Text
-              modifiers={[
-                font({ textStyle: 'subheadline', design: 'rounded' }),
-                foregroundColor(theme.colors.textSecondary),
-                frame({ maxWidth: Infinity, alignment: 'center' }),
-              ]}
-            >
-              {email}
-            </Text>
+            {nameContent}
           </VStack>
-          {signOutButton}
         </ZStack>
 
         <VStack
@@ -191,6 +281,13 @@ export default function HomeProfileSheetContent({
             {error}
           </Text>
         ) : null}
+
+        <HStack
+          alignment="center"
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'center' }), padding({ top: spacing.xl })]}
+        >
+          {signOutButton}
+        </HStack>
 
       </VStack>
     </ScrollView>

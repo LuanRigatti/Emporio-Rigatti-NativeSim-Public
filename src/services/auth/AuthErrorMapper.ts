@@ -47,7 +47,7 @@ function isNetworkError(code: string, message: string): boolean {
 
 export function mapAuthError(
   error: unknown,
-  operation: 'email' | 'google' | 'session' | 'logout',
+  operation: 'email' | 'google' | 'session' | 'logout' | 'profile',
 ): AuthUserFacingError {
   const code = readCode(error);
   const message = readMessage(error);
@@ -130,7 +130,11 @@ export function mapAuthError(
 
   return new AuthUserFacingError(
     'unknown',
-    operation === 'logout' ? 'Não foi possível sair da conta.' : 'Não foi possível autenticar.',
+    operation === 'logout'
+      ? 'Não foi possível sair da conta.'
+      : operation === 'profile'
+        ? 'Não foi possível atualizar o nome.'
+        : 'Não foi possível autenticar.',
     error,
   );
 }

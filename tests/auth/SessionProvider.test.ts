@@ -44,6 +44,10 @@ class DeferredAuthDataSource implements AuthDataSource {
     return Promise.reject(new Error('Not used in test.'));
   }
 
+  public updateDisplayName(displayName: string): Promise<AuthUser> {
+    return Promise.resolve({ ...restoredUser, displayName });
+  }
+
   public signOut(): Promise<void> {
     return Promise.resolve();
   }

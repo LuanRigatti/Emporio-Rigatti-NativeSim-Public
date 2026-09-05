@@ -24,6 +24,7 @@ export interface SessionContextValue {
   signInWithGoogleNative: () => Promise<void>;
   signInWithGooglePopup: () => Promise<void>;
   signInWithGoogleCredential: (idToken: string, accessToken?: string) => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
   signInWithGoogleMock: () => Promise<void>;
@@ -158,6 +159,37 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     [dataSource, runAuthentication],
   );
 
+  const updateDisplayName = useCallback(
+    async (displayName: string) => {
+      const normalizedDisplayName = displayName.trim();
+      if (!normalizedDisplayName) {
+        const validationError = new AuthUserFacingError(
+          'unknown',
+          'Informe um nome para continuar.',
+        );
+        setError(validationError.message);
+        throw validationError;
+      }
+
+      setOperationLoading(true);
+      setError(null);
+      try {
+        const nextUser = await dataSource.updateDisplayName(normalizedDisplayName);
+        setUser(nextUser);
+      } catch (authError) {
+        const mapped =
+          authError instanceof AuthUserFacingError
+            ? authError
+            : mapAuthError(authError, 'profile');
+        setError(mapped.message);
+        throw mapped;
+      } finally {
+        setOperationLoading(false);
+      }
+    },
+    [dataSource],
+  );
+
   const signOut = useCallback(async () => {
     setOperationLoading(true);
     setError(null);
@@ -194,6 +226,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       signInWithGoogleCredential,
       signInWithGoogleMock,
       signInWithGooglePopup,
+      updateDisplayName,
       signOut,
       signOutMock,
       status,
@@ -209,6 +242,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       signInWithGoogleCredential,
       signInWithGoogleMock,
       signInWithGooglePopup,
+      updateDisplayName,
       signOut,
       signOutMock,
       status,

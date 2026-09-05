@@ -11,6 +11,7 @@ export interface AuthServiceContract {
   signInWithGoogleNative(): Promise<AuthUser>;
   signInWithGooglePopup(): Promise<AuthUser>;
   signInWithGoogleCredential(idToken: string, accessToken?: string): Promise<AuthUser>;
+  updateDisplayName(displayName: string): Promise<AuthUser>;
   signOut(): Promise<void>;
 }
 

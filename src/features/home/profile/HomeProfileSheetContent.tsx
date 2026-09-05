@@ -9,7 +9,9 @@ export type HomeProfileSheetContentProps = {
   email: string;
   imageUri?: string;
   isSigningOut: boolean;
+  isUpdatingDisplayName?: boolean;
   error?: string | null;
+  onDisplayNameChange?: (displayName: string) => Promise<void>;
   onPhotoPress?: () => void;
   onSignOut: () => void;
 };
@@ -40,9 +42,6 @@ export default function HomeProfileSheetContent({
         <Avatar imageUri={imageUri} name={displayName} size="large" />
         <Text style={[theme.typography.title2, { color: theme.colors.textPrimary }]}>
           {displayName}
-        </Text>
-        <Text style={[theme.typography.subheadline, { color: theme.colors.textSecondary }]}>
-          {email}
         </Text>
       </View>
 

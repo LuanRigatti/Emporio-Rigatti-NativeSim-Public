@@ -78,6 +78,19 @@ export class AuthService implements AuthServiceContract {
     }
   }
 
+  public async updateDisplayName(displayName: string): Promise<AuthUser> {
+    const normalizedDisplayName = displayName.trim();
+    if (!normalizedDisplayName) {
+      throw new AuthUserFacingError('unknown', 'Informe um nome para continuar.');
+    }
+
+    try {
+      return await this.repository.updateDisplayName(normalizedDisplayName);
+    } catch (error) {
+      throw mapAuthError(error, 'profile');
+    }
+  }
+
   private async validateGoogleUser(user: AuthUser): Promise<AuthUser> {
     const email = user.email?.trim().toLowerCase();
     if (email !== AUTHORIZED_GOOGLE_EMAIL) {

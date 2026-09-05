@@ -358,16 +358,9 @@ export default function NativeBottomSheetSwiftUI({
           modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}
         >
           <Button
-            label="Confirmar"
             modifiers={[
-              roundedFont({ size: 17, weight: 'semibold' }),
               buttonStyle('plain'),
               controlSize('large'),
-              foregroundStyle(theme.colors.contrastContent),
-              padding({ horizontal: 28, vertical: 14 }),
-              frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
-              background(theme.colors.contrastSurface),
-              cornerRadius(999),
               disabledModifier(!selectedItem || testModeEnabled),
             ]}
             onPress={() => {
@@ -381,7 +374,21 @@ export default function NativeBottomSheetSwiftUI({
               });
               onVisibleChange(false);
             }}
-          />
+          >
+            <Text
+              modifiers={[
+                roundedFont({ size: 17, weight: 'semibold' }),
+                foregroundStyle(theme.colors.contrastContent),
+                padding({ horizontal: 28, vertical: 14 }),
+                frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
+                background(theme.colors.contrastSurface),
+                cornerRadius(999),
+                contentShape(shapes.capsule()),
+              ]}
+            >
+              Confirmar
+            </Text>
+          </Button>
         </HStack>
       </ZStack>
     </VStack>

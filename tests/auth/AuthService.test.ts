@@ -39,6 +39,10 @@ class FakeAuthRepository implements AuthRepository {
     return this.googleSignIn(idToken, accessToken);
   }
 
+  public updateDisplayName(displayName: string): Promise<AuthUser> {
+    return Promise.resolve({ ...authenticatedUser, displayName });
+  }
+
   public signOut(): Promise<void> {
     return this.signOutCall();
   }

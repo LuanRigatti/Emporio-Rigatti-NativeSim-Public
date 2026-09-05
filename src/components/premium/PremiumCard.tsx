@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { useAppTheme } from '@/theme';
+import { darkModeCardSurface, useAppTheme } from '@/theme';
 
 import { AnimatedPressable, type AnimatedPressableProps } from './AnimatedPressable';
 
@@ -24,7 +24,7 @@ export function PremiumCard({
   const cardStyle = [
     styles.card,
     {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: resolvedMode === 'dark' ? darkModeCardSurface : theme.colors.surface,
       borderColor: theme.colors.separator,
       borderRadius: theme.radius.card,
       padding: theme.spacing.lg,
@@ -32,7 +32,6 @@ export function PremiumCard({
     resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
     style,
   ];
-
   if (onPress) {
     return (
       <AnimatedPressable

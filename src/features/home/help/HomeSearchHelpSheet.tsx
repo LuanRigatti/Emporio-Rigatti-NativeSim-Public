@@ -1,5 +1,6 @@
 import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
+import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
 
 import HomeSearchHelpContent from './HomeSearchHelpContent';
 
@@ -15,6 +16,9 @@ type Props = {
 };
 
 export function HomeSearchHelpSheet({ onDismiss, onSelectQuery, visible }: Props) {
+  const { resolvedMode } = useAppTheme();
+  const useDarkGlassSurface = resolvedMode === 'dark';
+
   const handleVisibleChange = (nextVisible: boolean) => {
     if (!nextVisible) {
       onDismiss();
@@ -30,6 +34,8 @@ export function HomeSearchHelpSheet({ onDismiss, onSelectQuery, visible }: Props
       initialDetent={HELP_SHEET_INITIAL_DETENT}
       onDismiss={onDismiss}
       onVisibleChange={handleVisibleChange}
+      glassSurface={useDarkGlassSurface}
+      glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
       title="O que posso pesquisar?"
       presentationBackgroundMode="transparent"
       visible={visible}

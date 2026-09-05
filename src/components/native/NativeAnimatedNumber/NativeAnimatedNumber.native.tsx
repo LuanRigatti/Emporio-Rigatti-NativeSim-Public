@@ -11,6 +11,7 @@ export default function NativeAnimatedNumberNative({
   animationEnabled = true,
   fontSize = 32,
   fontWeight = 'bold',
+  horizontalSizing = 'intrinsic',
   lineHeight = 38,
   style,
   text,
@@ -30,6 +31,7 @@ export default function NativeAnimatedNumberNative({
         animationEnabled={animationEnabled}
         fontSize={fontSize}
         fontWeight={fontWeight}
+        horizontalSizing={horizontalSizing}
         lineHeight={lineHeight}
         style={style}
         text={presentedText}

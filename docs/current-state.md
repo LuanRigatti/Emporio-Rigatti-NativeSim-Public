@@ -9,11 +9,11 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `5a7a0794941b431f06fd1846a85bce7596cb914b`
-  (`fix: improve Apple Intelligence
-  structured intent generation`), HEAD anterior a esta publicação.
+- Base Git desta atualização: `7c6c85f`
+  (`feat: refine history and finance flows`), estado anterior à publicação
+  desta atualização.
 - Este snapshot descreve o estado funcional versionado pela atualização atual;
-  o hash do commit resultante permanece somente no histórico Git para evitar
+  o commit de publicação deve ser consultado no histórico Git para evitar
   referência autorreferente no documento.
 
 ## Aplicativo
@@ -77,6 +77,9 @@ preservam o histórico técnico e as decisões acumuladas.
 - Configurações → Sistema mantém apenas os fluxos funcionais de Modo Teste e
   Backup; os botões, cards e conteúdos experimentais de Liquid Glass e Bottom
   Sheet Glass foram removidos, sem alterar os demais itens de Sistema.
+- Os detalhes de Faturamento Mensal e Lucro Líquido Mensal agora vivem em
+  `src/app/financeiro/`, fora de `NativeTabs`, mantendo as mesmas rotas e
+  deixando a tab bar na cena Financeira anterior durante o swipe-back nativo.
 - A sessão Firebase só deixa de estar em `loading` após o primeiro estado real
   de autenticação; com usuário autenticado, a hidratação inicial aguarda cache de
   clientes, cache diário, histórico de entregas, recibos da Fábrica e fontes
@@ -146,7 +149,13 @@ iPhone.
 - Finanças: cards estáveis ao retornar de detalhes, `NativeAnimatedNumber` para
   mudanças reais e gráfico animado no UI thread sem o stutter anterior; a
   comparação mensal usa os mesmos N primeiros dias reais com entrega em cada
-  mês, mantendo as fórmulas e o tratamento de denominador zero.
+  mês, mantendo as fórmulas e o tratamento de denominador zero. O detalhe
+  financeiro usa `NativeAnimatedNumber` com sizing horizontal opt-in somente
+  no `FinancialDayDetailCard`, sem alterar o comportamento padrão dos demais
+  consumidores.
+- Finanças: os detalhes mensais são apresentados por um Stack raiz dedicado,
+  fora do NativeTabs, para preservar a animação nativa de entrada/retorno e a
+  tab bar junto da cena anterior.
 - Configurações: Native Stack dedicado para Clientes, Estoque, Localização,
   Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
   Action.
@@ -178,6 +187,11 @@ iPhone.
   atualização: TypeScript, lint funcional, testes direcionados e
   `git diff --check` foram validados localmente, mas ainda não há nova
   confirmação visual desses ajustes no iPhone.
+- A reorganização das rotas de detalhe financeiro foi validada localmente com
+  TypeScript, ESLint direcionado, testes financeiros e `git diff --check`; a
+  confirmação visual de swipe-back no iPhone continua pendente. A alteração é
+  TS/TSX e pode ser atualizada via Metro/Fast Refresh, sem nova Development
+  Build.
 
 ### PROBLEMAS CONHECIDOS / EM INVESTIGAÇÃO
 
@@ -214,8 +228,7 @@ salvo quando a tarefa pedir uma auditoria histórica explícita.
 ## Identidade do aplicativo
 
 - Branch de trabalho: `ajustes-codex`.
-- Último commit no checkout: `0440c632807a680ff1cf80b4c6b5eb73df85eda6`
-  (`docs: consolidate current project state`).
+- Commit base do snapshot: `7c6c85f` (`feat: refine history and finance flows`).
 - Expo SDK 57 e Development Build iOS.
 - Nome exibido configurado: `Empório Rigatti`.
 - `slug`: `PAReact`.

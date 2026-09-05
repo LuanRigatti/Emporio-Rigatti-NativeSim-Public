@@ -8,6 +8,7 @@ export type NativeDailyDataValues = {
 export type NativeDailyDataSheetProps = {
   visible: boolean;
   glassSurface?: boolean;
+  glassTint?: string;
   presentationBackgroundMode?: 'native' | 'system' | 'transparent';
   initialValues?: NativeDailyDataValues;
   onVisibleChange: (visible: boolean) => void;

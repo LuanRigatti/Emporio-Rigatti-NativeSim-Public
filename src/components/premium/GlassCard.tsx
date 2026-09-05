@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { useAppTheme } from '@/theme';
+import { darkModeCardSurface, useAppTheme } from '@/theme';
 
 import { AnimatedPressable } from './AnimatedPressable';
 import { GlassSurface, type GlassSurfaceProps } from './GlassSurface';
@@ -27,7 +27,7 @@ export function GlassCard({
   const { resolvedMode, theme } = useAppTheme();
   const surfaceStyle = [
     {
-      backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+      backgroundColor: resolvedMode === 'dark' ? darkModeCardSurface : theme.colors.glassSurface,
       borderRadius: theme.radius.card,
       padding: theme.spacing.lg,
     },

@@ -24,6 +24,7 @@ export type NativeBottomSheetProps = {
   hostSizing?: 'content' | 'fill' | 'viewport';
   detents?: readonly NativeBottomSheetDetent[];
   glassSurface?: boolean;
+  glassTint?: string;
   presentationBackgroundInteraction?: NativeSheetBackgroundInteraction;
   presentationBackgroundMode?: 'native' | 'system' | 'transparent';
   visible: boolean;

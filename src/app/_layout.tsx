@@ -1,8 +1,13 @@
-import { Stack, usePathname } from 'expo-router';
+import {
+  DefaultTheme,
+  Stack,
+  ThemeProvider as NavigationThemeProvider,
+  usePathname,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Font from 'expo-font';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -21,13 +26,14 @@ import { firestoreDeliveryDataSource } from '@/services/deliveries';
 import { factoryReceiptDataSource } from '@/services/factory-purchases';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
-import { ThemeProvider } from '@/theme';
+import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
 
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
   const { status, user } = useSession();
+  const { resolvedMode, theme } = useAppTheme();
   const pathname = usePathname();
   const isAuthenticated = status === 'authenticated' && Boolean(user?.id);
   const isSessionLoading = status === 'loading';
@@ -44,6 +50,22 @@ function AppShell() {
     relockOnBackground: true,
     sessionKey: user?.id,
   });
+  const navigationTheme = useMemo(
+    () => ({
+      ...DefaultTheme,
+      dark: resolvedMode === 'dark',
+      colors: {
+        ...DefaultTheme.colors,
+        primary: theme.colors.primary,
+        background: theme.colors.background,
+        card: theme.colors.background,
+        text: theme.colors.textPrimary,
+        border: theme.colors.separator,
+        notification: theme.colors.danger,
+      },
+    }),
+    [resolvedMode, theme],
+  );
 
   useEffect(() => {
     let active = true;
@@ -93,40 +115,52 @@ function AppShell() {
     <InitialCacheHydrationContext.Provider value={isCacheHydrated}>
       <>
         <QuickActionRouter />
-        <Stack screenOptions={{ animation: 'default', headerShown: false }}>
-          <Stack.Protected guard={isSessionLoading || isAuthenticated || isStartupRoute}>
-            <Stack.Screen name="index" options={{ animation: 'default', gestureEnabled: false }} />
-          </Stack.Protected>
-          <Stack.Protected guard={!isSessionLoading && !isAuthenticated}>
-            <Stack.Screen
-              name="login"
-              options={{
-                animation: 'default',
-                animationTypeForReplace: 'push',
-                gestureEnabled: false,
-              }}
-            />
-          </Stack.Protected>
-          <Stack.Protected guard={isAuthenticated}>
-            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false, headerShown: false }} />
-            <Stack.Screen name="registrar" options={{ gestureEnabled: true, headerShown: false }} />
-            <Stack.Screen
-              name="configuracoes"
-              options={{ gestureEnabled: true, headerShown: false }}
-            />
-            <Stack.Screen
-              name="(home-shortcuts)"
-              options={{ gestureEnabled: true, headerShown: false }}
-            />
-            <Stack.Screen name="fabrica-compras-menu" />
-            <Stack.Screen name="fabrica-compras-registrar" />
-            <Stack.Screen name="fabrica-valor-balde" />
-            <Stack.Screen name="fabrica" />
-            <Stack.Screen name="pagamentos-em-aberto" />
-            <Stack.Screen name="em-aberto" />
-            <Stack.Screen name="dev/native-components-showcase" />
-          </Stack.Protected>
-        </Stack>
+        <NavigationThemeProvider value={navigationTheme}>
+          <Stack screenOptions={{ animation: 'default', headerShown: false }}>
+            <Stack.Protected guard={isSessionLoading || isAuthenticated || isStartupRoute}>
+              <Stack.Screen
+                name="index"
+                options={{ animation: 'default', gestureEnabled: false }}
+              />
+            </Stack.Protected>
+            <Stack.Protected guard={!isSessionLoading && !isAuthenticated}>
+              <Stack.Screen
+                name="login"
+                options={{
+                  animation: 'default',
+                  animationTypeForReplace: 'push',
+                  gestureEnabled: false,
+                }}
+              />
+            </Stack.Protected>
+            <Stack.Protected guard={isAuthenticated}>
+              <Stack.Screen name="(tabs)" options={{ gestureEnabled: false, headerShown: false }} />
+              <Stack.Screen
+                name="financeiro"
+                options={{ gestureEnabled: true, headerShown: false }}
+              />
+              <Stack.Screen
+                name="registrar"
+                options={{ gestureEnabled: true, headerShown: false }}
+              />
+              <Stack.Screen
+                name="configuracoes"
+                options={{ gestureEnabled: true, headerShown: false }}
+              />
+              <Stack.Screen
+                name="(home-shortcuts)"
+                options={{ gestureEnabled: true, headerShown: false }}
+              />
+              <Stack.Screen name="fabrica-compras-menu" />
+              <Stack.Screen name="fabrica-compras-registrar" />
+              <Stack.Screen name="fabrica-valor-balde" />
+              <Stack.Screen name="fabrica" />
+              <Stack.Screen name="pagamentos-em-aberto" />
+              <Stack.Screen name="em-aberto" />
+              <Stack.Screen name="dev/native-components-showcase" />
+            </Stack.Protected>
+          </Stack>
+        </NavigationThemeProvider>
         <BiometricLockOverlay
           onRetry={biometricUnlock.retry}
           showRetry={biometricUnlock.canRetry}

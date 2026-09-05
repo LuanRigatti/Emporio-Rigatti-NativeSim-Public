@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 import { StatusChip } from '../feedback';
@@ -18,6 +18,7 @@ export type CardProps = {
 
 export function Card({ children, onPress, disabled = false, elevated = false, style }: CardProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const handlePress = () => {
     triggerLightImpactHaptic();
     onPress?.();
@@ -25,7 +26,7 @@ export function Card({ children, onPress, disabled = false, elevated = false, st
   const contentStyle = [
     styles.card,
     {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: cardSurface,
       borderColor: theme.colors.separator,
       borderRadius: theme.radius.card,
       borderWidth: 1,

@@ -3,13 +3,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 
 import { SettingItem } from './SettingItem';
 import { SettingsSection } from './SettingsSection';
 
 export function SettingsScreen() {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
+  const settingsCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const router = useRouter();
 
   const header = (
@@ -51,6 +52,7 @@ export function SettingsScreen() {
           <View style={styles.header}>{header}</View>
           <PremiumCard
             style={{
+              backgroundColor: settingsCardSurface,
               borderRadius: theme.radius.xl + theme.spacing.md,
               padding: theme.spacing.sm,
             }}

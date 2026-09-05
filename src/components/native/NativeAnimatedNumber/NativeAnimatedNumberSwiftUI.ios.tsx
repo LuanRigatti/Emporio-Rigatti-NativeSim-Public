@@ -18,6 +18,7 @@ export default function NativeAnimatedNumberSwiftUI({
   color,
   fontSize = 32,
   fontWeight = 'bold',
+  horizontalSizing = 'intrinsic',
   lineHeight = 38,
   style,
   text,
@@ -34,11 +35,21 @@ export default function NativeAnimatedNumberSwiftUI({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const isTrailing = alignment === 'trailing';
+  const fillsHorizontalSpace = horizontalSizing === 'fill';
+  const useIntrinsicHorizontalSize = isTrailing && !fillsHorizontalSpace;
+  const hostMatchContents = useIntrinsicHorizontalSize
+    ? true
+    : fillsHorizontalSpace
+      ? { vertical: true }
+      : false;
 
   return (
     <Host
-      matchContents={isTrailing}
-      style={[{ minHeight: lineHeight, width: isTrailing ? undefined : '100%' }, style]}
+      matchContents={hostMatchContents}
+      style={[
+        { minHeight: lineHeight, width: useIntrinsicHorizontalSize ? undefined : '100%' },
+        style,
+      ]}
     >
       <Text
         modifiers={[
@@ -46,7 +57,7 @@ export default function NativeAnimatedNumberSwiftUI({
           monospacedDigit(),
           foregroundColor(color),
           frame({
-            maxWidth: isTrailing ? undefined : Infinity,
+            maxWidth: useIntrinsicHorizontalSize ? undefined : Infinity,
             minHeight: lineHeight,
             alignment,
           }),

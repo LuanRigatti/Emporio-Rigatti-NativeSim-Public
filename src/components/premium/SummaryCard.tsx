@@ -16,11 +16,16 @@ export type SummaryCardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-export function SummaryCard({ rows, style, title }: SummaryCardProps) {
+export function SummaryCard({
+  rows,
+  style,
+  title,
+}: SummaryCardProps) {
   const { theme } = useAppTheme();
   const { text: maskText } = useTestModePresentation();
+  const cardRadius = theme.radius.xl + theme.spacing.sm;
   return (
-    <PremiumCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }, style]}>
+    <PremiumCard style={[styles.card, { borderRadius: cardRadius }, style]}>
       <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>{title}</Text>
       <View style={[styles.rows, { gap: theme.spacing.sm }]}>
         {rows.map((row) => (

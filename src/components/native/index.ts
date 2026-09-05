@@ -2,6 +2,7 @@ export { NativeButton } from './NativeButton';
 export { default as NativeAnimatedNumber } from './NativeAnimatedNumber/NativeAnimatedNumber';
 export type {
   NativeAnimatedNumberAlignment,
+  NativeAnimatedNumberHorizontalSizing,
   NativeAnimatedNumberProps,
   NativeAnimatedNumberWeight,
 } from './NativeAnimatedNumber/NativeAnimatedNumber.types';

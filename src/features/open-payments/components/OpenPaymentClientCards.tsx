@@ -2,7 +2,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/feedback';
 import { NativeCardContextMenu } from '@/components/native';
-import { lightTheme, useAppTheme } from '@/theme';
+import { GlassCard } from '@/components/premium';
+import { getCardSurfaceColor, lightTheme, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { formatDateAsDayMonthYear } from '@/utils/groupItemsByDate';
 
@@ -20,6 +21,7 @@ export function OpenPaymentClientCards({
   testModeEnabled,
 }: OpenPaymentClientCardsProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const openPaymentCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { currency: maskCurrency } = useTestModePresentation();
   const cardMinHeight =
     theme.spacing.md * 2 +
@@ -32,7 +34,7 @@ export function OpenPaymentClientCards({
       style={[
         styles.card,
         {
-          backgroundColor: preview ? theme.colors.surface : 'transparent',
+          backgroundColor: preview ? openPaymentCardSurface : 'transparent',
           borderRadius: theme.radius.xl + theme.spacing.sm,
           overflow: preview ? 'hidden' : undefined,
           padding: theme.spacing.md,
@@ -76,27 +78,20 @@ export function OpenPaymentClientCards({
   if (clients.length === 0) return null;
 
   return (
-    <View style={[styles.cards, { gap: theme.spacing.xs }]}>
-      {clients.map((client) => (
-        <View
-          key={client.nome}
-          style={[
-            styles.cardShadow,
-            { borderRadius: theme.radius.xl + theme.spacing.sm, height: cardMinHeight },
-            resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
-          ]}
-        >
-          <View
-            style={[
-              styles.cardContainer,
-              {
-                backgroundColor: theme.colors.surface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                height: cardMinHeight,
-                width: '100%',
-              },
-            ]}
-          >
+    <GlassCard
+      style={[
+        styles.clientListCard,
+        {
+          backgroundColor: openPaymentCardSurface,
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+          paddingHorizontal: theme.spacing.xs,
+          paddingVertical: theme.spacing.xs,
+        },
+      ]}
+    >
+      <View style={[styles.cards, { gap: theme.spacing.xs }]}>
+        {clients.map((client) => (
+          <View key={client.nome} style={{ height: cardMinHeight, width: '100%' }}>
             <NativeCardContextMenu
               actions={client.deliveries.map((delivery) => ({
                 id: `complete-payment-${delivery.id}`,
@@ -120,16 +115,15 @@ export function OpenPaymentClientCards({
               {renderRow(client)}
             </NativeCardContextMenu>
           </View>
-        </View>
-      ))}
-    </View>
+        ))}
+      </View>
+    </GlassCard>
   );
 }
 
 const styles = StyleSheet.create({
   cards: { width: '100%' },
-  cardShadow: { width: '100%' },
-  cardContainer: { overflow: 'hidden', width: '100%' },
+  clientListCard: { width: '100%' },
   contextMenu: { width: '100%' },
   card: {
     alignItems: 'center',

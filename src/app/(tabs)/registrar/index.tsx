@@ -26,7 +26,12 @@ import { useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import {
+  getCardSurfaceColor,
+  getLiquidGlassTint,
+  registrarDeliveryDarkLiquidGlassTint,
+  useAppTheme,
+} from '@/theme';
 import { triggerLightImpactHaptic, triggerSelectionHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
@@ -96,7 +101,8 @@ export default function PrototypeRegistrar() {
 }
 
 function RegistrarModeSelection() {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
+  const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const router = useRouter();
 
   const handleOpenRegistrarEntrega = () => {
@@ -149,7 +155,11 @@ function RegistrarModeSelection() {
               onPress={handleOpenRegistrarEntrega}
               style={[
                 styles.widgetCard,
-                { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+                {
+                  backgroundColor: registrarCardSurface,
+                  borderRadius: theme.radius.xl + theme.spacing.sm,
+                  padding: theme.spacing.lg,
+                },
               ]}
             >
               <View style={styles.widgetHeader}>
@@ -177,7 +187,11 @@ function RegistrarModeSelection() {
               onPress={handleOpenRegistrarDados}
               style={[
                 styles.widgetCard,
-                { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+                {
+                  backgroundColor: registrarCardSurface,
+                  borderRadius: theme.radius.xl + theme.spacing.sm,
+                  padding: theme.spacing.lg,
+                },
               ]}
             >
               <View style={styles.widgetHeader}>
@@ -207,9 +221,11 @@ function RegistrarModeSelection() {
   );
 }
 
-export function RegistrarDailyDataScreen() {
+export function RegistrarDailyDataScreen({ showLargeTitle = false }: { showLargeTitle?: boolean } = {}) {
   const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
+  const useDarkGlassSurface = resolvedMode === 'dark';
+  const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const [isDeleting, setIsDeleting] = useState(false);
   const { addFieldValue, deleteDailyData, getLatestDailyValue, getValues, setFieldValue } =
@@ -278,9 +294,23 @@ export function RegistrarDailyDataScreen() {
     <NativeGlassHeader
       mode="transparent"
       rightActions={<View style={styles.headerTrailingActions} />}
-      title={'Dados Diários'}
+      title={showLargeTitle ? '' : 'Dados Diários'}
     />
   );
+  const pageTitle = showLargeTitle ? (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title="Dados Diários"
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 36,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
+    />
+  ) : null;
   const renderDailyDataContent = () => (
     <>
       <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
@@ -305,7 +335,7 @@ export function RegistrarDailyDataScreen() {
       style={[
         styles.dailyDataCard,
         {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
+          backgroundColor: registrarCardSurface,
           borderRadius: theme.radius.xl + theme.spacing.sm,
           overflow: 'hidden',
           padding: theme.spacing.lg,
@@ -322,16 +352,36 @@ export function RegistrarDailyDataScreen() {
       <PremiumScreen
         contentContainerStyle={[styles.dailyDataContent, { paddingHorizontal: 0 }]}
         overlayHeader={header}
+        overlayHeaderContentOffset={showLargeTitle ? theme.sizes.touchTargetMinimum : undefined}
+        overlayHeaderSpacing={showLargeTitle ? 0 : theme.spacing.md}
         progressiveBlur
       >
-        <View style={[styles.dailyDataList, { gap: theme.spacing.sm }]}>
+        {pageTitle ? (
+          <View
+            style={[
+              styles.pageTitleBlock,
+              {
+                marginBottom: theme.spacing.xs,
+                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+                paddingHorizontal: theme.layout.screenHorizontalPadding,
+              },
+            ]}
+          >
+            {pageTitle}
+          </View>
+        ) : null}
+        <View
+          style={[
+            styles.dailyDataList,
+            { gap: theme.spacing.sm, paddingTop: showLargeTitle ? theme.spacing.md : 28 },
+          ]}
+        >
           <Animated.View style={styles.fullWidth}>
             <View
               style={[
                 styles.dailyDataContextWrapper,
                 {
-                  backgroundColor:
-                    resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
+                  backgroundColor: registrarCardSurface,
                   borderRadius: hasDailyData
                     ? theme.radius.xl + theme.spacing.sm
                     : theme.radius.xl + theme.spacing.lg,
@@ -438,6 +488,8 @@ export function RegistrarDailyDataScreen() {
         </View>
       </View>
       <NativeDailyDataSheet
+        glassSurface={useDarkGlassSurface}
+        glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
         initialValues={dailySheetInitialValues}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
@@ -448,10 +500,11 @@ export function RegistrarDailyDataScreen() {
   );
 }
 
-export function RegistrarDeliveryScreen() {
+export function RegistrarDeliveryScreen({ showLargeTitle = false }: { showLargeTitle?: boolean } = {}) {
   const colorScheme = useColorScheme();
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { quantity: maskQuantity, text: maskText, enabled: testModeEnabled } =
     useTestModePresentation();
   const dark = colorScheme === 'dark';
@@ -467,7 +520,7 @@ export function RegistrarDeliveryScreen() {
     date: currentDate,
   });
   const registrarDeliverySheet = useRegistrarDeliverySheet({ clients, create });
-  const { recentlyAddedDeliveryIds } = registrarDeliverySheet;
+  const { openSheet, recentlyAddedDeliveryIds } = registrarDeliverySheet;
   useFocusEffect(
     useCallback(() => {
       setCurrentDate(todayIso());
@@ -525,9 +578,23 @@ export function RegistrarDeliveryScreen() {
       includeTopSafeArea
       mode="transparent"
       pointerEvents="box-none"
-      title="Entregas"
+      title={showLargeTitle ? '' : 'Entregas'}
     />
   );
+  const pageTitle = showLargeTitle ? (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title="Entregas"
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 36,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
+    />
+  ) : null;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -541,30 +608,53 @@ export function RegistrarDeliveryScreen() {
           paddingHorizontal: 0,
         }}
         overlayHeader={header}
+        overlayHeaderContentOffset={showLargeTitle ? theme.sizes.touchTargetMinimum : undefined}
+        overlayHeaderSpacing={showLargeTitle ? 0 : theme.spacing.md}
         progressiveBlur
       >
-        <View style={[styles.deliveryList, { gap: theme.spacing.sm }]}>
+        {pageTitle ? (
+          <View
+            style={[
+              styles.pageTitleBlock,
+              {
+                marginBottom: theme.spacing.xs,
+                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+                paddingHorizontal: theme.layout.screenHorizontalPadding,
+              },
+            ]}
+          >
+            {pageTitle}
+          </View>
+        ) : null}
+        <View
+          style={[
+            styles.deliveryList,
+            { gap: theme.spacing.sm, paddingTop: showLargeTitle ? theme.spacing.md : 28 },
+          ]}
+        >
           {todayDeliveries.length > 0 ? (
             <>
-              <View
-                style={[
-                  styles.deliveryTitleSlot,
-                  {
-                    height: theme.typography.headline.lineHeight,
-                    marginTop: -theme.spacing.xs,
-                  },
-                ]}
-              >
-                <Text
+              {!showLargeTitle ? (
+                <View
                   style={[
-                    theme.typography.headline,
-                    styles.deliveryDayTitle,
-                    { color: theme.colors.textPrimary },
+                    styles.deliveryTitleSlot,
+                    {
+                      height: theme.typography.headline.lineHeight,
+                      marginTop: -theme.spacing.xs,
+                    },
                   ]}
                 >
-                  Hoje
-                </Text>
-              </View>
+                  <Text
+                    style={[
+                      theme.typography.headline,
+                      styles.deliveryDayTitle,
+                      { color: theme.colors.textPrimary },
+                    ]}
+                  >
+                    Hoje
+                  </Text>
+                </View>
+              ) : null}
               <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
                 <View style={[styles.todayDeliveriesGroup, { gap: theme.spacing.xs }]}>
                   {todayDeliveries.map((delivery) => {
@@ -573,7 +663,7 @@ export function RegistrarDeliveryScreen() {
                         style={[
                           styles.deliveryItemRow,
                           {
-                            backgroundColor: preview ? theme.colors.surface : 'transparent',
+                            backgroundColor: preview ? registrarCardSurface : 'transparent',
                             borderRadius: theme.radius.xl + theme.spacing.sm,
                             height: deliveryRowHeight,
                             overflow: preview ? 'hidden' : undefined,
@@ -709,7 +799,7 @@ export function RegistrarDeliveryScreen() {
             interactiveGlass
             label="Adicionar"
             labelSize={18}
-            onPress={registrarDeliverySheet.openSheet}
+            onPress={openSheet}
             shape="capsule"
           />
         </View>
@@ -800,6 +890,7 @@ const styles = StyleSheet.create({
   widgetCopy: { gap: 8, marginTop: 12 },
   dailyDataContent: { flexGrow: 1 },
   fullWidth: { width: '100%' },
+  pageTitleBlock: { width: '100%' },
   floatingAdd: {
     alignItems: 'center',
     left: 0,

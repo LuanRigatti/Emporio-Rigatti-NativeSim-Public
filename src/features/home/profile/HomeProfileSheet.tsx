@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
 import { useAuth } from '@/providers';
+import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
 
 import HomeProfileSheetContent from './HomeProfileSheetContent';
 
@@ -18,6 +19,8 @@ type Props = {
 
 export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
   const { error, isLoading, signOut, user } = useAuth();
+  const { resolvedMode } = useAppTheme();
+  const useDarkGlassSurface = resolvedMode === 'dark';
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -54,6 +57,8 @@ export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
       items={[]}
       onDismiss={handleDismiss}
       onVisibleChange={onVisibleChange}
+      glassSurface={useDarkGlassSurface}
+      glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
       presentationBackgroundMode="transparent"
       title="Perfil"
       visible={visible}

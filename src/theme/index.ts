@@ -27,11 +27,16 @@ export {
   GLASS_LIGHT_TINT_OPACITY,
   SEARCH_BAR_LIGHT_TINT_OPACITY,
   darkModeLiquidGlassTint,
+  darkModeCardSurface,
+  getCardSurfaceColor,
   getLiquidGlassTint,
   getSearchBarLiquidGlassTint,
   lightModeLiquidGlassTint,
   lightModeTestPalette,
   previousLightColors,
+  registrarDeliveryDarkLiquidGlassTint,
+  registrarSheetDetailDarkSurface,
+  registrarSheetDetailLightSurface,
   searchBarLightModeLiquidGlassTint,
 } from './colors';
 export { icons } from './icons';

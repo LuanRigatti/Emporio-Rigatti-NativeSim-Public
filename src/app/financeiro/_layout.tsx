@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 
 import { useAppTheme } from '@/theme';
 
-export default function FinanceLayout() {
+export default function FinanceDetailLayout() {
   const { resolvedMode } = useAppTheme();
 
   return (
@@ -20,7 +20,12 @@ export default function FinanceLayout() {
         },
       }}
     >
-      <Stack.Screen name="index" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="faturamento-mensal">
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
+      <Stack.Screen name="lucro-liquido-mensal">
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
     </Stack>
   );
 }

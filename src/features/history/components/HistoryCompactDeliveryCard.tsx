@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeCardContextMenu } from '@/components/native';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { HistoryDelivery } from '../data/historyMocks';
@@ -16,6 +16,7 @@ export function HistoryCompactDeliveryCard({
   onDelete,
 }: HistoryCompactDeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surfaceMuted);
   const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
   const statusColor = delivery.status === 'concluída' ? theme.colors.success : theme.colors.warning;
   const radius = theme.radius.card;
@@ -30,7 +31,7 @@ export function HistoryCompactDeliveryCard({
       style={[
         styles.card,
         {
-          backgroundColor: preview ? theme.colors.surfaceMuted : 'transparent',
+          backgroundColor: preview ? cardSurface : 'transparent',
           borderRadius: radius,
           height: cardHeight,
           paddingHorizontal: theme.spacing.md,
@@ -68,7 +69,7 @@ export function HistoryCompactDeliveryCard({
         style={[
           styles.container,
           {
-            backgroundColor: theme.colors.surfaceMuted,
+            backgroundColor: cardSurface,
             borderRadius: radius,
             height: cardHeight,
           },

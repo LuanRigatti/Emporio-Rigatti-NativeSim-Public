@@ -7,7 +7,7 @@ import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/nativ
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { normalizeClientKey } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
@@ -114,8 +114,45 @@ export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolea
         )
       }
       mode="transparent"
-      title="Notas fiscais/boletos"
+      title={nativeHeader ? '' : 'Notas fiscais/boletos'}
     />
+  );
+  const pageTitle = nativeHeader ? (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title="Documentos"
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 36,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
+    />
+  ) : null;
+  const documentContent = (
+    <View
+      style={[
+        styles.typeList,
+        { gap: theme.spacing.md, marginTop: nativeHeader ? 0 : theme.spacing.xxl },
+      ]}
+    >
+      <DocumentTypeCard
+        emptyLabel="Nenhuma nota fiscal pendente"
+        groups={invoiceGroups}
+        onDelete={handleInvoiceSwipe}
+        theme={theme}
+        title="Nota fiscal"
+      />
+      <DocumentTypeCard
+        emptyLabel="Nenhum boleto pendente"
+        groups={boletoGroups}
+        onDelete={handleBoletoSwipe}
+        theme={theme}
+        title="Boleto"
+      />
+    </View>
   );
 
   return (
@@ -125,24 +162,25 @@ export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolea
         { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
       ]}
       overlayHeader={header}
+      overlayHeaderContentOffset={nativeHeader ? theme.sizes.touchTargetMinimum : undefined}
       progressiveBlur
     >
-      <View style={[styles.typeList, { gap: theme.spacing.md, marginTop: theme.spacing.xxl }]}>
-        <DocumentTypeCard
-          emptyLabel="Nenhuma nota fiscal pendente"
-          groups={invoiceGroups}
-          onDelete={handleInvoiceSwipe}
-          theme={theme}
-          title="Nota fiscal"
-        />
-        <DocumentTypeCard
-          emptyLabel="Nenhum boleto pendente"
-          groups={boletoGroups}
-          onDelete={handleBoletoSwipe}
-          theme={theme}
-          title="Boleto"
-        />
-      </View>
+      {nativeHeader ? (
+        <View
+          style={[
+            styles.pageContent,
+            {
+              gap: theme.spacing.lg,
+              marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+            },
+          ]}
+        >
+          {pageTitle}
+          {documentContent}
+        </View>
+      ) : (
+        documentContent
+      )}
     </PremiumScreen>
   );
 }
@@ -196,9 +234,7 @@ function DocumentTypeCard({
                       styles.documentItemRow,
                       {
                         backgroundColor: preview
-                          ? resolvedMode === 'dark'
-                            ? '#131417'
-                            : theme.colors.glassSurface
+                          ? getCardSurfaceColor(resolvedMode, theme.colors.glassSurface)
                           : 'transparent',
                         borderRadius: theme.radius.xl + theme.spacing.sm,
                         overflow: preview ? 'hidden' : undefined,
@@ -240,8 +276,7 @@ function DocumentTypeCard({
                     style={[
                       styles.contextContainer,
                       {
-                        backgroundColor:
-                          resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+                        backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.glassSurface),
                         borderRadius: theme.radius.xl + theme.spacing.sm,
                         overflow: 'hidden',
                         width: '100%',
@@ -288,6 +323,7 @@ function formatCurrency(value: number): string {
 
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
+  pageContent: { width: '100%' },
   typeList: { width: '100%' },
   typeCard: { gap: 12, overflow: 'hidden', padding: 16 },
   typeTitle: { fontSize: 18, fontWeight: '700' },

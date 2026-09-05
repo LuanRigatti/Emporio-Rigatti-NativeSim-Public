@@ -2,6 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 
+import { useAppTheme } from '@/theme';
+
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
 function icon(
@@ -23,11 +25,19 @@ export default function PrototypeTabsLayout() {
 
 function TabsNavigator() {
   const colorScheme = useColorScheme();
+  const { theme } = useAppTheme();
   const iconColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
+  const nativeTabsProps = {
+    nativeContainerStyle: { backgroundColor: theme.colors.background },
+  };
 
   return (
     <View collapsable={false} style={styles.root}>
-      <NativeTabs labelVisibilityMode="unlabeled" tintColor={iconColor}>
+      <NativeTabs
+        labelVisibilityMode="unlabeled"
+        tintColor={iconColor}
+        unstable_nativeProps={nativeTabsProps}
+      >
         <NativeTabs.Trigger name="dashboard">
           <NativeTabs.Trigger.Icon {...icon('home-outline', 'house', 'house.fill', iconColor)} />
           <NativeTabs.Trigger.Label hidden>Home</NativeTabs.Trigger.Label>

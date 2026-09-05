@@ -16,7 +16,7 @@ import {
   factoryPurchaseCalculationService,
   type FactoryPurchaseSummary,
 } from '@/services/factory-purchases';
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
 import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -31,15 +31,17 @@ function parseQuantity(value: string): number {
 export function FactoryPurchasesScreen({
   header,
   mode = 'all',
+  pageTitle,
   selectedMonth,
   selectedYear,
 }: {
   header: ReactNode;
   mode?: 'all' | 'purchases' | 'register';
+  pageTitle?: ReactNode;
   selectedMonth: number;
   selectedYear: number;
 }) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const { currency: maskCurrency, number: maskNumber, enabled: testModeEnabled } =
     useTestModePresentation();
   const { settings: factorySettings } = useFactorySettings();
@@ -110,12 +112,28 @@ export function FactoryPurchasesScreen({
       <PremiumScreen
         contentContainerStyle={styles.content}
         overlayHeader={header}
-        overlayHeaderSpacing={theme.spacing.md}
+        overlayHeaderContentOffset={pageTitle ? theme.sizes.touchTargetMinimum : undefined}
+        overlayHeaderSpacing={pageTitle ? 0 : theme.spacing.md}
         progressiveBlur
         scrollViewProps={{ scrollEventThrottle: 16 }}
       >
+        {pageTitle ? (
+          <View
+            style={[
+              styles.pageTitleBlock,
+              {
+                marginBottom: theme.spacing.xs,
+                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+              },
+            ]}
+          >
+            {pageTitle}
+          </View>
+        ) : null}
         {mode !== 'purchases' ? (
-          <GlassCard style={[styles.formCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+          <GlassCard
+            style={[styles.formCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          >
             <View style={styles.formHeadingRow}>
               <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
                 Registrar compra
@@ -157,6 +175,7 @@ export function FactoryPurchasesScreen({
               <NativeButton
                 accessibilityLabel="Registrar compra"
                 disabled={isRegistering || testModeEnabled}
+                glassTint={resolvedMode === 'dark' ? getLiquidGlassTint(resolvedMode) : undefined}
                 haptic="light"
                 label="Registrar"
                 onPress={() => void handleCreatePurchase()}
@@ -261,13 +280,14 @@ function PurchaseRow({
   purchase: Purchase;
 }) {
   const { resolvedMode, theme } = useAppTheme();
+  const purchaseCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.glassSurface);
   const { currency: maskCurrency, enabled: testModeEnabled, quantity: maskQuantity } =
     useTestModePresentation();
   const paidAmount = factoryPurchaseCalculationService.paidAmount(purchase);
   const remainingAmount = factoryPurchaseCalculationService.remainingAmount(purchase);
   const isPaid = factoryPurchaseCalculationService.isPaid(purchase);
   const purchaseCardStyle: ViewStyle = {
-    backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+    backgroundColor: purchaseCardSurface,
     borderRadius: theme.radius.xl + theme.spacing.sm,
     width: '100%',
   };
@@ -386,6 +406,7 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   content: { gap: 14, paddingBottom: 32 },
+  pageTitleBlock: { width: '100%' },
   summaryCard: { gap: 12 },
   summaryMetric: { gap: 4 },
   formCard: { gap: 12 },

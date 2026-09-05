@@ -92,7 +92,8 @@ export const lightModeTestPalette = {
 export const GLASS_LIGHT_TINT_OPACITY = 0.6 as const;
 export const lightModeLiquidGlassTint = `rgba(255, 255, 255, ${GLASS_LIGHT_TINT_OPACITY})` as const;
 export const SEARCH_BAR_LIGHT_TINT_OPACITY = 0.1 as const;
-export const searchBarLightModeLiquidGlassTint = `rgba(255, 255, 255, ${SEARCH_BAR_LIGHT_TINT_OPACITY})` as const;
+export const searchBarLightModeLiquidGlassTint =
+  `rgba(255, 255, 255, ${SEARCH_BAR_LIGHT_TINT_OPACITY})` as const;
 
 export const lightColors: ThemeColors = {
   ...previousLightColors,
@@ -147,6 +148,14 @@ export const darkColors: ThemeColors = {
 
 export const GLASS_DARK_TINT_OPACITY = 0.85 as const;
 
+export const darkModeCardSurface = '#0A0C0E' as const;
+export const registrarSheetDetailLightSurface = '#FFFFFF' as const;
+export const registrarSheetDetailDarkSurface = 'rgba(80, 80, 84, 0.40)' as const;
+
+export function getCardSurfaceColor(mode: 'light' | 'dark', lightSurface: string): string {
+  return mode === 'dark' ? darkModeCardSurface : lightSurface;
+}
+
 function colorWithOpacity(hexColor: string, opacity: number): string {
   const normalized = hexColor.replace('#', '');
   const red = Number.parseInt(normalized.slice(0, 2), 16);
@@ -159,6 +168,10 @@ function colorWithOpacity(hexColor: string, opacity: number): string {
 export const darkModeLiquidGlassTint = colorWithOpacity(
   darkColors.surface,
   GLASS_DARK_TINT_OPACITY,
+);
+export const registrarDeliveryDarkLiquidGlassTint = colorWithOpacity(
+  darkColors.background,
+  0.38,
 );
 
 export function getLiquidGlassTint(mode: 'light' | 'dark'): string {

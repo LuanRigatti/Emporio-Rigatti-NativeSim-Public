@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/feedback';
 import { NativeButton } from '@/components/native';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 
 export type HomeProfileSheetContentProps = {
   displayName: string;
@@ -22,7 +22,7 @@ export default function HomeProfileSheetContent({
   isSigningOut,
   onSignOut,
 }: HomeProfileSheetContentProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
 
   return (
     <ScrollView
@@ -51,7 +51,7 @@ export default function HomeProfileSheetContent({
           style={[
             styles.accountCard,
             {
-              backgroundColor: theme.colors.surface,
+              backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
               borderColor: theme.colors.separator,
               borderRadius: theme.radius.xl + theme.spacing.xxs,
               marginTop: theme.spacing.sm,

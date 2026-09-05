@@ -132,7 +132,9 @@ export default function ClientDetailsRoute() {
       ]}
     >
       <View style={{ height: theme.sizes.touchTargetMinimum }} />
-      <GlassCard style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+      <GlassCard
+        style={[styles.card, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+      >
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
           {clientName}
         </Text>

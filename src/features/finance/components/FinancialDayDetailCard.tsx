@@ -5,7 +5,7 @@ import Animated, { Easing, FadeInDown, FadeOutUp, LinearTransition } from 'react
 import { NativeAnimatedNumber } from '@/components/native';
 import type { FinancialDailyDetail, MonthlyFinancialDetailMetric } from '@/services/finance';
 import { formatCurrency } from '@/utils/data';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 
 type Props = {
   detail: FinancialDailyDetail;
@@ -19,6 +19,7 @@ const rowExitingAnimation = FadeOutUp.duration(180);
 
 export function FinancialDayDetailCard({ detail, metric, animateRowEntrance = true }: Props) {
   const { resolvedMode, theme } = useAppTheme();
+  const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { summary } = detail;
   const rows = [
     {
@@ -126,7 +127,7 @@ export function FinancialDayDetailCard({ detail, metric, animateRowEntrance = tr
       style={[
         styles.infoCard,
         {
-          backgroundColor: theme.colors.surface,
+          backgroundColor: financeCardSurface,
           borderColor: theme.colors.separator,
           borderRadius: theme.radius.xl + theme.spacing.sm,
         },
@@ -151,15 +152,18 @@ export function FinancialDayDetailCard({ detail, metric, animateRowEntrance = tr
               {row.label}
             </Text>
           </View>
-          <NativeAnimatedNumber
-            alignment="trailing"
-            color={theme.colors.textPrimary}
-            fontSize={theme.typography.subheadline.fontSize}
-            fontWeight="regular"
-            lineHeight={theme.typography.subheadline.lineHeight}
-            text={row.value}
-            value={row.numericValue}
-          />
+          <View style={styles.valueGroup}>
+            <NativeAnimatedNumber
+              alignment="trailing"
+              color={theme.colors.textPrimary}
+              fontSize={theme.typography.subheadline.fontSize}
+              fontWeight="regular"
+              horizontalSizing="fill"
+              lineHeight={theme.typography.subheadline.lineHeight}
+              text={row.value}
+              value={row.numericValue}
+            />
+          </View>
         </Animated.View>
       ))}
     </Animated.View>
@@ -173,6 +177,7 @@ function formatNumber(value: number): string {
 const styles = StyleSheet.create({
   infoCard: { paddingHorizontal: 16, paddingVertical: 14 },
   labelGroup: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8 },
+  valueGroup: { alignItems: 'flex-end', flex: 1, minWidth: 0 },
   row: {
     alignItems: 'center',
     flexDirection: 'row',

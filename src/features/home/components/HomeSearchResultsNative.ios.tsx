@@ -25,7 +25,7 @@ import {
 import { PlatformColor } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { spacing, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, spacing, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import HomeSearchRoutePagerRN from './HomeSearchRoutePagerRN';
@@ -457,7 +457,7 @@ const COMPACT_ROUTE_PAGER_TOP_PADDING = 20;
 
 export default function HomeSearchResultsNative({ isLarge = false, model }: Props) {
   const { resolvedMode } = useAppTheme();
-  const cardBackground = resolvedMode === 'dark' ? '#2A2A2A' : '#FFFFFF';
+  const cardBackground = getCardSurfaceColor(resolvedMode, '#FFFFFF');
 
   const isRouteResult =
     Boolean(model.singleDayRoute) || model.items.some((item) => Boolean(item.route));

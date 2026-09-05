@@ -18,12 +18,16 @@ import {
   accessibilityLabel,
   animation,
   Animation,
+  background,
   buttonStyle,
   contentShape,
   contentTransition,
   controlSize,
+  cornerRadius,
   disabled as disabledModifier,
+  font,
   frame,
+  foregroundStyle,
   glassEffect,
   listRowBackground,
   listRowInsets,
@@ -43,7 +47,12 @@ import type { PresentationDetent } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { spacing, useAppTheme } from '@/theme';
+import {
+  registrarSheetDetailDarkSurface,
+  registrarSheetDetailLightSurface,
+  spacing,
+  useAppTheme,
+} from '@/theme';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -74,12 +83,14 @@ export default function NativeBottomSheetSwiftUI({
   initialDetent,
   selectedDetent,
   glassSurface = false,
+  glassTint,
   presentationBackgroundInteraction: backgroundInteraction = 'enabled',
   presentationBackgroundMode = 'system',
   hostSizing = 'content',
 }: NativeBottomSheetProps) {
   const { width } = useWindowDimensions();
   const { resolvedMode, theme } = useAppTheme();
+  const confirmButtonWidth = width * 0.84;
   const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
     useTestModePresentation();
   const usesRegistrarSheetBehavior = content == null;
@@ -187,7 +198,7 @@ export default function NativeBottomSheetSwiftUI({
                     glass: { interactive: true, variant: 'regular' },
                     shape: 'circle',
                   }),
-                  offset({ x: 4, y: -12 }),
+                  offset({ x: 4, y: -9 }),
                   accessibilityLabel('Fechar'),
                 ]}
                 onPress={() => {
@@ -220,7 +231,14 @@ export default function NativeBottomSheetSwiftUI({
             <VStack
               alignment="leading"
               spacing={spacing.xs}
-              modifiers={[padding({ leading: spacing.lg, trailing: spacing.md, vertical: spacing.xs })]}
+              modifiers={[
+                padding({
+                  leading: spacing.lg,
+                  trailing: spacing.md,
+                  top: spacing.xs,
+                  bottom: spacing.md,
+                }),
+              ]}
             >
               <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
                 <Image size={18} systemName="calendar" />
@@ -331,22 +349,25 @@ export default function NativeBottomSheetSwiftUI({
       <ZStack
         alignment="center"
         modifiers={[
-          frame({ maxWidth: Infinity, alignment: 'trailing' }),
-          padding({ leading: spacing.xs, vertical: spacing.sm, trailing: spacing.md }),
+          frame({ maxWidth: Infinity, alignment: 'center' }),
+          padding({ horizontal: spacing.xs, vertical: spacing.sm }),
         ]}
       >
         <HStack
           alignment="center"
-          modifiers={[frame({ maxWidth: Infinity, alignment: 'trailing' })]}
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}
         >
-          <Spacer />
           <Button
             label="Confirmar"
             modifiers={[
-              roundedFont({}),
-              buttonStyle('glassProminent'),
+              roundedFont({ size: 17, weight: 'semibold' }),
+              buttonStyle('plain'),
               controlSize('large'),
-              offset({ x: 12 }),
+              foregroundStyle(theme.colors.contrastContent),
+              padding({ horizontal: 28, vertical: 14 }),
+              frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
+              background(theme.colors.contrastSurface),
+              cornerRadius(999),
               disabledModifier(!selectedItem || testModeEnabled),
             ]}
             onPress={() => {
@@ -402,7 +423,7 @@ export default function NativeBottomSheetSwiftUI({
               modifiers={[
                 padding({
                   leading: spacing.xxl,
-                  trailing: spacing.md,
+                  trailing: spacing.xl,
                   vertical: spacing.lg,
                 }),
                 frame({ maxWidth: Infinity, alignment: 'leading' }),
@@ -412,6 +433,12 @@ export default function NativeBottomSheetSwiftUI({
               <Text modifiers={[roundedFont({ size: 18, weight: 'medium' })]}>
                 {item.title}
               </Text>
+              <Spacer />
+              <Image
+                color={theme.colors.textSecondary}
+                modifiers={[font({ size: theme.sizes.iconSmall - 4, weight: 'semibold' })]}
+                systemName="chevron.right"
+              />
             </HStack>
           </Button>
         ))}
@@ -448,7 +475,11 @@ export default function NativeBottomSheetSwiftUI({
         modifiers={[
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
           glassEffect({
-            glass: { interactive: true, variant: 'regular' },
+            glass: {
+              interactive: true,
+              variant: 'regular',
+              ...(glassTint ? { tint: glassTint } : {}),
+            },
             cornerRadius: theme.radius.card,
             shape: 'roundedRectangle',
           }),
@@ -584,9 +615,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   lightDetailSurface: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: registrarSheetDetailLightSurface,
   },
   darkDetailSurface: {
-    backgroundColor: 'rgba(80, 80, 84, 0.40)',
+    backgroundColor: registrarSheetDetailDarkSurface,
   },
 });

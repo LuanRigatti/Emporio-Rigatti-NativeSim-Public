@@ -29,7 +29,21 @@ export function OpenPaymentClientsScreen() {
         />
       }
       mode="transparent"
+      title=""
+    />
+  );
+  const pageTitle = (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      mode="transparent"
+      largeTitle
       title="Em aberto"
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 36,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
     />
   );
 
@@ -40,9 +54,19 @@ export function OpenPaymentClientsScreen() {
         { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
       ]}
       overlayHeader={header}
+      overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
       progressiveBlur
     >
-      <View style={[styles.content, { marginTop: theme.spacing.xxl }]}>
+      <View
+        style={[
+          styles.content,
+          {
+            gap: theme.spacing.lg,
+            marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+          },
+        ]}
+      >
+        {pageTitle}
         {clientCards.length > 0 ? (
           <>
             <OpenPaymentClientCards

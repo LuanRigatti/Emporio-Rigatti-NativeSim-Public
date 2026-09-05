@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { HOME_SEARCH_HELP_SUGGESTIONS } from './HomeSearchHelpData';
 import type { SearchHelpExample } from './HomeSearchHelpTypes';
@@ -57,7 +57,7 @@ function HelpExampleRow({
 }
 
 export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
 
   return (
     <View
@@ -74,7 +74,7 @@ export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
         style={[
           styles.suggestionsCard,
           {
-            backgroundColor: theme.colors.surface,
+            backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
             borderColor: theme.colors.separator,
             borderRadius: 40,
           },

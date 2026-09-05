@@ -75,7 +75,12 @@ function HelpExampleRow({
           ) : null}
         </VStack>
         <Spacer />
-        <Image color="#8B8B93" size={13} systemName={asSymbol('arrow.up.left')} />
+        <Image
+          color="#8B8B93"
+          modifiers={[font({ size: 13, weight: 'bold' })]}
+          size={13}
+          systemName={asSymbol('arrow.up.left')}
+        />
       </HStack>
     </Button>
   );

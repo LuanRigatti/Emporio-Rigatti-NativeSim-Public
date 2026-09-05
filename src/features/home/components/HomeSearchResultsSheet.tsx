@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
+import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
 
 import type { HomeSearchResponse } from '../search/HomeSearchTypes';
 import HomeSearchResultsContent from './HomeSearchResultsContent';
@@ -30,6 +31,8 @@ export function HomeSearchResultsSheet({
   visible,
 }: Props) {
   const [isLarge, setIsLarge] = useState(false);
+  const { resolvedMode } = useAppTheme();
+  const useDarkGlassSurface = resolvedMode === 'dark';
 
   const handleVisibleChange = (nextVisible: boolean) => {
     if (!nextVisible) setIsLarge(false);
@@ -50,6 +53,8 @@ export function HomeSearchResultsSheet({
       onDetentChange={(detent) => setIsLarge(detent === 'large')}
       onImplementationReady={onImplementationReady}
       onVisibleChange={handleVisibleChange}
+      glassSurface={useDarkGlassSurface}
+      glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
       presentationBackgroundMode="transparent"
       title="Resultados"
       visible={visible}

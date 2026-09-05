@@ -24,6 +24,7 @@ import {
   controlSize,
   disabled as disabledModifier,
   frame,
+  fixedSize,
   foregroundStyle,
   glassEffect,
   keyboardType,
@@ -34,13 +35,17 @@ import {
   presentationBackground,
   presentationDetents,
   presentationDragIndicator,
-  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
-import { PlatformColor, StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import type { SFSymbol } from 'sf-symbols-typescript';
 
-import { getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
+import {
+  registrarSheetDetailDarkSurface,
+  registrarSheetDetailLightSurface,
+  spacing,
+  useAppTheme,
+} from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import {
@@ -65,6 +70,7 @@ const EMPTY_VALUES: NativeDailyDataValues = {
 
 export default function NativeDailyDataSheetSwiftUI({
   glassSurface = false,
+  glassTint,
   initialValues = EMPTY_VALUES,
   onSubmit,
   onVisibleChange,
@@ -72,6 +78,8 @@ export default function NativeDailyDataSheetSwiftUI({
   visible,
 }: NativeDailyDataSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const confirmButtonWidth = width * 0.84;
   const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
@@ -237,14 +245,17 @@ export default function NativeDailyDataSheetSwiftUI({
       >
         <ZStack
           alignment="topLeading"
-          modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
+          modifiers={[
+            frame({ maxWidth: Infinity, alignment: 'leading' }),
+            fixedSize({ vertical: true }),
+          ]}
         >
           {renderGlassSurface()}
           <VStack
             alignment="leading"
             spacing={0}
             modifiers={[
-              padding({ leading: 24, trailing: 0, vertical: 4 }),
+              padding({ leading: 24, trailing: 0, top: 4, bottom: 0 }),
               frame({ maxWidth: Infinity, alignment: 'leading' }),
               padding({ top: 4 }),
             ]}
@@ -262,31 +273,33 @@ export default function NativeDailyDataSheetSwiftUI({
         <ZStack
           alignment="center"
           modifiers={[
-            frame({ maxWidth: Infinity, alignment: 'trailing' }),
-            padding({ top: 8, leading: spacing.sm, trailing: 8, bottom: 8 }),
+            frame({ maxWidth: Infinity, alignment: 'center' }),
+            padding({ horizontal: spacing.xs, vertical: spacing.sm }),
           ]}
         >
           <HStack
             alignment="center"
-            modifiers={[frame({ maxWidth: Infinity, alignment: 'trailing' })]}
+            modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}
           >
-            <Spacer />
             <Button
               label="Adicionar"
-            modifiers={[
-              roundedFont({}),
-              buttonStyle('glassProminent'),
-              controlSize('large'),
-              offset({ y: -8 }),
-              foregroundStyle(PlatformColor('label') as unknown as string),
-              tint(getLiquidGlassTint(resolvedMode)),
-              ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
-            ]}
-            onPress={() => {
-              if (submitting) return;
-              triggerNativeButtonHaptic('light');
-              void handleSubmit();
-            }}
+              modifiers={[
+                roundedFont({ size: 17, weight: 'semibold' }),
+                buttonStyle('plain'),
+                controlSize('large'),
+                foregroundStyle(theme.colors.contrastContent),
+                padding({ horizontal: 28, vertical: 14 }),
+                frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
+                background(theme.colors.contrastSurface),
+                cornerRadius(999),
+                offset({ y: -8 }),
+                ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
+              ]}
+              onPress={() => {
+                if (submitting) return;
+                triggerNativeButtonHaptic('light');
+                void handleSubmit();
+              }}
             />
           </HStack>
         </ZStack>
@@ -303,7 +316,11 @@ export default function NativeDailyDataSheetSwiftUI({
         modifiers={[
           frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
           glassEffect({
-            glass: { interactive: true, variant: 'regular' },
+            glass: {
+              interactive: true,
+              variant: 'regular',
+              ...(glassTint ? { tint: glassTint } : {}),
+            },
             cornerRadius: theme.radius.card,
             shape: 'roundedRectangle',
           }),
@@ -324,7 +341,13 @@ export default function NativeDailyDataSheetSwiftUI({
       : null;
 
   return (
-    <Host matchContents>
+    <Host
+      colorScheme={resolvedMode}
+      matchContents={false}
+      pointerEvents="none"
+      style={{ position: 'absolute', width }}
+      useViewportSizeMeasurement
+    >
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
@@ -343,7 +366,7 @@ export default function NativeDailyDataSheetSwiftUI({
 
 const styles = StyleSheet.create({
   darkDetailSurface: {
-    backgroundColor: 'rgba(80, 80, 84, 0.40)',
+    backgroundColor: registrarSheetDetailDarkSurface,
   },
   detailSurface: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -352,6 +375,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   lightDetailSurface: {
-    backgroundColor: 'rgba(208, 208, 208, 0.38)',
+    backgroundColor: registrarSheetDetailLightSurface,
   },
 });

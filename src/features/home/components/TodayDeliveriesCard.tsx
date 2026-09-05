@@ -10,18 +10,21 @@ import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import { DeliveryStatusBadge } from '@/features/history/components/DeliveryStatusBadge';
 
 export type TodayDeliveriesCardProps = {
+  cardSurfaceColor?: string;
   deliveries: readonly HistoryDelivery[];
   onDelete: (deliveryId: string) => void;
   onToggleStatus: (deliveryId: string) => void;
 };
 
 export function TodayDeliveriesCard({
+  cardSurfaceColor,
   deliveries,
   onDelete,
   onToggleStatus,
 }: TodayDeliveriesCardProps) {
   const { reduceMotionEnabled, theme } = useAppTheme();
   const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
+  const surfaceColor = cardSurfaceColor ?? theme.colors.surface;
   const totalBuckets = deliveries.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0);
   const isEmpty = deliveries.length === 0;
   const emptyDeliveryCardMinHeight = theme.spacing.xxl * 10;
@@ -42,7 +45,7 @@ export function TodayDeliveriesCard({
         <Text
           style={[theme.typography.headline, styles.title, { color: theme.colors.textPrimary }]}
         >
-          Entregas de hoje
+          Hoje
         </Text>
         {deliveries.length > 0 ? (
           <Text
@@ -71,6 +74,7 @@ export function TodayDeliveriesCard({
                 styles.emptyDeliveryCard,
                 {
                   borderRadius: theme.radius.xl + theme.spacing.lg,
+                  backgroundColor: surfaceColor,
                   minHeight: emptyDeliveryCardMinHeight,
                   paddingVertical: theme.spacing.xxl * 2,
                 },
@@ -98,14 +102,13 @@ export function TodayDeliveriesCard({
           >
             <View style={[styles.cards, { gap: theme.spacing.xs }]}>
               {deliveries.map((delivery) => {
-                const renderDeliveryRow = (preview = false) => (
+                const renderDeliveryRow = () => (
                   <View
                     style={[
                       styles.row,
                       {
-                        backgroundColor: preview ? theme.colors.surface : 'transparent',
+                        backgroundColor: 'transparent',
                         borderRadius: theme.radius.xl + theme.spacing.sm,
-                        overflow: preview ? 'hidden' : undefined,
                         padding: theme.spacing.md,
                         width: '100%',
                       },
@@ -143,7 +146,7 @@ export function TodayDeliveriesCard({
                     style={[
                       styles.contextContainer,
                       {
-                        backgroundColor: theme.colors.surface,
+                        backgroundColor: surfaceColor,
                         borderRadius: theme.radius.xl + theme.spacing.sm,
                         overflow: 'hidden',
                         width: '100%',
@@ -161,7 +164,6 @@ export function TodayDeliveriesCard({
                           title: 'Excluir',
                         },
                       ]}
-                      preview={renderDeliveryRow(true)}
                       style={[
                         styles.contextMenu,
                         { borderRadius: theme.radius.xl + theme.spacing.sm },

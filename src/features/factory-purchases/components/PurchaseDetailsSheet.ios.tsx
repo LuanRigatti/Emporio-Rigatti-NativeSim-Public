@@ -33,7 +33,12 @@ import { useEffect, useRef, useState } from 'react';
 
 import { NativeBottomSheet } from '@/components/native';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
-import { spacing, useAppTheme } from '@/theme';
+import {
+  darkModeCardSurface,
+  registrarDeliveryDarkLiquidGlassTint,
+  spacing,
+  useAppTheme,
+} from '@/theme';
 import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -58,6 +63,7 @@ export function PurchaseDetailsSheet({
   visible,
 }: PurchaseDetailsSheetProps) {
   const { resolvedMode, theme } = useAppTheme();
+  const useDarkGlassSurface = resolvedMode === 'dark';
   const { currency: maskCurrency, number: maskNumber, enabled: testModeEnabled } =
     useTestModePresentation();
   const [paymentDate, setPaymentDate] = useState(new Date());
@@ -134,7 +140,7 @@ export function PurchaseDetailsSheet({
           frame({ maxWidth: Infinity, alignment: 'topLeading' }),
           padding({ all: spacing.md }),
           background(
-            resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background,
+            resolvedMode === 'dark' ? darkModeCardSurface : theme.colors.background,
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}
@@ -158,7 +164,7 @@ export function PurchaseDetailsSheet({
           frame({ maxWidth: Infinity, alignment: 'topLeading' }),
           padding({ all: spacing.md }),
           background(
-            resolvedMode === 'dark' ? theme.colors.surface : theme.colors.background,
+            resolvedMode === 'dark' ? darkModeCardSurface : theme.colors.background,
             shapes.roundedRectangle({ cornerRadius: 36, roundedCornerStyle: 'continuous' }),
           ),
         ]}
@@ -262,6 +268,8 @@ export function PurchaseDetailsSheet({
       items={[]}
       hostSizing="viewport"
       onVisibleChange={onVisibleChange}
+      glassSurface={useDarkGlassSurface}
+      glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
       presentationBackgroundMode="native"
       title="Detalhes da compra"
       visible={visible}

@@ -1,13 +1,8 @@
-import {
-  StyleSheet,
-  Text,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { HistoryDelivery } from '../data/historyMocks';
@@ -33,8 +28,13 @@ export function DeliveryCard({
   onToggleStatus,
 }: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
-  const { enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
-    useTestModePresentation();
+  const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const {
+    enabled: testModeEnabled,
+    quantity: maskQuantity,
+    text: maskText,
+  } = useTestModePresentation();
+  const cardRadius = theme.radius.xl + theme.spacing.sm;
   const content = (
     <View style={styles.cardRow}>
       <View style={styles.cardContent}>
@@ -68,7 +68,7 @@ export function DeliveryCard({
       style={[
         styles.card,
         {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
+          backgroundColor: cardSurface,
           borderRadius: theme.radius.xl + theme.spacing.sm,
           width: '100%',
         },
@@ -82,7 +82,7 @@ export function DeliveryCard({
       style={[
         styles.card,
         {
-          backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
+          backgroundColor: cardSurface,
           borderWidth: 0,
           borderRadius: theme.radius.xl + theme.spacing.sm,
           marginHorizontal: 0,
@@ -93,8 +93,8 @@ export function DeliveryCard({
     </GlassCard>
   );
   const contextCardStyle: ViewStyle = {
-    backgroundColor: resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
-    borderRadius: theme.radius.xl + theme.spacing.sm,
+    backgroundColor: cardSurface,
+    borderRadius: cardRadius,
     height: HISTORY_DELIVERY_CARD_HEIGHT,
     width: '100%',
   };
@@ -112,9 +112,11 @@ export function DeliveryCard({
             title: 'Excluir',
           },
         ]}
-        style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+        style={[styles.contextMenu, { borderRadius: cardRadius }]}
         preview={
-          <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>{content}</View>
+          <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>
+            {content}
+          </View>
         }
       >
         <View style={[styles.card, { backgroundColor: 'transparent' }]}>{content}</View>

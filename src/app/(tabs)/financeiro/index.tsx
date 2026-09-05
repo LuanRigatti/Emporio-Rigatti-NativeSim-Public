@@ -14,12 +14,13 @@ import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
 export default function PrototypeFinanceiro() {
   const router = useRouter();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
+  const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
   const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
@@ -128,9 +129,7 @@ export default function PrototypeFinanceiro() {
     setDisplayedHeroValues((current) => {
       const next = {
         faturamento: faturamentoReady ? currentFaturamentoValue : current.faturamento,
-        lucroLiquido: lucroLiquidoReady
-          ? currentLucroLiquidoValue
-          : current.lucroLiquido,
+        lucroLiquido: lucroLiquidoReady ? currentLucroLiquidoValue : current.lucroLiquido,
       };
       return next.faturamento === current.faturamento && next.lucroLiquido === current.lucroLiquido
         ? current
@@ -195,7 +194,13 @@ export default function PrototypeFinanceiro() {
         <PremiumCard
           accessibilityLabel="Abrir detalhes do faturamento"
           onPress={handleOpenFaturamento}
-          style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: financeCardSurface,
+              borderRadius: theme.radius.xl + theme.spacing.sm,
+            },
+          ]}
         >
           <View style={styles.heroHeader}>
             <View style={styles.heroTitle}>
@@ -217,9 +222,7 @@ export default function PrototypeFinanceiro() {
             animationEnabled={faturamentoReady}
             color={theme.colors.textPrimary}
             text={
-              displayedFaturamentoValue !== null
-                ? formatCurrency(displayedFaturamentoValue)
-                : ''
+              displayedFaturamentoValue !== null ? formatCurrency(displayedFaturamentoValue) : ''
             }
             value={displayedFaturamentoValue}
           />
@@ -227,7 +230,13 @@ export default function PrototypeFinanceiro() {
         <PremiumCard
           accessibilityLabel="Abrir detalhes do lucro líquido"
           onPress={handleOpenLucroLiquido}
-          style={[styles.heroCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: financeCardSurface,
+              borderRadius: theme.radius.xl + theme.spacing.sm,
+            },
+          ]}
         >
           <View style={styles.heroHeader}>
             <View style={styles.heroTitle}>
@@ -249,9 +258,7 @@ export default function PrototypeFinanceiro() {
             animationEnabled={lucroLiquidoReady}
             color={theme.colors.textPrimary}
             text={
-              displayedLucroLiquidoValue !== null
-                ? formatCurrency(displayedLucroLiquidoValue)
-                : ''
+              displayedLucroLiquidoValue !== null ? formatCurrency(displayedLucroLiquidoValue) : ''
             }
             value={displayedLucroLiquidoValue}
           />
@@ -263,6 +270,7 @@ export default function PrototypeFinanceiro() {
             { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
             { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
           ]}
+          style={{ backgroundColor: financeCardSurface }}
           title="OPERAÇÃO"
         />
         <SummaryCard
@@ -285,6 +293,7 @@ export default function PrototypeFinanceiro() {
                   : '',
             },
           ]}
+          style={{ backgroundColor: financeCardSurface }}
           title="CUSTOS"
         />
         <SummaryCard
@@ -297,6 +306,7 @@ export default function PrototypeFinanceiro() {
               value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
             },
           ]}
+          style={{ backgroundColor: financeCardSurface }}
           title="RECEBIDO/MARGENS"
         />
         <SummaryCard
@@ -315,6 +325,7 @@ export default function PrototypeFinanceiro() {
               value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
             },
           ]}
+          style={{ backgroundColor: financeCardSurface }}
           title="POR BALDE"
         />
       </PremiumScreen>

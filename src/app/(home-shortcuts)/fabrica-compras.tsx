@@ -12,7 +12,10 @@ import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUti
 import { FactoryPurchasesScreen } from '@/features/factory-purchases/components/FactoryPurchasesScreen';
 import { getLiquidGlassTint, useAppTheme } from '@/theme';
 
-export function FactoryPurchasesRoute({ nativeHeader = false }: { nativeHeader?: boolean } = {}) {
+export function FactoryPurchasesRoute({
+  nativeHeader = false,
+  showLargeTitle = false,
+}: { nativeHeader?: boolean; showLargeTitle?: boolean } = {}) {
   const { resolvedMode, theme } = useAppTheme();
   const router = useRouter();
   const currentPeriod = getCurrentHistoryPeriod();
@@ -60,6 +63,20 @@ export function FactoryPurchasesRoute({ nativeHeader = false }: { nativeHeader?:
       title=""
     />
   );
+  const pageTitle = showLargeTitle ? (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title="Fábrica"
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 36,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
+    />
+  ) : undefined;
 
   return (
     <>
@@ -75,6 +92,7 @@ export function FactoryPurchasesRoute({ nativeHeader = false }: { nativeHeader?:
       <FactoryPurchasesScreen
         header={header}
         mode="purchases"
+        pageTitle={pageTitle}
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
       />
@@ -83,5 +101,5 @@ export function FactoryPurchasesRoute({ nativeHeader = false }: { nativeHeader?:
 }
 
 export default function FactoryPurchasesHomeShortcutRoute() {
-  return <FactoryPurchasesRoute nativeHeader />;
+  return <FactoryPurchasesRoute nativeHeader showLargeTitle />;
 }

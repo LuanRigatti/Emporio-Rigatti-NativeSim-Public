@@ -5,6 +5,8 @@ export type NativeAnimatedNumberWeight =
 
 export type NativeAnimatedNumberAlignment = 'leading' | 'trailing' | 'center';
 
+export type NativeAnimatedNumberHorizontalSizing = 'intrinsic' | 'fill';
+
 export type NativeAnimatedNumberProps = {
   value: number | null;
   text: string;
@@ -13,6 +15,7 @@ export type NativeAnimatedNumberProps = {
   fontWeight?: NativeAnimatedNumberWeight;
   lineHeight?: number;
   alignment?: NativeAnimatedNumberAlignment;
+  horizontalSizing?: NativeAnimatedNumberHorizontalSizing;
   animationEnabled?: boolean;
   style?: StyleProp<TextStyle>;
 };

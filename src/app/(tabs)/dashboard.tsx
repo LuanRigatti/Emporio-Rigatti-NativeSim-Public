@@ -6,13 +6,11 @@ import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeAvatarButton, NativeSearchField } from '@/components/native';
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
 import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
-import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
-import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
 import { useOpenPaymentClients } from '@/features/open-payments/hooks/useOpenPaymentClients';
 import { HomeSearchResultsSheet } from '@/features/home/components/HomeSearchResultsSheet';
 import { HomeSearchHelpSheet } from '@/features/home/help/HomeSearchHelpSheet';
@@ -50,6 +48,7 @@ export default function Home() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const { resolvedMode, theme } = useAppTheme();
+  const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { user } = useAuth();
   const {
     currency: maskCurrency,
@@ -78,17 +77,11 @@ export default function Home() {
   const { search: runHomeSearch } = useHomeSearch();
   const {
     deliveries: dailyDeliveries,
-    create: createDelivery,
     remove: removeDelivery,
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
   const { clients } = useClients();
   const { purchases: factoryPurchases } = useFactoryPurchases();
-  const registrarDeliverySheet = useRegistrarDeliverySheet({
-    clients,
-    create: createDelivery,
-  });
-  const { openSheet: openRegistrarDeliverySheet } = registrarDeliverySheet;
   const eligibleClientIds = useMemo(
     () =>
       clients
@@ -162,7 +155,7 @@ export default function Home() {
     if (focused) void prewarmAppleIntelligence();
   }, []);
 
-  const handleSearchSubmit = useCallback(
+  const submitHomeSearch = useCallback(
     (submittedValue: string) => {
       const searchId = activeSearchId.current + 1;
       const query = submittedValue.trim();
@@ -181,6 +174,11 @@ export default function Home() {
       });
     },
     [runHomeSearch],
+  );
+
+  const handleSearchSubmit = useCallback(
+    (submittedValue: string) => submitHomeSearch(submittedValue),
+    [submitHomeSearch],
   );
 
   const handleSearchSheetImplementationReady = useCallback(
@@ -229,7 +227,11 @@ export default function Home() {
       presentHelpSheet,
     );
     Keyboard.dismiss();
-  }, [clearHelpKeyboardListeners, isHelpSheetVisible, presentHelpSheet]);
+  }, [
+    clearHelpKeyboardListeners,
+    isHelpSheetVisible,
+    presentHelpSheet,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -260,24 +262,25 @@ export default function Home() {
     dispatchSearchFlow({ type: 'DISMISS_COMPLETED' });
   }, []);
 
-  const handleOpenRecebimentos = () => {
+  const handleOpenRecebimentos = useCallback(() => {
     triggerLightImpactHaptic();
     router.push('/em-aberto');
-  };
+  }, [router]);
 
-  const handleOpenFactory = () => {
+  const handleOpenFactory = useCallback(() => {
     triggerLightImpactHaptic();
     router.push('/fabrica-compras');
-  };
+  }, [router]);
 
   const handleOpenRegistrarEntrega = useCallback(() => {
-    openRegistrarDeliverySheet();
-  }, [openRegistrarDeliverySheet]);
+    triggerLightImpactHaptic();
+    router.push('/registrar-entrega');
+  }, [router]);
 
-  const handleOpenDocumentos = () => {
+  const handleOpenDocumentos = useCallback(() => {
     triggerLightImpactHaptic();
     router.push('/notas-fiscais-boletos');
-  };
+  }, [router]);
 
   const handleOpenProfile = useCallback(() => {
     setIsProfileSheetVisible(true);
@@ -382,7 +385,11 @@ export default function Home() {
             onPress={handleOpenRegistrarEntrega}
             style={[
               styles.widgetCard,
-              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+              {
+                backgroundColor: homeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                padding: theme.spacing.lg,
+              },
             ]}
           >
             <View style={styles.widgetHeader}>
@@ -414,7 +421,11 @@ export default function Home() {
             onPress={handleOpenRecebimentos}
             style={[
               styles.widgetCard,
-              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+              {
+                backgroundColor: homeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                padding: theme.spacing.lg,
+              },
             ]}
           >
             <View style={styles.widgetHeader}>
@@ -454,6 +465,7 @@ export default function Home() {
             style={[
               styles.widgetCard,
               {
+                backgroundColor: homeCardSurface,
                 borderRadius: theme.radius.xl + theme.spacing.sm,
                 padding: theme.spacing.lg,
               },
@@ -491,7 +503,11 @@ export default function Home() {
             onPress={handleOpenFactory}
             style={[
               styles.widgetCard,
-              { borderRadius: theme.radius.xl + theme.spacing.sm, padding: theme.spacing.lg },
+              {
+                backgroundColor: homeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                padding: theme.spacing.lg,
+              },
             ]}
           >
             <View style={styles.widgetHeader}>
@@ -522,6 +538,7 @@ export default function Home() {
 
         <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
           <TodayDeliveriesCard
+            cardSurfaceColor={homeCardSurface}
             deliveries={todayDeliveries}
             onDelete={handleTodayDeliveryDelete}
             onToggleStatus={handleTodayStatusToggle}
@@ -541,7 +558,6 @@ export default function Home() {
         onSelectQuery={handleHelpSelectQuery}
         visible={isHelpSheetVisible}
       />
-      <RegistrarDeliverySheet controller={registrarDeliverySheet} />
       <HomeProfileSheet
         onVisibleChange={setIsProfileSheetVisible}
         visible={isProfileSheetVisible}

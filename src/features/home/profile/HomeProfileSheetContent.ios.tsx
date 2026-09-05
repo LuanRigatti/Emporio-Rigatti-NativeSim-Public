@@ -25,7 +25,7 @@ import {
 import { StyleSheet, View } from 'react-native';
 
 import { NativeAvatarButton } from '@/components/native';
-import { getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 
 import type { HomeProfileSheetContentProps } from './HomeProfileSheetContent';
@@ -164,7 +164,10 @@ export default function HomeProfileSheetContent({
                 {resolvedMode === 'dark' ? (
                   <View
                     pointerEvents="none"
-                    style={[StyleSheet.absoluteFill, { backgroundColor: '#2A2A2A' }]}
+                    style={[
+                      StyleSheet.absoluteFill,
+                      { backgroundColor: getCardSurfaceColor(resolvedMode, '#FFFFFF') },
+                    ]}
                   />
                 ) : null}
               </View>

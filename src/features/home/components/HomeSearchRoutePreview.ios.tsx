@@ -6,7 +6,7 @@ import { Text, View } from 'react-native';
 import { NativeTrackedRoutesMap } from '@/components/routes';
 import { locationTrackingService } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { selectHomeSearchRouteSessions } from './HomeSearchRoutePreviewAdapter';
 
 const ROUTE_MAP_PREVIEW_HEIGHT = {
@@ -25,7 +25,7 @@ type PreviewState = {
 };
 
 export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const normalizedIds = useMemo(
     () => Array.from(new Set(sessionIds.filter((sessionId) => sessionId.length > 0))),
     [sessionIds],
@@ -91,7 +91,7 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
         <View
           pointerEvents={isLarge ? 'auto' : 'none'}
           style={{
-            backgroundColor: theme.colors.surface,
+            backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
             borderRadius: theme.radius.xl + theme.spacing.xs,
             height,
             overflow: 'hidden',

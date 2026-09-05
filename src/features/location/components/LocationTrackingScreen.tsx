@@ -11,7 +11,7 @@ import { NativeTrackedRouteMap } from '@/components/routes';
 import { locationTrackingService, RouteTrackingError } from '@/services/routes';
 import type { LocationTrackingService } from '@/services/routes';
 import type { RouteTrackingRecord, RouteTrackingSession } from '@/types/routeTracking';
-import { getLiquidGlassTint, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { formatCurrency } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
@@ -334,7 +334,7 @@ function RouteHistoryCard({
   const { resolvedMode } = useAppTheme();
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const routeCardStyle: ViewStyle = {
-    backgroundColor: resolvedMode === 'dark' ? '#131417' : theme.colors.glassSurface,
+    backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.glassSurface),
     borderRadius: theme.radius.xl + theme.spacing.xs,
     width: '100%',
   };

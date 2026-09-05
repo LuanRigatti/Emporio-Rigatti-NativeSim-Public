@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { NativeBottomSheetConfirmation, NativeBottomSheetItem } from '@/components/native';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
@@ -10,31 +10,41 @@ export const DEFAULT_REGISTRAR_DELIVERY_BUCKET_PRICE = 49.8;
 
 type CreateDelivery = (draft: DeliveryDraft) => Promise<Delivery>;
 
+export type RegistrarDeliverySheetPhase = 'closed' | 'presented' | 'dismissing';
+
 type UseRegistrarDeliverySheetOptions = {
   clients: readonly ClientModel[];
   create: CreateDelivery;
+  onDismiss?: () => void;
 };
 
 export type RegistrarDeliverySheetController = {
   clientItems: NativeBottomSheetItem[];
+  dismissSheet: () => void;
+  getSheetPhase: () => RegistrarDeliverySheetPhase;
   handleConfirm: (confirmation: NativeBottomSheetConfirmation) => void;
+  handleDismiss: () => void;
   handlePageSettled: (page: number) => void;
   handleSelect: (item: NativeBottomSheetItem) => void;
   handleVisibleChange: (visible: boolean) => void;
   openSheet: () => void;
   recentlyAddedDeliveryIds: readonly string[];
   selectedClient: NativeBottomSheetItem | null;
+  sheetDismissing: boolean;
   sheetVisible: boolean;
 };
 
 export function useRegistrarDeliverySheet({
   clients,
   create,
+  onDismiss,
 }: UseRegistrarDeliverySheetOptions): RegistrarDeliverySheetController {
   const { enabled: testModeEnabled } = useTestModePresentation();
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [sheetDismissing, setSheetDismissing] = useState(false);
   const [selectedClient, setSelectedClient] = useState<NativeBottomSheetItem | null>(null);
   const [recentlyAddedDeliveryIds, setRecentlyAddedDeliveryIds] = useState<readonly string[]>([]);
+  const sheetPhaseRef = useRef<RegistrarDeliverySheetPhase>('closed');
 
   const clientItems = useMemo<NativeBottomSheetItem[]>(
     () =>
@@ -48,10 +58,24 @@ export function useRegistrarDeliverySheet({
   );
 
   const openSheet = useCallback(() => {
+    if (sheetPhaseRef.current === 'dismissing') return;
+
     triggerLightImpactHaptic();
     setSelectedClient(null);
+    sheetPhaseRef.current = 'presented';
+    setSheetDismissing(false);
     setSheetVisible(true);
   }, []);
+
+  const dismissSheet = useCallback(() => {
+    if (sheetPhaseRef.current !== 'presented') return;
+
+    sheetPhaseRef.current = 'dismissing';
+    setSheetDismissing(true);
+    setSheetVisible(false);
+  }, []);
+
+  const getSheetPhase = useCallback(() => sheetPhaseRef.current, []);
 
   const handleConfirm = useCallback(
     (confirmation: NativeBottomSheetConfirmation) => {
@@ -82,9 +106,9 @@ export function useRegistrarDeliverySheet({
         })
         .catch(() => undefined);
 
-      setSheetVisible(false);
+      dismissSheet();
     },
-    [clients, create, testModeEnabled],
+    [clients, create, dismissSheet, testModeEnabled],
   );
 
   const handleSelect = useCallback(
@@ -99,9 +123,32 @@ export function useRegistrarDeliverySheet({
   );
 
   const handleVisibleChange = useCallback((visible: boolean) => {
-    setSheetVisible(visible);
-    if (!visible) setSelectedClient(null);
+    if (visible) {
+      if (sheetPhaseRef.current === 'dismissing') return;
+
+      sheetPhaseRef.current = 'presented';
+      setSheetDismissing(false);
+      setSheetVisible(true);
+      return;
+    }
+
+    if (sheetPhaseRef.current === 'closed') return;
+
+    sheetPhaseRef.current = 'dismissing';
+    setSheetDismissing(true);
+    setSheetVisible(false);
+    setSelectedClient(null);
   }, []);
+
+  const handleDismiss = useCallback(() => {
+    if (sheetPhaseRef.current === 'closed') return;
+
+    sheetPhaseRef.current = 'closed';
+    onDismiss?.();
+    setSheetDismissing(false);
+    setSheetVisible(false);
+    setSelectedClient(null);
+  }, [onDismiss]);
 
   const handlePageSettled = useCallback((page: number) => {
     if (page === 0) setSelectedClient(null);
@@ -109,13 +156,17 @@ export function useRegistrarDeliverySheet({
 
   return {
     clientItems,
+    dismissSheet,
+    getSheetPhase,
     handleConfirm,
+    handleDismiss,
     handlePageSettled,
     handleSelect,
     handleVisibleChange,
     openSheet,
     recentlyAddedDeliveryIds,
     selectedClient,
+    sheetDismissing,
     sheetVisible,
   };
 }

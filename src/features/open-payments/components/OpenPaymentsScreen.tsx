@@ -6,7 +6,7 @@ import { NativeGlassHeader } from '@/components/layout';
 import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useDeliveries } from '@/hooks/useDeliveries';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type { Delivery } from '@/types/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -60,8 +60,7 @@ export function OpenPaymentsScreen() {
         {
           ...(preview
             ? {
-                backgroundColor:
-                  resolvedMode === 'dark' ? theme.colors.surfaceElevated : theme.colors.surface,
+                backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
               }
             : {}),
           borderRadius: theme.radius.xl + theme.spacing.md,

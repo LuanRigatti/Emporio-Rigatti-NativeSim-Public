@@ -41,6 +41,7 @@ import type {
 type Props = {
   isLarge?: boolean;
   model: HomeSearchResultVisualModel;
+  scrollable?: boolean;
 };
 
 const asSymbol = (value: string) => value as SFSymbol;
@@ -455,7 +456,11 @@ function ResultContent({
 
 const COMPACT_ROUTE_PAGER_TOP_PADDING = 20;
 
-export default function HomeSearchResultsNative({ isLarge = false, model }: Props) {
+export default function HomeSearchResultsNative({
+  isLarge = false,
+  model,
+  scrollable = true,
+}: Props) {
   const { resolvedMode } = useAppTheme();
   const cardBackground = getCardSurfaceColor(resolvedMode, '#FFFFFF');
 
@@ -504,7 +509,11 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
           top: topPadding,
           bottom: spacing.xxl,
         }),
-        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+        frame(
+          scrollable
+            ? { maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }
+            : { maxWidth: Infinity, alignment: 'topLeading' },
+        ),
       ]}
     >
       {model.empty ? (
@@ -524,7 +533,7 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
     </VStack>
   );
 
-  return (
+  return scrollable ? (
     <ScrollView
       axes="vertical"
       modifiers={[frame({ maxHeight: Infinity, alignment: 'top' })]}
@@ -532,5 +541,7 @@ export default function HomeSearchResultsNative({ isLarge = false, model }: Prop
     >
       {content}
     </ScrollView>
+  ) : (
+    content
   );
 }

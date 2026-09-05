@@ -9,9 +9,9 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `37ea3ca`
-  (`feat: refine native flows and financial navigation`), estado anterior à publicação
-  desta atualização.
+- Base Git desta atualização: `09abb4e`
+  (`feat: unify registrar delivery entry points`), estado anterior ao fechamento
+  atual.
 - Este snapshot descreve o estado funcional versionado pela atualização atual;
   o commit de publicação deve ser consultado no histórico Git para evitar
   referência autorreferente no documento.
@@ -39,8 +39,10 @@ o status esperado é limpo.
 
 ### Home
 
-- A Home mantém os cards, carrossel, Search Bar, `Em aberto`, Documentos,
-  Fábrica e `Entregas de hoje` com os dados e handlers existentes.
+- A Home mantém os cards, carrossel, botão circular de pesquisa, `Em aberto`,
+  Documentos, Fábrica e `Entregas de hoje` com os dados e handlers existentes.
+  O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou campo
+  editável na Home.
 - O card `Registrar Entrega` navega para `/registrar-entrega`; não abre um
   Bottom Sheet diretamente sobre a Home. A rota de destino passa
   `inlineClientSelection` e usa exatamente o mesmo fluxo de um único
@@ -54,6 +56,20 @@ o status esperado é limpo.
   permanecem inalterados.
 - O empty state de `Entregas de hoje` usa a altura mínima compactada atual
   (`theme.spacing.xxl * 5`), sem alterar os cards com dados.
+
+### Pesquisa dedicada
+
+- `/pesquisa` é uma tela dedicada no Native Stack, com botão voltar nativo,
+  título `Pesquisa` e título/conteúdo dentro do padrão rolável com Progressive
+  Blur superior.
+- Sugestões e resultados reutilizam parser, datasource, serviço, ações e rotas
+  existentes; as sugestões são apresentadas dentro de um card visual próprio.
+- No iOS Development Build, o campo usa o módulo local `native-search-field`
+  com a opção opt-in `keyboardAccessory`. A apresentação inferior é um
+  accessory SwiftUI via `.toolbar { ToolbarItem(placement: .keyboard) { ... } }`,
+  preservando value, callbacks, foco, blur, submit, clear, placeholder e temas.
+- A rota removeu o reposicionamento artificial do teclado; o foco aguarda a
+  transição nativa da entrada e o cleanup dispensa o teclado ao sair.
 
 ### Registrar Entrega e Dados Diários
 
@@ -134,6 +150,8 @@ o status esperado é limpo.
 - Logs operacionais existentes de fallback, rota e integração Apple Intelligence
   permanecem porque fazem parte dos fluxos reais e não são instrumentação deste
   fechamento.
+- A instrumentação temporária de lifecycle da Pesquisa foi removida; não há
+  contadores, listeners ou helpers de diagnóstico desse fluxo.
 
 ## Estado nativo atual
 
@@ -159,6 +177,10 @@ o status esperado é limpo.
   roteamento/bridge Swift ainda não foi recompilada no iPhone e exige uma nova
   Development Build para validação. Até essa validação, Apple Intelligence não
   deve ser considerado validado.
+- A tela `/pesquisa` e o keyboard accessory nativo do módulo local
+  `native-search-field` também exigem nova Development Build. Essa build deve
+  validar conjuntamente o accessory SwiftUI e as alterações nativas pendentes
+  do Apple Intelligence.
 
 ### IMPLEMENTADO, PENDENTE DE VALIDAÇÃO VISUAL NO IPHONE
 
@@ -211,28 +233,27 @@ o status esperado é limpo.
 - Não há instrumentação `[HomeStartupTrace]`, blobs, `Card Glass`, `Card Blur` ou
   outros experimentos visuais descartados no estado final.
 
-As alterações atuais são TS/TSX sobre APIs nativas já existentes. Não exigem nova
-Development Build; podem ser testadas via Fast Refresh na Development Build atual,
-embora a confirmação visual final do startup/cache ainda precise ser repetida no
-iPhone.
+As alterações atuais incluem o módulo iOS local `native-search-field`, seu
+podspec autolinkável e a integração TS/TSX da rota `/pesquisa`. A próxima
+validação visual exige uma nova Development Build; não foi executada neste
+Windows.
 
 ### Componentes e módulos nativos relevantes
 
 - `@expo/ui`/SwiftUI, Native Stack e NativeTabs.
 - `NativeAppleIntelligence`, `NativeQuickActions`, `NativeStartupSplash`,
   `NativeInteractivePager`, `NativeCardContextMenu` e
-  `NativeTrackedRouteMap`.
+  `NativeTrackedRouteMap`, além do novo `NativeSearchField`.
 - `NativeGlassHeader`, `NativeDateToolbar`, `NativeAnimatedNumber` e controles
   Liquid Glass compartilhados, além de `NativeSegmentedControl`.
 - Widgets, App Groups, Live Activities e Dynamic Island não foram adicionados.
 
 ## Estado funcional recente
 
-- Home Search: Bottom Sheet imediato, parser fast path somente para consultas
-  válidas, caminho semântico Apple Intelligence, prewarm, suporte pt-BR,
-  cancelamento de gerações obsoletas e sheets de sugestões/resultados com
-  apresentação externa transparente, interação com o background habilitada e
-  itens de sugestão nativos preservados.
+- Home Search: rota `/pesquisa` dedicada, parser fast path somente para
+  consultas válidas, caminho semântico Apple Intelligence, prewarm, suporte
+  pt-BR, cancelamento de gerações obsoletas e sugestões/resultados dentro do
+  fluxo rolável da tela, preservando ações e rotas existentes.
 - Quick Actions: Registrar entrega, Registrar dados, Modo Teste e Histórico;
   a ação é enfileirada até autenticação, hidratação e router estarem prontos.
 - NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global

@@ -11,12 +11,14 @@ type Props = {
   isLarge?: boolean;
   loading: boolean;
   response: HomeSearchResponse | null;
+  scrollable?: boolean;
 };
 
 export default function HomeSearchResultsContent({
   isLarge = false,
   loading,
   response,
+  scrollable = true,
 }: Props) {
   if (!response) {
     return loading ? (
@@ -38,6 +40,7 @@ export default function HomeSearchResultsContent({
     <HomeSearchResultsNative
       isLarge={isLarge}
       model={createHomeSearchResultVisualModel(response)}
+      scrollable={scrollable}
     />
   );
 }

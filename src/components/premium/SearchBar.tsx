@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -20,6 +20,8 @@ export type PremiumSearchBarProps = Omit<
   onChangeText: (value: string) => void;
   onClear?: () => void;
   onPressHelp?: () => void;
+  focusRequestKey?: number;
+  blurRequestKey?: number;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -30,6 +32,8 @@ export function SearchBar({
   onFocus,
   onBlur,
   onPressHelp,
+  blurRequestKey,
+  focusRequestKey,
   placeholder = 'Buscar',
   style,
   value,
@@ -37,6 +41,17 @@ export function SearchBar({
 }: PremiumSearchBarProps) {
   const { theme } = useAppTheme();
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (focusRequestKey === undefined || focusRequestKey <= 0) return;
+    inputRef.current?.focus();
+  }, [focusRequestKey]);
+
+  useEffect(() => {
+    if (blurRequestKey === undefined || blurRequestKey <= 0) return;
+    inputRef.current?.blur();
+  }, [blurRequestKey]);
 
   return (
     <View
@@ -58,6 +73,7 @@ export function SearchBar({
         {...props}
         accessibilityLabel={accessibilityLabel}
         allowFontScaling
+        ref={inputRef}
         onBlur={(event) => {
           setFocused(false);
           onBlur?.(event);

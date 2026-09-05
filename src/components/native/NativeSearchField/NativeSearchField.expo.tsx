@@ -5,6 +5,10 @@ import type { NativeSearchFieldProps } from './NativeSearchField.types';
 
 export default function NativeSearchFieldExpo({
   accessibilityLabel,
+  autoFocus,
+  blurRequestKey,
+  focusRequestKey,
+  hapticOnFocus = true,
   onChangeText,
   onFocusChange,
   onPressHelp,
@@ -15,10 +19,15 @@ export default function NativeSearchFieldExpo({
   return (
     <SearchBar
       accessibilityLabel={accessibilityLabel}
+      autoFocus={autoFocus}
+      blurRequestKey={blurRequestKey}
+      focusRequestKey={focusRequestKey}
       onChangeText={onChangeText}
-      onBlur={() => onFocusChange?.(false)}
+      onBlur={() => {
+        onFocusChange?.(false);
+      }}
       onFocus={() => {
-        triggerLightImpactHaptic();
+        if (hapticOnFocus) triggerLightImpactHaptic();
         onFocusChange?.(true);
       }}
       onPressHelp={onPressHelp}

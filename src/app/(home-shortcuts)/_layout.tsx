@@ -29,6 +29,15 @@ export default function HomeShortcutsLayout() {
           />
         </Stack.Toolbar>
       </Stack.Screen>
+      <Stack.Screen name="pesquisa" options={{ gestureEnabled: true }}>
+        <Stack.Toolbar placement="left">
+          <Stack.Toolbar.Button
+            accessibilityLabel="Voltar para Home"
+            icon="chevron.left"
+            onPress={() => router.back()}
+          />
+        </Stack.Toolbar>
+      </Stack.Screen>
       <Stack.Screen name="fabrica-compras" options={{ gestureEnabled: false }}>
         <Stack.Toolbar placement="left">
           <Stack.Toolbar.Button

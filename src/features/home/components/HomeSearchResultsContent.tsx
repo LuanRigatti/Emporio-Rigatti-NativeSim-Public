@@ -10,9 +10,10 @@ type Props = {
   isLarge?: boolean;
   loading: boolean;
   response: HomeSearchResponse | null;
+  scrollable?: boolean;
 };
 
-export default function HomeSearchResultsContent({ loading, response }: Props) {
+export default function HomeSearchResultsContent({ loading, response, scrollable = true }: Props) {
   const { theme } = useAppTheme();
   if (!response) {
     return loading ? (
@@ -26,7 +27,12 @@ export default function HomeSearchResultsContent({ loading, response }: Props) {
       <View />
     );
   }
-  return <HomeSearchResultsFallback model={createHomeSearchResultVisualModel(response)} />;
+  return (
+    <HomeSearchResultsFallback
+      model={createHomeSearchResultVisualModel(response)}
+      scrollable={scrollable}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

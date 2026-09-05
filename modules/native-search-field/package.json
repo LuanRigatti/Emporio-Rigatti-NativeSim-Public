@@ -1,0 +1,8 @@
+{
+  "name": "native-search-field",
+  "version": "0.1.0",
+  "description": "Native SwiftUI search field with an opt-in keyboard accessory.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

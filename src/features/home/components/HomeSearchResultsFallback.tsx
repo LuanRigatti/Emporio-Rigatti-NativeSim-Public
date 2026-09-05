@@ -13,6 +13,7 @@ import type {
 
 type Props = {
   model: HomeSearchResultVisualModel;
+  scrollable?: boolean;
 };
 
 function ResultHeader({ query, result }: { query?: string; result: HomeSearchVisualResult }) {
@@ -128,17 +129,21 @@ function ResultContent({ query, result }: { query?: string; result: HomeSearchVi
   );
 }
 
-export default function HomeSearchResultsFallback({ model }: Props) {
-  return (
+export default function HomeSearchResultsFallback({ model, scrollable = true }: Props) {
+  const content = model.empty ? (
+    <ResultState result={model} />
+  ) : (
+    model.items.map((result) => (
+      <ResultContent key={result.id} query={model.query} result={result} />
+    ))
+  );
+
+  return scrollable ? (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      {model.empty ? (
-        <ResultState result={model} />
-      ) : (
-        model.items.map((result) => (
-          <ResultContent key={result.id} query={model.query} result={result} />
-        ))
-      )}
+      {content}
     </ScrollView>
+  ) : (
+    <View style={styles.scrollContent}>{content}</View>
   );
 }
 

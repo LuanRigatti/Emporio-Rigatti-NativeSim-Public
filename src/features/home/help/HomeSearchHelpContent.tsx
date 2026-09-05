@@ -7,6 +7,7 @@ import { HOME_SEARCH_HELP_SUGGESTIONS } from './HomeSearchHelpData';
 import type { SearchHelpExample } from './HomeSearchHelpTypes';
 
 type Props = {
+  cardBackground?: string;
   onSelectQuery: (query: string) => void;
 };
 
@@ -56,7 +57,7 @@ function HelpExampleRow({
   );
 }
 
-export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
+export default function HomeSearchHelpContent({ cardBackground, onSelectQuery }: Props) {
   const { resolvedMode, theme } = useAppTheme();
 
   return (
@@ -74,10 +75,13 @@ export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
         style={[
           styles.suggestionsCard,
           {
-            backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+            backgroundColor:
+              cardBackground ?? getCardSurfaceColor(resolvedMode, theme.colors.surface),
             borderColor: theme.colors.separator,
             borderRadius: 40,
+            borderWidth: theme.borders.width.thin,
           },
+          resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
         ]}
       >
         {HOME_SEARCH_HELP_SUGGESTIONS.map((suggestion, index) => (
@@ -95,7 +99,6 @@ export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
 
 const styles = StyleSheet.create({
   suggestionsCard: {
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   divider: {

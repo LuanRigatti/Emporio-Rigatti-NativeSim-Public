@@ -1,6 +1,7 @@
 import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
+  background,
   buttonStyle,
   contentShape,
   font,
@@ -20,6 +21,7 @@ import type { SearchHelpExample } from './HomeSearchHelpTypes';
 const asSymbol = (value: string) => value as SFSymbol;
 
 type Props = {
+  cardBackground?: string;
   onSelectQuery: (query: string) => void;
 };
 
@@ -86,7 +88,10 @@ function HelpExampleRow({
   );
 }
 
-export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
+export default function HomeSearchHelpContent({
+  cardBackground = 'secondarySystemGroupedBackground',
+  onSelectQuery,
+}: Props) {
   return (
     <VStack
       alignment="leading"
@@ -107,6 +112,10 @@ export default function HomeSearchHelpContent({ onSelectQuery }: Props) {
           modifiers={[
             padding({ horizontal: spacing.xxs / 2 }),
             frame({ maxWidth: Infinity, alignment: 'leading' }),
+            background(
+              cardBackground,
+              shapes.roundedRectangle({ cornerRadius: 28, roundedCornerStyle: 'continuous' }),
+            ),
           ]}
         >
           {HOME_SEARCH_HELP_SUGGESTIONS.map((suggestion) => (

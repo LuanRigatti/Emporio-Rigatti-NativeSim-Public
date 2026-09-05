@@ -8,6 +8,7 @@ import {
   Host,
   Image,
   List,
+  Menu,
   RNHostView,
   Spacer,
   Text,
@@ -60,6 +61,13 @@ import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
 import { roundedFont } from '../nativeTypography';
+import {
+  createNativeDayItems,
+  createNativeMonthItems,
+  createNativeYearItems,
+  formatNativeToolbarDate,
+  updateNativeDate,
+} from '../nativeDateToolbarUtils';
 
 const NATIVE_SHEET_TRANSPARENT_BACKGROUND = '#00000000';
 const REGISTRAR_LIST_COMPACT_DETENT = { fraction: 0.48 } as const;
@@ -79,11 +87,13 @@ export default function NativeBottomSheetSwiftUI({
   onDetentChange,
   onPageSettled,
   selectedItem: controlledSelectedItem,
+  title,
   initialQuantity,
   initialDetent,
   selectedDetent,
   glassSurface = false,
   glassTint,
+  initialPage = 0,
   presentationBackgroundInteraction: backgroundInteraction = 'enabled',
   presentationBackgroundMode = 'system',
   hostSizing = 'content',
@@ -94,14 +104,22 @@ export default function NativeBottomSheetSwiftUI({
   const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
     useTestModePresentation();
   const usesRegistrarSheetBehavior = content == null;
+  const usesInlineClientSelection = usesRegistrarSheetBehavior && initialPage === 1;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
   const [currentDetent, setCurrentDetent] = useState<PresentationDetent>(
-    initialDetent ?? REGISTRAR_LIST_COMPACT_DETENT,
+    initialDetent ??
+      (usesInlineClientSelection ? REGISTRAR_DETAIL_DETENT : REGISTRAR_LIST_COMPACT_DETENT),
   );
   const [detailDetentSettled, setDetailDetentSettled] = useState(false);
   const selectedItem = controlledSelectedItem ?? null;
+  const detailRowVerticalPadding = usesInlineClientSelection ? 6 : 8;
+  const selectedYear = selectedDate.getFullYear();
+  const selectedMonth = selectedDate.getMonth() + 1;
+  const dateMenuMonths = createNativeMonthItems();
+  const dateMenuYears = createNativeYearItems();
+  const dateMenuDays = createNativeDayItems(selectedYear, selectedMonth);
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
   const presentedQuantity = maskNumber(bucketQuantity);
   const presentedTotal = testModeEnabled
@@ -117,9 +135,11 @@ export default function NativeBottomSheetSwiftUI({
       setBucketQuantity(1);
       setQuantityDirection('up');
       setSelectedDate(new Date());
-      setCurrentDetent(REGISTRAR_LIST_COMPACT_DETENT);
+      setCurrentDetent(
+        usesInlineClientSelection ? REGISTRAR_DETAIL_DETENT : REGISTRAR_LIST_COMPACT_DETENT,
+      );
     }
-  }, [visible]);
+  }, [usesInlineClientSelection, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -184,11 +204,73 @@ export default function NativeBottomSheetSwiftUI({
         spacing={spacing.xs}
         modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
       >
-        {selectedItem ? (
+        {selectedItem || usesInlineClientSelection ? (
           <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
             <HStack
-              modifiers={[frame({ maxWidth: 1000, alignment: 'trailing' }), padding({ trailing: 8 })]}
+              alignment="center"
+              modifiers={[frame({ maxWidth: 1000, alignment: 'center' }), padding({ trailing: 8 })]}
             >
+              {usesInlineClientSelection ? (
+                <Menu
+                  modifiers={[buttonStyle('plain'), accessibilityLabel('Selecionar data')]}
+                  label={
+                    <HStack
+                      alignment="center"
+                      modifiers={[
+                        padding({ horizontal: 14, vertical: 8 }),
+                        frame({ width: 72, height: 44, alignment: 'center' }),
+                        glassEffect({
+                          glass: { interactive: true, variant: 'regular' },
+                          shape: 'capsule',
+                        }),
+                        contentShape(shapes.capsule()),
+                      ]}
+                    >
+                      <Text modifiers={[roundedFont({ size: 17 })]}>
+                        {formatNativeToolbarDate(selectedDate)}
+                      </Text>
+                    </HStack>
+                  }
+                >
+                  <Menu label="Mês" systemImage="calendar">
+                    {dateMenuMonths.map((item) => (
+                      <Button
+                        key={String(item.value)}
+                        label={item.label}
+                        modifiers={[roundedFont({})]}
+                        onPress={() =>
+                          setSelectedDate((value) => updateNativeDate(value, { month: item.value }))
+                        }
+                      />
+                    ))}
+                  </Menu>
+                  <Menu label="Ano" systemImage="calendar.badge.clock">
+                    {dateMenuYears.map((item) => (
+                      <Button
+                        key={String(item.value)}
+                        label={item.label}
+                        modifiers={[roundedFont({})]}
+                        onPress={() =>
+                          setSelectedDate((value) => updateNativeDate(value, { year: item.value }))
+                        }
+                      />
+                    ))}
+                  </Menu>
+                  <Menu label="Dia" systemImage="calendar.day.timeline.left">
+                    {dateMenuDays.map((value) => (
+                      <Button
+                        key={String(value)}
+                        label={String(value)}
+                        modifiers={[roundedFont({})]}
+                        onPress={() =>
+                          setSelectedDate((date) => updateNativeDate(date, { day: value }))
+                        }
+                      />
+                    ))}
+                  </Menu>
+                </Menu>
+              ) : null}
+              <Spacer />
               <Button
                 modifiers={[
                   buttonStyle('plain'),
@@ -198,7 +280,7 @@ export default function NativeBottomSheetSwiftUI({
                     glass: { interactive: true, variant: 'regular' },
                     shape: 'circle',
                   }),
-                  offset({ x: 4, y: -9 }),
+                  offset({ x: 4, y: usesInlineClientSelection ? 0 : -9 }),
                   accessibilityLabel('Fechar'),
                 ]}
                 onPress={() => {
@@ -210,7 +292,7 @@ export default function NativeBottomSheetSwiftUI({
               </Button>
             </HStack>
             <Text modifiers={[roundedFont({ size: 18, weight: 'semibold' })]}>
-              {selectedItem.title}
+              {selectedItem?.title ?? title}
             </Text>
           </ZStack>
         ) : null}
@@ -219,7 +301,7 @@ export default function NativeBottomSheetSwiftUI({
           modifiers={[
             frame({ maxWidth: Infinity, alignment: 'leading' }),
             padding({ horizontal: 0, vertical: 0 }),
-            offset({ y: 4 }),
+            offset({ y: usesInlineClientSelection ? 12 : 4 }),
           ]}
         >
           {renderDetailSurface()}
@@ -238,25 +320,89 @@ export default function NativeBottomSheetSwiftUI({
                   top: spacing.xs,
                   bottom: spacing.md,
                 }),
+                ...(usesInlineClientSelection ? [offset({ y: 10 })] : []),
               ]}
             >
-              <HStack alignment="center" spacing={8} modifiers={[padding({ vertical: 8 })]}>
-                <Image size={18} systemName="calendar" />
-                <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Data</Text>
-                <Spacer />
-                <DatePicker
-                  displayedComponents={['date']}
-                  modifiers={[roundedFont({})]}
-                  onDateChange={setSelectedDate}
-                  selection={selectedDate}
-                />
-              </HStack>
+              {usesInlineClientSelection ? (
+                <HStack
+                  alignment="center"
+                  spacing={8}
+                  modifiers={[
+                    padding({ vertical: detailRowVerticalPadding }),
+                    frame({ maxWidth: Infinity, alignment: 'leading' }),
+                  ]}
+                  >
+                  <Image size={18} systemName="person.crop.circle" />
+                  <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Cliente</Text>
+                  <Spacer />
+                  <Menu
+                    modifiers={[buttonStyle('plain')]}
+                    label={
+                      <HStack
+                        alignment="center"
+                        spacing={8}
+                        modifiers={[
+                          padding({ horizontal: 4 }),
+                          contentShape(shapes.rectangle()),
+                        ]}
+                      >
+                        <Text
+                          modifiers={[
+                            roundedFont({ size: 17, weight: 'semibold' }),
+                            ...(selectedItem ? [] : [foregroundStyle(theme.colors.textSecondary)]),
+                          ]}
+                        >
+                          {selectedItem?.title ?? 'Selecionar'}
+                        </Text>
+                        <Image
+                          color={theme.colors.textSecondary}
+                          size={14}
+                          systemName="chevron.right"
+                        />
+                      </HStack>
+                    }
+                  >
+                    {items.map((item) => (
+                      <Button
+                        key={item.id}
+                        label={item.title}
+                        modifiers={[roundedFont({})]}
+                        onPress={() => handleSelect(item)}
+                      />
+                    ))}
+                  </Menu>
+                </HStack>
+              ) : null}
+              {!usesInlineClientSelection ? (
+                <HStack
+                  alignment="center"
+                  spacing={8}
+                  modifiers={[padding({ vertical: detailRowVerticalPadding })]}
+                >
+                  <Image size={18} systemName="calendar" />
+                  <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Data</Text>
+                  <Spacer />
+                  <DatePicker
+                    displayedComponents={['date']}
+                    modifiers={[roundedFont({})]}
+                    onDateChange={setSelectedDate}
+                    selection={selectedDate}
+                  />
+                </HStack>
+              ) : null}
               <HStack
                 alignment="center"
                 spacing={8}
-                modifiers={[padding({ vertical: 8 }), offset({ y: 6 })]}
+                modifiers={[
+                  padding({ vertical: detailRowVerticalPadding }),
+                  offset({ y: usesInlineClientSelection ? 0 : 6 }),
+                ]}
               >
-                <Image size={18} systemName="shippingbox" />
+                <Image
+                  modifiers={usesInlineClientSelection ? [offset({ y: -2 })] : []}
+                  size={18}
+                  systemName="shippingbox"
+                />
                 <Text
                   modifiers={[roundedFont({ size: 17, weight: 'semibold' }), offset({ y: -2 })]}
                 >
@@ -324,7 +470,10 @@ export default function NativeBottomSheetSwiftUI({
               <HStack
                 alignment="center"
                 spacing={8}
-                modifiers={[padding({ vertical: 8 }), offset({ y: 10 })]}
+                modifiers={[
+                  padding({ vertical: detailRowVerticalPadding }),
+                  offset({ y: usesInlineClientSelection ? 0 : 10 }),
+                ]}
               >
                 <Image modifiers={[offset({ x: 4 })]} size={16} systemName="dollarsign" />
                 <Text
@@ -349,8 +498,9 @@ export default function NativeBottomSheetSwiftUI({
       <ZStack
         alignment="center"
         modifiers={[
-          frame({ maxWidth: Infinity, alignment: 'center' }),
-          padding({ horizontal: spacing.xs, vertical: spacing.sm }),
+            frame({ maxWidth: Infinity, alignment: 'center' }),
+            padding({ horizontal: spacing.xs, vertical: spacing.sm }),
+            offset({ y: usesInlineClientSelection ? 8 : 0 }),
         ]}
       >
         <HStack
@@ -361,7 +511,9 @@ export default function NativeBottomSheetSwiftUI({
             modifiers={[
               buttonStyle('plain'),
               controlSize('large'),
-              disabledModifier(!selectedItem || testModeEnabled),
+              ...(usesInlineClientSelection
+                ? []
+                : [disabledModifier(!selectedItem || testModeEnabled)]),
             ]}
             onPress={() => {
               if (!selectedItem || testModeEnabled) return;
@@ -463,12 +615,21 @@ export default function NativeBottomSheetSwiftUI({
       ]}
     >
       <RNHostView matchContents={false}>
-        <RegistrarDeliveryPagerRN
-          detailPage={detailView}
-          listPage={listView}
-          onPageSettled={(page) => onPageSettled?.(page)}
-          requestedPage={selectedItem ? 1 : 0}
-        />
+        {usesInlineClientSelection ? (
+          <Host
+            pointerEvents="box-none"
+            style={{ backgroundColor: 'transparent', flex: 1, width: '100%' }}
+          >
+            {detailView}
+          </Host>
+        ) : (
+          <RegistrarDeliveryPagerRN
+            detailPage={detailView}
+            listPage={listView}
+            onPageSettled={(page) => onPageSettled?.(page)}
+            requestedPage={selectedItem ? 1 : initialPage}
+          />
+        )}
       </RNHostView>
     </VStack>
   );
@@ -525,7 +686,7 @@ export default function NativeBottomSheetSwiftUI({
   const sheetDetents =
     detents ??
     (usesRegistrarSheetBehavior
-      ? selectedItem
+      ? selectedItem || usesInlineClientSelection
         ? detailTransitionNeedsExpandedDetent
           ? ([REGISTRAR_LIST_COMPACT_DETENT, REGISTRAR_LIST_EXPANDED_DETENT] as const)
           : ([REGISTRAR_DETAIL_DETENT] as const)
@@ -535,7 +696,7 @@ export default function NativeBottomSheetSwiftUI({
         : ([{ fraction: 0.48 }, 'large'] as const));
 
   const selectedSheetDetent = usesRegistrarSheetBehavior
-    ? selectedItem
+    ? selectedItem || usesInlineClientSelection
       ? REGISTRAR_DETAIL_DETENT
       : isListExpanded
         ? REGISTRAR_LIST_EXPANDED_DETENT

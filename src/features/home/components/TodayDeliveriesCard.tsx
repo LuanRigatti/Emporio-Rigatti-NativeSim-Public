@@ -27,7 +27,7 @@ export function TodayDeliveriesCard({
   const surfaceColor = cardSurfaceColor ?? theme.colors.surface;
   const totalBuckets = deliveries.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0);
   const isEmpty = deliveries.length === 0;
-  const emptyDeliveryCardMinHeight = theme.spacing.xxl * 10;
+  const emptyDeliveryCardMinHeight = theme.spacing.xxl * 5;
   const transitionDuration = reduceMotionEnabled ? 0 : theme.animations.duration.standard;
   const contentLayoutTransition = LinearTransition.duration(transitionDuration);
 

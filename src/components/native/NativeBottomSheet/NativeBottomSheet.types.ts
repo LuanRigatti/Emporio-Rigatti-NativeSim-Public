@@ -41,6 +41,7 @@ export type NativeBottomSheetProps = {
   onConfirm?: (confirmation: NativeBottomSheetConfirmation) => void;
   onDetentChange?: (detent: NativeBottomSheetDetent) => void;
   selectedItem?: NativeBottomSheetItem | null;
+  initialPage?: 0 | 1;
   initialQuantity?: number;
   initialDetent?: NativeBottomSheetDetent;
   selectedDetent?: NativeBottomSheetDetent;

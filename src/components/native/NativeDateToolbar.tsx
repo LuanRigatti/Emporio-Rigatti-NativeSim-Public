@@ -1,5 +1,13 @@
 import { Stack } from 'expo-router';
 
+import {
+  createNativeDayItems,
+  createNativeMonthItems,
+  createNativeYearItems,
+  formatNativeToolbarDate,
+  updateNativeDate,
+} from './nativeDateToolbarUtils';
+
 type NativeDateToolbarProps = {
   mode?: 'day' | 'month' | 'week';
   onDateChange: (date: string) => void;
@@ -24,9 +32,9 @@ export function NativeDateToolbar({
 }: NativeDateToolbarProps) {
   const date = parseIsoDate(selectedDate);
   const [year, month, day] = selectedDate.split('-').map(Number);
-  const monthItems = createMonthItems();
-  const yearItems = createYearItems();
-  const dayItems = Array.from({ length: daysInMonth(year, month) }, (_, index) => index + 1);
+  const monthItems = createNativeMonthItems();
+  const yearItems = createNativeYearItems();
+  const dayItems = createNativeDayItems(year, month);
   const toolbarTitle =
     mode === 'day' ? 'Selecionar data' : mode === 'week' ? 'Selecionar semana' : 'Selecionar mês';
   const selectedWeekStart = formatIsoDate(getWeekStart(date));
@@ -36,7 +44,7 @@ export function NativeDateToolbar({
         <Stack.Toolbar.MenuAction
           isOn={item.value === month}
           key={String(item.value)}
-          onPress={() => onDateChange(updateIsoDate(selectedDate, { month: item.value }))}
+          onPress={() => onDateChange(updateNativeIsoDate(selectedDate, { month: item.value }))}
         >
           {item.label}
         </Stack.Toolbar.MenuAction>
@@ -47,7 +55,7 @@ export function NativeDateToolbar({
         <Stack.Toolbar.MenuAction
           isOn={item.value === year}
           key={String(item.value)}
-          onPress={() => onDateChange(updateIsoDate(selectedDate, { year: item.value }))}
+          onPress={() => onDateChange(updateNativeIsoDate(selectedDate, { year: item.value }))}
         >
           {item.label}
         </Stack.Toolbar.MenuAction>
@@ -60,7 +68,7 @@ export function NativeDateToolbar({
               <Stack.Toolbar.MenuAction
                 isOn={value === day}
                 key={String(value)}
-                onPress={() => onDateChange(updateIsoDate(selectedDate, { day: value }))}
+                onPress={() => onDateChange(updateNativeIsoDate(selectedDate, { day: value }))}
               >
                 {String(value)}
               </Stack.Toolbar.MenuAction>
@@ -103,55 +111,11 @@ function parseIsoDate(value: string): Date {
   return new Date(year, month - 1, day, 12);
 }
 
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
-}
-
-function updateIsoDate(
+function updateNativeIsoDate(
   value: string,
   updates: Partial<{ day: number; month: number; year: number }>,
 ): string {
-  const [year, month, day] = value.split('-').map(Number);
-  const nextYear = updates.year ?? year;
-  const nextMonth = updates.month ?? month;
-  const nextDay = Math.min(updates.day ?? day, daysInMonth(nextYear, nextMonth));
-  return `${nextYear}-${pad(nextMonth)}-${pad(nextDay)}`;
-}
-
-function createMonthItems(): readonly ToolbarDateItem[] {
-  return Array.from({ length: 12 }, (_, index) => ({
-    label: monthLabel(index + 1),
-    value: index + 1,
-  }));
-}
-
-function createYearItems(): readonly ToolbarDateItem[] {
-  return [2024, 2025, 2026].map((year) => ({ label: String(year), value: year }));
-}
-
-function monthLabel(month: number): string {
-  const label = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(
-    new Date(2026, month - 1, 1),
-  );
-  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
-}
-
-function formatToolbarDate(value: Date): string {
-  const month = [
-    'Jan',
-    'Fev',
-    'Mar',
-    'Abr',
-    'Mai',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Set',
-    'Out',
-    'Nov',
-    'Dez',
-  ][value.getMonth()];
-  return `${value.getDate()} ${month}`;
+  return formatIsoDate(updateNativeDate(parseIsoDate(value), updates));
 }
 
 function formatToolbarMonth(value: Date): string {
@@ -203,7 +167,7 @@ function formatToolbarWeek(value: Date): string {
 function formatToolbarLabel(value: Date, mode: NativeDateToolbarProps['mode']): string {
   if (mode === 'week') return formatToolbarWeek(value);
   if (mode === 'month') return formatToolbarMonth(value);
-  return formatToolbarDate(value);
+  return formatNativeToolbarDate(value);
 }
 
 function getWeekStart(value: Date): Date {
@@ -219,8 +183,3 @@ function formatIsoDate(value: Date): string {
 function pad(value: number): string {
   return String(value).padStart(2, '0');
 }
-
-type ToolbarDateItem = {
-  label: string;
-  value: number;
-};

@@ -26,6 +26,7 @@ export default function RegistrarDeliveryPagerRN({
 }: RegistrarDeliveryPagerRNProps) {
   const pagerRef = useRef<ScrollView>(null);
   const settledPageRef = useRef<0 | 1>(0);
+  const hasPositionedInitialPageRef = useRef(false);
   const [pagerWidth, setPagerWidth] = useState(0);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
@@ -37,10 +38,11 @@ export default function RegistrarDeliveryPagerRN({
     if (pagerWidth <= 0) return;
 
     pagerRef.current?.scrollTo({
-      animated: true,
+      animated: hasPositionedInitialPageRef.current,
       x: pagerWidth * requestedPage,
       y: 0,
     });
+    hasPositionedInitialPageRef.current = true;
   }, [pagerWidth, requestedPage]);
 
   const handleMomentumScrollEnd = useCallback(

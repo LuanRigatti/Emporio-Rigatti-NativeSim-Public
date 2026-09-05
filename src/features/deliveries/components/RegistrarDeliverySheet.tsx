@@ -8,8 +8,10 @@ import {
 
 export function RegistrarDeliverySheet({
   controller,
+  initialPage = 0,
 }: {
   controller: RegistrarDeliverySheetController;
+  initialPage?: 0 | 1;
 }) {
   const { resolvedMode } = useAppTheme();
   const useDarkGlassSurface = resolvedMode === 'dark';
@@ -26,6 +28,7 @@ export function RegistrarDeliverySheet({
       onVisibleChange={controller.handleVisibleChange}
       glassSurface={useDarkGlassSurface}
       glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
+      initialPage={initialPage}
       presentationBackgroundInteraction="enabled"
       presentationBackgroundMode="native"
       selectedItem={controller.selectedClient}

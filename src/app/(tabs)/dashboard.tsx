@@ -1,11 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  Animated,
-  Easing,
   Keyboard,
   ScrollView,
   StyleSheet,
@@ -39,8 +36,6 @@ import { factoryPurchaseCalculationService } from '@/services/factory-purchases'
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
-
 function PreviewIcon({
   color,
   name,
@@ -72,9 +67,6 @@ export default function Home() {
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [searchText, setSearchText] = useState('');
   const [isHelpSheetVisible, setIsHelpSheetVisible] = useState(false);
-  const [isSearchBlurMounted, setIsSearchBlurMounted] = useState(false);
-  const [searchBlurOpacity] = useState(() => new Animated.Value(0));
-  const searchBlurAnimation = useRef<Animated.CompositeAnimation | null>(null);
   const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
   const helpKeyboardWillHideSubscription = useRef<ReturnType<typeof Keyboard.addListener> | null>(
     null,
@@ -87,8 +79,6 @@ export default function Home() {
     homeSearchPresentationReducer,
     initialHomeSearchPresentationState,
   );
-  const isSearchBackdropVisible =
-    isHelpSheetVisible || isHomeSearchSheetVisible(searchFlow);
   const activeSearchId = useRef(0);
   const { search: runHomeSearch } = useHomeSearch();
   const {
@@ -118,35 +108,6 @@ export default function Home() {
     const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
     return () => clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    searchBlurAnimation.current?.stop();
-
-    if (isSearchBackdropVisible) {
-      // The search results sheet becomes visible through the native presentation
-      // lifecycle, so mount the backdrop when its state first becomes visible.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsSearchBlurMounted(true);
-      searchBlurAnimation.current = Animated.timing(searchBlurOpacity, {
-        duration: 200,
-        easing: Easing.out(Easing.cubic),
-        toValue: 1,
-        useNativeDriver: true,
-      });
-      searchBlurAnimation.current.start();
-      return;
-    }
-
-    searchBlurAnimation.current = Animated.timing(searchBlurOpacity, {
-      duration: 180,
-      easing: Easing.in(Easing.cubic),
-      toValue: 0,
-      useNativeDriver: true,
-    });
-    searchBlurAnimation.current.start(({ finished }) => {
-      if (finished) setIsSearchBlurMounted(false);
-    });
-  }, [isSearchBackdropVisible, searchBlurOpacity]);
 
   const todayDeliveries = useMemo(() => historyDeliveries, [historyDeliveries]);
   const openDocumentsCount = useMemo(
@@ -250,7 +211,6 @@ export default function Home() {
     if (!helpPresentationPending.current) return;
 
     helpPresentationPending.current = false;
-    setIsSearchBlurMounted(true);
     setIsHelpSheetVisible(true);
   }, [clearHelpKeyboardListeners]);
 
@@ -591,14 +551,6 @@ export default function Home() {
           />
         </View>
       </PremiumScreen>
-      {isSearchBlurMounted ? (
-        <AnimatedBlurView
-          intensity={24}
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, { opacity: searchBlurOpacity }]}
-          tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterial'}
-        />
-      ) : null}
       <HomeSearchResultsSheet
         loading={searchFlow.searchInFlight}
         onDismiss={handleSearchSheetDismiss}

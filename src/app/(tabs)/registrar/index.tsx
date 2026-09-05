@@ -500,7 +500,13 @@ export function RegistrarDailyDataScreen({ showLargeTitle = false }: { showLarge
   );
 }
 
-export function RegistrarDeliveryScreen({ showLargeTitle = false }: { showLargeTitle?: boolean } = {}) {
+export function RegistrarDeliveryScreen({
+  inlineClientSelection = false,
+  showLargeTitle = false,
+}: {
+  inlineClientSelection?: boolean;
+  showLargeTitle?: boolean;
+} = {}) {
   const colorScheme = useColorScheme();
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
@@ -804,7 +810,10 @@ export function RegistrarDeliveryScreen({ showLargeTitle = false }: { showLargeT
           />
         </View>
       </View>
-      <RegistrarDeliverySheet controller={registrarDeliverySheet} />
+      <RegistrarDeliverySheet
+        controller={registrarDeliverySheet}
+        initialPage={inlineClientSelection ? 1 : 0}
+      />
     </View>
   );
 }

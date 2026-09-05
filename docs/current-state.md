@@ -9,8 +9,8 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `0e71367`
-  (`fix: restore native finance detail navigation morph`), estado anterior à publicação
+- Base Git desta atualização: `37ea3ca`
+  (`feat: refine native flows and financial navigation`), estado anterior à publicação
   desta atualização.
 - Este snapshot descreve o estado funcional versionado pela atualização atual;
   o commit de publicação deve ser consultado no histórico Git para evitar
@@ -42,29 +42,38 @@ o status esperado é limpo.
 - A Home mantém os cards, carrossel, Search Bar, `Em aberto`, Documentos,
   Fábrica e `Entregas de hoje` com os dados e handlers existentes.
 - O card `Registrar Entrega` navega para `/registrar-entrega`; não abre um
-  Bottom Sheet diretamente sobre a Home. A tela de destino usa o fluxo normal
-  compartilhado de `RegistrarDeliverySheet` e não há auto-open adicional.
+  Bottom Sheet diretamente sobre a Home. A rota de destino passa
+  `inlineClientSelection` e usa exatamente o mesmo fluxo de um único
+  `RegistrarDeliverySheet` da rota `/registrar/entrega`, sem auto-open adicional.
 - `Entregas de hoje` mantém layout final explícito em largura total para a row e
   o `NativeCardContextMenu`, com transições Reanimated e sem logs de startup,
   cores diagnósticas ou instrumentação `[TodayCardStartup]` residual.
-- Ao abrir Sugestões ou resultados pela Search Bar, a Home monta um único
-  `BlurView` atrás do sheet com intensidade `24`, `pointerEvents="none"` e
-  fade de opacidade nativo do React Native (`200 ms` na entrada e `180 ms` na
-  saída). A intensidade não é animada e o sheet não recebe blur.
-- O blur é controlado pelo estado real dos sheets de Search/Sugestões e é
-  removido ao concluir o fechamento, sem `setTimeout`.
+- Ao abrir Sugestões ou resultados pela Search Bar, o fundo da Home permanece
+  nítido; o `BlurView` de fundo e sua animação de opacidade foram removidos.
+  O Liquid Glass do próprio sheet, o no-dimming e a apresentação nativa
+  permanecem inalterados.
+- O empty state de `Entregas de hoje` usa a altura mínima compactada atual
+  (`theme.spacing.xxl * 5`), sem alterar os cards com dados.
 
 ### Registrar Entrega e Dados Diários
 
 - Registrar Entrega mantém o `RegistrarDeliverySheet` compartilhado, seleção de
-  cliente, pager/detalhes, detents, gestos, Liquid Glass, callbacks e a máquina
-  de estados `closed → presented → dismissing → closed`.
+  cliente pelo Menu nativo, detalhe em um único sheet, detents, gestos, Liquid
+  Glass, callbacks e a máquina de estados `closed → presented → dismissing → closed`.
+- As entradas Home → `Registrar Entrega` e Entregas → `Adicionar` passam
+  `inlineClientSelection` e não montam a antiga página horizontal de clientes;
+  o pager legado continua isolado no componente compartilhado apenas para
+  compatibilidade com a variante antiga.
+- O botão de data do detalhe reutiliza os itens, formatter e regras de ajuste
+  de data compartilhados com `NativeDateToolbar` do Histórico, exibindo a
+  forma compacta `dia mês` e mantendo o Menu nativo de mês/ano/dia.
 - O sheet usa tint escuro opt-in `rgba(0, 0, 0, 0.38)` e preserva a superfície
   nativa; o light mode não recebe esse tint específico.
 - O botão `Confirmar` é uma cápsula nativa de `84%` da largura disponível e
   `58 pt` de altura. Seu conteúdo SwiftUI ocupa o frame completo e usa
   `contentShape(.capsule())`, portanto toda a cápsula é clicável.
-- A lista de clientes mantém os chevrons nativos e o toque na linha inteira.
+- A seleção mantém o chevron nativo; toda a área direita `Selecionar/nome +
+  chevron` abre o Menu, enquanto o label `Cliente` permanece estático.
 - O Bottom Sheet de Dados Diários usa o mesmo tint escuro `0.38` e o mesmo CTA
   visual de cápsula. O botão `Adicionar` também tem o conteúdo SwiftUI
   expandido para a cápsula inteira, preservando disabled, loading e callback.
@@ -156,16 +165,15 @@ o status esperado é limpo.
 - `NativeBottomSheet` e `NativeSheet` aceitam e aplicam
   `presentationBackgroundInteraction="enabled"` por padrão, removendo o dimming
   dos Bottom Sheets reais sem alterar dialogs, menus ou telas full-screen.
-- Registrar Entrega mantém shell, detents, drag, pager e seleção nativos; a
-  seleção de clientes exibe somente os nomes, e o detalhe preserva os controles
-  nativos, haptics e cards internos definidos no fluxo atual.
+- Registrar Entrega mantém shell, detents, drag e seleção nativos; as rotas
+  atuais usam diretamente o detalhe de um único sheet, a seleção exibe somente
+  os nomes, e os controles, haptics e cards internos permanecem preservados.
 - Registrar Dados mantém o detent `0.45`, cards internos com `BlurView` nativo,
   controles e ação `Adicionar`, além da ausência de dimming.
 - Home Search mantém Search Field nativo; o botão `?` desfoca o campo e aguarda
   os eventos nativos do teclado, enquanto a Home fecha o sheet de sugestões ao
-  perder foco ou navegar para outra rota. Enquanto os sheets de resultados ou
-  Sugestões estão visíveis, a Home recebe `BlurView` com intensidade `24` e
-  fade de opacidade sem alterar a intensidade do blur.
+  perder foco ou navegar para outra rota. Os sheets de resultados e Sugestões
+  continuam nativos, sem BlurView aplicado à tela de fundo.
 - A Home exibe os atalhos em carrossel horizontal, na ordem Registrar Entrega,
   Em aberto, Documentos e Fábrica. O atalho Em aberto mostra o total real e
   mantém somente o ícone semântico vermelho quando há saldo; seus clientes e
@@ -230,8 +238,8 @@ iPhone.
 - NativeTabs/Native Stack: fluxos reais isolados sem UINavigationBar global
   sobre as tabs; BackButtons, toolbars, swipe-back e morphs nativos preservados.
 - Registrar: entrega e dados preservados; o atalho da Home navega para
-  `/registrar-entrega` e a tela usa o Bottom Sheet compartilhado sem auto-open;
-  a lista de Entregas usa cards individuais com
+  `/registrar-entrega` e a tela usa o mesmo Bottom Sheet de detalhe compartilhado
+  por Entregas, sem auto-open e sem pager horizontal; a lista de Entregas usa cards individuais com
   `PremiumCard` e `NativeCardContextMenu`, com entrada/saída suave dos cards.
   O primeiro Bottom Sheet de entrega
   mantém shell nativo interativo, lista em `0.48 ↔ 0.78`, formulário em

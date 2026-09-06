@@ -26,7 +26,6 @@ export default function RegistrarDeliveryPagerRN({
 }: RegistrarDeliveryPagerRNProps) {
   const pagerRef = useRef<ScrollView>(null);
   const settledPageRef = useRef<0 | 1>(0);
-  const hasPositionedInitialPageRef = useRef(false);
   const [pagerWidth, setPagerWidth] = useState(0);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
@@ -38,11 +37,10 @@ export default function RegistrarDeliveryPagerRN({
     if (pagerWidth <= 0) return;
 
     pagerRef.current?.scrollTo({
-      animated: hasPositionedInitialPageRef.current,
+      animated: true,
       x: pagerWidth * requestedPage,
       y: 0,
     });
-    hasPositionedInitialPageRef.current = true;
   }, [pagerWidth, requestedPage]);
 
   const handleMomentumScrollEnd = useCallback(
@@ -63,7 +61,7 @@ export default function RegistrarDeliveryPagerRN({
   );
 
   return (
-    <View onLayout={handleLayout} pointerEvents="box-none" style={styles.container}>
+    <View onLayout={handleLayout} style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.pagerContent}
         horizontal
@@ -73,17 +71,12 @@ export default function RegistrarDeliveryPagerRN({
         ref={pagerRef}
         showsHorizontalScrollIndicator={false}
         style={styles.pager}
-        pointerEvents="box-none"
       >
-        <View pointerEvents="box-none" style={[styles.page, { width: pagerWidth }]}>
-          <Host pointerEvents="box-none" style={styles.nativePage}>
-            {listPage}
-          </Host>
+        <View style={[styles.page, { width: pagerWidth }]}>
+          <Host style={styles.nativePage}>{listPage}</Host>
         </View>
-        <View pointerEvents="box-none" style={[styles.page, { width: pagerWidth }]}>
-          <Host pointerEvents="box-none" style={styles.nativePage}>
-            {detailPage}
-          </Host>
+        <View style={[styles.page, { width: pagerWidth }]}>
+          <Host style={styles.nativePage}>{detailPage}</Host>
         </View>
       </ScrollView>
     </View>
@@ -92,25 +85,20 @@ export default function RegistrarDeliveryPagerRN({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'transparent',
     flex: 1,
     width: '100%',
   },
   nativePage: {
-    backgroundColor: 'transparent',
     flex: 1,
   },
   page: {
-    backgroundColor: 'transparent',
     flex: 1,
   },
   pager: {
-    backgroundColor: 'transparent',
     flex: 1,
     width: '100%',
   },
   pagerContent: {
     alignItems: 'stretch',
-    backgroundColor: 'transparent',
   },
 });

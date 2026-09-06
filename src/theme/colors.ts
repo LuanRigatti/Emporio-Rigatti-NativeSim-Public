@@ -171,7 +171,7 @@ export const darkModeLiquidGlassTint = colorWithOpacity(
 );
 export const registrarDeliveryDarkLiquidGlassTint = colorWithOpacity(
   darkColors.background,
-  0.38,
+  0.30,
 );
 
 export function getLiquidGlassTint(mode: 'light' | 'dark'): string {

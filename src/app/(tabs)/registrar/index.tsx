@@ -146,7 +146,10 @@ function RegistrarModeSelection() {
         <View
           style={[
             styles.modeSelection,
-            { gap: theme.spacing.sm, marginTop: theme.spacing.md * 2 - theme.spacing.xs / 2 },
+            {
+              gap: theme.spacing.sm,
+              marginTop: theme.spacing.md * 2 - theme.spacing.xs / 2 - 4,
+            },
           ]}
         >
           <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
@@ -489,7 +492,9 @@ export function RegistrarDailyDataScreen({ showLargeTitle = false }: { showLarge
       </View>
       <NativeDailyDataSheet
         glassSurface={useDarkGlassSurface}
-        glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
+        glassTint={
+          useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined
+        }
         initialValues={dailySheetInitialValues}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}

@@ -141,32 +141,32 @@ export default function Home() {
   const homeToolbar = (
     <NativeGlassHeader
       includeTopSafeArea
+      leftActions={
+        <NativeAvatarButton
+          accessibilityHint="Exibe os dados da conta e a opção de sair"
+          accessibilityLabel="Abrir perfil da conta"
+          avatarSize="medium"
+          containerSize={theme.sizes.touchTargetMinimum}
+          glassTint={getLiquidGlassTint(resolvedMode)}
+          haptic="light"
+          imageUri={user?.photoUrl}
+          name={accountName}
+          onPress={handleOpenProfile}
+        />
+      }
       mode="transparent"
       rightActions={
-        <View style={styles.headerActions}>
-          <NativeGlassIconButton
-            accessibilityLabel="Abrir Pesquisa"
-            color={theme.colors.textPrimary}
-            containerSize={theme.sizes.touchTargetMinimum}
-            fallbackIcon="search"
-            glassTint={getLiquidGlassTint(resolvedMode)}
-            interactiveGlass
-            onPress={handleOpenSearch}
-            size={theme.sizes.iconMedium}
-            systemImage="magnifyingglass"
-          />
-          <NativeAvatarButton
-            accessibilityHint="Exibe os dados da conta e a opção de sair"
-            accessibilityLabel="Abrir perfil da conta"
-            avatarSize="medium"
-            containerSize={theme.sizes.touchTargetMinimum}
-            glassTint={getLiquidGlassTint(resolvedMode)}
-            haptic="light"
-            imageUri={user?.photoUrl}
-            name={accountName}
-            onPress={handleOpenProfile}
-          />
-        </View>
+        <NativeGlassIconButton
+          accessibilityLabel="Abrir Pesquisa"
+          color={theme.colors.textPrimary}
+          containerSize={theme.sizes.touchTargetMinimum}
+          fallbackIcon="search"
+          glassTint={getLiquidGlassTint(resolvedMode)}
+          interactiveGlass
+          onPress={handleOpenSearch}
+          size={theme.sizes.iconMedium}
+          systemImage="magnifyingglass"
+        />
       }
       title=""
     />
@@ -406,9 +406,8 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
-  headerActions: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   paddedHomeContent: { width: '100%' },
-  widgetCarousel: { flexGrow: 0, width: '100%' },
+  widgetCarousel: { flexGrow: 0, transform: [{ translateY: 4 }], width: '100%' },
   widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
   widgetCard: { width: 178 },
   widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

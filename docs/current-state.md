@@ -9,12 +9,10 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Base Git desta atualização: `09abb4e`
-  (`feat: unify registrar delivery entry points`), estado anterior ao fechamento
-  atual.
-- Este snapshot descreve o estado funcional versionado pela atualização atual;
-  o commit de publicação deve ser consultado no histórico Git para evitar
-  referência autorreferente no documento.
+- HEAD de referência da auditoria: `62160be`
+  (`feat: add native iOS search keyboard accessory`).
+- Este fechamento consolida as alterações funcionais pendentes, a limpeza segura
+  e este snapshot; o commit final deve ser consultado no histórico Git.
 
 ## Aplicativo
 
@@ -32,10 +30,9 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Snapshot funcional auditado — fechamento atual
 
 Este bloco é a fonte resumida do estado atual do código para o fechamento em
-`ajustes-codex`. O working tree foi auditado antes da publicação: as alterações
-pendentes pertencem às melhorias abaixo, não há arquivos acidentais nem
-instrumentação temporária de diagnóstico. Após o único commit e push previstos,
-o status esperado é limpo.
+`ajustes-codex`. As alterações pendentes foram auditadas contra o código e o
+histórico local; artefatos gerados de apresentação e instrumentação temporária
+foram removidos. Após o único commit e push, o status deve permanecer limpo.
 
 ### Home
 
@@ -43,6 +40,11 @@ o status esperado é limpo.
   Documentos, Fábrica e `Entregas de hoje` com os dados e handlers existentes.
   O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou campo
   editável na Home.
+- O header mantém o avatar no canto superior esquerdo e a lupa Liquid Glass no
+  canto superior direito, ambos com os handlers e haptics nativos atuais.
+- O carrossel principal usa o deslocamento vertical final de `4 pt`; o fundo da
+  Home permanece no background original, sem gradientes, glows ou camadas BlurView
+  experimentais.
 - O card `Registrar Entrega` navega para `/registrar-entrega`; não abre um
   Bottom Sheet diretamente sobre a Home. A rota de destino passa
   `inlineClientSelection` e usa exatamente o mesmo fluxo de um único
@@ -83,16 +85,21 @@ o status esperado é limpo.
 - O botão de data do detalhe reutiliza os itens, formatter e regras de ajuste
   de data compartilhados com `NativeDateToolbar` do Histórico, exibindo a
   forma compacta `dia mês` e mantendo o Menu nativo de mês/ano/dia.
-- O sheet usa tint escuro opt-in `rgba(0, 0, 0, 0.38)` e preserva a superfície
+- Os sheets usam o tint escuro opt-in `rgba(0, 0, 0, 0.30)` e preservam a superfície
   nativa; o light mode não recebe esse tint específico.
 - O botão `Confirmar` é uma cápsula nativa de `84%` da largura disponível e
   `58 pt` de altura. Seu conteúdo SwiftUI ocupa o frame completo e usa
   `contentShape(.capsule())`, portanto toda a cápsula é clicável.
 - A seleção mantém o chevron nativo; toda a área direita `Selecionar/nome +
   chevron` abre o Menu, enquanto o label `Cliente` permanece estático.
-- O Bottom Sheet de Dados Diários usa o mesmo tint escuro `0.38` e o mesmo CTA
-  visual de cápsula. O botão `Adicionar` também tem o conteúdo SwiftUI
-  expandido para a cápsula inteira, preservando disabled, loading e callback.
+- O Bottom Sheet de Dados Diários usa detent `0.46`, drag indicator nativo e
+  conteúdo sem botão `X` no iOS. A página principal mostra quatro linhas sem
+  separadores, com círculos `54x54`, SF Symbols `21 pt`, descrição secundária,
+  `chevron.right` simples e a linha inteira clicável.
+- A navegação para o detalhe ocorre dentro do mesmo sheet pelo
+  `RegistrarDeliveryPagerRN`, com duas páginas horizontais e swipe preservado.
+  O detalhe mantém o botão voltar Liquid Glass `44x44`, título central de
+  `19 pt`, campo correspondente e botão `Adicionar` em cápsula de `58 pt`.
 
 ### Perfil
 
@@ -125,12 +132,14 @@ o status esperado é limpo.
 
 ### Bottom Sheets nativos e tint escuro
 
-- O tint `rgba(0, 0, 0, 0.38)` é opt-in, não global, e está aplicado aos sheets
+- O tint `rgba(0, 0, 0, 0.30)` é opt-in, não global, e está aplicado aos sheets
   de Registrar Entrega, Perfil, resultados da Home Search, Sugestões/Ajuda,
   Dados Diários e Detalhes da compra da Fábrica.
 - Esses fluxos continuam usando `glassSurface`/`glassEffect`, blur,
   translucidez, detents, drag indicator e gestos nativos. Não foram mantidos
   contornos, strokes, gradientes ou reflexos custom descartados.
+- O `NativeClientFormSheet` permanece com seu background opaco próprio e não
+  usa essa abstração compartilhada de tint Liquid Glass.
 - O `PurchaseDetailsSheet` permanece estruturalmente com a composição atual;
   as tentativas descartadas de `hostSizing`, `maxHeight`, `ignoreSafeArea` e
   máscaras do corte inferior não fazem parte do estado final.
@@ -190,7 +199,8 @@ o status esperado é limpo.
 - Registrar Entrega mantém shell, detents, drag e seleção nativos; as rotas
   atuais usam diretamente o detalhe de um único sheet, a seleção exibe somente
   os nomes, e os controles, haptics e cards internos permanecem preservados.
-- Registrar Dados mantém o detent `0.45`, cards internos com `BlurView` nativo,
+- Registrar Dados mantém o detent `0.46`, uma lista nativa sem card interno,
+  círculos de ícone, chevrons simples, pager horizontal para o detalhe,
   controles e ação `Adicionar`, além da ausência de dimming.
 - Home Search mantém Search Field nativo; o botão `?` desfoca o campo e aguarda
   os eventos nativos do teclado, enquanto a Home fecha o sheet de sugestões ao
@@ -266,8 +276,9 @@ Windows.
   mantém shell nativo interativo, lista em `0.48 ↔ 0.78`, formulário em
   `0.48`, seleção minimalista de clientes, cards internos e ausência de dimming.
 - Registrar Dados: Bottom Sheet nativo com shell Liquid Glass interativo,
-  detent `0.45`, dois cards internos translúcidos com `BlurView` e o botão
-  `Adicionar` no mesmo padrão de cápsula do `Confirmar`, com hit area integral.
+  detent `0.46`, lista de quatro opções sem separadores/card interno, círculos
+  `54x54`, chevrons simples, pager horizontal de duas páginas e botão
+  `Adicionar` com hit area integral.
 - Fábrica: o Bottom Sheet de detalhes mantém os cards opacos originais; o fluxo
   continua usando a abstração nativa compartilhada e não contém o experimento de
   translucidez descartado.

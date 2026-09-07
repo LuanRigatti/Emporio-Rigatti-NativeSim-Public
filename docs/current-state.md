@@ -9,10 +9,8 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- HEAD de referência da auditoria: `62160be`
-  (`feat: add native iOS search keyboard accessory`).
-- Este fechamento consolida as alterações funcionais pendentes, a limpeza segura
-  e este snapshot; o commit final deve ser consultado no histórico Git.
+- Este snapshot descreve o código auditado neste fechamento; o commit de
+  publicação deve ser consultado no histórico Git.
 
 ## Aplicativo
 
@@ -52,6 +50,11 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 - `Entregas de hoje` mantém layout final explícito em largura total para a row e
   o `NativeCardContextMenu`, com transições Reanimated e sem logs de startup,
   cores diagnósticas ou instrumentação `[TodayCardStartup]` residual.
+- As linhas de `Entregas de hoje` usam o padrão compartilhado de clientes:
+  círculo `54x54`, ícone de cliente, nome, quantidade como texto secundário e
+  badge de status. O preview do long press passa o card completo ao
+  `NativeCardContextMenu`, com a mesma superfície, raio e clipping do Histórico;
+  o card normal e seus handlers permanecem iguais.
 - Ao abrir Sugestões ou resultados pela Search Bar, o fundo da Home permanece
   nítido; o `BlurView` de fundo e sua animação de opacidade foram removidos.
   O Liquid Glass do próprio sheet, o no-dimming e a apresentação nativa
@@ -78,10 +81,16 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 - Registrar Entrega mantém o `RegistrarDeliverySheet` compartilhado, seleção de
   cliente pelo Menu nativo, detalhe em um único sheet, detents, gestos, Liquid
   Glass, callbacks e a máquina de estados `closed → presented → dismissing → closed`.
-- As entradas Home → `Registrar Entrega` e Entregas → `Adicionar` passam
-  `inlineClientSelection` e não montam a antiga página horizontal de clientes;
-  o pager legado continua isolado no componente compartilhado apenas para
-  compatibilidade com a variante antiga.
+- Na variante Home → `Registrar entrega`, o mesmo Bottom Sheet usa duas páginas
+  internas pelo `RegistrarDeliveryPagerRN`: a Page 0 lista clientes com círculo
+  `54x54`, ícone de cliente, nome, descrição `Cliente`, `chevron.right` e linha
+  inteira clicável; a seleção avança para a Page 1 no mesmo sheet, com swipe
+  horizontal interativo e snap. A Page 1 mantém cliente, Data, Baldes, Valor
+  total, Confirmar e `chevron.left` simples para voltar. A variante padrão
+  continua preservando o Menu nativo de seleção.
+- As rotas Home → `Registrar Entrega` e `/registrar/entrega` passam
+  `inlineClientSelection` e usam o pager de clientes descrito acima; a
+  composição antiga do Menu continua preservada na variante padrão do sheet.
 - O botão de data do detalhe reutiliza os itens, formatter e regras de ajuste
   de data compartilhados com `NativeDateToolbar` do Histórico, exibindo a
   forma compacta `dia mês` e mantendo o Menu nativo de mês/ano/dia.
@@ -98,8 +107,20 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
   `chevron.right` simples e a linha inteira clicável.
 - A navegação para o detalhe ocorre dentro do mesmo sheet pelo
   `RegistrarDeliveryPagerRN`, com duas páginas horizontais e swipe preservado.
-  O detalhe mantém o botão voltar Liquid Glass `44x44`, título central de
-  `19 pt`, campo correspondente e botão `Adicionar` em cápsula de `58 pt`.
+  O detalhe mantém o botão voltar, título central, campo correspondente e
+  botão `Adicionar` em cápsula de `58 pt`.
+
+### Cards e linhas de clientes
+
+- `Em aberto` usa o padrão compartilhado de círculo `54x54`, ícone de cliente,
+  nome, descrição `Cliente` e valor à direita; o total da tela permanece no
+  badge do título e os valores financeiros continuam inalterados.
+- Home → `Hoje`, Entregas e Histórico usam o mesmo ícone circular, hierarquia
+  de nome/texto secundário e espaçamento. Entregas e Histórico compartilham o
+  `DeliveryCard`; os status, valores, quantidades, ações e regras financeiras
+  permanecem intactos.
+- O `OpenPaymentClientIcon` tem fallback React Native e implementação
+  SwiftUI/@expo/ui no iOS, reutilizando o círculo nativo dos sheets.
 
 ### Perfil
 

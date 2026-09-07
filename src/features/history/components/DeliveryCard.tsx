@@ -7,8 +7,9 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { HistoryDelivery } from '../data/historyMocks';
 import { DeliveryStatusBadge } from './DeliveryStatusBadge';
+import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 
-const HISTORY_DELIVERY_CARD_HEIGHT = 87;
+const HISTORY_DELIVERY_CARD_HEIGHT = 86;
 
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
@@ -37,6 +38,7 @@ export function DeliveryCard({
   const cardRadius = theme.radius.xl + theme.spacing.sm;
   const content = (
     <View style={styles.cardRow}>
+      <OpenPaymentClientIcon />
       <View style={styles.cardContent}>
         <View style={styles.cardHeaderRow}>
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
@@ -128,8 +130,8 @@ export function DeliveryCard({
 }
 
 const styles = StyleSheet.create({
-  card: { paddingLeft: 20, paddingRight: 14, paddingVertical: 18, width: '100%' },
-  cardRow: { alignItems: 'stretch', flexDirection: 'row', gap: 10, width: '100%' },
+  card: { paddingLeft: 20, paddingRight: 14, paddingVertical: 16, width: '100%' },
+  cardRow: { alignItems: 'center', flexDirection: 'row', gap: 12, width: '100%' },
   cardContent: { flex: 1, gap: 8 },
   cardHeaderRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   contextContainer: { overflow: 'hidden' },

@@ -42,6 +42,7 @@ export type NativeBottomSheetProps = {
   onDetentChange?: (detent: NativeBottomSheetDetent) => void;
   selectedItem?: NativeBottomSheetItem | null;
   initialPage?: 0 | 1;
+  useClientPager?: boolean;
   initialQuantity?: number;
   initialDetent?: NativeBottomSheetDetent;
   selectedDetent?: NativeBottomSheetDetent;

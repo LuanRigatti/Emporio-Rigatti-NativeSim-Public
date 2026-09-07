@@ -34,6 +34,7 @@ import {
   listRowInsets,
   listRowSeparator,
   listStyle,
+  layoutPriority,
   offset,
   padding,
   presentationBackgroundInteraction as setPresentationBackgroundInteraction,
@@ -47,6 +48,7 @@ import {
 import type { PresentationDetent } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import type { SFSymbol } from 'sf-symbols-typescript';
 
 import {
   registrarSheetDetailDarkSurface,
@@ -60,6 +62,7 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
 import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
+import NativeSheetFieldIcon from '../NativeSheetFieldIcon';
 import { roundedFont } from '../nativeTypography';
 import {
   createNativeDayItems,
@@ -94,6 +97,7 @@ export default function NativeBottomSheetSwiftUI({
   glassSurface = false,
   glassTint,
   initialPage = 0,
+  useClientPager = false,
   presentationBackgroundInteraction: backgroundInteraction = 'enabled',
   presentationBackgroundMode = 'system',
   hostSizing = 'content',
@@ -104,7 +108,9 @@ export default function NativeBottomSheetSwiftUI({
   const { enabled: testModeEnabled, currency: maskCurrency, number: maskNumber } =
     useTestModePresentation();
   const usesRegistrarSheetBehavior = content == null;
-  const usesInlineClientSelection = usesRegistrarSheetBehavior && initialPage === 1;
+  const usesClientPager = usesRegistrarSheetBehavior && useClientPager;
+  const usesInlineClientSelection =
+    usesRegistrarSheetBehavior && !usesClientPager && initialPage === 1;
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [bucketQuantity, setBucketQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
@@ -190,6 +196,490 @@ export default function NativeBottomSheetSwiftUI({
     </RNHostView>
   );
 
+  const inlineClientMenu = (
+    <Menu modifiers={[buttonStyle('plain')]} label={
+      <HStack
+        alignment="center"
+        spacing={8}
+        modifiers={[padding({ horizontal: 4 }), contentShape(shapes.rectangle())]}
+      >
+        <Text
+          modifiers={[
+            roundedFont({ size: 17, weight: 'semibold' }),
+            ...(selectedItem ? [] : [foregroundStyle(theme.colors.textSecondary)]),
+          ]}
+        >
+          {selectedItem?.title ?? 'Selecionar'}
+        </Text>
+        <Image color={theme.colors.textSecondary} size={14} systemName="chevron.right" />
+      </HStack>
+    }>
+      {items.map((item) => (
+        <Button
+          key={item.id}
+          label={item.title}
+          modifiers={[roundedFont({})]}
+          onPress={() => handleSelect(item)}
+        />
+      ))}
+    </Menu>
+  );
+
+  const inlineDetailRows = (
+    <VStack
+      alignment="leading"
+      spacing={8}
+      modifiers={[frame({ maxWidth: Infinity, alignment: 'topLeading' })]}
+    >
+      <HStack
+        alignment="center"
+        spacing={12}
+        modifiers={[
+          padding({ leading: spacing.sm }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ vertical: spacing.sm }),
+        ]}
+      >
+        <NativeSheetFieldIcon systemImage="person.crop.circle" />
+        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Cliente</Text>
+          <Text
+            modifiers={[
+              roundedFont({ size: 13, weight: 'regular' }),
+              foregroundStyle(theme.colors.textSecondary),
+            ]}
+          >
+            Selecionar cliente
+          </Text>
+        </VStack>
+        <Spacer />
+        {inlineClientMenu}
+      </HStack>
+
+      <HStack
+        alignment="center"
+        spacing={12}
+        modifiers={[
+          padding({ leading: spacing.sm }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ vertical: spacing.sm }),
+        ]}
+      >
+        <NativeSheetFieldIcon systemImage="shippingbox" />
+        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Baldes</Text>
+          <Text
+            modifiers={[
+              roundedFont({ size: 13, weight: 'regular' }),
+              foregroundStyle(theme.colors.textSecondary),
+            ]}
+          >
+            Quantidade da entrega
+          </Text>
+        </VStack>
+        <Spacer />
+        <HStack alignment="center" spacing={8} modifiers={[padding({ trailing: spacing.sm })]}>
+          <Button
+            modifiers={[
+              padding({ all: 0 }),
+              buttonStyle('plain'),
+              controlSize('regular'),
+              frame({ width: 44, height: 44, alignment: 'center' }),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'circle',
+              }),
+              contentShape(shapes.circle()),
+              accessibilityLabel('Diminuir quantidade'),
+              disabledModifier(testModeEnabled),
+            ]}
+            onPress={() => {
+              triggerNativeButtonHaptic('light');
+              setQuantityDirection('down');
+              setBucketQuantity((value) => Math.max(1, value - 1));
+            }}
+          >
+            <ZStack
+              modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.circle())]}
+            >
+              <Image size={17} systemName="minus" />
+            </ZStack>
+          </Button>
+          <Text
+            modifiers={[
+              roundedFont({ size: 17, weight: 'semibold' }),
+              contentTransition('numericText', {
+                countsDown: quantityDirection === 'down',
+              }),
+              animation(Animation.easeInOut({ duration: 0.18 }), bucketQuantity),
+            ]}
+          >
+            {presentedQuantity}
+          </Text>
+          <Button
+            modifiers={[
+              padding({ all: 0 }),
+              buttonStyle('plain'),
+              controlSize('regular'),
+              frame({ width: 44, height: 44, alignment: 'center' }),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'circle',
+              }),
+              contentShape(shapes.circle()),
+              accessibilityLabel('Aumentar quantidade'),
+              disabledModifier(testModeEnabled),
+            ]}
+            onPress={() => {
+              triggerNativeButtonHaptic('light');
+              setQuantityDirection('up');
+              setBucketQuantity((value) => value + 1);
+            }}
+          >
+            <ZStack
+              modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.circle())]}
+            >
+              <Image size={17} systemName="plus" />
+            </ZStack>
+          </Button>
+        </HStack>
+      </HStack>
+
+      <HStack
+        alignment="center"
+        spacing={12}
+        modifiers={[
+          padding({ leading: spacing.sm }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ vertical: spacing.sm }),
+        ]}
+      >
+        <NativeSheetFieldIcon systemImage="dollarsign" />
+        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Valor total</Text>
+          <Text
+            modifiers={[
+              roundedFont({ size: 13, weight: 'regular' }),
+              foregroundStyle(theme.colors.textSecondary),
+            ]}
+          >
+            Total da entrega
+          </Text>
+        </VStack>
+        <Spacer />
+        <Text
+          modifiers={[
+            roundedFont({ size: 17, weight: 'semibold' }),
+            padding({ trailing: spacing.sm }),
+          ]}
+        >
+          {presentedTotal}
+        </Text>
+      </HStack>
+    </VStack>
+  );
+
+  const clientPagerDateMenu = (
+    <Menu
+      modifiers={[buttonStyle('plain'), accessibilityLabel('Selecionar data')]}
+      label={
+        <HStack
+          alignment="center"
+          modifiers={[
+            padding({ horizontal: 14, vertical: 8 }),
+            frame({ width: 72, height: 44, alignment: 'center' }),
+            glassEffect({
+              glass: { interactive: true, variant: 'regular' },
+              shape: 'capsule',
+            }),
+            contentShape(shapes.capsule()),
+          ]}
+        >
+          <Text modifiers={[roundedFont({ size: 17 })]}>
+            {formatNativeToolbarDate(selectedDate)}
+          </Text>
+        </HStack>
+      }
+    >
+      <Menu label="Mês" systemImage="calendar">
+        {dateMenuMonths.map((item) => (
+          <Button
+            key={String(item.value)}
+            label={item.label}
+            modifiers={[roundedFont({})]}
+            onPress={() =>
+              setSelectedDate((value) => updateNativeDate(value, { month: item.value }))
+            }
+          />
+        ))}
+      </Menu>
+      <Menu label="Ano" systemImage="calendar.badge.clock">
+        {dateMenuYears.map((item) => (
+          <Button
+            key={String(item.value)}
+            label={item.label}
+            modifiers={[roundedFont({})]}
+            onPress={() =>
+              setSelectedDate((value) => updateNativeDate(value, { year: item.value }))
+            }
+          />
+        ))}
+      </Menu>
+      <Menu label="Dia" systemImage="calendar.day.timeline.left">
+        {dateMenuDays.map((value) => (
+          <Button
+            key={String(value)}
+            label={String(value)}
+            modifiers={[roundedFont({})]}
+            onPress={() => setSelectedDate((date) => updateNativeDate(date, { day: value }))}
+          />
+        ))}
+      </Menu>
+    </Menu>
+  );
+
+  const clientPagerDetailRows = (
+    <VStack
+      alignment="leading"
+      spacing={8}
+      modifiers={[frame({ maxWidth: Infinity, alignment: 'topLeading' })]}
+    >
+      <HStack
+        alignment="center"
+        spacing={12}
+        modifiers={[
+          padding({ leading: spacing.sm }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ vertical: spacing.sm }),
+        ]}
+      >
+        <NativeSheetFieldIcon systemImage="calendar" />
+        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Data</Text>
+          <Text
+            modifiers={[
+              roundedFont({ size: 13, weight: 'regular' }),
+              foregroundStyle(theme.colors.textSecondary),
+            ]}
+          >
+            Data da entrega
+          </Text>
+        </VStack>
+        <Spacer />
+        {clientPagerDateMenu}
+        <Spacer modifiers={[frame({ width: spacing.sm + 4 })]} />
+      </HStack>
+
+      <HStack
+        alignment="center"
+        spacing={12}
+        modifiers={[
+          padding({ leading: spacing.sm }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ vertical: spacing.sm }),
+        ]}
+      >
+        <NativeSheetFieldIcon systemImage="shippingbox" />
+        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Baldes</Text>
+          <Text
+            modifiers={[
+              roundedFont({ size: 13, weight: 'regular' }),
+              foregroundStyle(theme.colors.textSecondary),
+            ]}
+          >
+            Quantidade da entrega
+          </Text>
+        </VStack>
+        <Spacer />
+        <HStack alignment="center" spacing={8} modifiers={[padding({ trailing: spacing.sm })]}>
+          <Button
+            modifiers={[
+              padding({ all: 0 }),
+              buttonStyle('plain'),
+              controlSize('regular'),
+              frame({ width: 44, height: 44, alignment: 'center' }),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'circle',
+              }),
+              contentShape(shapes.circle()),
+              accessibilityLabel('Diminuir quantidade'),
+              disabledModifier(testModeEnabled),
+            ]}
+            onPress={() => {
+              triggerNativeButtonHaptic('light');
+              setQuantityDirection('down');
+              setBucketQuantity((value) => Math.max(1, value - 1));
+            }}
+          >
+            <ZStack modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.circle())]}>
+              <Image size={17} systemName="minus" />
+            </ZStack>
+          </Button>
+          <Text
+            modifiers={[
+              roundedFont({ size: 17, weight: 'semibold' }),
+              contentTransition('numericText', {
+                countsDown: quantityDirection === 'down',
+              }),
+              animation(Animation.easeInOut({ duration: 0.18 }), bucketQuantity),
+            ]}
+          >
+            {presentedQuantity}
+          </Text>
+          <Button
+            modifiers={[
+              padding({ all: 0 }),
+              buttonStyle('plain'),
+              controlSize('regular'),
+              frame({ width: 44, height: 44, alignment: 'center' }),
+              glassEffect({
+                glass: { interactive: true, variant: 'regular' },
+                shape: 'circle',
+              }),
+              contentShape(shapes.circle()),
+              accessibilityLabel('Aumentar quantidade'),
+              disabledModifier(testModeEnabled),
+            ]}
+            onPress={() => {
+              triggerNativeButtonHaptic('light');
+              setQuantityDirection('up');
+              setBucketQuantity((value) => value + 1);
+            }}
+          >
+            <ZStack modifiers={[frame({ width: 44, height: 44 }), contentShape(shapes.circle())]}>
+              <Image size={17} systemName="plus" />
+            </ZStack>
+          </Button>
+        </HStack>
+      </HStack>
+
+      <HStack
+        alignment="center"
+        spacing={12}
+        modifiers={[
+          padding({ leading: spacing.sm }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          padding({ vertical: spacing.sm }),
+        ]}
+      >
+        <NativeSheetFieldIcon systemImage="dollarsign" />
+        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Valor total</Text>
+          <Text
+            modifiers={[
+              roundedFont({ size: 13, weight: 'regular' }),
+              foregroundStyle(theme.colors.textSecondary),
+            ]}
+          >
+            Total da entrega
+          </Text>
+        </VStack>
+        <Spacer />
+        <Text
+          modifiers={[
+            roundedFont({ size: 17, weight: 'semibold' }),
+            padding({ trailing: spacing.sm }),
+            offset({ x: -16 }),
+          ]}
+        >
+          {presentedTotal}
+        </Text>
+      </HStack>
+    </VStack>
+  );
+
+  const clientPagerDetailView = (
+    <VStack
+      alignment="leading"
+      spacing={16}
+      modifiers={[padding({ horizontal: 16, top: 14, bottom: 16 }), frame({ maxWidth: 1000, maxHeight: Infinity, alignment: 'top' })]}
+    >
+      <VStack
+        alignment="leading"
+        spacing={16}
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'topLeading' }), offset({ y: 16 })]}
+      >
+        <ZStack
+          alignment="center"
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'center' }), offset({ y: 8 })]}
+        >
+          <HStack
+            alignment="center"
+            modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ leading: spacing.sm })]}
+          >
+            <Button
+              modifiers={[
+                buttonStyle('plain'),
+                controlSize('regular'),
+                frame({ width: 48, height: 48, alignment: 'center' }),
+                contentShape(shapes.rectangle()),
+                accessibilityLabel('Voltar para clientes'),
+              ]}
+              onPress={() => {
+                triggerNativeButtonHaptic('light');
+                onPageSettled?.(0);
+              }}
+            >
+              <Image
+                color={theme.colors.textSecondary}
+                modifiers={[font({ size: 18, weight: 'semibold' })]}
+                systemName="chevron.left"
+              />
+            </Button>
+          </HStack>
+          <Text modifiers={[roundedFont({ size: 18, weight: 'semibold' })]}>
+            {selectedItem?.title ?? title}
+          </Text>
+        </ZStack>
+        {clientPagerDetailRows}
+      </VStack>
+      <ZStack
+        alignment="center"
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'center' }), padding({ horizontal: spacing.xs, vertical: spacing.sm })]}
+      >
+        <HStack
+          alignment="center"
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}
+        >
+          <Button
+            modifiers={[
+              buttonStyle('plain'),
+              controlSize('large'),
+              ...(testModeEnabled ? [disabledModifier(true)] : []),
+            ]}
+            onPress={() => {
+              if (!selectedItem || testModeEnabled) return;
+
+              onConfirm?.({
+                bucketPrice: effectiveBucketPrice,
+                client: selectedItem,
+                date: selectedDate,
+                quantity: bucketQuantity,
+              });
+              onVisibleChange(false);
+            }}
+          >
+            <Text
+              modifiers={[
+                roundedFont({ size: 17, weight: 'semibold' }),
+                foregroundStyle(theme.colors.contrastContent),
+                padding({ horizontal: 28, vertical: 14 }),
+                frame({ width: confirmButtonWidth, height: 58, alignment: 'center' }),
+                background(theme.colors.contrastSurface),
+                cornerRadius(999),
+                contentShape(shapes.capsule()),
+              ]}
+            >
+              Confirmar
+            </Text>
+          </Button>
+        </HStack>
+      </ZStack>
+    </VStack>
+  );
+
   const detailView = (
     <VStack
       alignment="leading"
@@ -202,7 +692,10 @@ export default function NativeBottomSheetSwiftUI({
       <VStack
         alignment="leading"
         spacing={spacing.xs}
-        modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
+        modifiers={[
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          ...(usesInlineClientSelection ? [offset({ y: 20 })] : []),
+        ]}
       >
         {selectedItem || usesInlineClientSelection ? (
           <ZStack alignment="center" modifiers={[frame({ maxWidth: 1000 })]}>
@@ -296,33 +789,35 @@ export default function NativeBottomSheetSwiftUI({
             </Text>
           </ZStack>
         ) : null}
-        <ZStack
-          alignment="topLeading"
-          modifiers={[
-            frame({ maxWidth: Infinity, alignment: 'leading' }),
-            padding({ horizontal: 0, vertical: 0 }),
-            offset({ y: usesInlineClientSelection ? 12 : 4 }),
-          ]}
-        >
-          {renderDetailSurface()}
-          <VStack
-            alignment="leading"
-            spacing={spacing.xs}
-            modifiers={[offset({ y: 0 }), frame({ maxWidth: Infinity })]}
+        {usesInlineClientSelection ? (
+          inlineDetailRows
+        ) : (
+          <ZStack
+            alignment="topLeading"
+            modifiers={[
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
+              padding({ horizontal: 0, vertical: 0 }),
+              offset({ y: 4 }),
+            ]}
           >
+            {renderDetailSurface()}
             <VStack
               alignment="leading"
               spacing={spacing.xs}
-              modifiers={[
-                padding({
-                  leading: spacing.lg,
-                  trailing: spacing.md,
-                  top: spacing.xs,
-                  bottom: spacing.md,
-                }),
-                ...(usesInlineClientSelection ? [offset({ y: 10 })] : []),
-              ]}
+              modifiers={[frame({ maxWidth: Infinity })]}
             >
+              <VStack
+                alignment="leading"
+                spacing={spacing.xs}
+                modifiers={[
+                  padding({
+                    leading: spacing.lg,
+                    trailing: spacing.md,
+                    top: spacing.xs,
+                    bottom: spacing.md,
+                  }),
+                ]}
+              >
               {usesInlineClientSelection ? (
                 <HStack
                   alignment="center"
@@ -491,9 +986,10 @@ export default function NativeBottomSheetSwiftUI({
                   {presentedTotal}
                 </Text>
               </HStack>
+              </VStack>
             </VStack>
-          </VStack>
-        </ZStack>
+          </ZStack>
+        )}
       </VStack>
       <ZStack
         alignment="center"
@@ -605,6 +1101,74 @@ export default function NativeBottomSheetSwiftUI({
     </VStack>
   );
 
+  const clientPagerListView = (
+    <VStack
+      alignment="leading"
+      spacing={0}
+      modifiers={[
+        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
+        padding({ top: 1 }),
+      ]}
+    >
+      <List
+        modifiers={[
+          listStyle('plain'),
+          scrollDisabled(false),
+          scrollContentBackground('hidden'),
+          padding({ horizontal: 0, bottom: 0 }),
+        ]}
+      >
+        {items.map((item) => (
+          <Button
+            key={item.id}
+            modifiers={[
+              buttonStyle('plain'),
+              frame({ maxWidth: Infinity, alignment: 'leading' }),
+              listRowBackground('clear'),
+              listRowInsets({ top: 0, bottom: 0, leading: 0, trailing: 0 }),
+              listRowSeparator('hidden'),
+              accessibilityLabel(item.title),
+            ]}
+            onPress={() => handleSelect(item)}
+          >
+            <HStack
+              alignment="center"
+              spacing={12}
+              modifiers={[
+                padding({ leading: spacing.lg, trailing: spacing.xl, vertical: spacing.sm }),
+                frame({ maxWidth: Infinity, alignment: 'leading' }),
+                contentShape(shapes.rectangle()),
+              ]}
+            >
+              <NativeSheetFieldIcon
+                systemImage={(item.systemImage ?? 'person.crop.circle.fill') as SFSymbol}
+              />
+              <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+                <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>
+                  {item.title}
+                </Text>
+                <Text
+                  modifiers={[
+                    roundedFont({ size: 13, weight: 'regular' }),
+                    foregroundStyle(theme.colors.textSecondary),
+                  ]}
+                >
+                  {item.subtitle ?? 'Cliente'}
+                </Text>
+              </VStack>
+              <Spacer />
+              <Image
+                color={theme.colors.textSecondary}
+                modifiers={[font({ size: 18, weight: 'semibold' })]}
+                systemName="chevron.right"
+              />
+            </HStack>
+          </Button>
+        ))}
+      </List>
+    </VStack>
+  );
+
   const registroSheetContentBody = (
     <VStack
       alignment="leading"
@@ -624,8 +1188,8 @@ export default function NativeBottomSheetSwiftUI({
           </Host>
         ) : (
           <RegistrarDeliveryPagerRN
-            detailPage={detailView}
-            listPage={listView}
+            detailPage={usesClientPager ? clientPagerDetailView : detailView}
+            listPage={usesClientPager ? clientPagerListView : listView}
             onPageSettled={(page) => onPageSettled?.(page)}
             requestedPage={selectedItem ? 1 : initialPage}
           />

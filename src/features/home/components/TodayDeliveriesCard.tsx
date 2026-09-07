@@ -8,6 +8,7 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import { DeliveryStatusBadge } from '@/features/history/components/DeliveryStatusBadge';
+import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 
 export type TodayDeliveriesCardProps = {
   cardSurfaceColor?: string;
@@ -102,23 +103,29 @@ export function TodayDeliveriesCard({
           >
             <View style={[styles.cards, { gap: theme.spacing.xs }]}>
               {deliveries.map((delivery) => {
-                const renderDeliveryRow = () => (
+                const cardRadius = theme.radius.xl + theme.spacing.sm;
+                const renderDeliveryRow = (preview = false) => (
                   <View
                     style={[
                       styles.row,
                       {
-                        backgroundColor: 'transparent',
-                        borderRadius: theme.radius.xl + theme.spacing.sm,
+                        backgroundColor: preview ? surfaceColor : 'transparent',
+                        borderRadius: cardRadius,
+                        overflow: preview ? 'hidden' : undefined,
                         padding: theme.spacing.md,
                         width: '100%',
                       },
                     ]}
                   >
+                    <OpenPaymentClientIcon />
                     <View style={styles.copy}>
                       <Text
                         style={[
-                          theme.typography.callout,
-                          { color: theme.colors.textPrimary, fontWeight: 'bold' },
+                          theme.typography.body,
+                          {
+                            color: theme.colors.textPrimary,
+                            fontWeight: theme.typography.headline.fontWeight,
+                          },
                         ]}
                       >
                         {delivery.cliente}
@@ -166,8 +173,9 @@ export function TodayDeliveriesCard({
                       ]}
                       style={[
                         styles.contextMenu,
-                        { borderRadius: theme.radius.xl + theme.spacing.sm },
+                        { borderRadius: cardRadius },
                       ]}
+                      preview={renderDeliveryRow(true)}
                     >
                       {renderDeliveryRow()}
                     </NativeCardContextMenu>
@@ -186,13 +194,13 @@ const styles = StyleSheet.create({
   cards: { width: '100%' },
   contextContainer: { overflow: 'hidden' },
   contextMenu: { width: '100%' },
-  copy: { flex: 1, gap: 2, marginLeft: 8 },
+  copy: { flex: 1, gap: 2 },
   container: { width: '100%' },
   emptyDeliveryCard: { width: '100%' },
   emptyStateCard: { alignItems: 'center', flex: 1, justifyContent: 'center', width: '100%' },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   quantity: { marginRight: 16 },
-  row: { alignItems: 'center', flexDirection: 'row', width: '100%' },
+  row: { alignItems: 'center', flexDirection: 'row', gap: 12, width: '100%' },
   title: { marginLeft: 16 },
   transitionContent: { width: '100%' },
 });

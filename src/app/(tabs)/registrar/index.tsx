@@ -22,6 +22,7 @@ import type { NativeDailyDataValues } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
 import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
+import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -553,8 +554,9 @@ export function RegistrarDeliveryScreen({
   const emptyDeliveryCardMinHeight =
     theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
   const deliveryRowHeight =
-    (theme.spacing.sm + theme.spacing.xs) * 2 +
+    theme.spacing.sm * 2 +
     Math.max(
+      54,
       theme.typography.body.lineHeight,
       theme.typography.callout.lineHeight + theme.typography.footnote.lineHeight + 2,
     );
@@ -679,16 +681,20 @@ export function RegistrarDeliveryScreen({
                             height: deliveryRowHeight,
                             overflow: preview ? 'hidden' : undefined,
                             paddingHorizontal: theme.spacing.md,
-                            paddingVertical: theme.spacing.sm + theme.spacing.xs,
+                            paddingVertical: theme.spacing.sm,
                             width: '100%',
                           },
                         ]}
                       >
+                        <OpenPaymentClientIcon />
                         <View style={styles.deliveryItemCopy}>
                           <Text
                             style={[
-                              theme.typography.callout,
-                              { color: theme.colors.textPrimary, fontWeight: '700' },
+                              theme.typography.body,
+                              {
+                                color: theme.colors.textPrimary,
+                                fontWeight: theme.typography.headline.fontWeight,
+                              },
                             ]}
                           >
                             {delivery.cliente}
@@ -818,6 +824,7 @@ export function RegistrarDeliveryScreen({
       <RegistrarDeliverySheet
         controller={registrarDeliverySheet}
         initialPage={inlineClientSelection ? 1 : 0}
+        useClientPager={inlineClientSelection}
       />
     </View>
   );
@@ -928,7 +935,7 @@ const styles = StyleSheet.create({
   deliveryItemRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
     width: '100%',
   },
   deliveryItemCopy: { flex: 1, gap: 2 },

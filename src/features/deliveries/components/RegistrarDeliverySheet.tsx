@@ -9,9 +9,11 @@ import {
 export function RegistrarDeliverySheet({
   controller,
   initialPage = 0,
+  useClientPager = false,
 }: {
   controller: RegistrarDeliverySheetController;
   initialPage?: 0 | 1;
+  useClientPager?: boolean;
 }) {
   const { resolvedMode } = useAppTheme();
   const useDarkGlassSurface = resolvedMode === 'dark';
@@ -28,13 +30,14 @@ export function RegistrarDeliverySheet({
       onVisibleChange={controller.handleVisibleChange}
       glassSurface={useDarkGlassSurface}
       glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
-      initialPage={initialPage}
+      initialPage={useClientPager ? 0 : initialPage}
       presentationBackgroundInteraction="enabled"
       presentationBackgroundMode="native"
       selectedItem={controller.selectedClient}
       subtitle="Escolha o cliente"
       title="Adicionar entrega"
       titleSystemImage="plus"
+      useClientPager={useClientPager}
       visible={controller.sheetVisible}
     />
   );

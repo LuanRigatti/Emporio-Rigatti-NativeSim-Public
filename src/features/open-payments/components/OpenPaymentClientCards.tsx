@@ -1,13 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Badge } from '@/components/feedback';
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
-import { getCardSurfaceColor, lightTheme, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { formatDateAsDayMonthYear } from '@/utils/groupItemsByDate';
 
 import type { OpenPaymentClientCard } from '../hooks/useOpenPaymentClients';
+import OpenPaymentClientIcon from './OpenPaymentClientIcon';
 
 export type OpenPaymentClientCardsProps = {
   clients: readonly OpenPaymentClientCard[];
@@ -23,11 +23,7 @@ export function OpenPaymentClientCards({
   const { resolvedMode, theme } = useAppTheme();
   const openPaymentCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { currency: maskCurrency } = useTestModePresentation();
-  const cardMinHeight =
-    theme.spacing.md * 2 +
-    theme.typography.callout.lineHeight +
-    theme.spacing.xxs / 2 +
-    theme.typography.footnote.lineHeight;
+  const cardMinHeight = 54 + theme.spacing.sm * 2;
 
   const renderRow = (client: OpenPaymentClientCard, preview = false) => (
     <View
@@ -37,41 +33,39 @@ export function OpenPaymentClientCards({
           backgroundColor: preview ? openPaymentCardSurface : 'transparent',
           borderRadius: theme.radius.xl + theme.spacing.sm,
           overflow: preview ? 'hidden' : undefined,
-          padding: theme.spacing.md,
+          paddingHorizontal: theme.spacing.sm,
+          paddingVertical: theme.spacing.sm,
           minHeight: cardMinHeight,
           width: '100%',
         },
       ]}
     >
+      <OpenPaymentClientIcon />
+      <View style={styles.clientInfo}>
+        <Text
+          style={[
+            theme.typography.body,
+            {
+              color: theme.colors.textPrimary,
+              fontWeight: theme.typography.headline.fontWeight,
+            },
+          ]}
+        >
+          {client.nome}
+        </Text>
+        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>Cliente</Text>
+      </View>
       <Text
         style={[
-          theme.typography.callout,
+          theme.typography.body,
           {
             color: theme.colors.textPrimary,
-            fontSize: theme.typography.callout.fontSize + 1,
             fontWeight: theme.typography.headline.fontWeight,
-            marginLeft: theme.spacing.xxs,
           },
         ]}
       >
-        {client.nome}
+        {maskCurrency(client.valor)}
       </Text>
-      <Badge
-        label={maskCurrency(client.valor)}
-        labelStyle={[
-          theme.typography.footnote,
-          {
-            color: resolvedMode === 'dark' ? theme.colors.danger : lightTheme.colors.danger,
-            fontWeight: theme.typography.headline.fontWeight,
-          },
-        ]}
-        style={{
-          backgroundColor:
-            resolvedMode === 'dark' ? theme.colors.dangerSurface : lightTheme.colors.dangerSurface,
-          transform: [{ translateY: 10 }],
-        }}
-        tone="danger"
-      />
     </View>
   );
 
@@ -128,7 +122,8 @@ const styles = StyleSheet.create({
   card: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
     width: '100%',
   },
+  clientInfo: { flex: 1, gap: 2 },
 });

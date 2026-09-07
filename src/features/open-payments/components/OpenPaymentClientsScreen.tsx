@@ -37,6 +37,33 @@ export function OpenPaymentClientsScreen() {
       includeTopSafeArea={false}
       mode="transparent"
       largeTitle
+      rightActions={
+        clientCards.length > 0 ? (
+          <GlassCard
+            style={[
+              styles.totalCard,
+              {
+                borderRadius: theme.radius.lg,
+                paddingHorizontal: theme.spacing.sm,
+                paddingVertical: theme.spacing.xs,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                theme.typography.body,
+                {
+                  color: theme.colors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: theme.typography.headline.fontWeight,
+                },
+              ]}
+            >
+              {maskCurrency(totalOpenAmount)}
+            </Text>
+          </GlassCard>
+        ) : undefined
+      }
       title="Em aberto"
       titleStyle={{
         fontFamily: 'System',
@@ -74,31 +101,6 @@ export function OpenPaymentClientsScreen() {
               onMarkAsPaid={markDeliveryPaid}
               testModeEnabled={testModeEnabled}
             />
-            <GlassCard
-              style={[
-                styles.totalCard,
-                {
-                  borderRadius: theme.radius.lg,
-                  marginRight: theme.spacing.xs,
-                  marginTop: theme.spacing.xs + theme.spacing.md,
-                  paddingHorizontal: theme.spacing.sm,
-                  paddingVertical: theme.spacing.xs,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  theme.typography.body,
-                  {
-                    color: theme.colors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: theme.typography.headline.fontWeight,
-                  },
-                ]}
-              >
-                {maskCurrency(totalOpenAmount)}
-              </Text>
-            </GlassCard>
           </>
         ) : (
           <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
@@ -113,5 +115,5 @@ export function OpenPaymentClientsScreen() {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { width: '100%' },
-  totalCard: { alignSelf: 'flex-end' },
+  totalCard: { alignSelf: 'center' },
 });

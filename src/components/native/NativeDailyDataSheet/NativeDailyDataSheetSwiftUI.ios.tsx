@@ -1,7 +1,6 @@
 import {
   BottomSheet,
   Button,
-  Circle,
   Group,
   HStack,
   Host,
@@ -49,6 +48,7 @@ import {
 } from '@/components/native/nativeSheetBackground';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import RegistrarDeliveryPagerRN from '../NativeBottomSheet/RegistrarDeliveryPagerRN';
+import NativeSheetFieldIcon from '../NativeSheetFieldIcon';
 import { roundedFont } from '../nativeTypography';
 
 import type {
@@ -110,7 +110,6 @@ export default function NativeDailyDataSheetSwiftUI({
   const { resolvedMode, theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const confirmButtonWidth = width * 0.84;
-  const dailyDataIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
   const { enabled: testModeEnabled, input: maskInput } = useTestModePresentation();
   const [values, setValues] = useState<NativeDailyDataValues>(initialValues);
   const [submitting, setSubmitting] = useState(false);
@@ -186,7 +185,7 @@ export default function NativeDailyDataSheetSwiftUI({
         modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
       >
         <HStack alignment="center" spacing={12} modifiers={[padding({ leading: spacing.sm })]}>
-          {renderIcon(systemImage)}
+          <NativeSheetFieldIcon systemImage={systemImage} />
           <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
             <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>{label}</Text>
             <Text
@@ -227,17 +226,6 @@ export default function NativeDailyDataSheetSwiftUI({
     </VStack>
   );
 
-  function renderIcon(systemImage: SFSymbol) {
-    return (
-      <ZStack alignment="center" modifiers={[frame({ width: 54, height: 54 })]}>
-        <Circle
-          modifiers={[frame({ width: 54, height: 54 }), foregroundStyle(dailyDataIconSurface)]}
-        />
-        <Image color={theme.colors.textPrimary} size={21} systemName={systemImage} />
-      </ZStack>
-    );
-  }
-
   const fieldStates: Record<DailyDataFieldName, NativeTextState> = {
     estar: estarState,
     fuelPrice: fuelPriceState,
@@ -270,7 +258,7 @@ export default function NativeDailyDataSheetSwiftUI({
               contentShape(shapes.rectangle()),
             ]}
           >
-            {renderIcon(item.systemImage)}
+            <NativeSheetFieldIcon systemImage={item.systemImage} />
             <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
               <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>
                 {item.label}

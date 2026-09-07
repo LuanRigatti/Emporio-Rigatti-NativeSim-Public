@@ -34,15 +34,19 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 
 ### Home
 
-- A Home mantém os cards, carrossel, botão circular de pesquisa, `Em aberto`,
-  Documentos, Fábrica e `Entregas de hoje` com os dados e handlers existentes.
-  O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou campo
-  editável na Home.
+- A Home mantém o botão circular de pesquisa, `Entregas de hoje` e os dados e
+  handlers existentes. Os quatro atalhos `Registrar Entrega`, `Em aberto`,
+  `Documentos` e `Fábrica` agora ficam em um único card agrupado, com quatro
+  linhas inteiras clicáveis, ícone em círculo `54x54`, título, informação
+  secundária e `chevron.right`, sem separadores internos.
+- O card agrupado usa a margem lateral padrão
+  `theme.layout.screenHorizontalPadding` (`16 pt`) em cada lado, com largura
+  centralizada. O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou
+  campo editável na Home.
 - O header mantém o avatar no canto superior esquerdo e a lupa Liquid Glass no
   canto superior direito, ambos com os handlers e haptics nativos atuais.
-- O carrossel principal usa o deslocamento vertical final de `4 pt`; o fundo da
-  Home permanece no background original, sem gradientes, glows ou camadas BlurView
-  experimentais.
+- O fundo da Home permanece no background original, sem gradientes, glows ou
+  camadas BlurView experimentais.
 - O card `Registrar Entrega` navega para `/registrar-entrega`; não abre um
   Bottom Sheet diretamente sobre a Home. A rota de destino passa
   `inlineClientSelection` e usa exatamente o mesmo fluxo de um único
@@ -78,6 +82,11 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 
 ### Registrar Entrega e Dados Diários
 
+- A aba Registrar agora possui um Native Stack aninhado em
+  `src/app/(tabs)/registrar/_layout.tsx`, com as telas `index`, `entrega` e
+  `dados`. Os destinos usam `Stack.Screen.BackButton displayMode="minimal"`;
+  as rotas/layouts antigos de `src/app/registrar` foram removidos e a
+  declaração raiz duplicada de `registrar` deixou de ser necessária.
 - Registrar Entrega mantém o `RegistrarDeliverySheet` compartilhado, seleção de
   cliente pelo Menu nativo, detalhe em um único sheet, detents, gestos, Liquid
   Glass, callbacks e a máquina de estados `closed → presented → dismissing → closed`.
@@ -115,10 +124,15 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 - `Em aberto` usa o padrão compartilhado de círculo `54x54`, ícone de cliente,
   nome, descrição `Cliente` e valor à direita; o total da tela permanece no
   badge do título e os valores financeiros continuam inalterados.
-- Home → `Hoje`, Entregas e Histórico usam o mesmo ícone circular, hierarquia
-  de nome/texto secundário e espaçamento. Entregas e Histórico compartilham o
-  `DeliveryCard`; os status, valores, quantidades, ações e regras financeiras
-  permanecem intactos.
+- Home → `Hoje`, Entregas, Histórico e Documentos usam o mesmo ícone circular,
+  hierarquia de nome/texto secundário e espaçamento. Documentos mantém os
+  títulos `Notas fiscais` e `Boletos` fora dos cards, com o conteúdo agrupado
+  abaixo de cada título. Entregas e Histórico compartilham o `DeliveryCard`;
+  os status, valores, quantidades, ações e regras financeiras permanecem
+  intactos.
+- Os cards de Documentos reservam desde o primeiro layout a altura da linha
+  baseada no círculo `54x54` e no padding, mantendo o preview/context menu na
+  mesma geometria e evitando o salto de altura do primeiro mount.
 - O `OpenPaymentClientIcon` tem fallback React Native e implementação
   SwiftUI/@expo/ui no iOS, reutilizando o círculo nativo dos sheets.
 

@@ -17,6 +17,7 @@ import type { DatedItemGroup } from '@/utils/groupItemsByDate';
 import type { Delivery } from '@/types/data';
 
 import type { OpenPaymentPreview } from '@/features/open-payments/data/openPaymentPreview';
+import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 
 export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolean } = {}) {
   const router = useRouter();
@@ -143,14 +144,14 @@ export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolea
         groups={invoiceGroups}
         onDelete={handleInvoiceSwipe}
         theme={theme}
-        title="Nota fiscal"
+        title="Notas fiscais"
       />
       <DocumentTypeCard
         emptyLabel="Nenhum boleto pendente"
         groups={boletoGroups}
         onDelete={handleBoletoSwipe}
         theme={theme}
-        title="Boleto"
+        title="Boletos"
       />
     </View>
   );
@@ -216,100 +217,117 @@ function DocumentTypeCard({
   const { resolvedMode } = useAppTheme();
   const { enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
     useTestModePresentation();
+  const documentItemRowHeight = 54 + theme.spacing.sm * 2;
 
   return (
-    <GlassCard style={[styles.typeCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
-      <Text style={[styles.typeTitle, { color: theme.colors.textPrimary }]}>{title}</Text>
-      {groups.length > 0 ? (
-        groups.map((group) => (
-          <View key={group.date} style={styles.dateGroup}>
-            <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
-              {formatDateAsDayMonthYear(group.date)}
-            </Text>
-            <View style={[styles.documentItemGroup, { gap: theme.spacing.xs }]}>
-              {group.items.map((item) => {
-                const renderDocumentItemRow = (preview = false) => (
-                  <View
-                    style={[
-                      styles.documentItemRow,
-                      {
-                        backgroundColor: preview
-                          ? getCardSurfaceColor(resolvedMode, theme.colors.glassSurface)
-                          : 'transparent',
-                        borderRadius: theme.radius.xl + theme.spacing.sm,
-                        overflow: preview ? 'hidden' : undefined,
-                        paddingHorizontal: theme.spacing.md,
-                        paddingVertical: theme.spacing.sm + theme.spacing.xs,
-                        width: '100%',
-                      },
-                    ]}
-                  >
-                    <View style={styles.documentItemCopy}>
-                      <Text
-                        style={[
-                          theme.typography.callout,
-                          { color: theme.colors.textPrimary, fontWeight: '700' },
-                        ]}
-                      >
-                        {item.client}
-                      </Text>
-                      <Text
-                        style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-                      >
-                        {maskQuantity(item.quantity)}
-                      </Text>
-                    </View>
-                    <Text
+    <View style={styles.typeSection}>
+      <Text style={[theme.typography.headline, styles.typeTitle, { color: theme.colors.textPrimary }]}>
+        {title}
+      </Text>
+      <GlassCard style={[styles.typeCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+        {groups.length > 0 ? (
+          groups.map((group) => (
+            <View key={group.date} style={styles.dateGroup}>
+              <Text style={[styles.groupTitle, { color: theme.colors.textSecondary }]}>
+                {formatDateAsDayMonthYear(group.date)}
+              </Text>
+              <View style={[styles.documentItemGroup, { gap: theme.spacing.xs }]}>
+                {group.items.map((item) => {
+                  const renderDocumentItemRow = (preview = false) => (
+                    <View
                       style={[
-                        theme.typography.body,
-                        { color: theme.colors.textPrimary, fontWeight: '600' },
-                      ]}
-                    >
-                      {maskText(item.amount)}
-                    </Text>
-                  </View>
-                );
-
-                return (
-                  <View
-                    key={item.id}
-                    style={[
-                      styles.contextContainer,
-                      {
-                        backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.glassSurface),
-                        borderRadius: theme.radius.xl + theme.spacing.sm,
-                        overflow: 'hidden',
-                        width: '100%',
-                      },
-                    ]}
-                  >
-                    <NativeCardContextMenu
-                      actions={[
+                        styles.documentItemRow,
                         {
-                          id: 'emit-document',
-                          disabled: testModeEnabled,
-                          onPress: () => onDelete(item.id),
-                          systemImage: 'checkmark.seal.fill',
-                          title: 'Emitido',
+                          backgroundColor: preview
+                            ? getCardSurfaceColor(resolvedMode, theme.colors.glassSurface)
+                            : 'transparent',
+                          borderRadius: theme.radius.xl + theme.spacing.sm,
+                          overflow: preview ? 'hidden' : undefined,
+                          minHeight: documentItemRowHeight,
+                          paddingHorizontal: theme.spacing.sm,
+                          paddingVertical: theme.spacing.sm,
+                          width: '100%',
                         },
                       ]}
-                      preview={renderDocumentItemRow(true)}
-                      style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
                     >
-                      {renderDocumentItemRow()}
-                    </NativeCardContextMenu>
-                  </View>
-                );
-              })}
+                      <OpenPaymentClientIcon />
+                      <View style={styles.documentItemCopy}>
+                        <Text
+                          style={[
+                            theme.typography.body,
+                            {
+                              color: theme.colors.textPrimary,
+                              fontWeight: theme.typography.headline.fontWeight,
+                            },
+                          ]}
+                        >
+                          {item.client}
+                        </Text>
+                        <Text
+                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                        >
+                          {maskQuantity(item.quantity)}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          theme.typography.body,
+                          { color: theme.colors.textPrimary, fontWeight: theme.typography.headline.fontWeight },
+                        ]}
+                      >
+                        {maskText(item.amount)}
+                      </Text>
+                    </View>
+                  );
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.contextContainer,
+                        {
+                          backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.glassSurface),
+                          borderRadius: theme.radius.xl + theme.spacing.sm,
+                          height: documentItemRowHeight,
+                          overflow: 'hidden',
+                          width: '100%',
+                        },
+                      ]}
+                    >
+                      <NativeCardContextMenu
+                        actions={[
+                          {
+                            id: 'emit-document',
+                            disabled: testModeEnabled,
+                            onPress: () => onDelete(item.id),
+                            systemImage: 'checkmark.seal.fill',
+                            title: 'Emitido',
+                          },
+                        ]}
+                        preview={renderDocumentItemRow(true)}
+                        style={[
+                          styles.contextMenu,
+                          {
+                            borderRadius: theme.radius.xl + theme.spacing.sm,
+                            height: '100%',
+                          },
+                        ]}
+                      >
+                        {renderDocumentItemRow()}
+                      </NativeCardContextMenu>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
-          </View>
-        ))
-      ) : (
-        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          {emptyLabel}
-        </Text>
-      )}
-    </GlassCard>
+          ))
+        ) : (
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            {emptyLabel}
+          </Text>
+        )}
+      </GlassCard>
+    </View>
   );
 }
 
@@ -324,9 +342,10 @@ function formatCurrency(value: number): string {
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   pageContent: { width: '100%' },
+  typeSection: { width: '100%' },
   typeList: { width: '100%' },
   typeCard: { gap: 12, overflow: 'hidden', padding: 16 },
-  typeTitle: { fontSize: 18, fontWeight: '700' },
+  typeTitle: { marginBottom: 8, marginLeft: 16 },
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },
   documentItemGroup: { width: '100%' },
@@ -335,7 +354,7 @@ const styles = StyleSheet.create({
   documentItemRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
     width: '100%',
   },
   documentItemCopy: { flex: 1, gap: 2 },

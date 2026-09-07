@@ -2,13 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { StyleSheet, Text, View } from 'react-native';
+import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeAvatarButton, NativeGlassIconButton } from '@/components/native';
 import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
@@ -44,6 +39,7 @@ export default function Home() {
   const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const homeShortcutIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
   const { user } = useAuth();
   const {
     currency: maskCurrency,
@@ -212,29 +208,10 @@ export default function Home() {
           <View style={styles.header}>{homeHeader}</View>
         </View>
 
-        <ScrollView
-          contentContainerStyle={[
-            styles.widgetRow,
-            {
-              gap: theme.spacing.sm,
-              paddingLeft: theme.spacing.xs,
-              paddingRight: theme.spacing.xs,
-            },
-          ]}
-          decelerationRate="fast"
-          directionalLockEnabled
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          snapToInterval={178 + theme.spacing.sm}
-          style={styles.widgetCarousel}
-        >
+        <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
           <PremiumCard
-            accessibilityLabel="Abrir Registrar Entrega"
-            onPress={handleOpenRegistrarEntrega}
             style={[
-              styles.widgetCard,
+              styles.homeShortcutCard,
               {
                 backgroundColor: homeCardSurface,
                 borderRadius: theme.radius.xl + theme.spacing.sm,
@@ -242,149 +219,164 @@ export default function Home() {
               },
             ]}
           >
-            <View style={styles.widgetHeader}>
-              <PreviewIcon color={theme.colors.textSecondary} name="cube-outline" />
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-            </View>
-            <View
-              style={[
-                styles.widgetCopy,
-                {
-                  gap: theme.spacing.xxs,
-                  minHeight: theme.typography.headline.lineHeight * 2,
-                },
-              ]}
-            >
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                Registrar Entrega
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+            <View style={[styles.homeShortcutList, { gap: theme.spacing.xl }]}>
+              <AnimatedPressable
+                accessibilityLabel="Abrir Registrar Entrega"
+                accessibilityRole="button"
+                containerStyle={styles.homeShortcutRowContainer}
+                onPress={handleOpenRegistrarEntrega}
+                style={styles.homeShortcutRow}
               >
-                {maskText(`${dailyDeliveries.length} hoje`)}
-              </Text>
+                <View
+                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                >
+                  <PreviewIcon color={theme.colors.textSecondary} name="cube-outline" size={21} />
+                </View>
+                <View
+                  style={[
+                    styles.homeShortcutCopy,
+                    {
+                      gap: theme.spacing.xxs,
+                      marginLeft: theme.spacing.sm,
+                      marginRight: theme.spacing.sm,
+                    },
+                  ]}
+                >
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Registrar Entrega
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                  >
+                    {maskText(`${dailyDeliveries.length} hoje`)}
+                  </Text>
+                </View>
+                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+              </AnimatedPressable>
+              <AnimatedPressable
+                accessibilityLabel="Abrir recebimentos em aberto"
+                accessibilityRole="button"
+                containerStyle={styles.homeShortcutRowContainer}
+                onPress={handleOpenRecebimentos}
+                style={styles.homeShortcutRow}
+              >
+                <View
+                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                >
+                  <PreviewIcon
+                    color={
+                      openPaymentClientCards.length > 0
+                        ? theme.colors.danger
+                        : theme.colors.textSecondary
+                    }
+                    name="cash-outline"
+                    size={21}
+                  />
+                </View>
+                <View
+                  style={[
+                    styles.homeShortcutCopy,
+                    {
+                      gap: theme.spacing.xxs,
+                      marginLeft: theme.spacing.sm,
+                      marginRight: theme.spacing.sm,
+                    },
+                  ]}
+                >
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Em aberto
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                  >
+                    {maskCurrency(totalOpenAmount)}
+                  </Text>
+                </View>
+                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+              </AnimatedPressable>
+              <AnimatedPressable
+                accessibilityLabel="Abrir documentos"
+                accessibilityRole="button"
+                containerStyle={styles.homeShortcutRowContainer}
+                onPress={handleOpenDocumentos}
+                style={styles.homeShortcutRow}
+              >
+                <View
+                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                >
+                  <PreviewIcon
+                    color={
+                      openDocumentsCount > 0 ? theme.colors.warning : theme.colors.textSecondary
+                    }
+                    name="document-text-outline"
+                    size={21}
+                  />
+                </View>
+                <View
+                  style={[
+                    styles.homeShortcutCopy,
+                    {
+                      gap: theme.spacing.xxs,
+                      marginLeft: theme.spacing.sm,
+                      marginRight: theme.spacing.sm,
+                    },
+                  ]}
+                >
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Documentos
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                  >
+                    {maskText(`${openDocumentsCount} em aberto`)}
+                  </Text>
+                </View>
+                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+              </AnimatedPressable>
+              <AnimatedPressable
+                accessibilityLabel="Abrir Fábrica"
+                accessibilityRole="button"
+                containerStyle={styles.homeShortcutRowContainer}
+                onPress={handleOpenFactory}
+                style={styles.homeShortcutRow}
+              >
+                <View
+                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                >
+                  <PreviewIcon
+                    color={theme.colors.textSecondary}
+                    name="business-outline"
+                    size={21}
+                  />
+                </View>
+                <View
+                  style={[
+                    styles.homeShortcutCopy,
+                    {
+                      gap: theme.spacing.xxs,
+                      marginLeft: theme.spacing.sm,
+                      marginRight: theme.spacing.sm,
+                    },
+                  ]}
+                >
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Fábrica
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                  >
+                    {maskCurrency(factoryOpenAmount)}
+                  </Text>
+                </View>
+                <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
+              </AnimatedPressable>
             </View>
           </PremiumCard>
-          <PremiumCard
-            accessibilityLabel="Abrir recebimentos em aberto"
-            onPress={handleOpenRecebimentos}
-            style={[
-              styles.widgetCard,
-              {
-                backgroundColor: homeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                padding: theme.spacing.lg,
-              },
-            ]}
-          >
-            <View style={styles.widgetHeader}>
-              <PreviewIcon
-                color={
-                  openPaymentClientCards.length > 0
-                    ? theme.colors.danger
-                    : theme.colors.textSecondary
-                }
-                name="cash-outline"
-              />
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-            </View>
-            <View
-              style={[
-                styles.widgetCopy,
-                {
-                  gap: theme.spacing.xxs,
-                  minHeight: theme.typography.headline.lineHeight * 2,
-                },
-              ]}
-            >
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                Em aberto
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-              >
-                {maskCurrency(totalOpenAmount)}
-              </Text>
-            </View>
-          </PremiumCard>
-          <PremiumCard
-            accessibilityLabel="Abrir documentos"
-            onPress={handleOpenDocumentos}
-            style={[
-              styles.widgetCard,
-              {
-                backgroundColor: homeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                padding: theme.spacing.lg,
-              },
-            ]}
-          >
-            <View style={styles.widgetHeader}>
-              <PreviewIcon
-                color={openDocumentsCount > 0 ? theme.colors.warning : theme.colors.textSecondary}
-                name="document-text-outline"
-              />
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-            </View>
-            <View
-              style={[
-                styles.widgetCopy,
-                {
-                  gap: theme.spacing.xxs,
-                  minHeight: theme.typography.headline.lineHeight * 2,
-                },
-              ]}
-            >
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                Documentos
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-              >
-                {maskText(`${openDocumentsCount} em aberto`)}
-              </Text>
-            </View>
-          </PremiumCard>
-          <PremiumCard
-            accessibilityLabel="Abrir Fábrica"
-            onPress={handleOpenFactory}
-            style={[
-              styles.widgetCard,
-              {
-                backgroundColor: homeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                padding: theme.spacing.lg,
-              },
-            ]}
-          >
-            <View style={styles.widgetHeader}>
-              <PreviewIcon color={theme.colors.textSecondary} name="business-outline" />
-              <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />
-            </View>
-            <View
-              style={[
-                styles.widgetCopy,
-                {
-                  gap: theme.spacing.xxs,
-                  minHeight: theme.typography.headline.lineHeight * 2,
-                },
-              ]}
-            >
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                Fábrica
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
-              >
-                {maskCurrency(factoryOpenAmount)}
-              </Text>
-            </View>
-          </PremiumCard>
-        </ScrollView>
+        </View>
 
         <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
           <TodayDeliveriesCard
@@ -407,9 +399,16 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { alignItems: 'center', minHeight: 44, position: 'relative' },
   paddedHomeContent: { width: '100%' },
-  widgetCarousel: { flexGrow: 0, transform: [{ translateY: 4 }], width: '100%' },
-  widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
-  widgetCard: { width: 178 },
-  widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  widgetCopy: { gap: 8, marginTop: 12 },
+  homeShortcutCard: { width: '100%' },
+  homeShortcutList: { width: '100%' },
+  homeShortcutRowContainer: { width: '100%' },
+  homeShortcutRow: { alignItems: 'center', flexDirection: 'row', minHeight: 54, width: '100%' },
+  homeShortcutIcon: {
+    alignItems: 'center',
+    borderRadius: 27,
+    height: 54,
+    justifyContent: 'center',
+    width: 54,
+  },
+  homeShortcutCopy: { flex: 1 },
 });

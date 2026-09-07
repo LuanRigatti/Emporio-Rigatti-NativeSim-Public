@@ -61,6 +61,7 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
 import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
+import NativeAnimatedNumber from '../NativeAnimatedNumber/NativeAnimatedNumber';
 import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
 import NativeSheetFieldIcon from '../NativeSheetFieldIcon';
 import { roundedFont } from '../nativeTypography';
@@ -128,12 +129,34 @@ export default function NativeBottomSheetSwiftUI({
   const dateMenuDays = createNativeDayItems(selectedYear, selectedMonth);
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
   const presentedQuantity = maskNumber(bucketQuantity);
+  const totalValue = effectiveBucketPrice * bucketQuantity;
   const presentedTotal = testModeEnabled
     ? maskCurrency(0)
     : new Intl.NumberFormat('pt-BR', {
         currency: 'BRL',
         style: 'currency',
-      }).format(effectiveBucketPrice * bucketQuantity);
+      }).format(totalValue);
+  const renderAnimatedTotal = (trailing: number = spacing.sm, horizontalOffset: number = 0) => (
+    <HStack
+      alignment="center"
+      modifiers={[
+        padding({ trailing }),
+        ...(horizontalOffset ? [offset({ x: horizontalOffset })] : []),
+      ]}
+    >
+      <NativeAnimatedNumber
+        alignment="trailing"
+        animationEnabled
+        color={theme.colors.textPrimary}
+        fontSize={17}
+        fontWeight="semibold"
+        horizontalSizing="intrinsic"
+        lineHeight={22}
+        text={presentedTotal}
+        value={testModeEnabled ? 0 : totalValue}
+      />
+    </HStack>
+  );
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -367,14 +390,7 @@ export default function NativeBottomSheetSwiftUI({
           </Text>
         </VStack>
         <Spacer />
-        <Text
-          modifiers={[
-            roundedFont({ size: 17, weight: 'semibold' }),
-            padding({ trailing: spacing.sm }),
-          ]}
-        >
-          {presentedTotal}
-        </Text>
+        {renderAnimatedTotal(spacing.sm, 38)}
       </HStack>
     </VStack>
   );
@@ -577,15 +593,7 @@ export default function NativeBottomSheetSwiftUI({
           </Text>
         </VStack>
         <Spacer />
-        <Text
-          modifiers={[
-            roundedFont({ size: 17, weight: 'semibold' }),
-            padding({ trailing: spacing.sm }),
-            offset({ x: -16 }),
-          ]}
-        >
-          {presentedTotal}
-        </Text>
+        {renderAnimatedTotal(spacing.sm, 22)}
       </HStack>
     </VStack>
   );
@@ -977,14 +985,7 @@ export default function NativeBottomSheetSwiftUI({
                   Valor total
                 </Text>
                 <Spacer />
-                <Text
-                  modifiers={[
-                    roundedFont({ size: 17, weight: 'semibold' }),
-                    padding({ trailing: 16 }),
-                  ]}
-                >
-                  {presentedTotal}
-                </Text>
+                {renderAnimatedTotal(16, 38)}
               </HStack>
               </VStack>
             </VStack>

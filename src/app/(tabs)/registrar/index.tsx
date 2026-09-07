@@ -19,7 +19,7 @@ import {
   NativeGlassIconButton,
 } from '@/components/native';
 import type { NativeDailyDataValues } from '@/components/native';
-import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
 import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
 import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
@@ -104,6 +104,7 @@ export default function PrototypeRegistrar() {
 function RegistrarModeSelection() {
   const { resolvedMode, theme } = useAppTheme();
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const registrarModeIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
   const router = useRouter();
 
   const handleOpenRegistrarEntrega = () => {
@@ -148,77 +149,71 @@ function RegistrarModeSelection() {
           style={[
             styles.modeSelection,
             {
-              gap: theme.spacing.sm,
               marginTop: theme.spacing.md * 2 - theme.spacing.xs / 2 - 4,
             },
           ]}
         >
-          <View style={[styles.widgetRow, { gap: theme.spacing.sm }]}>
-            <PremiumCard
-              accessibilityLabel="Abrir Registrar Entrega"
-              onPress={handleOpenRegistrarEntrega}
-              style={[
-                styles.widgetCard,
-                {
-                  backgroundColor: registrarCardSurface,
-                  borderRadius: theme.radius.xl + theme.spacing.sm,
-                  padding: theme.spacing.lg,
-                },
-              ]}
-            >
-              <View style={styles.widgetHeader}>
-                <Ionicons
-                  color={theme.colors.textSecondary}
-                  name="cube-outline"
-                  size={theme.sizes.iconMedium}
-                />
+          <PremiumCard
+            style={[
+              styles.modeSelectionCard,
+              {
+                backgroundColor: registrarCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+                padding: theme.spacing.lg,
+              },
+            ]}
+          >
+            <View style={[styles.modeOptions, { gap: theme.spacing.xl }]}>
+              <AnimatedPressable
+                accessibilityLabel="Abrir Registrar Entrega"
+                accessibilityRole="button"
+                containerStyle={styles.modeOptionContainer}
+                onPress={handleOpenRegistrarEntrega}
+                style={styles.modeOption}
+              >
+                <View style={[styles.modeIcon, { backgroundColor: registrarModeIconSurface }]}>
+                  <Ionicons color={theme.colors.textSecondary} name="cube-outline" size={21} />
+                </View>
+                <View style={styles.modeCopy}>
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Registrar Entrega
+                  </Text>
+                  <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                    Registre uma nova entrega de forma rápida e simples.
+                  </Text>
+                </View>
                 <Ionicons
                   color={theme.colors.textSecondary}
                   name="chevron-forward"
                   size={theme.sizes.iconMedium}
                 />
-              </View>
-              <View
-                style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
+              </AnimatedPressable>
+              <AnimatedPressable
+                accessibilityLabel="Abrir Registrar Dados"
+                accessibilityRole="button"
+                containerStyle={styles.modeOptionContainer}
+                onPress={handleOpenRegistrarDados}
+                style={styles.modeOption}
               >
-                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                  Registrar Entrega
-                </Text>
-              </View>
-            </PremiumCard>
-            <PremiumCard
-              accessibilityLabel="Abrir Registrar Dados"
-              onPress={handleOpenRegistrarDados}
-              style={[
-                styles.widgetCard,
-                {
-                  backgroundColor: registrarCardSurface,
-                  borderRadius: theme.radius.xl + theme.spacing.sm,
-                  padding: theme.spacing.lg,
-                },
-              ]}
-            >
-              <View style={styles.widgetHeader}>
-                <Ionicons
-                  color={theme.colors.textSecondary}
-                  name="calendar-outline"
-                  size={theme.sizes.iconMedium}
-                />
+                <View style={[styles.modeIcon, { backgroundColor: registrarModeIconSurface }]}>
+                  <Ionicons color={theme.colors.textSecondary} name="calendar-outline" size={21} />
+                </View>
+                <View style={styles.modeCopy}>
+                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                    Registrar Dados
+                  </Text>
+                  <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                    Cadastre e atualize informações no sistema.
+                  </Text>
+                </View>
                 <Ionicons
                   color={theme.colors.textSecondary}
                   name="chevron-forward"
                   size={theme.sizes.iconMedium}
                 />
-              </View>
-              <View
-                style={[styles.widgetCopy, { minHeight: theme.typography.headline.lineHeight * 2 }]}
-              >
-                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                  Registrar Dados
-                </Text>
-              </View>
-            </PremiumCard>
-          </View>
+              </AnimatedPressable>
+            </View>
+          </PremiumCard>
         </View>
       </PremiumScreen>
     </View>
@@ -905,10 +900,18 @@ const styles = StyleSheet.create({
   header: { minHeight: 44 },
   modeSelectionContent: { flexGrow: 1 },
   modeSelection: { flex: 1 },
-  widgetRow: { alignSelf: 'flex-start', flexDirection: 'row' },
-  widgetCard: { width: 178 },
-  widgetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  widgetCopy: { gap: 8, marginTop: 12 },
+  modeSelectionCard: { width: '100%' },
+  modeOptions: { width: '100%' },
+  modeOptionContainer: { width: '100%' },
+  modeOption: { alignItems: 'center', flexDirection: 'row', minHeight: 54, width: '100%' },
+  modeIcon: {
+    alignItems: 'center',
+    borderRadius: 27,
+    height: 54,
+    justifyContent: 'center',
+    width: 54,
+  },
+  modeCopy: { flex: 1, gap: 4, marginLeft: 12, marginRight: 12 },
   dailyDataContent: { flexGrow: 1 },
   fullWidth: { width: '100%' },
   pageTitleBlock: { width: '100%' },

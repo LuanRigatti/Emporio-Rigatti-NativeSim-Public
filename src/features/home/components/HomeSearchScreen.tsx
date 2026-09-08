@@ -1,30 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  InteractionManager,
-  Keyboard,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { InteractionManager, Keyboard, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeSearchField } from '@/components/native';
 import { PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { getCardSurfaceColor, spacing, useAppTheme } from '@/theme';
 import { prewarmAppleIntelligence } from '../search/AppleIntelligenceSearchInterpreter';
 import HomeSearchResultsContent from './HomeSearchResultsContent';
 import HomeSearchHelpContent from '../help/HomeSearchHelpContent';
+import HomeSearchAttachmentsComposer from './HomeSearchAttachmentsComposer';
+import { COMPOSER_COLLAPSED_HEIGHT } from './chatgpt-attachments/constants';
 import { useHomeSearch } from '../hooks/useHomeSearch';
 import HomeSearchScreenNativeHost from './HomeSearchScreenNativeHost';
 
 type NativeStackTransitionNavigation = {
   addListener: (
     event: 'transitionEnd' | 'focus',
-    listener: (event: {
-      data?: { closing?: boolean };
-    }) => void,
+    listener: (event: { data?: { closing?: boolean } }) => void,
   ) => () => void;
   getParent?: () => NativeStackTransitionNavigation | undefined;
 };
@@ -89,7 +82,10 @@ export default function HomeSearchScreen() {
         });
       };
 
-      unsubscribeFallbackFocus = nativeStackNavigation.addListener('focus', scheduleInteractionFallback);
+      unsubscribeFallbackFocus = nativeStackNavigation.addListener(
+        'focus',
+        scheduleInteractionFallback,
+      );
       if (screenFocusedRef.current) scheduleInteractionFallback();
     }
 
@@ -194,27 +190,17 @@ export default function HomeSearchScreen() {
             </HomeSearchScreenNativeHost>
           )}
         </ScrollView>
-        <View
-          style={[
-            styles.searchContainer,
-            { paddingHorizontal: theme.layout.screenHorizontalPadding },
-          ]}
-        >
-          <NativeSearchField
-            accessibilityLabel="Pesquisar clientes, entregas e filtros"
-            blurRequestKey={blurRequestKey}
-            focusRequestKey={focusRequestKey}
-            hapticOnFocus={false}
-            keyboardAccessory
-            onChangeText={handleChangeText}
-            onFocusChange={(focused) => {
-              if (focused) void prewarmAppleIntelligence();
-            }}
-            onSubmit={handleSubmit}
-            placeholder="Busque clientes, entregas e filtros"
-            value={query}
-          />
-        </View>
+        <HomeSearchAttachmentsComposer
+          blurRequestKey={blurRequestKey}
+          focusRequestKey={focusRequestKey}
+          onChangeText={handleChangeText}
+          onFocusChange={(focused) => {
+            if (focused) void prewarmAppleIntelligence();
+          }}
+          onSubmit={handleSubmit}
+          placeholder="Busque clientes, entregas e filtros"
+          value={query}
+        />
       </View>
     </PremiumScreen>
   );
@@ -228,14 +214,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchScrollContent: {
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + COMPOSER_COLLAPSED_HEIGHT + spacing.lg,
   },
   searchBody: {
     flex: 1,
     minHeight: 0,
-  },
-  searchContainer: {
-    marginTop: spacing.md,
-    width: '100%',
   },
 });

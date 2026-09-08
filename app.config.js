@@ -86,6 +86,24 @@ module.exports = {
       './plugins/withHomeScreenQuickActions',
       'expo-font',
       [
+        'expo-camera',
+        {
+          cameraPermission:
+            'O Empório Rigatti usa a câmera para adicionar fotos à pesquisa.',
+          microphonePermission: false,
+          recordAudioAndroid: false,
+          barcodeScannerEnabled: false,
+        },
+      ],
+      'expo-image',
+      [
+        'expo-media-library',
+        {
+          photosPermission: 'O Empório Rigatti usa suas fotos para anexos.',
+          granularPermissions: ['photo'],
+        },
+      ],
+      [
         'expo-location',
         {
           isIosBackgroundLocationEnabled: true,

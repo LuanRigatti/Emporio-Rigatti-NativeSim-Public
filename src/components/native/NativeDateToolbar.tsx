@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import type { ReactNode } from 'react';
 
 import {
   createNativeDayItems,
@@ -8,7 +9,7 @@ import {
   updateNativeDate,
 } from './nativeDateToolbarUtils';
 
-type NativeDateToolbarProps = {
+export type NativeDateToolbarProps = {
   mode?: 'day' | 'month' | 'week';
   onDateChange: (date: string) => void;
   onWeekChange?: (weekStart: string) => void;
@@ -22,14 +23,13 @@ type NativeDateToolbarWeekGroup = {
   items: readonly { label: string; value: string }[];
 };
 
-export function NativeDateToolbar({
+export function renderNativeDateToolbarItems({
   mode = 'day',
   onDateChange,
   onWeekChange,
-  placement = 'right',
   selectedDate,
   weekGroups = [],
-}: NativeDateToolbarProps) {
+}: NativeDateToolbarProps): ReactNode[] {
   const date = parseIsoDate(selectedDate);
   const [year, month, day] = selectedDate.split('-').map(Number);
   const monthItems = createNativeMonthItems();
@@ -78,30 +78,37 @@ export function NativeDateToolbar({
       : []),
   ];
 
+  return [
+    <Stack.Toolbar.Menu
+      accessibilityLabel={toolbarTitle}
+      key="date"
+      separateBackground={false}
+      title={toolbarTitle}
+    >
+      <Stack.Toolbar.Label>{formatToolbarLabel(date, mode)}</Stack.Toolbar.Label>
+      {mode === 'week'
+        ? weekGroups.map((group) => (
+            <Stack.Toolbar.Menu icon="calendar" key={group.label} title={group.label}>
+              {group.items.map((item) => (
+                <Stack.Toolbar.MenuAction
+                  isOn={item.value === selectedWeekStart}
+                  key={item.value}
+                  onPress={() => onWeekChange?.(item.value)}
+                >
+                  {item.label}
+                </Stack.Toolbar.MenuAction>
+              ))}
+            </Stack.Toolbar.Menu>
+          ))
+        : standardMenus}
+    </Stack.Toolbar.Menu>,
+  ];
+}
+
+export function NativeDateToolbar(props: NativeDateToolbarProps) {
   return (
-    <Stack.Toolbar placement={placement}>
-      <Stack.Toolbar.Menu
-        accessibilityLabel={toolbarTitle}
-        separateBackground={false}
-        title={toolbarTitle}
-      >
-        <Stack.Toolbar.Label>{formatToolbarLabel(date, mode)}</Stack.Toolbar.Label>
-        {mode === 'week'
-          ? weekGroups.map((group) => (
-              <Stack.Toolbar.Menu icon="calendar" key={group.label} title={group.label}>
-                {group.items.map((item) => (
-                  <Stack.Toolbar.MenuAction
-                    isOn={item.value === selectedWeekStart}
-                    key={item.value}
-                    onPress={() => onWeekChange?.(item.value)}
-                  >
-                    {item.label}
-                  </Stack.Toolbar.MenuAction>
-                ))}
-              </Stack.Toolbar.Menu>
-            ))
-          : standardMenus}
-      </Stack.Toolbar.Menu>
+    <Stack.Toolbar placement={props.placement ?? 'right'}>
+      {renderNativeDateToolbarItems(props)}
     </Stack.Toolbar>
   );
 }

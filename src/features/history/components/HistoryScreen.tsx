@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-rea
 import { useFocusEffect } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeDateToolbar, NativeSegmentedControl } from '@/components/native';
+import { NativeSegmentedControl, renderNativeDateToolbarItems } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
@@ -13,6 +13,7 @@ import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import { useRootToolbar } from '@/navigation/RootToolbarContext';
 
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
@@ -272,6 +273,20 @@ export function HistoryScreen() {
     if (nextMode) setViewMode(nextMode);
   }, []);
 
+  const renderRootToolbar = useCallback(
+    () =>
+      renderNativeDateToolbarItems({
+        mode: viewMode,
+        onDateChange: handleSelectDate,
+        onWeekChange: handleSelectWeek,
+        placement: 'right',
+        selectedDate,
+        weekGroups,
+      }),
+    [handleSelectDate, handleSelectWeek, selectedDate, viewMode, weekGroups],
+  );
+  useRootToolbar('historico', renderRootToolbar);
+
   const filterHeader = (
     <NativeGlassHeader
       includeTopSafeArea
@@ -357,14 +372,6 @@ export function HistoryScreen() {
 
   return (
     <Animated.View style={styles.root}>
-      <NativeDateToolbar
-        mode={viewMode}
-        onDateChange={handleSelectDate}
-        onWeekChange={handleSelectWeek}
-        placement="right"
-        selectedDate={selectedDate}
-        weekGroups={weekGroups}
-      />
       <PremiumScreen
         scrollable
         contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}

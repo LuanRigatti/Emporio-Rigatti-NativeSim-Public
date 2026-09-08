@@ -10,7 +10,7 @@ export default function HistoryLayout() {
       screenOptions={{
         animation: 'default',
         headerShadowVisible: false,
-        headerShown: true,
+        headerShown: false,
         headerTitle: '',
         headerTransparent: true,
         unstable_nativeProps: {

@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeAnimatedNumber } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
-import { FinancialTrendIndicator, FinancePeriodToolbar } from '@/features/finance';
+import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
@@ -16,6 +16,7 @@ import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/servi
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { useRootToolbar } from '@/navigation/RootToolbarContext';
 
 export default function PrototypeFinanceiro() {
   const router = useRouter();
@@ -168,15 +169,21 @@ export default function PrototypeFinanceiro() {
     });
   };
 
+  const renderRootToolbar = useCallback(
+    () =>
+      renderFinancePeriodToolbarItems({
+        composition: 'combined',
+        onMonthChange: setSelectedMonth,
+        onYearChange: setSelectedYear,
+        selectedMonth: displayedMonth,
+        selectedYear: displayedYear,
+      }),
+    [displayedMonth, displayedYear],
+  );
+  useRootToolbar('financeiro', renderRootToolbar);
+
   return (
     <>
-      <FinancePeriodToolbar
-        composition="combined"
-        onMonthChange={setSelectedMonth}
-        onYearChange={setSelectedYear}
-        selectedMonth={displayedMonth}
-        selectedYear={displayedYear}
-      />
       <PremiumScreen
         contentContainerStyle={[
           styles.content,

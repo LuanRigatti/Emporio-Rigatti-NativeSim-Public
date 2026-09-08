@@ -4,11 +4,13 @@ import { StyleSheet, View } from 'react-native';
 import { NativeGlassHeader } from '@/components/layout';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
+import { renderEmptyRootToolbarItems, useRootToolbar } from '@/navigation/RootToolbarContext';
 
 import { SettingItem } from './SettingItem';
 import { SettingsSection } from './SettingsSection';
 
 export function SettingsScreen() {
+  useRootToolbar('configuracoes', renderEmptyRootToolbarItems);
   const { resolvedMode, theme } = useAppTheme();
   const settingsCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const router = useRouter();

@@ -10,7 +10,7 @@ export default function RegistrarLayout() {
       screenOptions={{
         animation: 'default',
         headerShadowVisible: false,
-        headerShown: true,
+        headerShown: false,
         headerTitle: '',
         headerTransparent: true,
         unstable_nativeProps: {
@@ -21,12 +21,6 @@ export default function RegistrarLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="entrega">
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
-      <Stack.Screen name="dados">
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
     </Stack>
   );
 }

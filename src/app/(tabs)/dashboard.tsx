@@ -20,6 +20,7 @@ import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
+import { renderEmptyRootToolbarItems, useRootToolbar } from '@/navigation/RootToolbarContext';
 
 function PreviewIcon({
   color,
@@ -37,6 +38,7 @@ function PreviewIcon({
 
 export default function Home() {
   const router = useRouter();
+  useRootToolbar('dashboard', renderEmptyRootToolbarItems);
   const { resolvedMode, theme } = useAppTheme();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const homeShortcutIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';

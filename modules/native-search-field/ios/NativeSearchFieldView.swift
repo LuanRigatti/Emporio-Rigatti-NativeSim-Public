@@ -166,8 +166,8 @@ public final class NativeSearchFieldView: ExpoView {
   private let onTextChange = EventDispatcher()
   private var hostingController: UIHostingController<NativeSearchFieldContent>?
 
-  var accessibilityLabel: String = "Pesquisar" {
-    didSet { model.accessibilityLabel = accessibilityLabel }
+  public override var accessibilityLabel: String? {
+    didSet { model.accessibilityLabel = accessibilityLabel ?? "Pesquisar" }
   }
 
   var autoFocus: Bool = false {
@@ -184,6 +184,7 @@ public final class NativeSearchFieldView: ExpoView {
 
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
+    accessibilityLabel = "Pesquisar"
 
     model.onFocusChange = { [weak self] focused in
       self?.onFocusChange(["value": focused])

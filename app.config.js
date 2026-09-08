@@ -32,7 +32,7 @@ const configuredScheme =
 module.exports = {
   expo: {
     name: appName,
-    slug: 'PAReact',
+    slug: 'emporio-rigatti',
     version: '1.0.0',
     orientation: 'portrait',
     scheme: configuredScheme,
@@ -74,6 +74,9 @@ module.exports = {
       tsconfigPaths: true,
     },
     extra: {
+      eas: {
+        projectId: 'ef8d9f2e-7d9e-4333-8295-3ecd545db347',
+      },
       ...(isFinalVariant ? { appVariant: 'final' } : {}),
       ...(selectedGoogleIosClientId ? { googleIosClientId: selectedGoogleIosClientId } : {}),
     },

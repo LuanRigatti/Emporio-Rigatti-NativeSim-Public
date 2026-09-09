@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeAvatarButton, NativeGlassIconButton } from '@/components/native';
+import { NativeAvatarButton } from '@/components/native';
 import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
 import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -20,7 +20,7 @@ import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
-import { renderEmptyRootToolbarItems, useRootToolbar } from '@/navigation/RootToolbarContext';
+import { useRootToolbar } from '@/navigation/RootToolbarContext';
 
 function PreviewIcon({
   color,
@@ -38,7 +38,6 @@ function PreviewIcon({
 
 export default function Home() {
   const router = useRouter();
-  useRootToolbar('dashboard', renderEmptyRootToolbarItems);
   const { resolvedMode, theme } = useAppTheme();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const homeShortcutIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
@@ -136,10 +135,9 @@ export default function Home() {
 
   const accountName = user?.displayName?.trim() || 'Conta';
 
-  const homeToolbar = (
-    <NativeGlassHeader
-      includeTopSafeArea
-      leftActions={
+  const renderRootToolbarLeftItems = useCallback(
+    () => (
+      <Stack.Toolbar.View hidesSharedBackground>
         <NativeAvatarButton
           accessibilityHint="Exibe os dados da conta e a opção de sair"
           accessibilityLabel="Abrir perfil da conta"
@@ -151,24 +149,23 @@ export default function Home() {
           name={accountName}
           onPress={handleOpenProfile}
         />
-      }
-      mode="transparent"
-      rightActions={
-        <NativeGlassIconButton
-          accessibilityLabel="Abrir Pesquisa"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          fallbackIcon="search"
-          glassTint={getLiquidGlassTint(resolvedMode)}
-          interactiveGlass
-          onPress={handleOpenSearch}
-          size={theme.sizes.iconMedium}
-          systemImage="magnifyingglass"
-        />
-      }
-      title=""
-    />
+      </Stack.Toolbar.View>
+    ),
+    [accountName, handleOpenProfile, resolvedMode, theme.sizes.touchTargetMinimum, user?.photoUrl],
   );
+
+  const renderRootToolbarRightItems = useCallback(
+    () => (
+      <Stack.Toolbar.Button
+        accessibilityLabel="Abrir Pesquisa"
+        icon="magnifyingglass"
+        onPress={handleOpenSearch}
+      />
+    ),
+    [handleOpenSearch],
+  );
+
+  useRootToolbar('dashboard', renderRootToolbarRightItems, renderRootToolbarLeftItems);
 
   const homeHeader = (
     <NativeGlassHeader
@@ -198,8 +195,6 @@ export default function Home() {
         }
         progressiveBlurTopOffset={0}
         progressiveBlur
-        overlayHeader={homeToolbar}
-        overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
       >
         <View
           style={[

@@ -30,7 +30,11 @@ import { locationTrackingService, routeTrackingRepository } from '@/services/rou
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
-import { RootToolbarProvider, useRootToolbarItems } from '@/navigation/RootToolbarContext';
+import {
+  RootToolbarProvider,
+  useRootToolbarItems,
+  useRootToolbarLeftItems,
+} from '@/navigation/RootToolbarContext';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -39,6 +43,7 @@ function AppShell() {
   const { resolvedMode, theme } = useAppTheme();
   const pathname = usePathname();
   const router = useRouter();
+  const rootToolbarLeftItems = useRootToolbarLeftItems();
   const rootToolbarItems = useRootToolbarItems();
   const isAuthenticated = status === 'authenticated' && Boolean(user?.id);
   const isSessionLoading = status === 'loading';
@@ -163,6 +168,7 @@ function AppShell() {
                     },
                   }}
                 >
+                  <Stack.Toolbar placement="left">{rootToolbarLeftItems}</Stack.Toolbar>
                   <Stack.Toolbar placement="right">{rootToolbarItems}</Stack.Toolbar>
                 </Stack.Screen>
                 <Stack.Screen

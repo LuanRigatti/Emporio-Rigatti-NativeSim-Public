@@ -33,9 +33,8 @@ export const COMPOSER = {
   removeBadge: 17,
   removeBadgeInset: 6,
   actionSize: 30,
-  plusSize: 20,
+  plusSize: 24,
   plusSlide: 16,
-  micSize: 20,
   fieldSize: 17,
 } as const;
 
@@ -53,12 +52,12 @@ export const MENU = {
   iconSize: 22,
   iconInset: 24,
   labelGap: 18,
-  labelSize: 19,
+  labelSize: 20,
   centerOffset: 7,
 } as const;
 
-// This product flow exposes only Camera, Photos and Files from the source menu.
-export const MENU_ITEMS = 3;
+// This product flow exposes Camera, Photos, Date and Files from the source menu.
+export const MENU_ITEMS = 4;
 export const MENU_HEIGHT = MENU.itemHeight * MENU_ITEMS + MENU.paddingVertical * 2;
 
 export const GRID = {

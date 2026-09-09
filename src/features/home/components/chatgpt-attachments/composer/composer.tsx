@@ -28,22 +28,24 @@ import type { LibraryPhoto } from '../photos/use-photo-library';
 interface ThumbnailProps {
   photo: LibraryPhoto;
   hidden: boolean;
+  foreground: string;
+  thumbBackground: string;
   onRemove: (id: string) => void;
 }
 
-function Thumbnail({ photo, hidden, onRemove }: ThumbnailProps) {
+function Thumbnail({ photo, hidden, foreground, onRemove, thumbBackground }: ThumbnailProps) {
   const isFile = photo.kind === 'file';
 
   return (
     <Animated.View
       exiting={FadeOut.duration(DURATION.crossfade)}
       layout={LinearTransition.duration(DURATION.attach)}
-      style={[styles.thumb, hidden && styles.thumbHidden]}
+      style={[styles.thumb, { backgroundColor: thumbBackground }, hidden && styles.thumbHidden]}
     >
       {isFile ? (
         <View style={styles.fileThumb}>
-          <AttachmentIcon name="document-text" size={28} color={COLORS.text} />
-          <Text numberOfLines={2} style={styles.fileName}>
+          <AttachmentIcon name="document-text" size={28} color={foreground} />
+          <Text numberOfLines={2} style={[styles.fileName, { color: foreground }]}>
             {photo.name ?? 'Arquivo'}
           </Text>
         </View>
@@ -111,6 +113,9 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
   const foreground = resolvedMode === 'dark' ? COLORS.text : theme.colors.textPrimary;
   const placeholderColor =
     resolvedMode === 'dark' ? COLORS.placeholder : theme.colors.textSecondary;
+  const composerSurface = resolvedMode === 'dark' ? COLORS.surface : theme.colors.glassSurface;
+  const thumbBackground =
+    resolvedMode === 'dark' ? COLORS.photoFill : theme.colors.backgroundSecondary;
   const plusStyle = useAnimatedStyle(() => ({
     opacity: interpolate(plusOut.get(), [0, 0.75], [1, 0], Extrapolation.CLAMP),
     transform: [{ translateX: plusOut.get() * COMPOSER.plusSlide }],
@@ -150,7 +155,7 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     <Glass
       radius={COMPOSER.radius}
       interactive={false}
-      fallbackTint={COLORS.surface}
+      fallbackTint={composerSurface}
       style={styles.root}
     >
       <Animated.View style={[styles.strip, stripStyle]}>
@@ -167,6 +172,8 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
               key={photo.id}
               photo={photo}
               hidden={pendingIds.includes(photo.id)}
+              foreground={foreground}
+              thumbBackground={thumbBackground}
               onRemove={onRemove}
             />
           ))}
@@ -182,7 +189,12 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           style={styles.plus}
         >
           <Animated.View style={plusStyle}>
-            <AttachmentIcon name="plus" size={COMPOSER.plusSize} color={foreground} />
+            <AttachmentIcon
+              name="plus"
+              size={COMPOSER.plusSize}
+              color={foreground}
+              style={styles.plusGlyph}
+            />
           </Animated.View>
         </Pressable>
 
@@ -201,21 +213,13 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           style={[styles.field, { color: foreground }]}
         />
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Ditado" hitSlop={10}>
-          <AttachmentIcon name="mic" size={COMPOSER.micSize} color={foreground} />
-        </Pressable>
-
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={hasAttachments ? 'Enviar' : 'Modo voz'}
+          accessibilityLabel="Pesquisar"
           onPress={() => onSubmit?.(value)}
-          style={styles.action}
+          style={[styles.action, { backgroundColor: theme.colors.contrastSurface }]}
         >
-          <AttachmentIcon
-            name={hasAttachments ? 'arrow-up' : 'audio-lines'}
-            size={18}
-            color={COLORS.background}
-          />
+          <AttachmentIcon name="arrow-up" size={18} color={theme.colors.contrastContent} />
         </Pressable>
       </View>
     </Glass>
@@ -247,7 +251,6 @@ const styles = StyleSheet.create({
     borderRadius: COMPOSER.thumbRadius,
     borderCurve: 'continuous',
     overflow: 'hidden',
-    backgroundColor: COLORS.photoFill,
   },
   thumbHidden: { opacity: 0 },
   fileThumb: {
@@ -258,7 +261,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fileName: {
-    color: COLORS.text,
     fontSize: 13,
     textAlign: 'center',
   },
@@ -274,10 +276,10 @@ const styles = StyleSheet.create({
     width: COMPOSER.plusHit,
     alignItems: 'center',
   },
+  plusGlyph: { fontWeight: '600' },
   field: {
     flex: 1,
     minWidth: 0,
-    color: COLORS.text,
     fontSize: COMPOSER.fieldSize,
     padding: 0,
   },
@@ -298,6 +300,5 @@ const styles = StyleSheet.create({
     borderRadius: COMPOSER.actionSize / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.text,
   },
 });

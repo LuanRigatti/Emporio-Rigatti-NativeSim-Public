@@ -12,11 +12,13 @@ export default function NativeDatePickerSwiftUI({
   value,
 }: NativeDatePickerProps) {
   const isCompact = style === 'compact';
+  const isGraphical = style === 'graphical';
 
   return (
     <Host
-      matchContents={isCompact ? false : true}
-      style={isCompact ? styles.compactHost : undefined}
+      ignoreSafeArea={isGraphical ? 'keyboard' : undefined}
+      matchContents={isCompact || isGraphical ? false : true}
+      style={isCompact ? styles.compactHost : isGraphical ? styles.graphicalHost : undefined}
     >
       <DatePicker
         displayedComponents={[mode === 'date' ? 'date' : 'hourAndMinute']}
@@ -31,6 +33,10 @@ export default function NativeDatePickerSwiftUI({
 const styles = StyleSheet.create({
   compactHost: {
     height: '100%',
+    width: '100%',
+  },
+  graphicalHost: {
+    flex: 1,
     width: '100%',
   },
 });

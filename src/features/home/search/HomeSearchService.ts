@@ -1,6 +1,7 @@
 import { expenseCalculationService } from '@/services/expenses/ExpenseCalculationService';
 import { factoryCalculationService } from '@/services/finance/FactoryCalculationService';
 import { financialCalculationService } from '@/services/finance/FinancialCalculationService';
+import { financialDailyDetailService } from '@/services/finance/FinancialDailyDetailService';
 import { financialFiltersForSelection } from '@/services/finance/FinancialPeriodService';
 import { parseKmPerLiter } from '@/services/expenses/FuelCostCalculationService';
 import {
@@ -8,6 +9,7 @@ import {
   summarizeRouteDistance,
   summarizeRouteKilometersByDate,
 } from '@/services/routes/routeTrackingDistance';
+import { normalizeLegacyDate } from '@/utils/data';
 import type {
   ClientId,
   ClientModel,
@@ -37,6 +39,8 @@ import type {
   HomeSearchFactoryReceiptSummary,
   HomeSearchFactorySummaryResult,
   HomeSearchCarSettingResult,
+  HomeSearchAnalysisGroupBy,
+  HomeSearchAnalysisOperation,
   HomeSearchFinancialData,
   HomeSearchFinancialMetric,
   HomeSearchFinancialMetricResult,
@@ -671,6 +675,325 @@ function effectiveClientMetric(query: HomeSearchParsedQuery): HomeSearchFinancia
   return query.financialMetricAlias === 'lucro' ? 'grossProfit' : query.financialMetric!;
 }
 
+type FinancialAnalysisPoint = {
+  key: string;
+  label: string;
+  value: number;
+  clientId?: ClientId;
+};
+
+const ANALYSIS_MONTH_NAMES = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+] as const;
+
+function normalizedAnalysisDate(value: string): string {
+  return normalizeLegacyDate(value) ?? value;
+}
+
+function analysisDateLabel(value: string): string {
+  const [year, month, day] = value.split('-');
+  return day && month && year ? `${day}/${month}/${year}` : value;
+}
+
+function analysisMonthLabel(value: string): string {
+  const [year, month] = value.split('-').map(Number);
+  return Number.isInteger(year) && Number.isInteger(month)
+    ? `${ANALYSIS_MONTH_NAMES[month - 1] ?? value} de ${year}`
+    : value;
+}
+
+function analysisPeriodIncludesMonth(period: HomeSearchPeriod, month: string): boolean {
+  if (period.kind === 'month') {
+    return (
+      `${period.year ?? new Date().getFullYear()}-${String(period.month).padStart(2, '0')}` ===
+      month
+    );
+  }
+  if (period.kind === 'year') return month.startsWith(`${period.year}-`);
+  if (period.kind === 'range') {
+    return month >= period.startDate.slice(0, 7) && month <= period.endDate.slice(0, 7);
+  }
+  return matchesPeriod(`${month}-01`, period);
+}
+
+function analysisValue(
+  summary: ReturnType<typeof financialCalculationService.calculateResumo>,
+  metric: HomeSearchFinancialMetric,
+): number {
+  return homeSearchFinancialMetricValue(summary, metric);
+}
+
+function financialAnalysisPointsByDay(
+  financial: HomeSearchFinancialData,
+  data: Awaited<ReturnType<HomeSearchDataSource['load']>>,
+  period: HomeSearchPeriod,
+  metric: HomeSearchFinancialMetric,
+): FinancialAnalysisPoint[] {
+  const months = new Set<string>();
+  financial.deliveries.forEach((delivery) =>
+    months.add(normalizedAnalysisDate(delivery.data).slice(0, 7)),
+  );
+  Object.keys(financial.dailyExpenses).forEach((date) =>
+    months.add(normalizedAnalysisDate(date).slice(0, 7)),
+  );
+  (data.routeSessions ?? []).forEach((session) =>
+    months.add(normalizedAnalysisDate(session.date).slice(0, 7)),
+  );
+
+  return [...months]
+    .filter((month) => analysisPeriodIncludesMonth(period, month))
+    .flatMap((month) =>
+      financialDailyDetailService.buildMonth(
+        {
+          dailyExpenses: financial.dailyExpenses,
+          deliveries: financial.deliveries,
+          monthlyExpenses: financial.monthlyExpenses,
+          routeSessions: data.routeSessions ?? [],
+        },
+        month,
+      ),
+    )
+    .filter((detail) => matchesPeriod(detail.date, period))
+    .map((detail) => ({
+      key: detail.date,
+      label: `Dia ${analysisDateLabel(detail.date)}`,
+      value: analysisValue(detail.summary, metric),
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function financialAnalysisPointsByMonth(
+  financial: HomeSearchFinancialData,
+  data: Awaited<ReturnType<HomeSearchDataSource['load']>>,
+  period: HomeSearchPeriod,
+  metric: HomeSearchFinancialMetric,
+): FinancialAnalysisPoint[] {
+  const months = new Set<string>();
+  financial.deliveries.forEach((delivery) =>
+    months.add(normalizedAnalysisDate(delivery.data).slice(0, 7)),
+  );
+  Object.keys(financial.dailyExpenses).forEach((date) =>
+    months.add(normalizedAnalysisDate(date).slice(0, 7)),
+  );
+  Object.keys(financial.monthlyExpenses).forEach((month) => months.add(month.slice(0, 7)));
+  (data.routeSessions ?? []).forEach((session) =>
+    months.add(normalizedAnalysisDate(session.date).slice(0, 7)),
+  );
+
+  const automaticKilometersByDate = summarizeRouteKilometersByDate(data.routeSessions ?? []);
+  return [...months]
+    .filter((month) => analysisPeriodIncludesMonth(period, month))
+    .sort()
+    .map((month) => {
+      const summary = financialCalculationService.calculateResumo({
+        deliveries: financial.deliveries,
+        dailyExpenses: financial.dailyExpenses,
+        filters: financialFiltersForSelection({ kind: 'month', month }),
+        monthlyExpenses: financial.monthlyExpenses,
+        automaticKilometersByDate,
+      });
+      return {
+        key: month,
+        label: analysisMonthLabel(month),
+        value: analysisValue(summary, metric),
+      };
+    });
+}
+
+function financialAnalysisPointsByClient(
+  financial: HomeSearchFinancialData,
+  data: Awaited<ReturnType<HomeSearchDataSource['load']>>,
+  period: HomeSearchPeriod,
+  metric: HomeSearchFinancialMetric,
+): FinancialAnalysisPoint[] {
+  const clientsById = new Map(data.clients.map((client) => [client.clientId, client]));
+  const clientsByName = new Map(data.clients.map((client) => [client.normalizedName, client]));
+  const groups = new Map<string, { clientId?: ClientId; deliveries: Delivery[]; label: string }>();
+
+  financial.deliveries
+    .filter((delivery) => matchesPeriod(delivery.data, period))
+    .forEach((delivery) => {
+      const client = clientForDelivery(delivery, clientsById, clientsByName);
+      const key = client?.clientId ?? normalizeHomeSearchText(delivery.cliente);
+      const group = groups.get(key) ?? {
+        ...(client?.clientId ? { clientId: client.clientId } : {}),
+        deliveries: [],
+        label: client?.canonicalName ?? delivery.cliente,
+      };
+      group.deliveries.push(delivery);
+      groups.set(key, group);
+    });
+
+  const automaticKilometersByDate = summarizeRouteKilometersByDate(data.routeSessions ?? []);
+  return [...groups.entries()]
+    .map(([key, group]) => {
+      const filters = {
+        ...financialFiltersForSelection(financialSelection(period)),
+        ...(group.clientId
+          ? { clientId: group.clientId, buscaCliente: group.label }
+          : { buscaCliente: group.label }),
+      };
+      const summary = financialCalculationService.calculateResumo({
+        deliveries: financial.deliveries,
+        dailyExpenses: financial.dailyExpenses,
+        filters,
+        monthlyExpenses: financial.monthlyExpenses,
+        automaticKilometersByDate,
+      });
+      return {
+        key,
+        label: group.label,
+        value: analysisValue(summary, metric),
+        ...(group.clientId ? { clientId: group.clientId } : {}),
+      };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, 'pt-BR'));
+}
+
+function financialAnalysisPoints(
+  financial: HomeSearchFinancialData,
+  data: Awaited<ReturnType<HomeSearchDataSource['load']>>,
+  period: HomeSearchPeriod,
+  groupBy: HomeSearchAnalysisGroupBy,
+  metric: HomeSearchFinancialMetric,
+): FinancialAnalysisPoint[] {
+  if (groupBy === 'day') return financialAnalysisPointsByDay(financial, data, period, metric);
+  if (groupBy === 'month') return financialAnalysisPointsByMonth(financial, data, period, metric);
+  return financialAnalysisPointsByClient(financial, data, period, metric);
+}
+
+function analysisPeriodResultLabel(
+  operation: HomeSearchAnalysisOperation,
+  groupBy: HomeSearchAnalysisGroupBy,
+  metric: HomeSearchFinancialMetric,
+): string {
+  const operationLabel =
+    operation === 'max' ? 'Maior' : operation === 'min' ? 'Menor' : 'Comparação';
+  const groupLabel = groupBy === 'day' ? 'diário' : groupBy === 'client' ? 'por cliente' : 'mensal';
+  return `${operationLabel} ${homeSearchFinancialMetricDefinition(metric).label.toLowerCase()} ${groupLabel}`;
+}
+
+function financialAnalysisResults(
+  data: Awaited<ReturnType<HomeSearchDataSource['load']>>,
+  query: HomeSearchParsedQuery,
+): HomeSearchFinancialMetricResult[] {
+  const financial = data.financial;
+  const period = query.period;
+  const analysis = query.analysis;
+  const metric = query.financialMetric;
+  if (!financial || !period || !analysis || !metric) return [];
+
+  const definition = homeSearchFinancialMetricDefinition(metric);
+  const baseAnalysis = {
+    groupBy: analysis.groupBy,
+    operation: analysis.operation,
+    period,
+  };
+  if (definition.requiresCosts && !financial.costsAvailable) {
+    return [
+      {
+        type: 'financialMetric',
+        id: `financialAnalysis:${metric}:${query.normalized}`,
+        title: analysisPeriodResultLabel(analysis.operation, analysis.groupBy, metric),
+        score: 2_200,
+        data: {
+          available: false,
+          metric,
+          unit: definition.unit,
+          period,
+          unavailableReason: 'sourceUnavailable',
+          analysis: baseAnalysis,
+        },
+        relations: {},
+      },
+    ];
+  }
+
+  if (analysis.operation === 'compare') {
+    const comparisonPeriods = analysis.comparisonPeriods;
+    if (!comparisonPeriods) return [];
+    const automaticKilometersByDate = summarizeRouteKilometersByDate(data.routeSessions ?? []);
+    const comparisons = comparisonPeriods.map((comparisonPeriod, index) => {
+      const summary = financialCalculationService.calculateResumo({
+        deliveries: financial.deliveries,
+        dailyExpenses: financial.dailyExpenses,
+        filters: financialFiltersForSelection(financialSelection(comparisonPeriod)),
+        monthlyExpenses: financial.monthlyExpenses,
+        automaticKilometersByDate,
+      });
+      return {
+        key: `${comparisonPeriod.kind}-${index}`,
+        label:
+          comparisonPeriod.kind === 'month'
+            ? analysisMonthLabel(
+                `${comparisonPeriod.year ?? new Date().getFullYear()}-${String(comparisonPeriod.month).padStart(2, '0')}`,
+              )
+            : comparisonPeriod.kind === 'year'
+              ? `Ano ${comparisonPeriod.year}`
+              : comparisonPeriod.kind === 'date'
+                ? analysisDateLabel(comparisonPeriod.date)
+                : 'Período',
+        value: analysisValue(summary, metric),
+      };
+    });
+    return [
+      {
+        type: 'financialMetric',
+        id: `financialAnalysis:${metric}:compare:${query.normalized}`,
+        title: 'Comparação',
+        score: 2_200,
+        data: {
+          available: true,
+          metric,
+          unit: definition.unit,
+          period,
+          value: comparisons[comparisons.length - 1]?.value,
+          analysis: { ...baseAnalysis, comparisons },
+        },
+        relations: {},
+      },
+    ];
+  }
+
+  const points = financialAnalysisPoints(financial, data, period, analysis.groupBy, metric);
+  if (points.length === 0) return [];
+  const winner = [...points].sort(
+    (left, right) =>
+      (analysis.operation === 'max' ? right.value - left.value : left.value - right.value) ||
+      left.key.localeCompare(right.key),
+  )[0];
+  if (!winner) return [];
+
+  return [
+    {
+      type: 'financialMetric',
+      id: `financialAnalysis:${metric}:${analysis.operation}:${analysis.groupBy}:${query.normalized}`,
+      title: winner.label,
+      score: 2_200,
+      data: {
+        available: true,
+        metric,
+        unit: definition.unit,
+        period,
+        value: winner.value,
+        analysis: { ...baseAnalysis, winner },
+      },
+      relations: { ...(winner.clientId ? { clientId: winner.clientId } : {}) },
+    },
+  ];
+}
+
 function financialResults(
   data: Awaited<ReturnType<HomeSearchDataSource['load']>>,
   query: HomeSearchParsedQuery,
@@ -783,17 +1106,17 @@ function homeSearchDevLog(event: string): void {
 function parserProducedExecutableQuery(query: HomeSearchParsedQuery): boolean {
   const hasStructuredParserResult = Boolean(
     query.periodSummary ||
-      query.financialMetric ||
-      query.factoryMetric ||
-      query.routeMetric ||
-      query.carMetric ||
-      query.clientField ||
-      query.factoryStatus ||
-      query.factoryPaymentDateUnsupported ||
-      query.paymentStatus ||
-      query.documentType ||
-      query.quantity !== undefined ||
-      query.money !== undefined,
+    query.financialMetric ||
+    query.factoryMetric ||
+    query.routeMetric ||
+    query.carMetric ||
+    query.clientField ||
+    query.factoryStatus ||
+    query.factoryPaymentDateUnsupported ||
+    query.paymentStatus ||
+    query.documentType ||
+    query.quantity !== undefined ||
+    query.money !== undefined,
   );
 
   if (!query.text) return hasStructuredParserResult || Boolean(query.period);
@@ -809,8 +1132,7 @@ export class HomeSearchService {
 
   public constructor(
     private readonly dataSource: HomeSearchDataSource,
-    private readonly interpreter: HomeSearchSearchInterpreter | null =
-      appleIntelligenceSearchInterpreter,
+    private readonly interpreter: HomeSearchSearchInterpreter | null = appleIntelligenceSearchInterpreter,
   ) {}
 
   public async search(original: string, referenceDate = new Date()): Promise<HomeSearchResponse> {
@@ -895,6 +1217,10 @@ export class HomeSearchService {
     }
     if (query.periodSummary) {
       const results = periodSummaryResults(data, query);
+      return this.response(query, data, results, request, startedAt);
+    }
+    if (query.analysis) {
+      const results = financialAnalysisResults(data, query).sort(sortResults);
       return this.response(query, data, results, request, startedAt);
     }
     if (query.financialMetric) {

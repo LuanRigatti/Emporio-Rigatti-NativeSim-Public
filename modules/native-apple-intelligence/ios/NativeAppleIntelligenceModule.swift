@@ -12,7 +12,7 @@ private struct NativeAppleSearchIntentPayload {
   let confidence: Double
 
   @Guide(description: "The intent kind. Use exactly one of the allowed values.")
-  @Guide(.anyOf(["client", "delivery", "financialMetric", "factoryMetric", "routeMetric", "carMetric", "periodSummary", "clientField", "search"]))
+  @Guide(.anyOf(["client", "delivery", "financialMetric", "financialAnalysis", "factoryMetric", "routeMetric", "carMetric", "periodSummary", "clientField", "search"]))
   let intent: String
 
   @Guide(description: "Only the client or entity text to search for. Empty when there is no entity text.")
@@ -54,8 +54,8 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(.anyOf(["", "invoice", "boleto"]))
   let documentType: String
 
-  @Guide(description: "Use exactly one allowed metric name, or empty only when the intent is not financialMetric. Mapping: faturamento, faturei, receita, total vendido -> revenue; lucro or lucro líquido -> netProfit; em aberto, a receber, valor pendente -> receivable; baldes vendidos -> bucketsSold; lucro bruto -> grossProfit; recebido -> received; and use the remaining existing metric names for their matching concepts. Never return a calculated value.")
-  @Guide(.anyOf(["", "bucketsSold", "revenue", "grossProfit", "netProfit", "received", "receivable", "bucketCost", "fuelCost", "otherCosts", "electricityCost", "averageDeliveryCost", "grossMargin", "netMargin", "salePerBucket", "profitPerBucket", "costPerBucket"]))
+  @Guide(description: "Use exactly one allowed metric name, or empty only when the intent does not need a financial metric. Mapping: faturamento, faturei, receita, total vendido -> revenue; lucro or lucro líquido -> netProfit; em aberto, a receber, valor pendente -> receivable; baldes vendidos -> bucketsSold; entregas -> deliveryCount; lucro bruto -> grossProfit; recebido -> received; and use the remaining existing metric names for their matching concepts. Never return a calculated value.")
+  @Guide(.anyOf(["", "bucketsSold", "deliveryCount", "revenue", "grossProfit", "netProfit", "received", "receivable", "bucketCost", "fuelCost", "otherCosts", "electricityCost", "averageDeliveryCost", "grossMargin", "netMargin", "salePerBucket", "profitPerBucket", "costPerBucket"]))
   let financialMetric: String
 
   @Guide(description: "Use exactly one existing client field name or empty.")
@@ -83,6 +83,26 @@ private struct NativeAppleSearchIntentPayload {
 
   @Guide(description: "True only for a request for a period summary.")
   let periodSummary: Bool
+
+  @Guide(description: "For financialAnalysis only: choose max for the greatest value, min for the smallest value, compare for comparing two periods, or empty when unused.")
+  @Guide(.anyOf(["", "max", "min", "compare"]))
+  let operation: String
+
+  @Guide(description: "For financialAnalysis only: choose day, client, or month for the grouping dimension, or empty when unused.")
+  @Guide(.anyOf(["", "day", "client", "month"]))
+  let groupBy: String
+
+  @Guide(description: "For compare, first calendar month number 1-12, or -1 when unused.")
+  let comparisonStartMonth: Int
+
+  @Guide(description: "For compare, first calendar year, or -1 when unused.")
+  let comparisonStartYear: Int
+
+  @Guide(description: "For compare, second calendar month number 1-12, or -1 when unused.")
+  let comparisonEndMonth: Int
+
+  @Guide(description: "For compare, second calendar year, or -1 when unused.")
+  let comparisonEndYear: Int
 }
 #endif
 
@@ -175,13 +195,21 @@ private extension NativeAppleIntelligenceModule {
         Rules for this query:
         - Use the exact enum names from the schema, never translated labels.
         - If intent=financialMetric, fill financialMetric with the best matching allowed metric; do not leave it empty.
+        - If the request asks for a greatest/smallest/ranked value or a comparison, use intent=financialAnalysis, fill operation, groupBy, and financialMetric. Use day for daily questions, client for customer rankings, and month for monthly rankings. Use deliveryCount for the number of deliveries. Do not return a calculated value.
+        - If a comparison does not name a metric, use revenue as the default financial metric; this is only the metric to aggregate from app data, never a value to calculate in the model.
         - If periodKind=month, fill both month and year. For "mês passado" or "mês anterior", calculate the previous calendar month from the reference date.
+        - For a comparison between two named months, use operation=compare, groupBy=month, periodKind=range covering both months, fill startDate/endDate with the full range, and fill comparisonStartMonth/comparisonStartYear and comparisonEndMonth/comparisonEndYear.
         - Foundation Models only interprets the request. The app calculates all values after parsing.
 
         Examples:
         "Qual meu lucro no mes passado?" means intent=financialMetric, financialMetric=netProfit, periodKind=month, month/year equal to the calendar month immediately before the reference date.
         "Quanto eu lucrei em agosto?" means intent=financialMetric, financialMetric=netProfit, periodKind=month, month=8, year equal to the reference date's year.
         "Quanto faturei em agosto?" means intent=financialMetric, financialMetric=revenue, periodKind=month, month=8, year equal to the reference date's year.
+        "Qual dia teve o maior faturamento em agosto?" means intent=financialAnalysis, financialMetric=revenue, operation=max, groupBy=day, periodKind=month, month=8, year equal to the reference date's year.
+        "Qual foi o dia que menos vendi em agosto?" means intent=financialAnalysis, financialMetric=revenue, operation=min, groupBy=day, periodKind=month, month=8, year equal to the reference date's year.
+        "Em qual dia tive mais entregas?" means intent=financialAnalysis, financialMetric=deliveryCount, operation=max, groupBy=day, periodKind=month, month/year equal to the requested month.
+        "Qual cliente mais comprou em agosto?" means intent=financialAnalysis, financialMetric=revenue, operation=max, groupBy=client, periodKind=month, month=8, year equal to the reference date's year.
+        "Qual mês teve maior lucro este ano?" means intent=financialAnalysis, financialMetric=netProfit, operation=max, groupBy=month, periodKind=year, year equal to the reference date's year.
         "Quanto tenho em aberto?" means intent=financialMetric, financialMetric=receivable, paymentStatus=open, periodKind=none.
         "Quantas entregas fiz hoje?" means intent=delivery, periodKind=date, date equal to the reference date.
         """
@@ -235,6 +263,8 @@ private extension NativeAppleIntelligenceModule {
       Never return totals, prices, balances, percentages, revenue, profit, or any other computed result.
       Use only the allowed values from the structured schema. For intent=financialMetric, financialMetric must never be empty: use revenue for faturamento/faturei/receita/total vendido, netProfit for lucro/lucro líquido, receivable for em aberto/a receber/valor pendente, bucketsSold for baldes vendidos, grossProfit for lucro bruto, and received for recebido.
       For an explicit request about unpaid amounts, also set paymentStatus=open when applicable. Use empty strings, -1, or false only when a field is unused.
+      For analytical requests, set intent=financialAnalysis, choose operation=max/min/compare, choose groupBy=day/client/month, and set financialMetric to the requested metric. Interpret "mais"/"maior" as max and "menos"/"menor" as min. Do not calculate the result. For a comparison between two named months, set operation=compare, groupBy=month, use a range covering both months, and fill the four comparison month/year fields.
+      If a comparison does not name a metric, use revenue as the default financial metric. The app, not the model, calculates the compared values.
       For periodKind=month, always fill both month and year with the requested calendar month. Never return month=-1 or year=-1 for a monthly period.
       Resolve relative periods from the supplied reference date: hoje is that date, ontem is one day before, mês atual is its month, and mês passado/mês anterior is the immediately preceding calendar month, including crossing a year boundary. A named month without a year uses the reference date's year, following the app's existing search semantics.
       Keep confidence below 0.6 whenever the request is ambiguous or an enum is uncertain.
@@ -288,6 +318,12 @@ private extension NativeAppleIntelligenceModule {
       "routeMetric": payload.routeMetric,
       "carMetric": payload.carMetric,
       "periodSummary": payload.periodSummary,
+      "operation": payload.operation,
+      "groupBy": payload.groupBy,
+      "comparisonStartMonth": payload.comparisonStartMonth,
+      "comparisonStartYear": payload.comparisonStartYear,
+      "comparisonEndMonth": payload.comparisonEndMonth,
+      "comparisonEndYear": payload.comparisonEndYear,
     ]
   }
 #endif

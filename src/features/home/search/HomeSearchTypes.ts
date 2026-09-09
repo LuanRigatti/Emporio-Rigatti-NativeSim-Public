@@ -39,6 +39,7 @@ export type HomeSearchPaymentStatus = 'paid' | 'open';
 export type HomeSearchDocumentType = 'invoice' | 'boleto';
 export type HomeSearchFinancialMetric =
   | 'bucketsSold'
+  | 'deliveryCount'
   | 'revenue'
   | 'grossProfit'
   | 'netProfit'
@@ -63,6 +64,15 @@ export type HomeSearchFactoryStatus = 'paid' | 'partial' | 'open' | 'outstanding
 export type HomeSearchRouteMetric = 'distance' | 'routes';
 export type HomeSearchCarMetric = 'gasolineAutonomy' | 'alcoholAutonomy' | 'consumption';
 
+export type HomeSearchAnalysisOperation = 'max' | 'min' | 'compare';
+export type HomeSearchAnalysisGroupBy = 'day' | 'client' | 'month';
+
+export type HomeSearchAnalysis = {
+  operation: HomeSearchAnalysisOperation;
+  groupBy: HomeSearchAnalysisGroupBy;
+  comparisonPeriods?: readonly [HomeSearchPeriod, HomeSearchPeriod];
+};
+
 export type HomeSearchParsedQuery = {
   original: string;
   normalized: string;
@@ -74,6 +84,7 @@ export type HomeSearchParsedQuery = {
   documentType?: HomeSearchDocumentType;
   financialMetric?: HomeSearchFinancialMetric;
   financialMetricAlias?: string;
+  analysis?: HomeSearchAnalysis;
   clientField?: HomeSearchClientField;
   factoryMetric?: HomeSearchFactoryMetric;
   factoryStatus?: HomeSearchFactoryStatus;
@@ -215,6 +226,22 @@ export type HomeSearchFinancialMetricResult = {
     clientId?: ClientId;
     clientName?: string;
     unavailableReason?: 'clientScopeUnsupported' | 'sourceUnavailable';
+    analysis?: {
+      operation: HomeSearchAnalysisOperation;
+      groupBy: HomeSearchAnalysisGroupBy;
+      period: HomeSearchPeriod;
+      winner?: {
+        key: string;
+        label: string;
+        value: number;
+        clientId?: ClientId;
+      };
+      comparisons?: readonly {
+        key: string;
+        label: string;
+        value: number;
+      }[];
+    };
     supportingData?: {
       bucketsSold: number;
       deliveryCount: number;

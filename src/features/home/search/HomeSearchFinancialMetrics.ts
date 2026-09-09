@@ -17,6 +17,14 @@ type FinancialMetricDefinition = {
 
 const DEFINITIONS: readonly FinancialMetricDefinition[] = [
   {
+    aliases: [],
+    clientScope: 'direct',
+    label: 'Entregas',
+    metric: 'deliveryCount',
+    requiresCosts: false,
+    unit: 'count',
+  },
+  {
     aliases: ['custo medio de entrega', 'custo medio entrega'],
     clientScope: 'unsupported',
     label: 'Custo médio de entrega',
@@ -190,6 +198,8 @@ export function homeSearchFinancialMetricValue(
   switch (metric) {
     case 'bucketsSold':
       return summary.quantidadeBaldes;
+    case 'deliveryCount':
+      return summary.quantidadeEntregas;
     case 'revenue':
       return summary.faturamento;
     case 'grossProfit':

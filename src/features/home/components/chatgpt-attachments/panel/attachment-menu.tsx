@@ -1,18 +1,20 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '@/theme';
 import { AttachmentIcon } from '../AttachmentIcon';
 import { COLORS, MENU, MENU_HEIGHT, PANEL_CONTENT } from '../constants';
 
-export type MenuAction = 'camera' | 'photos' | 'files';
+export type MenuAction = 'camera' | 'photos' | 'date' | 'files';
 
 interface MenuItem {
   action: MenuAction;
   label: string;
-  icon: 'camera' | 'photos' | 'paperclip';
+  icon: 'camera' | 'photos' | 'calendar' | 'paperclip';
 }
 
 const ITEMS: MenuItem[] = [
   { action: 'camera', label: 'Câmera', icon: 'camera' },
   { action: 'photos', label: 'Fotos', icon: 'photos' },
+  { action: 'date', label: 'Data', icon: 'calendar' },
   { action: 'files', label: 'Arquivos', icon: 'paperclip' },
 ];
 
@@ -21,6 +23,9 @@ interface AttachmentMenuProps {
 }
 
 export function AttachmentMenu({ onSelect }: AttachmentMenuProps) {
+  const { resolvedMode, theme } = useAppTheme();
+  const menuIconWell = resolvedMode === 'dark' ? COLORS.iconWell : theme.colors.backgroundSecondary;
+
   return (
     <View style={styles.root}>
       {ITEMS.map((item) => (
@@ -31,10 +36,14 @@ export function AttachmentMenu({ onSelect }: AttachmentMenuProps) {
           onPress={() => onSelect(item.action)}
           style={styles.row}
         >
-          <View style={styles.well}>
-            <AttachmentIcon name={item.icon} size={MENU.iconSize} color={COLORS.text} />
+          <View style={[styles.well, { backgroundColor: menuIconWell }]}>
+            <AttachmentIcon
+              name={item.icon}
+              size={MENU.iconSize}
+              color={theme.colors.textPrimary}
+            />
           </View>
-          <Text style={styles.label}>{item.label}</Text>
+          <Text style={[styles.label, { color: theme.colors.textPrimary }]}>{item.label}</Text>
         </Pressable>
       ))}
     </View>
@@ -60,11 +69,9 @@ const styles = StyleSheet.create({
     borderRadius: MENU.iconWell / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.iconWell,
   },
   label: {
     marginLeft: MENU.labelGap,
-    color: COLORS.text,
     fontSize: MENU.labelSize,
     letterSpacing: -0.2,
   },

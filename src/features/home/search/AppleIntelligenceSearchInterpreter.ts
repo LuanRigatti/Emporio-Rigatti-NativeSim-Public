@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 
 import { normalizeHomeSearchText } from './HomeSearchQueryParser';
 import type {
+  HomeSearchAnalysisGroupBy,
+  HomeSearchAnalysisOperation,
   HomeSearchCarMetric,
   HomeSearchClientField,
   HomeSearchDetectedType,
@@ -39,6 +41,12 @@ export type NativeAppleIntelligenceSearchIntent = {
   routeMetric: string;
   carMetric: string;
   periodSummary: boolean;
+  operation: string;
+  groupBy: string;
+  comparisonStartMonth: number;
+  comparisonStartYear: number;
+  comparisonEndMonth: number;
+  comparisonEndYear: number;
 };
 
 type NativeAppleIntelligenceModule = {
@@ -82,6 +90,7 @@ function logParserRejection(stage: string, details: Record<string, unknown> = {}
 
 const FINANCIAL_METRICS: ReadonlySet<HomeSearchFinancialMetric> = new Set([
   'bucketsSold',
+  'deliveryCount',
   'revenue',
   'grossProfit',
   'netProfit',
@@ -133,6 +142,7 @@ const DOCUMENT_TYPES: ReadonlySet<HomeSearchDocumentType> = new Set(['invoice', 
 const SUPPORTED_INTENTS = new Set([
   'client',
   'delivery',
+  'financialanalysis',
   'financialmetric',
   'factorymetric',
   'routemetric',
@@ -140,6 +150,16 @@ const SUPPORTED_INTENTS = new Set([
   'periodsummary',
   'clientfield',
   'search',
+]);
+const ANALYSIS_OPERATIONS: ReadonlySet<HomeSearchAnalysisOperation> = new Set([
+  'max',
+  'min',
+  'compare',
+]);
+const ANALYSIS_GROUPINGS: ReadonlySet<HomeSearchAnalysisGroupBy> = new Set([
+  'day',
+  'client',
+  'month',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -261,6 +281,48 @@ function readNativeIntent(value: unknown): NativeAppleIntelligenceSearchIntent |
     routeMetric: stringValue(object.routeMetric),
     carMetric: stringValue(object.carMetric),
     periodSummary: object.periodSummary === true,
+    operation: stringValue(object.operation),
+    groupBy: stringValue(object.groupBy),
+    comparisonStartMonth: integerValue(object.comparisonStartMonth),
+    comparisonStartYear: integerValue(object.comparisonStartYear),
+    comparisonEndMonth: integerValue(object.comparisonEndMonth),
+    comparisonEndYear: integerValue(object.comparisonEndYear),
+  };
+}
+
+function buildComparisonPeriods(intent: NativeAppleIntelligenceSearchIntent): {
+  valid: boolean;
+  periods?: [HomeSearchPeriod, HomeSearchPeriod];
+} {
+  const values = [
+    intent.comparisonStartMonth,
+    intent.comparisonStartYear,
+    intent.comparisonEndMonth,
+    intent.comparisonEndYear,
+  ];
+  if (values.every((value) => value === -1)) return { valid: true };
+  if (
+    !validMonth(intent.comparisonStartMonth) ||
+    !validYear(intent.comparisonStartYear) ||
+    !validMonth(intent.comparisonEndMonth) ||
+    !validYear(intent.comparisonEndYear)
+  ) {
+    return { valid: false };
+  }
+  return {
+    valid: true,
+    periods: [
+      {
+        kind: 'month',
+        month: intent.comparisonStartMonth,
+        year: intent.comparisonStartYear,
+      },
+      {
+        kind: 'month',
+        month: intent.comparisonEndMonth,
+        year: intent.comparisonEndYear,
+      },
+    ],
   };
 }
 
@@ -283,7 +345,8 @@ export function toHomeSearchParsedQuery(
   }
 
   const intentKind = intent.intent.toLowerCase();
-  if (!SUPPORTED_INTENTS.has(intentKind)) {
+  const inferredIntentKind = intentKind || (intent.financialMetric ? 'financialmetric' : '');
+  if (!SUPPORTED_INTENTS.has(inferredIntentKind)) {
     logParserRejection('intent', { reason: 'unsupportedValue' });
     return null;
   }
@@ -375,23 +438,56 @@ export function toHomeSearchParsedQuery(
     addDetectedType(query.detectedTypes, 'periodSummary');
   }
 
-  if (intentKind === 'financialmetric' && !query.financialMetric) {
+  const operation = intent.operation.toLowerCase();
+  const groupBy = intent.groupBy.toLowerCase();
+  const hasAnalysisFields = Boolean(operation || groupBy);
+  const isAnalysisIntent = inferredIntentKind === 'financialanalysis' || hasAnalysisFields;
+  if (operation && !inSet(operation, ANALYSIS_OPERATIONS)) {
+    logParserRejection('operation', { reason: 'unsupportedValue' });
+    return null;
+  }
+  if (groupBy && !inSet(groupBy, ANALYSIS_GROUPINGS)) {
+    logParserRejection('groupBy', { reason: 'unsupportedValue' });
+    return null;
+  }
+  if (isAnalysisIntent) {
+    if (!inSet(operation, ANALYSIS_OPERATIONS) || !inSet(groupBy, ANALYSIS_GROUPINGS)) {
+      logParserRejection('analysis', { reason: 'missingOperationOrGroupBy' });
+      return null;
+    }
+    if (!query.financialMetric) {
+      logParserRejection('analysis', { reason: 'missingFinancialMetric' });
+      return null;
+    }
+    const comparison = buildComparisonPeriods(intent);
+    if (!comparison.valid || (operation === 'compare' && !comparison.periods)) {
+      logParserRejection('analysis', { reason: 'invalidComparisonPeriods' });
+      return null;
+    }
+    query.analysis = {
+      operation,
+      groupBy,
+      ...(comparison.periods ? { comparisonPeriods: comparison.periods } : {}),
+    };
+  }
+
+  if (inferredIntentKind === 'financialmetric' && !query.financialMetric) {
     logParserRejection('intent', { reason: 'missingFinancialMetric' });
     return null;
   }
-  if (intentKind === 'factorymetric' && !query.factoryMetric) {
+  if (inferredIntentKind === 'factorymetric' && !query.factoryMetric) {
     logParserRejection('intent', { reason: 'missingFactoryMetric' });
     return null;
   }
-  if (intentKind === 'routemetric' && !query.routeMetric) {
+  if (inferredIntentKind === 'routemetric' && !query.routeMetric) {
     logParserRejection('intent', { reason: 'missingRouteMetric' });
     return null;
   }
-  if (intentKind === 'carmetric' && !query.carMetric) {
+  if (inferredIntentKind === 'carmetric' && !query.carMetric) {
     logParserRejection('intent', { reason: 'missingCarMetric' });
     return null;
   }
-  if (intentKind === 'clientfield' && !query.clientField) {
+  if (inferredIntentKind === 'clientfield' && !query.clientField) {
     logParserRejection('intent', { reason: 'missingClientField' });
     return null;
   }
@@ -408,7 +504,8 @@ export function toHomeSearchParsedQuery(
     query.factoryMetric ||
     query.routeMetric ||
     query.carMetric ||
-    query.periodSummary;
+    query.periodSummary ||
+    query.analysis;
   if (!hasMeaningfulIntent) {
     logParserRejection('intent', { reason: 'noMeaningfulField' });
     return null;

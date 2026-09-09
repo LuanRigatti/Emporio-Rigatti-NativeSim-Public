@@ -18,6 +18,7 @@ import type {
   HomeSearchDataSource,
   HomeSearchFinancialMetric,
   HomeSearchParsedQuery,
+  HomeSearchPeriod,
 } from '@/features/home/search/HomeSearchTypes';
 import type { ClientModel, Delivery, FactoryReceipt } from '@/types/data';
 import type { RouteTrackingSession } from '@/types/routeTracking';
@@ -262,6 +263,29 @@ class FixedDataSource implements HomeSearchDataSource {
 
 function resultIds(response: Awaited<ReturnType<HomeSearchService['search']>>): string[] {
   return response.results.map((result) => result.id);
+}
+
+function analysisQuery(
+  original: string,
+  period: HomeSearchPeriod,
+  metric: HomeSearchFinancialMetric,
+  operation: 'max' | 'min' | 'compare',
+  groupBy: 'day' | 'client' | 'month',
+  comparisonPeriods?: readonly [HomeSearchPeriod, HomeSearchPeriod],
+): HomeSearchParsedQuery {
+  return {
+    analysis: {
+      groupBy,
+      operation,
+      ...(comparisonPeriods ? { comparisonPeriods } : {}),
+    },
+    detectedTypes: [],
+    financialMetric: metric,
+    normalized: original.toLowerCase(),
+    original,
+    period,
+    text: '',
+  };
 }
 
 const mockedClientDataSource = jest.mocked(clientDataSource);
@@ -723,16 +747,15 @@ describe('HomeSearchService', () => {
 
   it('uses Apple Intelligence only for natural-language semantic queries', async () => {
     const interpreter = {
-      interpret: jest.fn().mockResolvedValue(
-        new HomeSearchQueryParser().parse('lucro líquido agosto', new Date(2026, 7, 13, 12)),
-      ),
+      interpret: jest
+        .fn()
+        .mockResolvedValue(
+          new HomeSearchQueryParser().parse('lucro líquido agosto', new Date(2026, 7, 13, 12)),
+        ),
     };
     const service = new HomeSearchService(new FixedDataSource(), interpreter);
 
-    const response = await service.search(
-      'Quanto eu lucrei em agosto?',
-      new Date(2026, 7, 13, 12),
-    );
+    const response = await service.search('Quanto eu lucrei em agosto?', new Date(2026, 7, 13, 12));
 
     expect(interpreter.interpret).toHaveBeenCalledWith(
       'Quanto eu lucrei em agosto?',
@@ -761,18 +784,23 @@ describe('HomeSearchService', () => {
   it.each([
     'quanto dinheiro realmente ficou pra mim no mês anterior?',
     'qual meu lucro líquido mês passado?',
-  ])('routes an unresolved natural-language metric question to Apple Intelligence: %s', async (query) => {
-    const interpreter = {
-      interpret: jest.fn().mockResolvedValue(
-        new HomeSearchQueryParser().parse('lucro líquido julho', new Date(2026, 7, 13, 12)),
-      ),
-    };
-    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+  ])(
+    'routes an unresolved natural-language metric question to Apple Intelligence: %s',
+    async (query) => {
+      const interpreter = {
+        interpret: jest
+          .fn()
+          .mockResolvedValue(
+            new HomeSearchQueryParser().parse('lucro líquido julho', new Date(2026, 7, 13, 12)),
+          ),
+      };
+      const service = new HomeSearchService(new FixedDataSource(), interpreter);
 
-    await service.search(query, new Date(2026, 7, 13, 12));
+      await service.search(query, new Date(2026, 7, 13, 12));
 
-    expect(interpreter.interpret).toHaveBeenCalledWith(query, new Date(2026, 7, 13, 12));
-  });
+      expect(interpreter.interpret).toHaveBeenCalledWith(query, new Date(2026, 7, 13, 12));
+    },
+  );
 
   it('ranks exact client match before prefix and related deliveries', async () => {
     const response = await new HomeSearchService(new FixedDataSource()).search('ANDR\u00c9');
@@ -1064,6 +1092,92 @@ describe('HomeSearchService', () => {
     if (result?.type !== 'financialMetric') throw new Error('Métrica financeira ausente.');
     expect(result.data.value).toBeCloseTo(financialSummary()[summaryField], 8);
     expect(response.counts.financialMetric).toBe(1);
+  });
+
+  it('executes the greatest daily revenue analysis instead of returning the monthly total', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Qual valor do dia que mais faturei em agosto?',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'max',
+        'day',
+      ),
+    );
+    const result = response.results[0];
+
+    expect(result).toMatchObject({
+      type: 'financialMetric',
+      data: {
+        analysis: { groupBy: 'day', operation: 'max' },
+        value: 450,
+      },
+    });
+    if (result?.type !== 'financialMetric') throw new Error('Análise financeira ausente.');
+    expect(result.data.analysis?.winner).toMatchObject({
+      key: '2026-08-17',
+      value: 450,
+    });
+  });
+
+  it.each([
+    ['menor faturamento diário', 'revenue', 'min', 'day', '2026-08-13', 100],
+    ['cliente que mais comprou', 'revenue', 'max', 'client', 'client:luciano', 800],
+    ['dia com mais entregas', 'deliveryCount', 'max', 'day', '2026-08-12', 1],
+  ] as const)(
+    'executes %s using grouped real data',
+    async (_label, metric, operation, groupBy, key, value) => {
+      const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+        analysisQuery(_label, { kind: 'month', month: 8, year: 2026 }, metric, operation, groupBy),
+      );
+      const result = response.results[0];
+
+      expect(result?.type).toBe('financialMetric');
+      if (result?.type !== 'financialMetric') throw new Error('Análise financeira ausente.');
+      expect(result.data.analysis?.winner).toMatchObject({ key, value });
+    },
+  );
+
+  it('executes the greatest monthly profit analysis for a year', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Qual mês teve maior lucro este ano?',
+        { kind: 'year', year: 2026 },
+        'netProfit',
+        'max',
+        'month',
+      ),
+    );
+    const result = response.results[0];
+
+    expect(result?.type).toBe('financialMetric');
+    if (result?.type !== 'financialMetric') throw new Error('Análise financeira ausente.');
+    expect(result.data.analysis?.winner).toMatchObject({ key: '2026-08', label: 'agosto de 2026' });
+    expect(result.data.value).toBeCloseTo(financialSummary().lucroLiquido, 8);
+  });
+
+  it('compares two months without falling back to a single monthly metric', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Compare julho com agosto',
+        { kind: 'range', startDate: '2026-07-01', endDate: '2026-08-31' },
+        'revenue',
+        'compare',
+        'month',
+        [
+          { kind: 'month', month: 7, year: 2026 },
+          { kind: 'month', month: 8, year: 2026 },
+        ],
+      ),
+    );
+    const result = response.results[0];
+
+    expect(result?.type).toBe('financialMetric');
+    if (result?.type !== 'financialMetric') throw new Error('Comparação financeira ausente.');
+    expect(result.data.analysis?.comparisons).toEqual([
+      { key: 'month-0', label: 'julho de 2026', value: 0 },
+      { key: 'month-1', label: 'agosto de 2026', value: 1050 },
+    ]);
   });
 
   it('includes local route kilometers in the daily net profit search result', async () => {

@@ -8,6 +8,7 @@ import Animated, {
   useDerivedValue,
   type SharedValue,
 } from 'react-native-reanimated';
+import { useAppTheme } from '@/theme';
 import {
   COMPOSER,
   GRID,
@@ -57,6 +58,7 @@ export function AttachmentPanel({
   blur,
   composerBottom,
 }: AttachmentPanelProps) {
+  const { resolvedMode } = useAppTheme();
   const rect = useDerivedValue(() => {
     const bottom = composerBottom.get();
     const plusCenter = bottom - COMPOSER.rowHeight / 2;
@@ -122,7 +124,11 @@ export function AttachmentPanel({
           {menu}
         </Animated.View>
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, blurStyle]}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView
+            intensity={20}
+            tint={resolvedMode === 'dark' ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
         </Animated.View>
       </Animated.View>
     </Animated.View>

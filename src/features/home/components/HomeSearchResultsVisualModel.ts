@@ -3,6 +3,7 @@ import type {
   HomeSearchFactoryPurchaseResult,
   HomeSearchFactorySummaryResult,
   HomeSearchFinancialMetricResult,
+  HomeSearchPeriod,
   HomeSearchPeriodSummaryResult,
   HomeSearchResponse,
   HomeSearchResult,
@@ -290,6 +291,40 @@ function factoryPurchaseSections(
 }
 
 function financialSections(result: HomeSearchFinancialMetricResult): HomeSearchVisualSection[] {
+  if (result.data.analysis) {
+    const analysis = result.data.analysis;
+    const rows: HomeSearchVisualRow[] = [
+      ...(analysis.winner
+        ? [
+            row(
+              'analysis-winner',
+              analysis.groupBy === 'day'
+                ? 'Dia vencedor'
+                : analysis.groupBy === 'client'
+                  ? 'Cliente vencedor'
+                  : 'Mês vencedor',
+              analysis.winner.label,
+            ),
+            row(
+              'analysis-value',
+              'Valor',
+              formatFinancialAnalysisValue(analysis.winner.value, result.data.unit),
+              { monospaced: true },
+            ),
+          ]
+        : []),
+      ...(analysis.comparisons ?? []).map((comparison) =>
+        row(
+          `comparison-${comparison.key}`,
+          comparison.label,
+          formatFinancialAnalysisValue(comparison.value, result.data.unit),
+          { monospaced: true },
+        ),
+      ),
+      row('analysis-period', 'Período analisado', analysisPeriodLabel(analysis.period)),
+    ];
+    return [section('financial-analysis', 'Análise', 'chart.bar', rows)];
+  }
   const supportingData = result.data.supportingData;
   if (!supportingData) return [];
   return [
@@ -517,6 +552,27 @@ function periodSummarySections(result: HomeSearchPeriodSummaryResult): HomeSearc
       }),
     ]),
   ];
+}
+
+function analysisPeriodLabel(period: HomeSearchPeriod): string {
+  if (period.kind === 'date') return period.date;
+  if (period.kind === 'dayMonth') {
+    return `${period.day}/${String(period.month).padStart(2, '0')}`;
+  }
+  if (period.kind === 'month') {
+    return `${MONTH_NAMES[period.month - 1] ?? period.month} de ${period.year ?? ''}`.trim();
+  }
+  if (period.kind === 'year') return String(period.year);
+  return `${period.startDate} a ${period.endDate}`;
+}
+
+function formatFinancialAnalysisValue(
+  value: number,
+  unit: HomeSearchFinancialMetricResult['data']['unit'],
+): string {
+  if (unit === 'currency') return formatCurrency(value);
+  if (unit === 'percentage') return `${value.toFixed(1)}%`;
+  return formatNumber(value);
 }
 
 function resultSections(

@@ -7,6 +7,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
 import { OverKeyboardView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
+import { NativeDatePicker } from '@/components/native';
 import { CameraBar } from './chatgpt-attachments/camera/camera-bar';
 import { CameraSheet, type CameraSheetHandle } from './chatgpt-attachments/camera/camera-sheet';
 import { AttachmentFlight } from './chatgpt-attachments/composer/attachment-flight';
@@ -22,6 +23,7 @@ import { AttachmentPanel } from './chatgpt-attachments/panel/attachment-panel';
 import { PhotoGridBar } from './chatgpt-attachments/photos/photo-grid-bar';
 import { PhotoGrid, type PhotoGridHandle } from './chatgpt-attachments/photos/photo-grid';
 import { usePhotoLibrary, type LibraryPhoto } from './chatgpt-attachments/photos/use-photo-library';
+import { SheetBar } from './chatgpt-attachments/panel/sheet-bar';
 import { useAttachmentFlights } from './chatgpt-attachments/use-attachment-flights';
 import { useAttachmentPanel } from './chatgpt-attachments/use-attachment-panel';
 import { useSheetGeometry } from './chatgpt-attachments/use-sheet-geometry';
@@ -56,6 +58,7 @@ export default function HomeSearchAttachmentsComposer({
   const [flash, setFlash] = useState<FlashMode>('off');
   const capturing = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const clearSelection = useCallback(() => setSelected([]), []);
   const panel = useAttachmentPanel({ onLeaveSheet: clearSelection });
   const {
@@ -166,6 +169,39 @@ export default function HomeSearchAttachmentsComposer({
     [pickFiles, panel],
   );
 
+  const grid =
+    panel.mode === 'camera' ? (
+      <CameraSheet
+        ref={cameraRef}
+        width={gridWidth}
+        height={gridHeight}
+        facing={facing}
+        flash={flash}
+        lifting={isFlying}
+      />
+    ) : panel.mode === 'photos' ? (
+      <PhotoGrid
+        ref={gridRef}
+        width={gridWidth}
+        height={gridHeight}
+        photos={photos}
+        status={status}
+        selected={selected}
+        lifting={isFlying}
+        onTogglePhoto={togglePhoto}
+      />
+    ) : panel.mode === 'date' ? (
+      <View style={styles.calendarPage}>
+        <NativeDatePicker
+          accessibilityLabel="Selecionar data"
+          mode="date"
+          onChange={setSelectedDate}
+          style="graphical"
+          value={selectedDate}
+        />
+      </View>
+    ) : null;
+
   const flipCamera = useCallback(() => {
     Haptics.selectionAsync();
     setFacing((previous) => (previous === 'back' ? 'front' : 'back'));
@@ -219,29 +255,7 @@ export default function HomeSearchAttachmentsComposer({
               blur={panel.blur}
               composerBottom={composerBottom}
               menu={<AttachmentMenu onSelect={handleMenuAction} />}
-              grid={
-                panel.sheet === 'camera' ? (
-                  <CameraSheet
-                    ref={cameraRef}
-                    width={gridWidth}
-                    height={gridHeight}
-                    facing={facing}
-                    flash={flash}
-                    lifting={isFlying}
-                  />
-                ) : (
-                  <PhotoGrid
-                    ref={gridRef}
-                    width={gridWidth}
-                    height={gridHeight}
-                    photos={photos}
-                    status={status}
-                    selected={selected}
-                    lifting={isFlying}
-                    onTogglePhoto={togglePhoto}
-                  />
-                )
-              }
+              grid={grid}
             />
 
             {panel.sheet === 'camera' ? (
@@ -255,6 +269,15 @@ export default function HomeSearchAttachmentsComposer({
                 onFlip={flipCamera}
                 onToggleFlash={toggleFlash}
               />
+            ) : panel.sheet === 'date' ? (
+              <SheetBar
+                width={gridWidth}
+                active={panel.mode === 'date' && !isFlying}
+                fade={panel.gridOpacity}
+                onBack={panel.backToMenu}
+              >
+                <View />
+              </SheetBar>
             ) : (
               <PhotoGridBar
                 width={gridWidth}
@@ -293,5 +316,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  calendarPage: {
+    flex: 1,
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    width: '100%',
   },
 });

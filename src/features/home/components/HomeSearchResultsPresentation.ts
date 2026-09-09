@@ -343,9 +343,38 @@ function formatFinancialValue(result: HomeSearchFinancialMetricResult): string {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 }
 
+function formatFinancialAmount(
+  value: number,
+  unit: HomeSearchFinancialMetricResult['data']['unit'],
+): string {
+  if (unit === 'currency') return formatCurrency(value);
+  if (unit === 'percentage') return `${value.toFixed(1)}%`;
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
+}
+
 function financialDetails(
   result: HomeSearchFinancialMetricResult,
 ): Pick<HomeSearchResultsPresentation, 'primaryTitle' | 'relatedCount' | 'typeLabel'> {
+  const analysis = result.data.analysis;
+  if (analysis?.comparisons) {
+    return {
+      primaryTitle: 'Comparação',
+      relatedCount: analysis.comparisons
+        .map(
+          (comparison) =>
+            `${comparison.label}: ${formatFinancialAmount(comparison.value, result.data.unit)}`,
+        )
+        .join(' · '),
+      typeLabel: `Comparação ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
+    };
+  }
+  if (analysis?.winner) {
+    return {
+      primaryTitle: analysis.winner.label,
+      relatedCount: formatFinancialAmount(analysis.winner.value, result.data.unit),
+      typeLabel: `${analysis.operation === 'max' ? 'Maior' : 'Menor'} ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()} ${analysis.groupBy === 'day' ? 'diário' : analysis.groupBy === 'client' ? 'por cliente' : 'mensal'}`,
+    };
+  }
   return {
     primaryTitle: result.data.clientName ?? formatPeriod(result.data.period),
     relatedCount: formatFinancialValue(result),

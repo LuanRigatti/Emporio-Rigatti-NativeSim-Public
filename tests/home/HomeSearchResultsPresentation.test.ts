@@ -123,6 +123,30 @@ describe('HomeSearchResultsPresentation', () => {
     expect(presentation.period).toBeUndefined();
   });
 
+  it('presents an analytical winner with its winning date and value', () => {
+    const presentation = createHomeSearchResultsPresentation(
+      response(parser.parse('Qual dia teve o maior faturamento em agosto?', referenceDate), [
+        financialResult({
+          metric: 'revenue',
+          unit: 'currency',
+          value: 450,
+          analysis: {
+            groupBy: 'day',
+            operation: 'max',
+            period: { kind: 'month', month: 8, year: 2026 },
+            winner: { key: '2026-08-17', label: 'Dia 17/08/2026', value: 450 },
+          },
+        }),
+      ]),
+    );
+
+    expect(presentation).toMatchObject({
+      primaryTitle: 'Dia 17/08/2026',
+      relatedCount: 'R$\u00a0450,00',
+      typeLabel: 'Maior faturamento diário',
+    });
+  });
+
   it('creates a period summary for 08/2026', () => {
     const presentation = createHomeSearchResultsPresentation(
       response(parser.parse('08/2026', referenceDate), periodDeliveries),

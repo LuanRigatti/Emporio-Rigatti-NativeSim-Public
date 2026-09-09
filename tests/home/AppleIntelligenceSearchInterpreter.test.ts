@@ -44,6 +44,12 @@ const baseIntent: NativeAppleIntelligenceSearchIntent = {
   routeMetric: '',
   carMetric: '',
   periodSummary: false,
+  operation: '',
+  groupBy: '',
+  comparisonStartMonth: -1,
+  comparisonStartYear: -1,
+  comparisonEndMonth: -1,
+  comparisonEndYear: -1,
 };
 
 describe('Apple Intelligence Home Search intent conversion', () => {
@@ -56,6 +62,78 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     });
     expect(query).not.toHaveProperty('value');
     expect(query).not.toHaveProperty('total');
+  });
+
+  it('keeps a scalar monthly metric distinct from an analytical daily maximum', () => {
+    const scalar = toHomeSearchParsedQuery('Quanto faturei em agosto?', {
+      ...baseIntent,
+      financialMetric: 'revenue',
+    });
+    const analysis = toHomeSearchParsedQuery('Qual dia teve o maior faturamento em agosto?', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'max',
+      groupBy: 'day',
+    });
+
+    expect(scalar).not.toHaveProperty('analysis');
+    expect(analysis).toMatchObject({
+      analysis: { groupBy: 'day', operation: 'max' },
+      financialMetric: 'revenue',
+    });
+  });
+
+  it.each([
+    ['Qual foi o dia que menos vendi em agosto?', 'revenue', 'min', 'day'],
+    ['Qual cliente mais comprou em agosto?', 'revenue', 'max', 'client'],
+    ['Em qual dia tive mais entregas?', 'deliveryCount', 'max', 'day'],
+    ['Qual mês teve maior lucro este ano?', 'netProfit', 'max', 'month'],
+  ] as const)('converts analytical intent for %s', (queryText, metric, operation, groupBy) => {
+    const query = toHomeSearchParsedQuery(queryText, {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: metric,
+      operation,
+      groupBy,
+      ...(groupBy === 'month' ? { periodKind: 'year', month: -1 } : {}),
+    });
+
+    expect(query).toMatchObject({
+      analysis: { groupBy, operation },
+      financialMetric: metric,
+    });
+  });
+
+  it('converts a two-month comparison without collapsing it into one month', () => {
+    const query = toHomeSearchParsedQuery('Compare julho com agosto', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'compare',
+      groupBy: 'month',
+      periodKind: 'range',
+      startDate: '2026-07-01',
+      endDate: '2026-08-31',
+      month: -1,
+      year: -1,
+      comparisonStartMonth: 7,
+      comparisonStartYear: 2026,
+      comparisonEndMonth: 8,
+      comparisonEndYear: 2026,
+    });
+
+    expect(query).toMatchObject({
+      analysis: {
+        comparisonPeriods: [
+          { kind: 'month', month: 7, year: 2026 },
+          { kind: 'month', month: 8, year: 2026 },
+        ],
+        groupBy: 'month',
+        operation: 'compare',
+      },
+      period: { kind: 'range', startDate: '2026-07-01', endDate: '2026-08-31' },
+    });
   });
 
   it('accepts a structurally valid intent even when model confidence is low', () => {

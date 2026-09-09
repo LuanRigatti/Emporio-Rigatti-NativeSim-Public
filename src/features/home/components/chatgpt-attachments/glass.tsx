@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 import Animated, { type AnimatedProps } from 'react-native-reanimated';
+import { useAppTheme } from '@/theme';
 import { COLORS } from './constants';
 
 const LIQUID_GLASS = isLiquidGlassAvailable();
@@ -44,22 +45,22 @@ export function Glass({
   children,
   ...rest
 }: GlassProps) {
+  const { resolvedMode, theme } = useAppTheme();
   const glassEffectStyle = useGlassStyle(active ? 'regular' : 'none', duration);
+  const resolvedFallbackTint =
+    fallbackTint ?? (resolvedMode === 'dark' ? COLORS.controlScrim : theme.colors.glassSurface);
 
   if (!LIQUID_GLASS) {
     return (
       <BlurView
         intensity={60}
-        tint="systemChromeMaterialDark"
+        tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
         style={[shapeOf(radius), styles.clip, style]}
         {...rest}
       >
         <View
           pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: fallbackTint ?? COLORS.controlScrim },
-          ]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: resolvedFallbackTint }]}
         />
         {children}
       </BlurView>
@@ -68,8 +69,8 @@ export function Glass({
 
   return (
     <GlassView
+      colorScheme={resolvedMode}
       glassEffectStyle={glassEffectStyle}
-      colorScheme="dark"
       isInteractive={interactive}
       style={[shapeOf(radius), style]}
       {...rest}
@@ -88,6 +89,7 @@ export function PanelMaterial({
   duration: number;
   style?: AnimatedProps<ViewProps>['style'];
 }) {
+  const { resolvedMode, theme } = useAppTheme();
   const glassEffectStyle = useGlassStyle(variant, duration);
 
   if (!LIQUID_GLASS) {
@@ -97,13 +99,35 @@ export function PanelMaterial({
         {BLURS_ITS_BACKDROP ? (
           <BlurView
             intensity={70}
-            tint="systemUltraThinMaterialDark"
+            tint={
+              resolvedMode === 'dark'
+                ? 'systemUltraThinMaterialDark'
+                : 'systemUltraThinMaterialLight'
+            }
             style={StyleSheet.absoluteFill}
           >
-            <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.fallbackTint]} />
+            <View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor:
+                    resolvedMode === 'dark' ? COLORS.material : theme.colors.glassSurface,
+                },
+              ]}
+            />
           </BlurView>
         ) : (
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.flatMaterial]} />
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor:
+                  resolvedMode === 'dark' ? COLORS.materialFlat : theme.colors.surface,
+              },
+            ]}
+          />
         )}
       </Animated.View>
     );
@@ -111,8 +135,8 @@ export function PanelMaterial({
 
   return (
     <AnimatedGlassView
+      colorScheme={resolvedMode}
       glassEffectStyle={glassEffectStyle}
-      colorScheme="dark"
       isInteractive
       style={[styles.shape, style]}
     />
@@ -122,6 +146,4 @@ export function PanelMaterial({
 const styles = StyleSheet.create({
   shape: { borderCurve: 'continuous' },
   clip: { overflow: 'hidden' },
-  fallbackTint: { backgroundColor: COLORS.material },
-  flatMaterial: { backgroundColor: COLORS.materialFlat },
 });

@@ -14,6 +14,7 @@ import type {
 } from '@/types/data';
 
 import { normalizeHomeSearchText } from './HomeSearchQueryParser';
+import { coveragePeriodForReport } from './HomeSearchAnalysisMath';
 import type {
   HomeSearchCoverage,
   HomeSearchDataSet,
@@ -113,7 +114,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       });
       return { clients: [], deliveries: [], factoryPurchases: [], coverage, errors };
     }
-    if (query.routeMetric) {
+    if (query.routeMetric && !query.analysis) {
       const [routeSessions, financial] = await Promise.all([
         this.loadRoutes(query, coverage, errors),
         this.loadFinancialData(query, coverage, errors),
@@ -132,11 +133,11 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       const carSettings = await this.loadCarSettings(coverage, errors);
       return { clients: [], deliveries: [], factoryPurchases: [], carSettings, coverage, errors };
     }
-    if (query.factoryMetric) {
+    if (query.factoryMetric && !query.analysis) {
       const factoryPurchases = await this.loadFactoryIntent(query, coverage, errors);
       return { clients: [], deliveries: [], factoryPurchases, coverage, errors };
     }
-    if (query.periodSummary) {
+    if (query.periodSummary && !query.analysis) {
       const [financial, factoryPurchases, routeSessions] = await Promise.all([
         this.loadFinancialData(query, coverage, errors),
         this.loadFactoryIntent(query, coverage, errors),
@@ -153,20 +154,57 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       };
     }
     const clients = await this.loadClients(coverage, errors);
-    if (query.clientField) {
+    if (query.clientField && !query.analysis) {
       return { clients, deliveries: [], factoryPurchases: [], coverage, errors };
     }
-    if (query.financialMetric) {
-      const [financial, routeSessions] = await Promise.all([
-        this.loadFinancialData(query, coverage, errors),
-        this.loadRoutes(query, coverage, errors),
+    const isClientBucketPriceAnalysis =
+      query.financialMetric === 'bucketPrice' && query.analysis?.groupBy === 'client';
+    const isFinancialAnalysis = Boolean(query.analysis);
+    const analysisMetric = query.financialMetric;
+    const analysisMetrics = [
+      analysisMetric,
+      query.analysis?.numeratorMetric,
+      query.analysis?.denominatorMetric,
+    ].filter((metric): metric is NonNullable<typeof metric> => Boolean(metric));
+    const isReport = query.analysis?.operation === 'report';
+    const needsFinancial =
+      isReport ||
+      Boolean(
+        query.financialMetric &&
+        !isClientBucketPriceAnalysis &&
+        (!isFinancialAnalysis ||
+          !['route', 'factory'].includes(query.analysis?.groupBy ?? '') ||
+          ['compare', 'percentageChange', 'ratio'].includes(query.analysis?.operation ?? '')),
+      );
+    const needsRoutes =
+      Boolean(query.routeMetric) ||
+      isReport ||
+      (isFinancialAnalysis &&
+        (query.analysis?.groupBy === 'route' ||
+          analysisMetrics.some((metric) =>
+            ['distanceKm', 'profitPerKm', 'revenuePerKm', 'costPerKm'].includes(metric),
+          )));
+    const needsFactory =
+      Boolean(query.factoryMetric) ||
+      isReport ||
+      (isFinancialAnalysis &&
+        (query.analysis?.groupBy === 'factory' || analysisMetrics.includes('factoryCost')));
+    if (query.financialMetric || isFinancialAnalysis) {
+      const sourceQuery =
+        isReport && query.period
+          ? { ...query, period: coveragePeriodForReport(query.period) }
+          : query;
+      const [financial, routeSessions, factoryPurchases] = await Promise.all([
+        needsFinancial ? this.loadFinancialData(sourceQuery, coverage, errors) : undefined,
+        needsRoutes ? this.loadRoutes(sourceQuery, coverage, errors) : undefined,
+        needsFactory ? this.loadFactoryIntent(sourceQuery, coverage, errors) : undefined,
       ]);
       return {
         clients,
-        deliveries: financial.deliveries,
-        factoryPurchases: [],
-        financial,
-        routeSessions,
+        deliveries: financial?.deliveries ?? [],
+        factoryPurchases: factoryPurchases ?? [],
+        ...(financial ? { financial } : {}),
+        ...(routeSessions ? { routeSessions } : {}),
         coverage,
         errors,
       };

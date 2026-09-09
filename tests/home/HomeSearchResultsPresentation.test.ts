@@ -74,6 +74,7 @@ function response(query: HomeSearchParsedQuery, results: HomeSearchResult[]): Ho
       routeSummary: results.filter(({ type }) => type === 'routeSummary').length,
       carSetting: results.filter(({ type }) => type === 'carSetting').length,
       periodSummary: results.filter(({ type }) => type === 'periodSummary').length,
+      assistant: results.filter(({ type }) => type === 'assistant').length,
     },
     coverage: [],
     errors: [],
@@ -144,6 +145,92 @@ describe('HomeSearchResultsPresentation', () => {
       primaryTitle: 'Dia 17/08/2026',
       relatedCount: 'R$\u00a0450,00',
       typeLabel: 'Maior faturamento diário',
+    });
+  });
+
+  it('presents a derived ratio without labeling it as an average', () => {
+    const presentation = createHomeSearchResultsPresentation(
+      response(parser.parse('lucro por entrega agosto', referenceDate), [
+        financialResult({
+          metric: 'profitPerDelivery',
+          unit: 'currency',
+          value: 250,
+          analysis: {
+            groupBy: 'month',
+            operation: 'ratio',
+            period: { kind: 'month', month: 8, year: 2026 },
+            numeratorMetric: 'netProfit',
+            denominatorMetric: 'deliveryCount',
+            aggregateValue: 250,
+            ratio: { numerator: 500, denominator: 2 },
+          },
+        }),
+      ]),
+    );
+
+    expect(presentation).toMatchObject({
+      primaryTitle: 'Agosto de 2026',
+      relatedCount: 'R$\u00a0250,00',
+      typeLabel: 'Razão lucro por entrega',
+    });
+  });
+
+  it('presents an assistant clarification instead of an empty result', () => {
+    const query: HomeSearchParsedQuery = {
+      assistantStatus: 'clarification',
+      detectedTypes: ['assistant'],
+      normalized: 'qual cliente tem melhor custo beneficio',
+      original: 'Qual cliente tem melhor custo-benefício?',
+      text: '',
+    };
+    const result: HomeSearchResult = {
+      type: 'assistant',
+      id: 'assistant:clarification:cost-benefit',
+      title: 'Preciso de um critério',
+      score: 2_500,
+      data: {
+        status: 'clarification',
+        message: 'Escolha uma métrica.',
+        options: ['Maior margem líquida'],
+      },
+      relations: {},
+    };
+
+    expect(createHomeSearchResultsPresentation(response(query, [result]))).toMatchObject({
+      primaryTitle: 'Preciso de um critério',
+      relatedCount: 'Escolha uma métrica.',
+      typeLabel: 'Escolha uma análise',
+    });
+  });
+
+  it('presents a current client bucket price analysis without inventing a period', () => {
+    const query: HomeSearchParsedQuery = {
+      analysis: { groupBy: 'client', operation: 'max' },
+      detectedTypes: ['financialMetric'],
+      financialMetric: 'bucketPrice',
+      normalized: 'qual cliente tem o balde mais caro',
+      original: 'Qual cliente tem o balde mais caro?',
+      text: '',
+    };
+    const presentation = createHomeSearchResultsPresentation(
+      response(query, [
+        financialResult({
+          metric: 'bucketPrice',
+          unit: 'currency',
+          value: 52,
+          analysis: {
+            groupBy: 'client',
+            operation: 'max',
+            winner: { key: 'client:andre', label: 'André', value: 52 },
+          },
+        }),
+      ]),
+    );
+
+    expect(presentation).toMatchObject({
+      primaryTitle: 'André',
+      relatedCount: 'R$\u00a052,00',
+      typeLabel: 'Maior preço unitário do balde por cliente',
     });
   });
 

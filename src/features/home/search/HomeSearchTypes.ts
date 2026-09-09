@@ -26,7 +26,9 @@ export type HomeSearchDetectedType =
   | 'factoryMetric'
   | 'routeMetric'
   | 'carMetric'
-  | 'periodSummary';
+  | 'periodSummary'
+  | 'analysis'
+  | 'assistant';
 
 export type HomeSearchPeriod =
   | { kind: 'date'; date: string }
@@ -54,8 +56,19 @@ export type HomeSearchFinancialMetric =
   | 'netMargin'
   | 'salePerBucket'
   | 'profitPerBucket'
-  | 'costPerBucket';
-export type HomeSearchFinancialUnit = 'count' | 'currency' | 'percentage';
+  | 'costPerBucket'
+  | 'bucketPrice'
+  | 'totalCost'
+  | 'distanceKm'
+  | 'factoryCost'
+  | 'marginPercentage'
+  | 'profitPerDelivery'
+  | 'revenuePerDelivery'
+  | 'costPerDelivery'
+  | 'profitPerKm'
+  | 'revenuePerKm'
+  | 'costPerKm';
+export type HomeSearchFinancialUnit = 'count' | 'currency' | 'percentage' | 'distance';
 export type HomeSearchFinancialClientScope = 'direct' | 'allocated' | 'unsupported';
 export type HomeSearchClientField = 'currentPrice' | 'address' | 'usesInvoice' | 'usesBoleto';
 export type HomeSearchFactoryMetric =
@@ -64,12 +77,75 @@ export type HomeSearchFactoryStatus = 'paid' | 'partial' | 'open' | 'outstanding
 export type HomeSearchRouteMetric = 'distance' | 'routes';
 export type HomeSearchCarMetric = 'gasolineAutonomy' | 'alcoholAutonomy' | 'consumption';
 
-export type HomeSearchAnalysisOperation = 'max' | 'min' | 'compare';
-export type HomeSearchAnalysisGroupBy = 'day' | 'client' | 'month';
+export type HomeSearchAnalysisOperation =
+  | 'max'
+  | 'min'
+  | 'compare'
+  | 'sum'
+  | 'average'
+  | 'rank'
+  | 'topN'
+  | 'percentageChange'
+  | 'ratio'
+  | 'trend'
+  | 'report';
+export type HomeSearchAnalysisGroupBy = 'day' | 'client' | 'month' | 'week' | 'route' | 'factory';
+export type HomeSearchAnalysisOrder = 'ascending' | 'descending';
+
+export type HomeSearchAssistantStatus = 'clarification' | 'unsupportedDomain' | 'unsupportedMetric';
+
+export type HomeSearchAssistantContext = 'incompleteAnalysis';
+
+export type HomeSearchAnalysisTrendDirection = 'rising' | 'falling' | 'stable' | 'mixed';
+
+export type HomeSearchAnalysisPoint = {
+  key: string;
+  label: string;
+  value: number;
+  clientId?: ClientId;
+  rank?: number;
+};
+
+export type HomeSearchFinancialAnalysisComparison = {
+  finalPeriod: HomeSearchPeriod;
+  finalValue: number;
+  initialPeriod: HomeSearchPeriod;
+  initialValue: number;
+  absoluteChange: number;
+  percentageChange: number | null;
+};
+
+export type HomeSearchFinancialReport = {
+  period: HomeSearchPeriod;
+  revenue: number;
+  netProfit: number;
+  totalCost: number;
+  bucketsSold: number;
+  deliveryCount: number;
+  received: number;
+  receivable: number;
+  factoryCost?: number;
+  distanceKm?: number;
+  fuelCost?: number;
+  bestDay?: HomeSearchAnalysisPoint;
+  worstDay?: HomeSearchAnalysisPoint;
+  topClient?: HomeSearchAnalysisPoint;
+  previousPeriod?: {
+    period: HomeSearchPeriod;
+    revenue: number;
+    netProfit: number;
+    revenueChange: HomeSearchFinancialAnalysisComparison;
+    netProfitChange: HomeSearchFinancialAnalysisComparison;
+  };
+};
 
 export type HomeSearchAnalysis = {
   operation: HomeSearchAnalysisOperation;
   groupBy: HomeSearchAnalysisGroupBy;
+  order?: HomeSearchAnalysisOrder;
+  limit?: number;
+  numeratorMetric?: HomeSearchFinancialMetric;
+  denominatorMetric?: HomeSearchFinancialMetric;
   comparisonPeriods?: readonly [HomeSearchPeriod, HomeSearchPeriod];
 };
 
@@ -92,6 +168,8 @@ export type HomeSearchParsedQuery = {
   routeMetric?: HomeSearchRouteMetric;
   carMetric?: HomeSearchCarMetric;
   periodSummary?: true;
+  assistantStatus?: HomeSearchAssistantStatus;
+  assistantContext?: HomeSearchAssistantContext;
   detectedTypes: HomeSearchDetectedType[];
 };
 
@@ -221,15 +299,24 @@ export type HomeSearchFinancialMetricResult = {
     available: boolean;
     metric: HomeSearchFinancialMetric;
     unit: HomeSearchFinancialUnit;
-    period: HomeSearchPeriod;
+    period?: HomeSearchPeriod;
     value?: number;
     clientId?: ClientId;
     clientName?: string;
-    unavailableReason?: 'clientScopeUnsupported' | 'sourceUnavailable';
+    unavailableReason?:
+      | 'clientScopeUnsupported'
+      | 'sourceUnavailable'
+      | 'unsupportedMetric'
+      | 'unsupportedGroupBy'
+      | 'insufficientData';
     analysis?: {
       operation: HomeSearchAnalysisOperation;
       groupBy: HomeSearchAnalysisGroupBy;
-      period: HomeSearchPeriod;
+      order?: HomeSearchAnalysisOrder;
+      limit?: number;
+      numeratorMetric?: HomeSearchFinancialMetric;
+      denominatorMetric?: HomeSearchFinancialMetric;
+      period?: HomeSearchPeriod;
       winner?: {
         key: string;
         label: string;
@@ -241,6 +328,18 @@ export type HomeSearchFinancialMetricResult = {
         label: string;
         value: number;
       }[];
+      aggregateValue?: number;
+      ranking?: readonly HomeSearchAnalysisPoint[];
+      comparison?: HomeSearchFinancialAnalysisComparison;
+      ratio?: {
+        numerator: number;
+        denominator: number;
+      };
+      trend?: {
+        direction: HomeSearchAnalysisTrendDirection;
+        points: readonly HomeSearchAnalysisPoint[];
+      };
+      report?: HomeSearchFinancialReport;
     };
     supportingData?: {
       bucketsSold: number;
@@ -360,6 +459,19 @@ export type HomeSearchPeriodSummaryResult = {
   };
 };
 
+export type HomeSearchAssistantResult = {
+  type: 'assistant';
+  id: string;
+  title: string;
+  score: number;
+  data: {
+    status: HomeSearchAssistantStatus;
+    message: string;
+    options?: readonly string[];
+  };
+  relations: Record<string, never>;
+};
+
 export type HomeSearchResult =
   | HomeSearchClientResult
   | HomeSearchDeliveryResult
@@ -368,7 +480,8 @@ export type HomeSearchResult =
   | HomeSearchFactorySummaryResult
   | HomeSearchRouteSummaryResult
   | HomeSearchCarSettingResult
-  | HomeSearchPeriodSummaryResult;
+  | HomeSearchPeriodSummaryResult
+  | HomeSearchAssistantResult;
 
 export type HomeSearchDomainCounts = Record<HomeSearchResult['type'], number>;
 

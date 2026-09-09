@@ -16,6 +16,9 @@ import { carSettingsStorage, firestoreCarSettingsDataSource } from '@/services/c
 import type {
   HomeSearchDataSet,
   HomeSearchDataSource,
+  HomeSearchAnalysisGroupBy,
+  HomeSearchAnalysisOperation,
+  HomeSearchAnalysisOrder,
   HomeSearchFinancialMetric,
   HomeSearchParsedQuery,
   HomeSearchPeriod,
@@ -267,15 +270,25 @@ function resultIds(response: Awaited<ReturnType<HomeSearchService['search']>>): 
 
 function analysisQuery(
   original: string,
-  period: HomeSearchPeriod,
+  period: HomeSearchPeriod | undefined,
   metric: HomeSearchFinancialMetric,
-  operation: 'max' | 'min' | 'compare',
-  groupBy: 'day' | 'client' | 'month',
+  operation: HomeSearchAnalysisOperation,
+  groupBy: HomeSearchAnalysisGroupBy,
   comparisonPeriods?: readonly [HomeSearchPeriod, HomeSearchPeriod],
+  options: {
+    limit?: number;
+    order?: HomeSearchAnalysisOrder;
+    numeratorMetric?: HomeSearchFinancialMetric;
+    denominatorMetric?: HomeSearchFinancialMetric;
+  } = {},
 ): HomeSearchParsedQuery {
   return {
     analysis: {
       groupBy,
+      ...(options.order ? { order: options.order } : {}),
+      ...(options.limit !== undefined ? { limit: options.limit } : {}),
+      ...(options.numeratorMetric ? { numeratorMetric: options.numeratorMetric } : {}),
+      ...(options.denominatorMetric ? { denominatorMetric: options.denominatorMetric } : {}),
       operation,
       ...(comparisonPeriods ? { comparisonPeriods } : {}),
     },
@@ -283,7 +296,7 @@ function analysisQuery(
     financialMetric: metric,
     normalized: original.toLowerCase(),
     original,
-    period,
+    ...(period ? { period } : {}),
     text: '',
   };
 }
@@ -764,6 +777,47 @@ describe('HomeSearchService', () => {
     expect(response.query.financialMetric).toBe('netProfit');
   });
 
+  it('routes analysis-only metric aliases to the semantic interpreter', async () => {
+    const interpreter = {
+      interpret: jest
+        .fn()
+        .mockResolvedValue(
+          analysisQuery(
+            'Qual foi minha média de lucro por entrega em agosto?',
+            { kind: 'month', month: 8, year: 2026 },
+            'profitPerDelivery',
+            'average',
+            'month',
+          ),
+        ),
+    };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+
+    await service.search(
+      'Qual foi minha média de lucro por entrega em agosto?',
+      new Date(2026, 7, 13, 12),
+    );
+
+    expect(interpreter.interpret).toHaveBeenCalledWith(
+      'Qual foi minha média de lucro por entrega em agosto?',
+      new Date(2026, 7, 13, 12),
+    );
+  });
+
+  it('does not fall back to a scalar metric when semantic analysis is unavailable', async () => {
+    const service = new HomeSearchService(new FixedDataSource(), null);
+
+    const response = await service.search(
+      'Qual dia teve o maior faturamento em agosto?',
+      new Date(2026, 7, 13, 12),
+    );
+
+    expect(response.results[0]).toMatchObject({
+      type: 'assistant',
+      data: { status: 'clarification' },
+    });
+  });
+
   it('does not stop at a partial parser match for natural-language financial questions', async () => {
     const interpreter = {
       interpret: jest.fn().mockResolvedValue({
@@ -912,6 +966,7 @@ describe('HomeSearchService', () => {
       routeSummary: 0,
       carSetting: 0,
       periodSummary: 0,
+      assistant: 0,
     });
   });
 
@@ -1121,6 +1176,8 @@ describe('HomeSearchService', () => {
   });
 
   it.each([
+    ['Qual foi o melhor dia de venda do mês passado?', 'revenue', 'max', 'day', '2026-08-17', 450],
+    ['Qual foi o pior dia de venda de agosto?', 'revenue', 'min', 'day', '2026-08-13', 100],
     ['menor faturamento diário', 'revenue', 'min', 'day', '2026-08-13', 100],
     ['cliente que mais comprou', 'revenue', 'max', 'client', 'client:luciano', 800],
     ['dia com mais entregas', 'deliveryCount', 'max', 'day', '2026-08-12', 1],
@@ -1135,6 +1192,62 @@ describe('HomeSearchService', () => {
       expect(result?.type).toBe('financialMetric');
       if (result?.type !== 'financialMetric') throw new Error('Análise financeira ausente.');
       expect(result.data.analysis?.winner).toMatchObject({ key, value });
+    },
+  );
+
+  it('executes the natural-language best client request in the preserved previous month', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Qual foi o melhor cliente que eu vendi no mês passado?',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'max',
+        'client',
+      ),
+    );
+    const result = response.results[0];
+
+    expect(result).toMatchObject({
+      type: 'financialMetric',
+      data: {
+        metric: 'revenue',
+        period: { kind: 'month', month: 8, year: 2026 },
+        value: 800,
+        analysis: {
+          operation: 'max',
+          groupBy: 'client',
+          period: { kind: 'month', month: 8, year: 2026 },
+          winner: { key: 'client:luciano', label: 'Luciano', value: 800 },
+        },
+      },
+    });
+  });
+
+  it.each(['Qual cliente tem o balde mais caro?', 'Qual o balde mais caro e de qual cliente?'])(
+    'ranks current unit bucket prices from client data for %s',
+    async (query) => {
+      const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+        analysisQuery(query, undefined, 'bucketPrice', 'max', 'client'),
+      );
+      const result = response.results[0];
+
+      expect(result).toMatchObject({
+        type: 'financialMetric',
+        title: 'André',
+        data: {
+          available: true,
+          metric: 'bucketPrice',
+          value: 50,
+          analysis: {
+            operation: 'max',
+            groupBy: 'client',
+            winner: { key: 'client:andre', label: 'André', value: 50 },
+          },
+        },
+        relations: { clientId: 'client:andre' },
+      });
+      if (result?.type !== 'financialMetric') throw new Error('Análise de preço ausente.');
+      expect(result.data.period).toBeUndefined();
     },
   );
 
@@ -1178,6 +1291,309 @@ describe('HomeSearchService', () => {
       { key: 'month-0', label: 'julho de 2026', value: 0 },
       { key: 'month-1', label: 'agosto de 2026', value: 1050 },
     ]);
+  });
+
+  it('sums and averages real monthly points across a range', async () => {
+    const sumResponse = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Some tudo que faturei nos últimos 3 meses',
+        { kind: 'range', startDate: '2026-07-01', endDate: '2026-09-30' },
+        'revenue',
+        'sum',
+        'month',
+      ),
+    );
+    const sumResult = sumResponse.results[0];
+    expect(sumResult).toMatchObject({
+      type: 'financialMetric',
+      data: { value: 1050, analysis: { operation: 'sum', aggregateValue: 1050 } },
+    });
+
+    const averageResponse = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Qual a média de faturamento mensal deste ano?',
+        { kind: 'year', year: 2026 },
+        'revenue',
+        'average',
+        'month',
+      ),
+    );
+    const averageResult = averageResponse.results[0];
+    expect(averageResult).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { operation: 'average', aggregateValue: 87.5 } },
+    });
+  });
+
+  it('returns topN and complete client rankings from real deliveries', async () => {
+    const topResponse = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Quais são meus 5 melhores clientes por faturamento?',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'topN',
+        'client',
+        undefined,
+        { limit: 5 },
+      ),
+    );
+    const topResult = topResponse.results[0];
+    expect(topResult).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { operation: 'topN' } },
+    });
+    if (topResult?.type !== 'financialMetric') throw new Error('Ranking ausente.');
+    expect(topResult.data.analysis?.ranking?.[0]).toEqual({
+      key: 'client:luciano',
+      label: 'Luciano',
+      value: 800,
+      clientId: 'client:luciano',
+      rank: 1,
+    });
+    expect(topResult.data.analysis?.ranking).toHaveLength(3);
+
+    const rankResponse = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Faça um ranking dos clientes por lucro',
+        { kind: 'month', month: 8, year: 2026 },
+        'netProfit',
+        'rank',
+        'client',
+      ),
+    );
+    expect(rankResponse.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { operation: 'rank', ranking: expect.any(Array) } },
+    });
+
+    const bottomResponse = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Quais são os 2 clientes com menor faturamento?',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'topN',
+        'client',
+        undefined,
+        { limit: 2, order: 'ascending' },
+      ),
+    );
+    expect(bottomResponse.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { order: 'ascending', ranking: expect.any(Array) } },
+    });
+  });
+
+  it('calculates derived ratios and percentage change without model arithmetic', async () => {
+    const ratioResponse = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Qual foi minha média de lucro por entrega em agosto?',
+        { kind: 'month', month: 8, year: 2026 },
+        'profitPerDelivery',
+        'average',
+        'month',
+      ),
+    );
+    expect(ratioResponse.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { metric: 'profitPerDelivery', value: expect.any(Number) },
+    });
+
+    const julyDelivery: Delivery = {
+      ...financialDeliveries[0],
+      id: 'delivery-andre-2026-07-12',
+      data: '2026-07-12',
+      valor: 500,
+      quantidade: 10,
+    };
+    const comparisonData: HomeSearchDataSet = {
+      ...dataSet,
+      deliveries: [...dataSet.deliveries, julyDelivery],
+      financial: { ...financialData, deliveries: [...financialData.deliveries, julyDelivery] },
+    };
+    const percentageResponse = await new HomeSearchService({
+      load: async () => comparisonData,
+    }).searchParsed(
+      analysisQuery(
+        'Quanto meu faturamento cresceu de julho para agosto?',
+        { kind: 'range', startDate: '2026-07-01', endDate: '2026-08-31' },
+        'revenue',
+        'percentageChange',
+        'month',
+        [
+          { kind: 'month', month: 7, year: 2026 },
+          { kind: 'month', month: 8, year: 2026 },
+        ],
+      ),
+    );
+    const percentageResult = percentageResponse.results[0];
+    expect(percentageResult).toMatchObject({
+      type: 'financialMetric',
+      data: {
+        value: 1050,
+        analysis: {
+          operation: 'percentageChange',
+          comparison: {
+            initialValue: 500,
+            finalValue: 1050,
+            absoluteChange: 550,
+            percentageChange: expect.closeTo(110, 10),
+          },
+        },
+      },
+    });
+  });
+
+  it('classifies a real monthly series as rising and builds a real financial report', async () => {
+    const julyDelivery: Delivery = {
+      ...financialDeliveries[0],
+      id: 'delivery-andre-2026-07-12-series',
+      data: '2026-07-12',
+      valor: 500,
+      quantidade: 10,
+    };
+    const septemberDelivery: Delivery = {
+      ...financialDeliveries[0],
+      id: 'delivery-andre-2026-09-12-series',
+      data: '2026-09-12',
+      valor: 1200,
+      quantidade: 24,
+    };
+    const seriesData: HomeSearchDataSet = {
+      ...dataSet,
+      deliveries: [...dataSet.deliveries, julyDelivery, septemberDelivery],
+      financial: {
+        ...financialData,
+        deliveries: [...financialData.deliveries, julyDelivery, septemberDelivery],
+      },
+    };
+    const service = new HomeSearchService({ load: async () => seriesData });
+    const trend = await service.searchParsed(
+      analysisQuery(
+        'Meu faturamento está subindo ou caindo nos últimos 3 meses?',
+        { kind: 'range', startDate: '2026-07-01', endDate: '2026-09-30' },
+        'revenue',
+        'trend',
+        'month',
+      ),
+    );
+    expect(trend.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { trend: { direction: 'rising' } } },
+    });
+
+    const report = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'Faça um relatório de agosto',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'report',
+        'month',
+      ),
+    );
+    expect(report.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { report: { revenue: 1050, deliveryCount: 4, bucketsSold: 21 } } },
+    });
+  });
+
+  it('returns an explicit clarification for ambiguous cost-benefit questions', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed({
+      original: 'Qual cliente tem melhor custo-benefício?',
+      normalized: 'qual cliente tem melhor custo beneficio',
+      text: '',
+      assistantStatus: 'clarification',
+      detectedTypes: ['assistant'],
+    });
+
+    expect(response.results[0]).toMatchObject({
+      type: 'assistant',
+      data: { status: 'clarification', options: expect.arrayContaining(['Maior margem líquida']) },
+    });
+    expect(response.counts.assistant).toBe(1);
+  });
+
+  it('returns an explicit unsupported-domain result without loading business data', async () => {
+    const dataSource = new FixedDataSource();
+    const response = await new HomeSearchService(dataSource).searchParsed({
+      original: 'Qual é a capital da França?',
+      normalized: 'qual e a capital da franca',
+      text: '',
+      assistantStatus: 'unsupportedDomain',
+      detectedTypes: ['assistant'],
+    });
+
+    expect(response.results[0]).toMatchObject({
+      type: 'assistant',
+      data: { status: 'unsupportedDomain' },
+    });
+    expect(dataSource.calls).toBe(0);
+  });
+
+  it('supports weekly, route and factory dimensions only from their real sources', async () => {
+    const route = routeSession('route-august-12-analysis', '2026-08-12', 7_400);
+    const source: HomeSearchDataSource = {
+      load: async () => ({ ...dataSet, routeSessions: [route] }),
+    };
+    const service = new HomeSearchService(source);
+
+    const weekly = await service.searchParsed(
+      analysisQuery(
+        'maior faturamento semanal de agosto',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'max',
+        'week',
+      ),
+    );
+    expect(weekly.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { groupBy: 'week', winner: { value: 600 } } },
+    });
+
+    const routeResult = await service.searchParsed(
+      analysisQuery(
+        'qual rota foi mais longa em agosto',
+        { kind: 'month', month: 8, year: 2026 },
+        'distanceKm',
+        'max',
+        'route',
+      ),
+    );
+    expect(routeResult.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { metric: 'distanceKm', value: 7.4, analysis: { groupBy: 'route' } },
+    });
+
+    const factoryResult = await service.searchParsed(
+      analysisQuery(
+        'maior custo de compra da fábrica em agosto',
+        { kind: 'month', month: 8, year: 2026 },
+        'factoryCost',
+        'max',
+        'factory',
+      ),
+    );
+    expect(factoryResult.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { metric: 'factoryCost', value: 300, analysis: { groupBy: 'factory' } },
+    });
+  });
+
+  it('does not fabricate client-scoped profit per kilometer', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'cliente com mais lucro por km',
+        { kind: 'month', month: 8, year: 2026 },
+        'profitPerKm',
+        'max',
+        'client',
+      ),
+    );
+
+    expect(response.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { available: false, unavailableReason: 'unsupportedMetric' },
+    });
   });
 
   it('includes local route kilometers in the daily net profit search result', async () => {

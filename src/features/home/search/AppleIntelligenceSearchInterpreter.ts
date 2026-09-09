@@ -1,10 +1,13 @@
 import { requireOptionalNativeModule } from 'expo';
 import { Platform } from 'react-native';
 
-import { normalizeHomeSearchText } from './HomeSearchQueryParser';
+import { homeSearchQueryParser, normalizeHomeSearchText } from './HomeSearchQueryParser';
 import type {
   HomeSearchAnalysisGroupBy,
   HomeSearchAnalysisOperation,
+  HomeSearchAnalysisOrder,
+  HomeSearchAssistantContext,
+  HomeSearchAssistantStatus,
   HomeSearchCarMetric,
   HomeSearchClientField,
   HomeSearchDetectedType,
@@ -43,10 +46,14 @@ export type NativeAppleIntelligenceSearchIntent = {
   periodSummary: boolean;
   operation: string;
   groupBy: string;
+  order: string;
   comparisonStartMonth: number;
   comparisonStartYear: number;
   comparisonEndMonth: number;
   comparisonEndYear: number;
+  limit?: number;
+  numeratorMetric?: string;
+  denominatorMetric?: string;
 };
 
 type NativeAppleIntelligenceModule = {
@@ -106,6 +113,17 @@ const FINANCIAL_METRICS: ReadonlySet<HomeSearchFinancialMetric> = new Set([
   'salePerBucket',
   'profitPerBucket',
   'costPerBucket',
+  'bucketPrice',
+  'totalCost',
+  'distanceKm',
+  'factoryCost',
+  'marginPercentage',
+  'profitPerDelivery',
+  'revenuePerDelivery',
+  'costPerDelivery',
+  'profitPerKm',
+  'revenuePerKm',
+  'costPerKm',
 ]);
 
 const CLIENT_FIELDS: ReadonlySet<HomeSearchClientField> = new Set([
@@ -150,16 +168,37 @@ const SUPPORTED_INTENTS = new Set([
   'periodsummary',
   'clientfield',
   'search',
+  'clarification',
+  'unsupporteddomain',
+  'unsupportedmetric',
 ]);
 const ANALYSIS_OPERATIONS: ReadonlySet<HomeSearchAnalysisOperation> = new Set([
   'max',
   'min',
   'compare',
+  'sum',
+  'average',
+  'rank',
+  'topN',
+  'percentageChange',
+  'ratio',
+  'trend',
+  'report',
 ]);
 const ANALYSIS_GROUPINGS: ReadonlySet<HomeSearchAnalysisGroupBy> = new Set([
   'day',
   'client',
   'month',
+  'week',
+  'route',
+  'factory',
+]);
+const ANALYSIS_ORDERS: ReadonlySet<HomeSearchAnalysisOrder> = new Set(['ascending', 'descending']);
+
+const ASSISTANT_INTENTS: ReadonlyMap<string, HomeSearchAssistantStatus> = new Map([
+  ['clarification', 'clarification'],
+  ['unsupporteddomain', 'unsupportedDomain'],
+  ['unsupportedmetric', 'unsupportedMetric'],
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -181,6 +220,13 @@ function integerValue(value: unknown): number {
 
 function inSet<T extends string>(value: string, values: ReadonlySet<T>): value is T {
   return values.has(value as T);
+}
+
+function normalizeAnalysisOperation(value: string): HomeSearchAnalysisOperation | '' {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'topn') return 'topN';
+  if (normalized === 'percentagechange') return 'percentageChange';
+  return normalized as HomeSearchAnalysisOperation;
 }
 
 function validYear(value: number): boolean {
@@ -250,6 +296,27 @@ function buildPeriod(intent: NativeAppleIntelligenceSearchIntent): {
   return { valid: false };
 }
 
+function resolvePeriodFromReference(
+  original: string,
+  period: HomeSearchPeriod | undefined,
+  referenceDate: Date | undefined,
+): HomeSearchPeriod | undefined {
+  if (!period || !referenceDate || period.kind !== 'month' || period.year !== undefined) {
+    return period;
+  }
+
+  const parserPeriod = homeSearchQueryParser.parse(original, referenceDate).period;
+  if (
+    parserPeriod?.kind === 'month' &&
+    parserPeriod.month === period.month &&
+    parserPeriod.year !== undefined
+  ) {
+    return { ...period, year: parserPeriod.year };
+  }
+
+  return { ...period, year: referenceDate.getFullYear() };
+}
+
 function addDetectedType(types: HomeSearchDetectedType[], type: HomeSearchDetectedType): void {
   if (!types.includes(type)) types.push(type);
 }
@@ -283,10 +350,14 @@ function readNativeIntent(value: unknown): NativeAppleIntelligenceSearchIntent |
     periodSummary: object.periodSummary === true,
     operation: stringValue(object.operation),
     groupBy: stringValue(object.groupBy),
+    order: stringValue(object.order),
     comparisonStartMonth: integerValue(object.comparisonStartMonth),
     comparisonStartYear: integerValue(object.comparisonStartYear),
     comparisonEndMonth: integerValue(object.comparisonEndMonth),
     comparisonEndYear: integerValue(object.comparisonEndYear),
+    limit: integerValue(object.limit),
+    numeratorMetric: stringValue(object.numeratorMetric),
+    denominatorMetric: stringValue(object.denominatorMetric),
   };
 }
 
@@ -334,10 +405,27 @@ function parseJSON(value: string): unknown {
   }
 }
 
+function assistantQuery(
+  original: string,
+  status: HomeSearchAssistantStatus,
+  context?: HomeSearchAssistantContext,
+): HomeSearchParsedQuery {
+  return {
+    assistantStatus: status,
+    ...(context ? { assistantContext: context } : {}),
+    detectedTypes: ['assistant'],
+    normalized: normalizeHomeSearchText(original),
+    original,
+    text: '',
+  };
+}
+
 export function toHomeSearchParsedQuery(
   original: string,
   rawIntent: unknown,
+  referenceDate?: Date,
 ): HomeSearchParsedQuery | null {
+  const effectiveReferenceDate = referenceDate ?? new Date();
   const intent = readNativeIntent(rawIntent);
   if (!intent) {
     logParserRejection('decode', { reason: 'payloadIsNotAnObjectOrValidJson' });
@@ -351,17 +439,21 @@ export function toHomeSearchParsedQuery(
     return null;
   }
 
+  const assistantStatus = ASSISTANT_INTENTS.get(inferredIntentKind);
+  if (assistantStatus) return assistantQuery(original, assistantStatus);
+
   const periodResult = buildPeriod(intent);
   if (!periodResult.valid) {
     logParserRejection('period', { reason: 'invalidPeriodFields' });
     return null;
   }
 
+  let period = resolvePeriodFromReference(original, periodResult.period, effectiveReferenceDate);
   const query: HomeSearchParsedQuery = {
     original,
     normalized: normalizeHomeSearchText(original),
     text: normalizeHomeSearchText(intent.text),
-    ...(periodResult.period ? { period: periodResult.period } : {}),
+    ...(period ? { period } : {}),
     detectedTypes: [],
   };
 
@@ -395,6 +487,16 @@ export function toHomeSearchParsedQuery(
     addDetectedType(query.detectedTypes, 'financialMetric');
   } else if (intent.financialMetric) {
     logParserRejection('financialMetric', { reason: 'unsupportedValue' });
+    return null;
+  }
+  const numeratorMetric = (intent.numeratorMetric ?? '').trim();
+  const denominatorMetric = (intent.denominatorMetric ?? '').trim();
+  if (numeratorMetric && !inSet(numeratorMetric, FINANCIAL_METRICS)) {
+    logParserRejection('numeratorMetric', { reason: 'unsupportedValue' });
+    return null;
+  }
+  if (denominatorMetric && !inSet(denominatorMetric, FINANCIAL_METRICS)) {
+    logParserRejection('denominatorMetric', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.clientField, CLIENT_FIELDS)) {
@@ -438,37 +540,99 @@ export function toHomeSearchParsedQuery(
     addDetectedType(query.detectedTypes, 'periodSummary');
   }
 
-  const operation = intent.operation.toLowerCase();
+  const operation = normalizeAnalysisOperation(intent.operation);
   const groupBy = intent.groupBy.toLowerCase();
+  const order = intent.order.toLowerCase();
   const hasAnalysisFields = Boolean(operation || groupBy);
   const isAnalysisIntent = inferredIntentKind === 'financialanalysis' || hasAnalysisFields;
+  const declaredAnalysis = inferredIntentKind === 'financialanalysis' || hasAnalysisFields;
   if (operation && !inSet(operation, ANALYSIS_OPERATIONS)) {
     logParserRejection('operation', { reason: 'unsupportedValue' });
-    return null;
+    return declaredAnalysis ? assistantQuery(original, 'clarification') : null;
   }
   if (groupBy && !inSet(groupBy, ANALYSIS_GROUPINGS)) {
     logParserRejection('groupBy', { reason: 'unsupportedValue' });
-    return null;
+    return declaredAnalysis ? assistantQuery(original, 'clarification') : null;
+  }
+  if (order && !inSet(order, ANALYSIS_ORDERS)) {
+    logParserRejection('order', { reason: 'unsupportedValue' });
+    return declaredAnalysis ? assistantQuery(original, 'clarification') : null;
   }
   if (isAnalysisIntent) {
-    if (!inSet(operation, ANALYSIS_OPERATIONS) || !inSet(groupBy, ANALYSIS_GROUPINGS)) {
+    const effectiveGroupBy = operation === 'report' && !groupBy ? 'month' : groupBy;
+    if (!inSet(operation, ANALYSIS_OPERATIONS) || !inSet(effectiveGroupBy, ANALYSIS_GROUPINGS)) {
       logParserRejection('analysis', { reason: 'missingOperationOrGroupBy' });
-      return null;
+      return assistantQuery(original, 'clarification');
     }
     if (!query.financialMetric) {
-      logParserRejection('analysis', { reason: 'missingFinancialMetric' });
-      return null;
+      if (operation === 'report') {
+        query.financialMetric = 'revenue';
+        addDetectedType(query.detectedTypes, 'financialMetric');
+      } else {
+        logParserRejection('analysis', { reason: 'missingFinancialMetric' });
+        return assistantQuery(original, 'clarification');
+      }
+    }
+    if (!period && query.financialMetric !== 'bucketPrice') {
+      period = {
+        kind: 'month',
+        month: effectiveReferenceDate.getMonth() + 1,
+        year: effectiveReferenceDate.getFullYear(),
+      };
+      query.period = period;
+      addDetectedType(query.detectedTypes, 'month');
     }
     const comparison = buildComparisonPeriods(intent);
-    if (!comparison.valid || (operation === 'compare' && !comparison.periods)) {
+    if (
+      !comparison.valid ||
+      (['compare', 'percentageChange'].includes(operation) && !comparison.periods)
+    ) {
       logParserRejection('analysis', { reason: 'invalidComparisonPeriods' });
-      return null;
+      return assistantQuery(original, 'clarification');
     }
+    const limit =
+      Number.isInteger(intent.limit) && intent.limit! >= 1
+        ? Math.min(intent.limit!, 100)
+        : undefined;
+    if (operation === 'topN' && limit === undefined) {
+      logParserRejection('analysis', { reason: 'missingLimit' });
+      return assistantQuery(original, 'clarification');
+    }
+    if (operation === 'ratio' && (!numeratorMetric || !denominatorMetric)) {
+      logParserRejection('analysis', { reason: 'missingRatioMetrics' });
+      return assistantQuery(original, 'clarification');
+    }
+    const parsedNumeratorMetric = numeratorMetric
+      ? (numeratorMetric as HomeSearchFinancialMetric)
+      : undefined;
+    const parsedDenominatorMetric = denominatorMetric
+      ? (denominatorMetric as HomeSearchFinancialMetric)
+      : undefined;
     query.analysis = {
       operation,
-      groupBy,
+      groupBy: effectiveGroupBy,
+      ...(order ? { order: order as HomeSearchAnalysisOrder } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(parsedNumeratorMetric ? { numeratorMetric: parsedNumeratorMetric } : {}),
+      ...(parsedDenominatorMetric ? { denominatorMetric: parsedDenominatorMetric } : {}),
       ...(comparison.periods ? { comparisonPeriods: comparison.periods } : {}),
     };
+    addDetectedType(query.detectedTypes, 'analysis');
+  }
+
+  if (intent.financialMetric === 'bucketPrice') {
+    if (!query.analysis) {
+      logParserRejection('analysis', { reason: 'bucketPriceRequiresAnalysis' });
+      return null;
+    }
+    if (query.analysis.groupBy !== 'client') {
+      logParserRejection('analysis', { reason: 'bucketPriceRequiresClientGrouping' });
+      return null;
+    }
+    if (query.analysis.operation === 'compare') {
+      logParserRejection('analysis', { reason: 'bucketPriceComparisonUnsupported' });
+      return null;
+    }
   }
 
   if (inferredIntentKind === 'financialmetric' && !query.financialMetric) {
@@ -556,7 +720,7 @@ export class AppleIntelligenceSearchInterpreter implements HomeSearchSearchInter
                 ? 'null'
                 : typeof rawIntent,
       });
-      const parsedIntent = toHomeSearchParsedQuery(original, rawIntent);
+      const parsedIntent = toHomeSearchParsedQuery(original, rawIntent, referenceDate);
       appleIntelligenceDevLog('response', {
         confidence: isRecord(rawObject) ? rawObject.confidence : undefined,
         durationMs: Date.now() - startedAt,

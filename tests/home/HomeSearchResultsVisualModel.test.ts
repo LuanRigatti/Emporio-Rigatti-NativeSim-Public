@@ -21,6 +21,7 @@ function response(query: HomeSearchParsedQuery, results: HomeSearchResult[]): Ho
       financialMetric: results.filter(({ type }) => type === 'financialMetric').length,
       periodSummary: results.filter(({ type }) => type === 'periodSummary').length,
       routeSummary: results.filter(({ type }) => type === 'routeSummary').length,
+      assistant: results.filter(({ type }) => type === 'assistant').length,
     },
     coverage: [],
     errors: [],

@@ -46,6 +46,7 @@ const baseIntent: NativeAppleIntelligenceSearchIntent = {
   periodSummary: false,
   operation: '',
   groupBy: '',
+  order: '',
   comparisonStartMonth: -1,
   comparisonStartYear: -1,
   comparisonEndMonth: -1,
@@ -85,7 +86,10 @@ describe('Apple Intelligence Home Search intent conversion', () => {
   });
 
   it.each([
+    ['Qual foi o melhor cliente que eu vendi no mês passado?', 'revenue', 'max', 'client'],
+    ['Qual foi o melhor dia de venda do mês passado?', 'revenue', 'max', 'day'],
     ['Qual foi o dia que menos vendi em agosto?', 'revenue', 'min', 'day'],
+    ['Qual foi o pior dia de venda de agosto?', 'revenue', 'min', 'day'],
     ['Qual cliente mais comprou em agosto?', 'revenue', 'max', 'client'],
     ['Em qual dia tive mais entregas?', 'deliveryCount', 'max', 'day'],
     ['Qual mês teve maior lucro este ano?', 'netProfit', 'max', 'month'],
@@ -103,6 +107,93 @@ describe('Apple Intelligence Home Search intent conversion', () => {
       analysis: { groupBy, operation },
       financialMetric: metric,
     });
+  });
+
+  it.each(['Qual cliente tem o balde mais caro?', 'Qual o balde mais caro e de qual cliente?'])(
+    'converts current client bucket price analysis for %s',
+    (queryText) => {
+      const query = toHomeSearchParsedQuery(queryText, {
+        ...baseIntent,
+        intent: 'financialAnalysis',
+        financialMetric: 'bucketPrice',
+        periodKind: 'none',
+        month: -1,
+        year: -1,
+        operation: 'max',
+        groupBy: 'client',
+      });
+
+      expect(query).toMatchObject({
+        analysis: { groupBy: 'client', operation: 'max' },
+        financialMetric: 'bucketPrice',
+      });
+      expect(query?.period).toBeUndefined();
+    },
+  );
+
+  it('resolves a missing native monthly year from the search reference date', () => {
+    const query = toHomeSearchParsedQuery(
+      'Qual cliente mais comprou no mês passado?',
+      {
+        ...baseIntent,
+        intent: 'financialAnalysis',
+        financialMetric: 'revenue',
+        operation: 'max',
+        groupBy: 'client',
+        month: 8,
+        year: -1,
+      },
+      new Date(2026, 8, 9, 12),
+    );
+
+    expect(query?.period).toEqual({ kind: 'month', month: 8, year: 2026 });
+  });
+
+  it('resolves a relative month across a year boundary', () => {
+    const query = toHomeSearchParsedQuery(
+      'Qual cliente mais comprou no mês passado?',
+      {
+        ...baseIntent,
+        intent: 'financialAnalysis',
+        financialMetric: 'revenue',
+        operation: 'max',
+        groupBy: 'client',
+        month: 12,
+        year: -1,
+      },
+      new Date(2026, 0, 9, 12),
+    );
+
+    expect(query?.period).toEqual({ kind: 'month', month: 12, year: 2025 });
+  });
+
+  it('defaults an otherwise valid analysis to the explicit reference month', () => {
+    const query = toHomeSearchParsedQuery(
+      'Meu faturamento está subindo?',
+      {
+        ...baseIntent,
+        intent: 'financialAnalysis',
+        periodKind: 'none',
+        financialMetric: 'revenue',
+        operation: 'trend',
+        groupBy: 'month',
+        month: -1,
+        year: -1,
+      },
+      new Date(2026, 8, 9, 12),
+    );
+
+    expect(query?.period).toEqual({ kind: 'month', month: 9, year: 2026 });
+  });
+
+  it('rejects bucket price outside a client analysis', () => {
+    expect(
+      toHomeSearchParsedQuery('preço do balde', {
+        ...baseIntent,
+        intent: 'financialMetric',
+        financialMetric: 'bucketPrice',
+      }),
+    ).toBeNull();
   });
 
   it('converts a two-month comparison without collapsing it into one month', () => {
@@ -134,6 +225,116 @@ describe('Apple Intelligence Home Search intent conversion', () => {
       },
       period: { kind: 'range', startDate: '2026-07-01', endDate: '2026-08-31' },
     });
+  });
+
+  it('accepts the extended analytical operation, grouping and derived-metric fields', () => {
+    const topN = toHomeSearchParsedQuery('meus 5 melhores clientes', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'topN',
+      groupBy: 'client',
+      limit: 5,
+      order: 'descending',
+    });
+    expect(topN).toMatchObject({
+      analysis: { operation: 'topN', groupBy: 'client', limit: 5, order: 'descending' },
+    });
+
+    const bottomN = toHomeSearchParsedQuery('meus 3 menores clientes', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'topN',
+      groupBy: 'client',
+      limit: 3,
+      order: 'ascending',
+    });
+    expect(bottomN).toMatchObject({ analysis: { operation: 'topN', order: 'ascending' } });
+
+    const ratio = toHomeSearchParsedQuery('lucro por entrega', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'profitPerDelivery',
+      operation: 'ratio',
+      groupBy: 'month',
+      numeratorMetric: 'netProfit',
+      denominatorMetric: 'deliveryCount',
+    });
+    expect(ratio).toMatchObject({
+      analysis: {
+        operation: 'ratio',
+        numeratorMetric: 'netProfit',
+        denominatorMetric: 'deliveryCount',
+      },
+    });
+
+    const report = toHomeSearchParsedQuery('relatório de agosto', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: '',
+      operation: 'report',
+      groupBy: '',
+    });
+    expect(report).toMatchObject({
+      financialMetric: 'revenue',
+      analysis: { operation: 'report', groupBy: 'month' },
+    });
+  });
+
+  it.each([
+    ['sum', 'month', 'revenue'],
+    ['average', 'month', 'revenue'],
+    ['rank', 'client', 'netProfit'],
+    ['topN', 'client', 'revenue'],
+    ['percentageChange', 'month', 'revenue'],
+    ['ratio', 'month', 'profitPerDelivery'],
+    ['trend', 'month', 'revenue'],
+    ['report', 'month', 'revenue'],
+  ] as const)('accepts operation %s with grouping %s', (operation, groupBy, metric) => {
+    const query = toHomeSearchParsedQuery(`analysis ${operation}`, {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: metric,
+      operation,
+      groupBy,
+      ...(operation === 'topN' ? { limit: 5 } : {}),
+      ...(operation === 'ratio'
+        ? { numeratorMetric: 'netProfit', denominatorMetric: 'deliveryCount' }
+        : {}),
+      ...(operation === 'percentageChange'
+        ? {
+            periodKind: 'range',
+            startDate: '2026-07-01',
+            endDate: '2026-08-31',
+            month: -1,
+            year: -1,
+            comparisonStartMonth: 7,
+            comparisonStartYear: 2026,
+            comparisonEndMonth: 8,
+            comparisonEndYear: 2026,
+          }
+        : {}),
+    });
+
+    expect(query).toMatchObject({ financialMetric: metric, analysis: { operation, groupBy } });
+  });
+
+  it.each([
+    ['clarification', 'clarification'],
+    ['unsupportedDomain', 'unsupportedDomain'],
+    ['unsupportedMetric', 'unsupportedMetric'],
+  ] as const)('keeps explicit assistant state %s instead of falling back', (intent, status) => {
+    const query = toHomeSearchParsedQuery('pergunta', {
+      ...baseIntent,
+      intent,
+      financialMetric: '',
+      periodKind: 'none',
+      month: -1,
+      year: -1,
+    });
+
+    expect(query).toMatchObject({ assistantStatus: status, detectedTypes: ['assistant'] });
   });
 
   it('accepts a structurally valid intent even when model confidence is low', () => {

@@ -5,8 +5,10 @@ import type {
   HomeSearchFinancialMetric,
   HomeSearchFinancialUnit,
 } from './HomeSearchTypes';
+import { safeDivide } from './HomeSearchAnalysisMath';
 
 type FinancialMetricDefinition = {
+  analysisOnly?: boolean;
   aliases: readonly string[];
   clientScope: HomeSearchFinancialClientScope;
   label: string;
@@ -53,6 +55,103 @@ const DEFINITIONS: readonly FinancialMetricDefinition[] = [
     clientScope: 'unsupported',
     label: 'Custo por balde',
     metric: 'costPerBucket',
+    requiresCosts: true,
+    unit: 'currency',
+  },
+  {
+    aliases: [],
+    clientScope: 'direct',
+    label: 'Preço unitário do balde',
+    metric: 'bucketPrice',
+    requiresCosts: false,
+    unit: 'currency',
+  },
+  {
+    aliases: ['custos totais', 'custo total'],
+    clientScope: 'direct',
+    label: 'Custos totais',
+    metric: 'totalCost',
+    requiresCosts: true,
+    unit: 'currency',
+  },
+  {
+    aliases: [],
+    analysisOnly: true,
+    clientScope: 'unsupported',
+    label: 'Distância',
+    metric: 'distanceKm',
+    requiresCosts: false,
+    unit: 'distance',
+  },
+  {
+    aliases: ['custo da fabrica', 'custo de fabrica'],
+    analysisOnly: true,
+    clientScope: 'unsupported',
+    label: 'Custo da fábrica',
+    metric: 'factoryCost',
+    requiresCosts: false,
+    unit: 'currency',
+  },
+  {
+    aliases: ['margem percentual', 'percentual de margem'],
+    analysisOnly: true,
+    clientScope: 'unsupported',
+    label: 'Margem percentual',
+    metric: 'marginPercentage',
+    requiresCosts: true,
+    unit: 'percentage',
+  },
+  {
+    aliases: ['lucro por entrega'],
+    analysisOnly: true,
+    clientScope: 'allocated',
+    label: 'Lucro por entrega',
+    metric: 'profitPerDelivery',
+    requiresCosts: true,
+    unit: 'currency',
+  },
+  {
+    aliases: ['faturamento por entrega', 'venda por entrega'],
+    analysisOnly: true,
+    clientScope: 'direct',
+    label: 'Faturamento por entrega',
+    metric: 'revenuePerDelivery',
+    requiresCosts: false,
+    unit: 'currency',
+  },
+  {
+    aliases: ['custo por entrega'],
+    analysisOnly: true,
+    clientScope: 'allocated',
+    label: 'Custo por entrega',
+    metric: 'costPerDelivery',
+    requiresCosts: true,
+    unit: 'currency',
+  },
+  {
+    aliases: ['lucro por km', 'lucro por quilometro'],
+    analysisOnly: true,
+    clientScope: 'unsupported',
+    label: 'Lucro por km',
+    metric: 'profitPerKm',
+    requiresCosts: true,
+    unit: 'currency',
+  },
+  {
+    aliases: ['faturamento por km', 'venda por km'],
+    analysisOnly: true,
+    clientScope: 'unsupported',
+    label: 'Faturamento por km',
+    metric: 'revenuePerKm',
+    requiresCosts: false,
+    unit: 'currency',
+  },
+  {
+    aliases: ['custo por km'],
+    analysisOnly: true,
+    clientScope: 'unsupported',
+    label: 'Custo por km',
+    metric: 'costPerKm',
     requiresCosts: true,
     unit: 'currency',
   },
@@ -191,9 +290,21 @@ export function homeSearchFinancialMetricDefinition(
   return definition;
 }
 
+export function homeSearchFinancialMetricIsAnalysisOnly(
+  metric: HomeSearchFinancialMetric,
+): boolean {
+  return homeSearchFinancialMetricDefinition(metric).analysisOnly === true;
+}
+
+export type HomeSearchFinancialMetricValueContext = {
+  distanceKm?: number;
+  factoryCost?: number;
+};
+
 export function homeSearchFinancialMetricValue(
   summary: FinancialSummary,
   metric: HomeSearchFinancialMetric,
+  context: HomeSearchFinancialMetricValueContext = {},
 ): number {
   switch (metric) {
     case 'bucketsSold':
@@ -230,5 +341,33 @@ export function homeSearchFinancialMetricValue(
       return summary.lucroLiquidoPorBalde;
     case 'costPerBucket':
       return summary.custoMedioBalde;
+    case 'bucketPrice':
+      throw new Error('Preço unitário do balde não é uma métrica de resumo financeiro.');
+    case 'totalCost':
+      return summary.custoTotal;
+    case 'distanceKm':
+      if (context.distanceKm === undefined) {
+        throw new Error('Distância exige contexto de quilometragem.');
+      }
+      return context.distanceKm;
+    case 'factoryCost':
+      if (context.factoryCost === undefined) {
+        throw new Error('Custo da fábrica exige contexto de compras.');
+      }
+      return context.factoryCost;
+    case 'marginPercentage':
+      return safeDivide(summary.lucroLiquido * 100, summary.faturamento);
+    case 'profitPerDelivery':
+      return safeDivide(summary.lucroLiquido, summary.quantidadeEntregas);
+    case 'revenuePerDelivery':
+      return safeDivide(summary.faturamento, summary.quantidadeEntregas);
+    case 'costPerDelivery':
+      return safeDivide(summary.custoTotal, summary.quantidadeEntregas);
+    case 'profitPerKm':
+      return safeDivide(summary.lucroLiquido, context.distanceKm ?? 0);
+    case 'revenuePerKm':
+      return safeDivide(summary.faturamento, context.distanceKm ?? 0);
+    case 'costPerKm':
+      return safeDivide(summary.custoTotal, context.distanceKm ?? 0);
   }
 }

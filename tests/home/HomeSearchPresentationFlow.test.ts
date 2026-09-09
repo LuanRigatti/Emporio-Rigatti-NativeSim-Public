@@ -52,6 +52,7 @@ function response(
       routeSummary: 0,
       carSetting: 0,
       periodSummary: 0,
+      assistant: 0,
     },
     coverage: [],
     errors: [],

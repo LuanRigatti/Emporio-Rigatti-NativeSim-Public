@@ -86,6 +86,18 @@ function resultDetails(
   if (primary.type === 'routeSummary') return routeDetails(primary);
   if (primary.type === 'carSetting') return carDetails(primary);
   if (primary.type === 'periodSummary') return summaryDetails(primary);
+  if (primary.type === 'assistant') {
+    return {
+      primaryTitle: primary.title,
+      relatedCount: primary.data.message,
+      typeLabel:
+        primary.data.status === 'clarification'
+          ? 'Escolha uma análise'
+          : primary.data.status === 'unsupportedDomain'
+            ? 'Fora do escopo'
+            : 'Métrica não disponível',
+    };
+  }
 
   if (primary.type === 'client') {
     if (primary.data.matchedField) {
@@ -330,9 +342,19 @@ function summaryDetails(
 
 function formatFinancialValue(result: HomeSearchFinancialMetricResult): string {
   if (!result.data.available) {
-    return result.data.unavailableReason === 'clientScopeUnsupported'
-      ? 'Não disponível por cliente'
-      : 'Dados financeiros indisponíveis';
+    if (result.data.unavailableReason === 'clientScopeUnsupported') {
+      return 'Não disponível por cliente';
+    }
+    if (result.data.unavailableReason === 'unsupportedMetric') {
+      return 'Métrica não disponível';
+    }
+    if (result.data.unavailableReason === 'unsupportedGroupBy') {
+      return 'Dimensão não disponível';
+    }
+    if (result.data.unavailableReason === 'insufficientData') {
+      return 'Dados insuficientes';
+    }
+    return 'Dados financeiros indisponíveis';
   }
 
   const value = result.data.value ?? 0;
@@ -340,6 +362,7 @@ function formatFinancialValue(result: HomeSearchFinancialMetricResult): string {
     return formatCurrency(value);
   }
   if (result.data.unit === 'percentage') return `${value.toFixed(1)}%`;
+  if (result.data.unit === 'distance') return `${value.toLocaleString('pt-BR')} km`;
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 }
 
@@ -349,6 +372,8 @@ function formatFinancialAmount(
 ): string {
   if (unit === 'currency') return formatCurrency(value);
   if (unit === 'percentage') return `${value.toFixed(1)}%`;
+  if (unit === 'distance')
+    return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km`;
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
 }
 
@@ -356,6 +381,13 @@ function financialDetails(
   result: HomeSearchFinancialMetricResult,
 ): Pick<HomeSearchResultsPresentation, 'primaryTitle' | 'relatedCount' | 'typeLabel'> {
   const analysis = result.data.analysis;
+  if (analysis?.report) {
+    return {
+      primaryTitle: `Relatório de ${formatPeriod(analysis.report.period)}`,
+      relatedCount: formatCurrency(analysis.report.revenue),
+      typeLabel: 'Relatório financeiro',
+    };
+  }
   if (analysis?.comparisons) {
     return {
       primaryTitle: 'Comparação',
@@ -368,15 +400,71 @@ function financialDetails(
       typeLabel: `Comparação ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
     };
   }
+  if (analysis?.comparison) {
+    return {
+      primaryTitle: formatPeriod(analysis.comparison.finalPeriod),
+      relatedCount: formatFinancialAmount(analysis.comparison.finalValue, result.data.unit),
+      typeLabel: `Variação ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
+    };
+  }
+  if (analysis?.ranking) {
+    const first = analysis.ranking[0];
+    return {
+      primaryTitle: first?.label ?? 'Ranking',
+      relatedCount: first ? formatFinancialAmount(first.value, result.data.unit) : 'Nenhum dado',
+      typeLabel: `${analysis.operation === 'topN' ? (analysis.order === 'ascending' ? 'Menores' : 'Top') : 'Ranking'} ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
+    };
+  }
+  if (analysis?.ratio) {
+    return {
+      primaryTitle: result.data.period ? formatPeriod(result.data.period) : 'Resultado',
+      relatedCount: formatFinancialAmount(result.data.value ?? 0, result.data.unit),
+      typeLabel: `Razão ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
+    };
+  }
+  if (analysis?.aggregateValue !== undefined) {
+    return {
+      primaryTitle: result.data.period ? formatPeriod(result.data.period) : 'Resultado',
+      relatedCount: formatFinancialAmount(analysis.aggregateValue, result.data.unit),
+      typeLabel: `${analysis.operation === 'sum' ? 'Soma' : 'Média'} ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
+    };
+  }
+  if (analysis?.trend) {
+    return {
+      primaryTitle: result.data.period ? formatPeriod(result.data.period) : 'Tendência',
+      relatedCount:
+        analysis.trend.direction === 'rising'
+          ? 'Subindo'
+          : analysis.trend.direction === 'falling'
+            ? 'Caindo'
+            : analysis.trend.direction === 'stable'
+              ? 'Estável'
+              : 'Mista',
+      typeLabel: `Tendência ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()}`,
+    };
+  }
   if (analysis?.winner) {
+    const groupLabel =
+      analysis.groupBy === 'day'
+        ? 'diário'
+        : analysis.groupBy === 'week'
+          ? 'semanal'
+          : analysis.groupBy === 'client'
+            ? 'por cliente'
+            : analysis.groupBy === 'route'
+              ? 'por rota'
+              : analysis.groupBy === 'factory'
+                ? 'por compra da fábrica'
+                : 'mensal';
     return {
       primaryTitle: analysis.winner.label,
       relatedCount: formatFinancialAmount(analysis.winner.value, result.data.unit),
-      typeLabel: `${analysis.operation === 'max' ? 'Maior' : 'Menor'} ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()} ${analysis.groupBy === 'day' ? 'diário' : analysis.groupBy === 'client' ? 'por cliente' : 'mensal'}`,
+      typeLabel: `${analysis.operation === 'max' ? 'Maior' : 'Menor'} ${homeSearchFinancialMetricDefinition(result.data.metric).label.toLowerCase()} ${groupLabel}`,
     };
   }
   return {
-    primaryTitle: result.data.clientName ?? formatPeriod(result.data.period),
+    primaryTitle:
+      result.data.clientName ?? (result.data.period ? formatPeriod(result.data.period) : 'Atual'),
     relatedCount: formatFinancialValue(result),
     typeLabel: homeSearchFinancialMetricDefinition(result.data.metric).label,
   };
@@ -416,6 +504,9 @@ export function createHomeSearchResultsPresentation(
       ...(primary.data.clientName && period ? { period: formatPeriod(period) } : {}),
       ...financialDetails(primary),
     };
+  }
+  if (primary.type === 'assistant') {
+    return { empty: false, query: response.query.original, ...resultDetails(response, primary) };
   }
   if (
     primary.type === 'factorySummary' ||

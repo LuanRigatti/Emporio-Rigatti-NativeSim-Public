@@ -1,4 +1,5 @@
 import type {
+  HomeSearchAnalysisGroupBy,
   HomeSearchCarSettingResult,
   HomeSearchFactoryPurchaseResult,
   HomeSearchFactorySummaryResult,
@@ -9,6 +10,7 @@ import type {
   HomeSearchResult,
   HomeSearchRouteSummaryResult,
 } from '../search/HomeSearchTypes';
+import { homeSearchFinancialMetricDefinition } from '../search/HomeSearchFinancialMetrics';
 import { createHomeSearchResultsPresentation } from './HomeSearchResultsPresentation';
 
 export type HomeSearchVisualTone = 'primary' | 'secondary' | 'success' | 'warning' | 'info';
@@ -123,7 +125,7 @@ function formatDistance(distanceKm: number): string {
 }
 
 function formatPercentage(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '0%';
+  if (!Number.isFinite(value)) return '0%';
   return `${new Intl.NumberFormat('pt-BR', {
     maximumFractionDigits: 1,
     minimumFractionDigits: 1,
@@ -189,10 +191,39 @@ function iconForResult(type: HomeSearchResult['type']): string {
   if (type === 'factorySummary') return 'building.2.fill';
   if (type === 'routeSummary') return 'map';
   if (type === 'carSetting') return 'car.fill';
+  if (type === 'assistant') return 'questionmark.circle';
   return 'calendar';
 }
 
 function unavailableState(result: HomeSearchResult, description: string): HomeSearchVisualState {
+  if (result.type === 'assistant') {
+    return {
+      description,
+      kind: 'unavailable',
+      systemImage: iconForResult(result.type),
+      title:
+        result.data.status === 'clarification'
+          ? 'Preciso de mais detalhes'
+          : result.data.status === 'unsupportedDomain'
+            ? 'Fora do escopo'
+            : 'Métrica não disponível',
+    };
+  }
+  if (result.type === 'financialMetric' && result.data.unavailableReason) {
+    const titleByReason = {
+      clientScopeUnsupported: 'Não disponível por cliente',
+      sourceUnavailable: 'Dados indisponíveis',
+      unsupportedMetric: 'Métrica não disponível',
+      unsupportedGroupBy: 'Dimensão não disponível',
+      insufficientData: 'Dados insuficientes',
+    } as const;
+    return {
+      description,
+      kind: 'unavailable',
+      systemImage: 'chart.bar.xaxis',
+      title: titleByReason[result.data.unavailableReason],
+    };
+  }
   return {
     description,
     kind: 'unavailable',
@@ -290,21 +321,22 @@ function factoryPurchaseSections(
   ];
 }
 
+function analysisWinnerLabel(groupBy: HomeSearchAnalysisGroupBy): string {
+  if (groupBy === 'day') return 'Dia vencedor';
+  if (groupBy === 'week') return 'Semana vencedora';
+  if (groupBy === 'client') return 'Cliente vencedor';
+  if (groupBy === 'route') return 'Rota vencedora';
+  if (groupBy === 'factory') return 'Compra vencedora';
+  return 'Mês vencedor';
+}
+
 function financialSections(result: HomeSearchFinancialMetricResult): HomeSearchVisualSection[] {
   if (result.data.analysis) {
     const analysis = result.data.analysis;
     const rows: HomeSearchVisualRow[] = [
       ...(analysis.winner
         ? [
-            row(
-              'analysis-winner',
-              analysis.groupBy === 'day'
-                ? 'Dia vencedor'
-                : analysis.groupBy === 'client'
-                  ? 'Cliente vencedor'
-                  : 'Mês vencedor',
-              analysis.winner.label,
-            ),
+            row('analysis-winner', analysisWinnerLabel(analysis.groupBy), analysis.winner.label),
             row(
               'analysis-value',
               'Valor',
@@ -321,8 +353,209 @@ function financialSections(result: HomeSearchFinancialMetricResult): HomeSearchV
           { monospaced: true },
         ),
       ),
-      row('analysis-period', 'Período analisado', analysisPeriodLabel(analysis.period)),
+      ...(analysis.aggregateValue !== undefined
+        ? [
+            row(
+              'analysis-aggregate',
+              analysis.operation === 'sum'
+                ? 'Total'
+                : analysis.operation === 'average'
+                  ? 'Média'
+                  : 'Resultado',
+              formatFinancialAnalysisValue(analysis.aggregateValue, result.data.unit),
+              { monospaced: true },
+            ),
+          ]
+        : []),
+      ...(analysis.ratio
+        ? [
+            row(
+              'ratio-numerator',
+              analysis.numeratorMetric
+                ? homeSearchFinancialMetricDefinition(analysis.numeratorMetric).label
+                : 'Numerador',
+              formatFinancialAnalysisValue(analysis.ratio.numerator, result.data.unit),
+              { monospaced: true },
+            ),
+            row(
+              'ratio-denominator',
+              analysis.denominatorMetric
+                ? homeSearchFinancialMetricDefinition(analysis.denominatorMetric).label
+                : 'Denominador',
+              formatFinancialAnalysisValue(
+                analysis.ratio.denominator,
+                analysis.denominatorMetric
+                  ? homeSearchFinancialMetricDefinition(analysis.denominatorMetric).unit
+                  : 'count',
+              ),
+              { monospaced: true },
+            ),
+          ]
+        : []),
+      ...(analysis.comparison
+        ? [
+            row(
+              'comparison-initial',
+              `Inicial · ${analysisPeriodLabel(analysis.comparison.initialPeriod)}`,
+              formatFinancialAnalysisValue(analysis.comparison.initialValue, result.data.unit),
+              { monospaced: true },
+            ),
+            row(
+              'comparison-final',
+              `Final · ${analysisPeriodLabel(analysis.comparison.finalPeriod)}`,
+              formatFinancialAnalysisValue(analysis.comparison.finalValue, result.data.unit),
+              { monospaced: true },
+            ),
+            row(
+              'comparison-absolute-change',
+              'Variação absoluta',
+              formatFinancialAnalysisValue(analysis.comparison.absoluteChange, result.data.unit),
+              { monospaced: true },
+            ),
+            row(
+              'comparison-percentage-change',
+              'Variação percentual',
+              analysis.comparison.percentageChange === null
+                ? 'Não calculável'
+                : `${analysis.comparison.percentageChange.toFixed(1)}%`,
+              { monospaced: true },
+            ),
+          ]
+        : []),
+      ...(analysis.trend
+        ? [
+            row(
+              'trend-direction',
+              'Tendência',
+              analysis.trend.direction === 'rising'
+                ? 'Subindo'
+                : analysis.trend.direction === 'falling'
+                  ? 'Caindo'
+                  : analysis.trend.direction === 'stable'
+                    ? 'Estável'
+                    : 'Mista',
+            ),
+            row('trend-points', 'Pontos analisados', formatNumber(analysis.trend.points.length), {
+              monospaced: true,
+            }),
+          ]
+        : []),
+      ...(analysis.ranking ?? []).map((rankingPoint) =>
+        row(
+          `ranking-${rankingPoint.key}`,
+          `${rankingPoint.rank ?? ''}. ${rankingPoint.label}`.trim(),
+          formatFinancialAnalysisValue(rankingPoint.value, result.data.unit),
+          { monospaced: true },
+        ),
+      ),
+      ...(analysis.period
+        ? [row('analysis-period', 'Período analisado', analysisPeriodLabel(analysis.period))]
+        : [row('analysis-scope', 'Escopo', 'Preços atuais cadastrados por cliente')]),
     ];
+    if (analysis.report) {
+      const report = analysis.report;
+      const reportRows: HomeSearchVisualRow[] = [
+        row('report-period', 'Período', analysisPeriodLabel(report.period)),
+        row('report-revenue', 'Faturamento', formatCurrency(report.revenue), { monospaced: true }),
+        row('report-net-profit', 'Lucro líquido', formatCurrency(report.netProfit), {
+          monospaced: true,
+        }),
+        row('report-total-cost', 'Custos totais', formatCurrency(report.totalCost), {
+          monospaced: true,
+        }),
+        row('report-buckets', 'Baldes vendidos', formatNumber(report.bucketsSold), {
+          monospaced: true,
+        }),
+        row('report-deliveries', 'Entregas', formatNumber(report.deliveryCount), {
+          monospaced: true,
+        }),
+        row('report-received', 'Recebido', formatCurrency(report.received), {
+          monospaced: true,
+        }),
+        row('report-receivable', 'A receber', formatCurrency(report.receivable), {
+          monospaced: true,
+        }),
+        ...(report.factoryCost !== undefined
+          ? [
+              row('report-factory-cost', 'Custo da fábrica', formatCurrency(report.factoryCost), {
+                monospaced: true,
+              }),
+            ]
+          : []),
+        ...(report.distanceKm !== undefined
+          ? [
+              row('report-distance', 'Distância', formatDistance(report.distanceKm), {
+                monospaced: true,
+              }),
+            ]
+          : []),
+        ...(report.fuelCost !== undefined
+          ? [
+              row('report-fuel', 'Combustível', formatCurrency(report.fuelCost), {
+                monospaced: true,
+              }),
+            ]
+          : []),
+        ...(report.bestDay
+          ? [
+              row('report-best-day', 'Melhor dia', report.bestDay.label),
+              row(
+                'report-best-day-value',
+                'Faturamento do melhor dia',
+                formatCurrency(report.bestDay.value),
+                {
+                  monospaced: true,
+                },
+              ),
+            ]
+          : []),
+        ...(report.worstDay
+          ? [
+              row('report-worst-day', 'Pior dia', report.worstDay.label),
+              row(
+                'report-worst-day-value',
+                'Faturamento do pior dia',
+                formatCurrency(report.worstDay.value),
+                {
+                  monospaced: true,
+                },
+              ),
+            ]
+          : []),
+        ...(report.topClient
+          ? [
+              row('report-top-client', 'Principal cliente', report.topClient.label),
+              row(
+                'report-top-client-value',
+                'Faturamento do principal cliente',
+                formatCurrency(report.topClient.value),
+                {
+                  monospaced: true,
+                },
+              ),
+            ]
+          : []),
+        ...(report.previousPeriod
+          ? [
+              row(
+                'report-revenue-change',
+                'Variação do faturamento',
+                report.previousPeriod.revenueChange.percentageChange === null
+                  ? 'Não calculável'
+                  : `${report.previousPeriod.revenueChange.percentageChange.toFixed(1)}%`,
+              ),
+              row(
+                'report-profit-change',
+                'Variação do lucro',
+                report.previousPeriod.netProfitChange.percentageChange === null
+                  ? 'Não calculável'
+                  : `${report.previousPeriod.netProfitChange.percentageChange.toFixed(1)}%`,
+              ),
+            ]
+          : []),
+      ];
+      return [section('financial-report', 'Relatório financeiro', 'chart.bar', reportRows)];
+    }
     return [section('financial-analysis', 'Análise', 'chart.bar', rows)];
   }
   const supportingData = result.data.supportingData;
@@ -572,6 +805,7 @@ function formatFinancialAnalysisValue(
 ): string {
   if (unit === 'currency') return formatCurrency(value);
   if (unit === 'percentage') return `${value.toFixed(1)}%`;
+  if (unit === 'distance') return formatDistance(value);
   return formatNumber(value);
 }
 
@@ -597,6 +831,7 @@ function resultSections(
   if (result.type === 'factorySummary') return factorySummarySections(result);
   if (result.type === 'routeSummary') return routeSummarySections(result);
   if (result.type === 'carSetting') return carSections(result);
+  if (result.type === 'assistant') return [];
   return periodSummarySections(result);
 }
 
@@ -642,6 +877,7 @@ function unavailableDescription(
   result: HomeSearchResult,
   presentation: ReturnType<typeof createHomeSearchResultsPresentation>,
 ): string | null {
+  if (result.type === 'assistant') return result.data.message;
   if (result.type === 'financialMetric' && !result.data.available)
     return presentation.relatedCount ?? 'Dados financeiros indisponíveis';
   if (result.type === 'factorySummary' && !result.data.available)

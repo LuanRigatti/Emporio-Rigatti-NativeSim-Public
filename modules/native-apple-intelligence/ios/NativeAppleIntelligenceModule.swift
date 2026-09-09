@@ -187,9 +187,9 @@ private extension NativeAppleIntelligenceModule {
         let encoded = encode(response.content)
         logger.info("generation finished durationMs=\(Int(Date().timeIntervalSince(startedAt) * 1000), privacy: .public) structuredResponse=received")
         return encoded
-      } catch LanguageModelError.contextSizeExceeded(let context) {
-        logger.error("generation error kind=contextOverflow contextSize=\(context.contextSize, privacy: .public) tokenCount=\(context.tokenCount, privacy: .public)")
-        throw LanguageModelError.contextSizeExceeded(context)
+      } catch LanguageModelSession.GenerationError.exceededContextWindowSize(let context) {
+        logger.error("generation error kind=contextOverflow context=\(context.debugDescription, privacy: .public)")
+        throw LanguageModelSession.GenerationError.exceededContextWindowSize(context)
       } catch {
         logger.error("generation error durationMs=\(Int(Date().timeIntervalSince(startedAt) * 1000), privacy: .public) error=\(String(describing: error), privacy: .public)")
         throw error

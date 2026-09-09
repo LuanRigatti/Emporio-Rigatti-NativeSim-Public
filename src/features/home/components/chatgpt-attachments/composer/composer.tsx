@@ -19,6 +19,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useAppTheme } from '@/theme';
 import { AttachmentIcon } from '../AttachmentIcon';
 import { COLORS, COMPOSER, COMPOSER_STRIP_HEIGHT, DURATION, GUTTER } from '../constants';
 import { Glass } from '../glass';
@@ -105,7 +106,11 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
   },
   ref,
 ) {
+  const { resolvedMode, theme } = useAppTheme();
   const hasAttachments = attachments.length > 0;
+  const foreground = resolvedMode === 'dark' ? COLORS.text : theme.colors.textPrimary;
+  const placeholderColor =
+    resolvedMode === 'dark' ? COLORS.placeholder : theme.colors.textSecondary;
   const plusStyle = useAnimatedStyle(() => ({
     opacity: interpolate(plusOut.get(), [0, 0.75], [1, 0], Extrapolation.CLAMP),
     transform: [{ translateX: plusOut.get() * COMPOSER.plusSlide }],
@@ -177,7 +182,7 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           style={styles.plus}
         >
           <Animated.View style={plusStyle}>
-            <AttachmentIcon name="plus" size={COMPOSER.plusSize} color={COLORS.text} />
+            <AttachmentIcon name="plus" size={COMPOSER.plusSize} color={foreground} />
           </Animated.View>
         </Pressable>
 
@@ -189,15 +194,15 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           onBlur={() => onFocusChange?.(false)}
           onSubmitEditing={() => onSubmit?.(value)}
           placeholder={placeholder}
-          placeholderTextColor={COLORS.placeholder}
-          keyboardAppearance="dark"
+          placeholderTextColor={placeholderColor}
+          keyboardAppearance={resolvedMode === 'dark' ? 'dark' : 'light'}
           returnKeyType="search"
           multiline={false}
-          style={styles.field}
+          style={[styles.field, { color: foreground }]}
         />
 
         <Pressable accessibilityRole="button" accessibilityLabel="Ditado" hitSlop={10}>
-          <AttachmentIcon name="mic" size={COMPOSER.micSize} color={COLORS.text} />
+          <AttachmentIcon name="mic" size={COMPOSER.micSize} color={foreground} />
         </Pressable>
 
         <Pressable

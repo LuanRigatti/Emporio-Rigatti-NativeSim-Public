@@ -138,7 +138,7 @@ export default function Home() {
 
   const homeToolbar = (
     <NativeGlassHeader
-      includeTopSafeArea={false}
+      includeTopSafeArea
       leftActions={
         <NativeAvatarButton
           accessibilityHint="Exibe os dados da conta e a opção de sair"

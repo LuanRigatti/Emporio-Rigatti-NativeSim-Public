@@ -2,6 +2,13 @@
   "name": "pareact",
   "version": "1.0.0",
   "main": "expo-router/entry",
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [".*"]
+      }
+    }
+  },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.8",
     "@expo/ui": "~57.0.9",

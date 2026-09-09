@@ -77,6 +77,23 @@ function appleIntelligenceDevLog(event: string, details?: unknown): void {
   if (__DEV__) console.info('[APPLE INTELLIGENCE]', event, details ?? '');
 }
 
+function semanticErrorKind(
+  error: unknown,
+): 'contextOverflow' | 'modelUnavailable' | 'generationError' {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes('context') &&
+    (normalized.includes('window') || normalized.includes('size'))
+  ) {
+    return 'contextOverflow';
+  }
+  if (normalized.includes('unavailable') || normalized.includes('not enabled')) {
+    return 'modelUnavailable';
+  }
+  return 'generationError';
+}
+
 function sanitizeNativeIntentPayload(value: unknown): unknown {
   if (!isRecord(value)) return value;
 
@@ -748,8 +765,10 @@ export class AppleIntelligenceSearchInterpreter implements HomeSearchSearchInter
       }
       return parsedIntent;
     } catch (error) {
+      const kind = semanticErrorKind(error);
       appleIntelligenceDevLog('error', {
         durationMs: Date.now() - startedAt,
+        kind,
         message: error instanceof Error ? error.message : String(error),
       });
       return null;

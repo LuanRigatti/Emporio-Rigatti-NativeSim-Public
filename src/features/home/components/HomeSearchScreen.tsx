@@ -4,7 +4,6 @@ import { useFocusEffect, useNavigation } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { PremiumScreen } from '@/components/premium';
-import { useAppSafeAreaInsets } from '@/providers';
 import { getCardSurfaceColor, spacing, useAppTheme } from '@/theme';
 import { prewarmAppleIntelligence } from '../search/AppleIntelligenceSearchInterpreter';
 import HomeSearchResultsContent from './HomeSearchResultsContent';
@@ -24,7 +23,6 @@ type NativeStackTransitionNavigation = {
 
 export default function HomeSearchScreen() {
   const navigation = useNavigation();
-  const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
   const { response, loading, search } = useHomeSearch();
   const [query, setQuery] = useState('');
@@ -144,7 +142,7 @@ export default function HomeSearchScreen() {
   return (
     <PremiumScreen
       contentContainerStyle={{
-        paddingBottom: insets.bottom + spacing.lg,
+        paddingBottom: 0,
         paddingHorizontal: 0,
       }}
       overlayHeader={header}

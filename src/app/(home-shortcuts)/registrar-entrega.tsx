@@ -1,5 +1,5 @@
-import { RegistrarDeliveryScreen } from '@/app/(tabs)/registrar/index';
+import { Redirect } from 'expo-router';
 
 export default function RegistrarDeliveryHomeShortcutRoute() {
-  return <RegistrarDeliveryScreen inlineClientSelection showLargeTitle />;
+  return <Redirect href="/dashboard/registrar-entrega" />;
 }

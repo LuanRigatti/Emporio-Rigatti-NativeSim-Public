@@ -1,5 +1,5 @@
-import { InvoicesScreen } from '@/features/invoices';
+import { Redirect } from 'expo-router';
 
 export default function InvoicesHomeShortcutRoute() {
-  return <InvoicesScreen nativeHeader />;
+  return <Redirect href="/dashboard/notas-fiscais-boletos" />;
 }

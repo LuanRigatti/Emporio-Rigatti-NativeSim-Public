@@ -110,22 +110,22 @@ export default function Home() {
 
   const handleOpenRecebimentos = useCallback(() => {
     triggerLightImpactHaptic();
-    router.push('/em-aberto');
+    router.push('/dashboard/em-aberto');
   }, [router]);
 
   const handleOpenFactory = useCallback(() => {
     triggerLightImpactHaptic();
-    router.push('/fabrica-compras');
+    router.push('/dashboard/fabrica-compras');
   }, [router]);
 
   const handleOpenRegistrarEntrega = useCallback(() => {
     triggerLightImpactHaptic();
-    router.push('/registrar-entrega');
+    router.push('/dashboard/registrar-entrega');
   }, [router]);
 
   const handleOpenDocumentos = useCallback(() => {
     triggerLightImpactHaptic();
-    router.push('/notas-fiscais-boletos');
+    router.push('/dashboard/notas-fiscais-boletos');
   }, [router]);
 
   const handleOpenProfile = useCallback(() => {

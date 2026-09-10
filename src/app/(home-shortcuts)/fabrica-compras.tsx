@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -101,5 +101,5 @@ export function FactoryPurchasesRoute({
 }
 
 export default function FactoryPurchasesHomeShortcutRoute() {
-  return <FactoryPurchasesRoute nativeHeader showLargeTitle />;
+  return <Redirect href="/dashboard/fabrica-compras" />;
 }

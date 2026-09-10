@@ -1,5 +1,5 @@
-import { OpenPaymentClientsScreen } from '@/features/open-payments';
+import { Redirect } from 'expo-router';
 
 export default function OpenPaymentsClientsRoute() {
-  return <OpenPaymentClientsScreen />;
+  return <Redirect href="/dashboard/em-aberto" />;
 }

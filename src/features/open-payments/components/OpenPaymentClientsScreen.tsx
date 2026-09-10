@@ -10,7 +10,9 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { OpenPaymentClientCards } from './OpenPaymentClientCards';
 import { useOpenPaymentClients } from '../hooks/useOpenPaymentClients';
 
-export function OpenPaymentClientsScreen() {
+export function OpenPaymentClientsScreen({
+  nativeHeader = false,
+}: { nativeHeader?: boolean } = {}) {
   const router = useRouter();
   const { theme } = useAppTheme();
   const { currency: maskCurrency } = useTestModePresentation();
@@ -20,13 +22,15 @@ export function OpenPaymentClientsScreen() {
   const header = (
     <NativeGlassHeader
       leftActions={
-        <NativeGlassBackButton
-          accessibilityLabel="Voltar para Home"
-          color={theme.colors.textPrimary}
-          containerSize={theme.sizes.touchTargetMinimum}
-          onPress={() => router.back()}
-          size={theme.sizes.iconMedium}
-        />
+        nativeHeader ? undefined : (
+          <NativeGlassBackButton
+            accessibilityLabel="Voltar para Home"
+            color={theme.colors.textPrimary}
+            containerSize={theme.sizes.touchTargetMinimum}
+            onPress={() => router.back()}
+            size={theme.sizes.iconMedium}
+          />
+        )
       }
       mode="transparent"
       title=""
@@ -81,7 +85,7 @@ export function OpenPaymentClientsScreen() {
         { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
       ]}
       overlayHeader={header}
-      overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
+      overlayHeaderContentOffset={nativeHeader ? theme.sizes.touchTargetMinimum : undefined}
       progressiveBlur
     >
       <View

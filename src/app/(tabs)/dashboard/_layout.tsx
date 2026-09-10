@@ -21,6 +21,18 @@ export default function DashboardLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="registrar-entrega" options={{ gestureEnabled: true }}>
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
+      <Stack.Screen name="em-aberto" options={{ gestureEnabled: true }}>
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
+      <Stack.Screen name="notas-fiscais-boletos" options={{ gestureEnabled: true }}>
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
+      <Stack.Screen name="fabrica-compras" options={{ gestureEnabled: true }}>
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
     </Stack>
   );
 }

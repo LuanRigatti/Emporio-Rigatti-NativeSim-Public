@@ -114,6 +114,7 @@ export function DeliveryCard({
             title: 'Excluir',
           },
         ]}
+        matchContents={{ horizontal: true, vertical: false }}
         style={[styles.contextMenu, { borderRadius: cardRadius }]}
         preview={
           <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>

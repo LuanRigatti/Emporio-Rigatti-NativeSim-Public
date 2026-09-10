@@ -745,6 +745,7 @@ export function RegistrarDeliveryScreen({
                       >
                         <NativeCardContextMenu
                           actions={rowActions}
+                          matchContents={{ horizontal: true, vertical: false }}
                           preview={
                             <PremiumCard style={cardStyle}>
                               {renderDeliveryItemRow(true)}

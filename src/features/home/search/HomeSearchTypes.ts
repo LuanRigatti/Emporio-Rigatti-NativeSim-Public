@@ -89,12 +89,29 @@ export type HomeSearchAnalysisOperation =
   | 'ratio'
   | 'trend'
   | 'report';
-export type HomeSearchAnalysisGroupBy = 'day' | 'client' | 'month' | 'week' | 'route' | 'factory';
+export type HomeSearchAnalysisGroupBy =
+  'day' | 'client' | 'month' | 'week' | 'year' | 'route' | 'factory';
 export type HomeSearchAnalysisOrder = 'ascending' | 'descending';
+
+export type HomeSearchAnalysisPeriodSpanUnit = 'day' | 'week' | 'month' | 'year';
+export type HomeSearchAnalysisPeriodSpanDirection =
+  'last' | 'current' | 'previous' | 'next' | 'toDate';
+
+export type HomeSearchAnalysisPeriodSpan = {
+  unit: HomeSearchAnalysisPeriodSpanUnit;
+  direction: HomeSearchAnalysisPeriodSpanDirection;
+  count: number;
+};
+
+export type HomeSearchAnalysisFilters = {
+  paymentStatus?: HomeSearchPaymentStatus;
+  documentType?: HomeSearchDocumentType;
+  factoryStatus?: HomeSearchFactoryStatus;
+};
 
 export type HomeSearchAssistantStatus = 'clarification' | 'unsupportedDomain' | 'unsupportedMetric';
 
-export type HomeSearchAssistantContext = 'incompleteAnalysis';
+export type HomeSearchAssistantContext = 'incompleteAnalysis' | 'incoherentAnalysis';
 
 export type HomeSearchAnalysisTrendDirection = 'rising' | 'falling' | 'stable' | 'mixed';
 
@@ -104,6 +121,7 @@ export type HomeSearchAnalysisPoint = {
   value: number;
   clientId?: ClientId;
   rank?: number;
+  secondaryValue?: number;
 };
 
 export type HomeSearchFinancialAnalysisComparison = {
@@ -146,6 +164,8 @@ export type HomeSearchAnalysis = {
   limit?: number;
   numeratorMetric?: HomeSearchFinancialMetric;
   denominatorMetric?: HomeSearchFinancialMetric;
+  secondaryMetric?: HomeSearchFinancialMetric;
+  filters?: HomeSearchAnalysisFilters;
   comparisonPeriods?: readonly [HomeSearchPeriod, HomeSearchPeriod];
 };
 
@@ -160,6 +180,7 @@ export type HomeSearchParsedQuery = {
   documentType?: HomeSearchDocumentType;
   financialMetric?: HomeSearchFinancialMetric;
   financialMetricAlias?: string;
+  periodSpan?: HomeSearchAnalysisPeriodSpan;
   analysis?: HomeSearchAnalysis;
   clientField?: HomeSearchClientField;
   factoryMetric?: HomeSearchFactoryMetric;
@@ -316,12 +337,15 @@ export type HomeSearchFinancialMetricResult = {
       limit?: number;
       numeratorMetric?: HomeSearchFinancialMetric;
       denominatorMetric?: HomeSearchFinancialMetric;
+      secondaryMetric?: HomeSearchFinancialMetric;
+      filters?: HomeSearchAnalysisFilters;
       period?: HomeSearchPeriod;
       winner?: {
         key: string;
         label: string;
         value: number;
         clientId?: ClientId;
+        secondaryValue?: number;
       };
       comparisons?: readonly {
         key: string;

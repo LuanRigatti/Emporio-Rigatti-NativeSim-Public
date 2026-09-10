@@ -283,6 +283,131 @@ describe('Apple Intelligence Home Search intent conversion', () => {
   });
 
   it.each([
+    'qual foi o melhor dia de faturamento no mês passado?',
+    'em que dia mais vendi no mês anterior?',
+    'qual dia teve a maior receita no último mês?',
+  ])('converges equivalent natural-language forms to one daily plan: %s', (queryText) => {
+    const query = toHomeSearchParsedQuery(queryText, {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'max',
+      groupBy: 'day',
+      month: 8,
+      year: 2026,
+    });
+
+    expect(query).toMatchObject({
+      analysis: { operation: 'max', groupBy: 'day' },
+      financialMetric: 'revenue',
+      period: { kind: 'month', month: 8, year: 2026 },
+    });
+  });
+
+  it('resolves a relative multi-period span from the supplied reference date', () => {
+    const query = toHomeSearchParsedQuery(
+      'some o faturamento dos últimos 3 meses',
+      {
+        ...baseIntent,
+        intent: 'financialAnalysis',
+        financialMetric: 'revenue',
+        operation: 'sum',
+        groupBy: 'month',
+        periodKind: 'none',
+        month: -1,
+        year: -1,
+        periodSpanUnit: 'month',
+        periodSpanDirection: 'last',
+        periodSpanCount: 3,
+      },
+      new Date(2026, 8, 9, 12),
+    );
+
+    expect(query).toMatchObject({
+      period: { kind: 'range', startDate: '2026-07-01', endDate: '2026-09-09' },
+      periodSpan: { unit: 'month', direction: 'last', count: 3 },
+    });
+  });
+
+  it('keeps filters and a secondary metric in the structured plan', () => {
+    const query = toHomeSearchParsedQuery('clientes pagos por faturamento', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'rank',
+      groupBy: 'client',
+      paymentStatus: 'paid',
+      secondaryMetric: 'bucketsSold',
+      order: 'descending',
+    });
+
+    expect(query).toMatchObject({
+      analysis: {
+        groupBy: 'client',
+        operation: 'rank',
+        order: 'descending',
+        secondaryMetric: 'bucketsSold',
+        filters: { paymentStatus: 'paid' },
+      },
+    });
+  });
+
+  it('blocks a payload whose grouping contradicts the natural-language dimension', () => {
+    const query = toHomeSearchParsedQuery('qual foi o melhor dia de faturamento?', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'max',
+      groupBy: 'month',
+    });
+
+    expect(query).toMatchObject({
+      assistantStatus: 'clarification',
+      assistantContext: 'incoherentAnalysis',
+    });
+  });
+
+  it('normalizes a multi-result maximum into topN without changing the metric', () => {
+    const query = toHomeSearchParsedQuery('os 5 clientes com maior faturamento', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'max',
+      groupBy: 'client',
+      limit: 5,
+    });
+
+    expect(query).toMatchObject({ analysis: { operation: 'topN', limit: 5 } });
+  });
+
+  it('accepts explicit ISO comparison periods without collapsing them', () => {
+    const query = toHomeSearchParsedQuery('quanto cresceu de julho para agosto?', {
+      ...baseIntent,
+      intent: 'financialAnalysis',
+      financialMetric: 'revenue',
+      operation: 'percentageChange',
+      groupBy: 'month',
+      periodKind: 'none',
+      month: -1,
+      year: -1,
+      comparisonInitialStartDate: '2026-07-01',
+      comparisonInitialEndDate: '2026-07-31',
+      comparisonFinalStartDate: '2026-08-01',
+      comparisonFinalEndDate: '2026-08-31',
+    });
+
+    expect(query).toMatchObject({
+      period: { kind: 'range', startDate: '2026-07-01', endDate: '2026-08-31' },
+      analysis: {
+        comparisonPeriods: [
+          { kind: 'range', startDate: '2026-07-01', endDate: '2026-07-31' },
+          { kind: 'range', startDate: '2026-08-01', endDate: '2026-08-31' },
+        ],
+      },
+    });
+  });
+
+  it.each([
     ['sum', 'month', 'revenue'],
     ['average', 'month', 'revenue'],
     ['rank', 'client', 'netProfit'],

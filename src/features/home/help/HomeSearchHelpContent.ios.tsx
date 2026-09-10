@@ -15,7 +15,7 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { spacing } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { HOME_SEARCH_HELP_SUGGESTIONS } from './HomeSearchHelpData';
+import { getHomeSearchHelpSuggestions } from './HomeSearchHelpData';
 import type { SearchHelpExample } from './HomeSearchHelpTypes';
 
 const asSymbol = (value: string) => value as SFSymbol;
@@ -92,6 +92,8 @@ export default function HomeSearchHelpContent({
   cardBackground = 'secondarySystemGroupedBackground',
   onSelectQuery,
 }: Props) {
+  const suggestions = getHomeSearchHelpSuggestions();
+
   return (
     <VStack
       alignment="leading"
@@ -118,7 +120,7 @@ export default function HomeSearchHelpContent({
             ),
           ]}
         >
-          {HOME_SEARCH_HELP_SUGGESTIONS.slice(0, 3).map((suggestion) => (
+          {suggestions.slice(0, 3).map((suggestion) => (
             <VStack
               key={suggestion.id}
               alignment="leading"

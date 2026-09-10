@@ -18,6 +18,17 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(.anyOf(["none", "date", "dayMonth", "month", "year", "range"]))
   let periodKind: String
 
+  @Guide(description: "Relative span unit; empty when unused.")
+  @Guide(.anyOf(["", "day", "week", "month", "year"]))
+  let periodSpanUnit: String
+
+  @Guide(description: "Relative span direction; empty when unused.")
+  @Guide(.anyOf(["", "last", "current", "previous", "next", "toDate"]))
+  let periodSpanDirection: String
+
+  @Guide(description: "Positive relative span count; -1 when unused.")
+  let periodSpanCount: Int
+
   let date: String
 
   let startDate: String
@@ -65,7 +76,7 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(.anyOf(["", "max", "min", "compare", "sum", "average", "rank", "topN", "percentageChange", "ratio", "trend", "report"]))
   let operation: String
 
-  @Guide(.anyOf(["", "day", "week", "client", "month", "route", "factory"]))
+  @Guide(.anyOf(["", "day", "week", "year", "client", "month", "route", "factory"]))
   let groupBy: String
 
   @Guide(description: "Order for ranking; empty when unused.")
@@ -81,6 +92,9 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(description: "Denominator metric for ratio; empty when unused.")
   let denominatorMetric: String
 
+  @Guide(description: "Optional second metric using the same values as financialMetric; empty when unused.")
+  let secondaryMetric: String
+
   let comparisonStartMonth: Int
 
   let comparisonStartYear: Int
@@ -88,6 +102,14 @@ private struct NativeAppleSearchIntentPayload {
   let comparisonEndMonth: Int
 
   let comparisonEndYear: Int
+
+  let comparisonInitialStartDate: String
+
+  let comparisonInitialEndDate: String
+
+  let comparisonFinalStartDate: String
+
+  let comparisonFinalEndDate: String
 }
 #endif
 
@@ -171,10 +193,10 @@ private extension NativeAppleIntelligenceModule {
       logger.info("query received length=\(query.count, privacy: .public) session=created referenceDate=\(referenceDateISO, privacy: .public)")
 
       let prompt = """
-        Convert this Brazilian Portuguese business-search query to the structured schema.
+        Convert this Brazilian Portuguese business-search query to a compact structured plan.
         Query: \(query)
         Reference date: \(referenceDateISO)
-        Return only structured fields. Never answer, use records, or calculate values.
+        Return only plan fields. Never answer, access records, or calculate values.
         Use exact enum values; use empty strings, -1, or false when unused.
       """
       logger.info("generation started")
@@ -223,16 +245,13 @@ private extension NativeAppleIntelligenceModule {
   static func makeSession() -> LanguageModelSession {
     logger.info("session created")
     return LanguageModelSession(instructions: """
-      Parse Brazilian Portuguese queries for Empório Rigatti's local business data.
-      Return only structured fields. You receive no records and never answer or calculate.
-      Use empty strings, -1, or false for unused fields and exact schema enum values.
-      Map faturamento/receita/vendido to revenue; lucro líquido to netProfit; em aberto/a receber to receivable; baldes to bucketsSold; entregas to deliveryCount; recebido to received; preço unitário do balde to bucketPrice; custos totais to totalCost; distância to distanceKm; custo da fábrica to factoryCost.
-      For analysis use financialAnalysis. max/min mean greatest/smallest; sum/average aggregate; rank/topN order results; compare/percentageChange compare periods; ratio uses numeratorMetric and denominatorMetric; trend classifies a series; report creates a structured summary. Use groupBy day, week, client, month, route, or factory as requested.
-      "melhor/mais comprou/vendeu" for a client means max revenue by client unless another metric is explicit. An explicit bucket-price question means max bucketPrice by client with no period. For rank/topN use order descending for greatest and ascending for smallest; set limit only for topN.
-      Derived metric names are marginPercentage, profitPerDelivery, revenuePerDelivery, costPerDelivery, profitPerKm, revenuePerKm, and costPerKm. The app performs all arithmetic.
-      A report defaults to groupBy=month and revenue. An unqualified cost-benefit question is clarification; unsupported app metrics are unsupportedMetric; unrelated questions are unsupportedDomain.
-      Resolve hoje, ontem, mês atual, mês passado, este ano, ano passado, ranges, and named calendar periods from the reference date. For month periods fill month and year; for comparisons fill both comparison month/year pairs.
-      Keep confidence below 0.6 when the request is ambiguous.
+      Parse Brazilian Portuguese queries for Empório Rigatti's local business data. The output is an interpretation plan only; the app owns every number.
+      For scalar requests use financialMetric, factoryMetric, routeMetric, carMetric, or periodSummary. For analysis use intent=financialAnalysis, financialMetric, operation, and groupBy. metric is what is measured; groupBy is how records are grouped and is never the time period.
+      Map revenue/faturamento/receita to revenue; lucro bruto/netProfit to grossProfit/netProfit; a receber/em aberto to receivable; recebido to received; baldes vendidos to bucketsSold; entregas to deliveryCount; custo dos baldes to bucketCost; combustível to fuelCost; luz to electricityCost; outros custos to otherCosts; custo total to totalCost; margem and per-delivery/per-bucket/per-km language to the matching derived metric; unit bucket price to bucketPrice; distance/km to distanceKm; factory purchase cost to factoryCost. Use only metrics backed by app data.
+      Supported operations are max, min, sum, average, rank, topN, compare, percentageChange, ratio, trend, and report. Greatest/smallest language maps to max/min; rankings use rank/topN with order and limit. Use numeratorMetric and denominatorMetric for ratio and secondaryMetric for a second value in the same groups. The app performs all arithmetic and sorting.
+      Supported groupBy values are day, week, month, year, client, route, and factory. Filters are paymentStatus, documentType, and factoryStatus; keep them separate from metric and period.
+      Resolve explicit and relative periods from the supplied reference date. For last/current/previous/next/toDate spans use periodSpanUnit, periodSpanDirection, and positive periodSpanCount; the app resolves calendar dates. For comparison use the comparison month/year fields or the four ISO date fields.
+      Use clarification for missing or conflicting plan fields, including ambiguous cost-benefit requests; unsupportedMetric for unavailable app data; unsupportedDomain for unrelated questions. Never turn an analytical request into a scalar metric. Keep confidence below 0.6 when ambiguous.
       """)
   }
 
@@ -282,16 +301,24 @@ private extension NativeAppleIntelligenceModule {
       "routeMetric": payload.routeMetric,
       "carMetric": payload.carMetric,
       "periodSummary": payload.periodSummary,
+      "periodSpanUnit": payload.periodSpanUnit,
+      "periodSpanDirection": payload.periodSpanDirection,
+      "periodSpanCount": payload.periodSpanCount,
       "operation": payload.operation,
       "groupBy": payload.groupBy,
       "order": payload.order,
       "limit": payload.limit,
       "numeratorMetric": payload.numeratorMetric,
       "denominatorMetric": payload.denominatorMetric,
+      "secondaryMetric": payload.secondaryMetric,
       "comparisonStartMonth": payload.comparisonStartMonth,
       "comparisonStartYear": payload.comparisonStartYear,
       "comparisonEndMonth": payload.comparisonEndMonth,
       "comparisonEndYear": payload.comparisonEndYear,
+      "comparisonInitialStartDate": payload.comparisonInitialStartDate,
+      "comparisonInitialEndDate": payload.comparisonInitialEndDate,
+      "comparisonFinalStartDate": payload.comparisonFinalStartDate,
+      "comparisonFinalEndDate": payload.comparisonFinalEndDate,
     ]
   }
 #endif

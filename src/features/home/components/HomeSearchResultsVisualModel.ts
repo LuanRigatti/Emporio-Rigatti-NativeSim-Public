@@ -324,6 +324,7 @@ function factoryPurchaseSections(
 function analysisWinnerLabel(groupBy: HomeSearchAnalysisGroupBy): string {
   if (groupBy === 'day') return 'Dia vencedor';
   if (groupBy === 'week') return 'Semana vencedora';
+  if (groupBy === 'year') return 'Ano vencedor';
   if (groupBy === 'client') return 'Cliente vencedor';
   if (groupBy === 'route') return 'Rota vencedora';
   if (groupBy === 'factory') return 'Compra vencedora';
@@ -343,6 +344,19 @@ function financialSections(result: HomeSearchFinancialMetricResult): HomeSearchV
               formatFinancialAnalysisValue(analysis.winner.value, result.data.unit),
               { monospaced: true },
             ),
+            ...(analysis.secondaryMetric && analysis.winner.secondaryValue !== undefined
+              ? [
+                  row(
+                    'analysis-secondary-value',
+                    homeSearchFinancialMetricDefinition(analysis.secondaryMetric).label,
+                    formatFinancialAnalysisValue(
+                      analysis.winner.secondaryValue,
+                      homeSearchFinancialMetricDefinition(analysis.secondaryMetric).unit,
+                    ),
+                    { monospaced: true },
+                  ),
+                ]
+              : []),
           ]
         : []),
       ...(analysis.comparisons ?? []).map((comparison) =>
@@ -444,7 +458,9 @@ function financialSections(result: HomeSearchFinancialMetricResult): HomeSearchV
         row(
           `ranking-${rankingPoint.key}`,
           `${rankingPoint.rank ?? ''}. ${rankingPoint.label}`.trim(),
-          formatFinancialAnalysisValue(rankingPoint.value, result.data.unit),
+          analysis.secondaryMetric && rankingPoint.secondaryValue !== undefined
+            ? `${formatFinancialAnalysisValue(rankingPoint.value, result.data.unit)} · ${formatFinancialAnalysisValue(rankingPoint.secondaryValue, homeSearchFinancialMetricDefinition(analysis.secondaryMetric).unit)}`
+            : formatFinancialAnalysisValue(rankingPoint.value, result.data.unit),
           { monospaced: true },
         ),
       ),

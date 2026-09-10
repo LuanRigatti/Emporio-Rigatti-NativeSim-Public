@@ -1,12 +1,22 @@
 import type { SearchHelpCategory, SearchHelpExample } from './HomeSearchHelpTypes';
 
-export const HOME_SEARCH_HELP_SUGGESTIONS: readonly SearchHelpExample[] = [
-  { id: 'suggestion-revenue', label: 'Faturamento', query: 'faturamento agosto' },
-  { id: 'suggestion-net-profit', label: 'Lucro Líquido', query: 'lucro líquido agosto' },
-  { id: 'suggestion-summary', label: 'Resumo', query: 'resumo agosto' },
-  { id: 'suggestion-summary-today', label: 'Resumo Hoje', query: 'resumo hoje' },
-  { id: 'suggestion-routes', label: 'Rotas', query: 'rota agosto' },
-];
+export function getHomeSearchHelpSuggestions(date = new Date()): readonly SearchHelpExample[] {
+  const currentMonth = new Intl.DateTimeFormat('pt-BR', { month: 'long' })
+    .format(date)
+    .toLocaleLowerCase('pt-BR');
+
+  return [
+    { id: 'suggestion-revenue', label: 'Faturamento', query: `faturamento ${currentMonth}` },
+    {
+      id: 'suggestion-net-profit',
+      label: 'Lucro Líquido',
+      query: `lucro líquido ${currentMonth}`,
+    },
+    { id: 'suggestion-summary', label: 'Resumo', query: `resumo ${currentMonth}` },
+    { id: 'suggestion-summary-today', label: 'Resumo Hoje', query: 'resumo hoje' },
+    { id: 'suggestion-routes', label: 'Rotas', query: 'rota agosto' },
+  ];
+}
 
 export const HOME_SEARCH_HELP_CATEGORIES: readonly SearchHelpCategory[] = [
   {

@@ -15,6 +15,7 @@ import { routeTrackingRepository } from '@/services/routes/RouteTrackingReposito
 import { carSettingsStorage, firestoreCarSettingsDataSource } from '@/services/car';
 import type {
   HomeSearchDataSet,
+  HomeSearchAnalysisFilters,
   HomeSearchDataSource,
   HomeSearchAnalysisGroupBy,
   HomeSearchAnalysisOperation,
@@ -280,6 +281,8 @@ function analysisQuery(
     order?: HomeSearchAnalysisOrder;
     numeratorMetric?: HomeSearchFinancialMetric;
     denominatorMetric?: HomeSearchFinancialMetric;
+    secondaryMetric?: HomeSearchFinancialMetric;
+    filters?: HomeSearchAnalysisFilters;
   } = {},
 ): HomeSearchParsedQuery {
   return {
@@ -289,6 +292,8 @@ function analysisQuery(
       ...(options.limit !== undefined ? { limit: options.limit } : {}),
       ...(options.numeratorMetric ? { numeratorMetric: options.numeratorMetric } : {}),
       ...(options.denominatorMetric ? { denominatorMetric: options.denominatorMetric } : {}),
+      ...(options.secondaryMetric ? { secondaryMetric: options.secondaryMetric } : {}),
+      ...(options.filters ? { filters: options.filters } : {}),
       operation,
       ...(comparisonPeriods ? { comparisonPeriods } : {}),
     },
@@ -1220,6 +1225,92 @@ describe('HomeSearchService', () => {
           winner: { key: 'client:luciano', label: 'Luciano', value: 800 },
         },
       },
+    });
+  });
+
+  it('dispatches a natural analytical question to the semantic plan and real executor', async () => {
+    const queryText = 'Em que cliente mais vendi no mês passado?';
+    const semanticPlan = analysisQuery(
+      queryText,
+      { kind: 'month', month: 8, year: 2026 },
+      'revenue',
+      'max',
+      'client',
+    );
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue(semanticPlan),
+    };
+    const response = await new HomeSearchService(new FixedDataSource(), interpreter).search(
+      queryText,
+      new Date(2026, 8, 9, 12),
+    );
+
+    expect(interpreter.interpret).toHaveBeenCalledWith(queryText, new Date(2026, 8, 9, 12));
+    expect(response.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: { analysis: { operation: 'max', groupBy: 'client', winner: { label: 'Luciano' } } },
+    });
+  });
+
+  it('does not execute a scalar payload when the natural question requires analysis', async () => {
+    const interpreter = {
+      interpret: jest
+        .fn()
+        .mockResolvedValue(
+          new HomeSearchQueryParser().parse('faturamento agosto', new Date(2026, 7, 13, 12)),
+        ),
+    };
+    const response = await new HomeSearchService(new FixedDataSource(), interpreter).search(
+      'qual foi o melhor dia de faturamento em agosto?',
+      new Date(2026, 7, 13, 12),
+    );
+
+    expect(response.results[0]).toMatchObject({
+      type: 'assistant',
+      data: { status: 'clarification' },
+    });
+  });
+
+  it('keeps a secondary metric aligned with the winning real-data group', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'qual cliente vendeu mais e quanto faturou?',
+        { kind: 'month', month: 8, year: 2026 },
+        'bucketsSold',
+        'max',
+        'client',
+        undefined,
+        { secondaryMetric: 'revenue' },
+      ),
+    );
+    const result = response.results[0];
+
+    expect(result).toMatchObject({
+      type: 'financialMetric',
+      data: {
+        value: 16,
+        analysis: { winner: { label: 'Luciano', value: 16, secondaryValue: 800 } },
+      },
+    });
+  });
+
+  it('applies analytical payment filters before grouping real deliveries', async () => {
+    const response = await new HomeSearchService(new FixedDataSource()).searchParsed(
+      analysisQuery(
+        'qual cliente mais faturou entre os pagos?',
+        { kind: 'month', month: 8, year: 2026 },
+        'revenue',
+        'max',
+        'client',
+        undefined,
+        { filters: { paymentStatus: 'paid' } },
+      ),
+    );
+    const result = response.results[0];
+
+    expect(result).toMatchObject({
+      type: 'financialMetric',
+      data: { value: 350, analysis: { winner: { label: 'Luciano', value: 350 } } },
     });
   });
 

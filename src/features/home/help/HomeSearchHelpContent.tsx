@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { HOME_SEARCH_HELP_SUGGESTIONS } from './HomeSearchHelpData';
+import { getHomeSearchHelpSuggestions } from './HomeSearchHelpData';
 import type { SearchHelpExample } from './HomeSearchHelpTypes';
 
 type Props = {
@@ -59,6 +59,7 @@ function HelpExampleRow({
 
 export default function HomeSearchHelpContent({ cardBackground, onSelectQuery }: Props) {
   const { resolvedMode, theme } = useAppTheme();
+  const suggestions = getHomeSearchHelpSuggestions();
 
   return (
     <View
@@ -84,7 +85,7 @@ export default function HomeSearchHelpContent({ cardBackground, onSelectQuery }:
           resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
         ]}
       >
-        {HOME_SEARCH_HELP_SUGGESTIONS.slice(0, 3).map((suggestion, index) => (
+        {suggestions.slice(0, 3).map((suggestion, index) => (
           <View key={suggestion.id}>
             {index > 0 ? (
               <View style={[styles.divider, { backgroundColor: theme.colors.separator }]} />

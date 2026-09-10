@@ -36,6 +36,10 @@ import {
   type HomeSearchSearchInterpreter,
 } from './AppleIntelligenceSearchInterpreter';
 import { homeSearchQueryParser, normalizeHomeSearchText } from './HomeSearchQueryParser';
+import {
+  hasNaturalLanguageQuestionSignals,
+  hasSemanticAnalysisSignals,
+} from './HomeSearchSemanticValidator';
 import type {
   HomeSearchClientAggregation,
   HomeSearchClientResult,
@@ -809,6 +813,7 @@ function restrictAnalysisPeriod(
   if (!periodBounds || !candidateBounds) return candidate;
   const startDate = periodBounds[0] > candidateBounds[0] ? periodBounds[0] : candidateBounds[0];
   const endDate = periodBounds[1] < candidateBounds[1] ? periodBounds[1] : candidateBounds[1];
+  if (startDate === candidateBounds[0] && endDate === candidateBounds[1]) return candidate;
   return { kind: 'range', startDate, endDate };
 }
 
@@ -854,6 +859,29 @@ function summaryForAnalysisPeriod(
     monthlyExpenses: financial.monthlyExpenses,
     automaticKilometersByDate: summarizeRouteKilometersByDate(data.routeSessions ?? []),
   });
+}
+
+function financialDataForAnalysis(
+  financial: HomeSearchFinancialData,
+  data: HomeSearchLoadedData,
+  query: HomeSearchParsedQuery,
+): HomeSearchFinancialData {
+  const filters = query.analysis?.filters;
+  const paymentStatus = filters?.paymentStatus ?? query.paymentStatus;
+  const documentType = filters?.documentType ?? query.documentType;
+  if (!paymentStatus && !documentType) return financial;
+
+  const clientsById = new Map(data.clients.map((client) => [client.clientId, client]));
+  const clientsByName = new Map(data.clients.map((client) => [client.normalizedName, client]));
+  const deliveries = financial.deliveries.filter((delivery) => {
+    const client = clientForDelivery(delivery, clientsById, clientsByName);
+    if (paymentStatus) {
+      const paid = normalizeHomeSearchText(delivery.status) === 'pago';
+      if (paymentStatus === 'paid' ? !paid : paid) return false;
+    }
+    return !documentType || deliveryFacets(delivery, client).includes(documentType);
+  });
+  return { ...financial, deliveries };
 }
 
 function analysisValue(
@@ -938,25 +966,19 @@ function financialAnalysisPointsByMonth(
   );
   periodMonthKeys(period).forEach((month) => months.add(month));
 
-  const automaticKilometersByDate = summarizeRouteKilometersByDate(data.routeSessions ?? []);
   return [...months]
     .filter((month) => analysisPeriodIncludesMonth(period, month))
     .sort()
     .map((month) => {
       const [year, monthNumber] = month.split('-').map(Number);
       const monthPeriod: HomeSearchPeriod = { kind: 'month', month: monthNumber, year };
-      const summary = financialCalculationService.calculateResumo({
-        deliveries: financial.deliveries,
-        dailyExpenses: financial.dailyExpenses,
-        filters: financialFiltersForSelection({ kind: 'month', month }),
-        monthlyExpenses: financial.monthlyExpenses,
-        automaticKilometersByDate,
-      });
+      const scopedPeriod = restrictAnalysisPeriod(period, monthPeriod);
+      const summary = summaryForAnalysisPeriod(financial, data, scopedPeriod);
       return {
         key: month,
         label: analysisMonthLabel(month),
         value: analysisValue(summary, metric, {
-          distanceKm: routeDistanceForPeriod(data, monthPeriod),
+          distanceKm: routeDistanceForPeriod(data, scopedPeriod),
         }),
       };
     });
@@ -1068,6 +1090,57 @@ function financialAnalysisPointsByWeek(
   });
 }
 
+function financialAnalysisPointsByYear(
+  financial: HomeSearchFinancialData,
+  data: HomeSearchLoadedData,
+  period: HomeSearchPeriod,
+  metric: HomeSearchFinancialMetric,
+): FinancialAnalysisPoint[] {
+  const years = new Set<number>();
+  financial.deliveries.forEach((delivery) => {
+    const year = Number(normalizedAnalysisDate(delivery.data).slice(0, 4));
+    if (Number.isInteger(year)) years.add(year);
+  });
+  Object.keys(financial.dailyExpenses).forEach((date) => {
+    const year = Number(normalizedAnalysisDate(date).slice(0, 4));
+    if (Number.isInteger(year)) years.add(year);
+  });
+  Object.keys(financial.monthlyExpenses).forEach((month) => {
+    const year = Number(month.slice(0, 4));
+    if (Number.isInteger(year)) years.add(year);
+  });
+  (data.routeSessions ?? []).forEach((session) => {
+    const year = Number(normalizedAnalysisDate(session.date).slice(0, 4));
+    if (Number.isInteger(year)) years.add(year);
+  });
+  if (period.kind === 'year') years.add(period.year);
+  if (period.kind === 'month' && period.year !== undefined) years.add(period.year);
+  if (period.kind === 'range') {
+    const startYear = Number(period.startDate.slice(0, 4));
+    const endYear = Number(period.endDate.slice(0, 4));
+    for (let year = startYear; year <= endYear; year += 1) years.add(year);
+  }
+
+  return [...years]
+    .sort((left, right) => left - right)
+    .flatMap((year) => {
+      const yearPeriod: HomeSearchPeriod = { kind: 'year', year };
+      const scopedPeriod = restrictAnalysisPeriod(period, yearPeriod);
+      if (scopedPeriod.kind === 'range' && scopedPeriod.startDate > scopedPeriod.endDate) {
+        return [];
+      }
+      const value =
+        metric === 'distanceKm'
+          ? routeDistanceForPeriod(data, scopedPeriod)
+          : metric === 'factoryCost'
+            ? factoryCostForPeriod(data, scopedPeriod)
+            : analysisValue(summaryForAnalysisPeriod(financial, data, scopedPeriod), metric, {
+                distanceKm: routeDistanceForPeriod(data, scopedPeriod),
+              });
+      return [{ key: String(year), label: `Ano ${year}`, value }];
+    });
+}
+
 function financialAnalysisPointsByRoute(
   data: HomeSearchLoadedData,
   period: HomeSearchPeriod,
@@ -1099,9 +1172,11 @@ function financialAnalysisPointsByFactory(
   data: HomeSearchLoadedData,
   period: HomeSearchPeriod,
   metric: HomeSearchFinancialMetric,
+  factoryStatus?: HomeSearchParsedQuery['factoryStatus'],
 ): FinancialAnalysisPoint[] {
   return data.factoryPurchases
     .filter((receipt) => matchesPeriod(receipt.data, period))
+    .filter((receipt) => matchesFactoryStatus(receipt, factoryStatus))
     .flatMap((receipt) => {
       const value = factoryAnalysisValue(receipt, metric);
       return value === undefined
@@ -1123,12 +1198,16 @@ function financialAnalysisPoints(
   period: HomeSearchPeriod,
   groupBy: HomeSearchAnalysisGroupBy,
   metric: HomeSearchFinancialMetric,
+  factoryStatus?: HomeSearchParsedQuery['factoryStatus'],
 ): FinancialAnalysisPoint[] {
   if (groupBy === 'day') return financialAnalysisPointsByDay(financial, data, period, metric);
   if (groupBy === 'month') return financialAnalysisPointsByMonth(financial, data, period, metric);
   if (groupBy === 'week') return financialAnalysisPointsByWeek(financial, data, period, metric);
+  if (groupBy === 'year') return financialAnalysisPointsByYear(financial, data, period, metric);
   if (groupBy === 'route') return financialAnalysisPointsByRoute(data, period, metric);
-  if (groupBy === 'factory') return financialAnalysisPointsByFactory(data, period, metric);
+  if (groupBy === 'factory') {
+    return financialAnalysisPointsByFactory(data, period, metric, factoryStatus);
+  }
   return financialAnalysisPointsByClient(financial, data, period, metric);
 }
 
@@ -1153,6 +1232,7 @@ function analysisPeriodResultLabel(
   const groupLabels: Record<HomeSearchAnalysisGroupBy, string> = {
     day: 'diário',
     week: 'semanal',
+    year: 'anual',
     client: 'por cliente',
     month: 'mensal',
     route: 'por rota',
@@ -1375,7 +1455,11 @@ function financialReportResults(
   const period = query.period;
   if (!financial || !period) return unavailableAnalysisResult(query, 'insufficientData');
   if (!financial.costsAvailable) return unavailableAnalysisResult(query, 'sourceUnavailable');
-  const report = financialReportForPeriod(financial, data, period);
+  const report = financialReportForPeriod(
+    financialDataForAnalysis(financial, data, query),
+    data,
+    period,
+  );
   return [
     financialAnalysisMetricResult(
       query,
@@ -1401,6 +1485,7 @@ function financialAnalysisResults(
   if (!analysis || !metric) return [];
 
   const definition = homeSearchFinancialMetricDefinition(metric);
+  const factoryStatus = analysis.filters?.factoryStatus ?? query.factoryStatus;
   const baseAnalysis = {
     groupBy: analysis.groupBy,
     operation: analysis.operation,
@@ -1408,6 +1493,8 @@ function financialAnalysisResults(
     ...(analysis.limit !== undefined ? { limit: analysis.limit } : {}),
     ...(analysis.numeratorMetric ? { numeratorMetric: analysis.numeratorMetric } : {}),
     ...(analysis.denominatorMetric ? { denominatorMetric: analysis.denominatorMetric } : {}),
+    ...(analysis.secondaryMetric ? { secondaryMetric: analysis.secondaryMetric } : {}),
+    ...(analysis.filters ? { filters: analysis.filters } : {}),
     ...(period ? { period } : {}),
   };
 
@@ -1418,7 +1505,7 @@ function financialAnalysisResults(
     return unavailableAnalysisResult(query, 'unsupportedGroupBy');
   }
   if (
-    ['compare', 'percentageChange', 'ratio', 'report'].includes(analysis.operation) &&
+    ['compare', 'percentageChange', 'report'].includes(analysis.operation) &&
     analysis.groupBy !== 'month'
   ) {
     return unavailableAnalysisResult(query, 'unsupportedGroupBy');
@@ -1448,12 +1535,14 @@ function financialAnalysisResults(
   if (requiresFinancialData && definition.requiresCosts && !financial?.costsAvailable) {
     return unavailableAnalysisResult(query, 'sourceUnavailable');
   }
-  const analysisFinancial: HomeSearchFinancialData = financial ?? {
-    costsAvailable: true,
-    dailyExpenses: {},
-    deliveries: [],
-    monthlyExpenses: {},
-  };
+  const analysisFinancial: HomeSearchFinancialData = financial
+    ? financialDataForAnalysis(financial, data, query)
+    : {
+        costsAvailable: true,
+        dailyExpenses: {},
+        deliveries: [],
+        monthlyExpenses: {},
+      };
 
   if (analysis.operation === 'compare') {
     const comparisonPeriods = analysis.comparisonPeriods;
@@ -1519,17 +1608,74 @@ function financialAnalysisResults(
       period,
       analysis.denominatorMetric,
     );
+    if (analysis.groupBy === 'month') {
+      return [
+        financialAnalysisMetricResult(query, safeDivide(numerator, denominator), {
+          ...baseAnalysis,
+          aggregateValue: safeDivide(numerator, denominator),
+          ratio: { numerator, denominator },
+        }),
+      ];
+    }
+    const numeratorPoints = financialAnalysisPoints(
+      analysisFinancial,
+      data,
+      period,
+      analysis.groupBy,
+      analysis.numeratorMetric,
+      factoryStatus,
+    );
+    const denominatorPoints = financialAnalysisPoints(
+      analysisFinancial,
+      data,
+      period,
+      analysis.groupBy,
+      analysis.denominatorMetric,
+      factoryStatus,
+    );
+    const denominatorByKey = new Map(denominatorPoints.map((point) => [point.key, point]));
+    const ratioPoints = numeratorPoints.flatMap((point) => {
+      const denominatorPoint = denominatorByKey.get(point.key);
+      return denominatorPoint
+        ? [{ ...point, value: safeDivide(point.value, denominatorPoint.value) }]
+        : [];
+    });
+    if (ratioPoints.length === 0) return unavailableAnalysisResult(query, 'insufficientData');
+    const aggregateValue = averageValues(ratioPoints.map((point) => point.value));
     return [
-      financialAnalysisMetricResult(query, safeDivide(numerator, denominator), {
+      financialAnalysisMetricResult(query, aggregateValue, {
         ...baseAnalysis,
-        aggregateValue: safeDivide(numerator, denominator),
+        aggregateValue,
         ratio: { numerator, denominator },
+        ranking: ratioPoints,
       }),
     ];
   }
 
-  const points = financialAnalysisPoints(analysisFinancial, data, period, analysis.groupBy, metric);
+  let points = financialAnalysisPoints(
+    analysisFinancial,
+    data,
+    period,
+    analysis.groupBy,
+    metric,
+    factoryStatus,
+  );
   if (points.length === 0) return unavailableAnalysisResult(query, 'insufficientData');
+  if (analysis.secondaryMetric) {
+    const secondaryPoints = financialAnalysisPoints(
+      analysisFinancial,
+      data,
+      period,
+      analysis.groupBy,
+      analysis.secondaryMetric,
+      factoryStatus,
+    );
+    const secondaryByKey = new Map(secondaryPoints.map((point) => [point.key, point.value]));
+    points = points.map((point) => {
+      const secondaryValue = secondaryByKey.get(point.key);
+      return secondaryValue === undefined ? point : { ...point, secondaryValue };
+    });
+  }
 
   if (analysis.operation === 'sum') {
     const aggregateValue = sumValues(points.map((point) => point.value));
@@ -1713,17 +1859,23 @@ function assistantResult(query: HomeSearchParsedQuery): HomeSearchAssistantResul
             message:
               'Especifique a operação, a dimensão ou a métrica que deseja analisar para eu consultar os dados reais do app.',
           }
-        : {
-            title: 'Preciso de um critério',
-            message:
-              'Posso comparar margem líquida, lucro por entrega, lucro por km ou custo por entrega. Qual análise você quer?',
-            options: [
-              'Maior margem líquida',
-              'Maior lucro por entrega',
-              'Maior lucro por km',
-              'Menor custo por entrega',
-            ],
-          }
+        : query.assistantContext === 'incoherentAnalysis'
+          ? {
+              title: 'Não consegui confirmar a análise',
+              message:
+                'A interpretação trouxe critérios conflitantes. Tente informar novamente a métrica, a dimensão e a operação desejadas.',
+            }
+          : {
+              title: 'Preciso de um critério',
+              message:
+                'Posso comparar margem líquida, lucro por entrega, lucro por km ou custo por entrega. Qual análise você quer?',
+              options: [
+                'Maior margem líquida',
+                'Maior lucro por entrega',
+                'Maior lucro por km',
+                'Menor custo por entrega',
+              ],
+            }
       : query.assistantStatus === 'unsupportedMetric'
         ? {
             title: 'Métrica não disponível',
@@ -1749,13 +1901,13 @@ function assistantResult(query: HomeSearchParsedQuery): HomeSearchAssistantResul
   ];
 }
 
-const UNPARSED_NATURAL_LANGUAGE =
-  /\b(quanto|quantos|quantas|qual|quais|como|meu|minha|mim|eu|me\s+diga|mostre|lucrei|sobrou|gastei|recebi|paguei|vendi|vendemos|tive|fiz|consumi|anteontem|realmente|ficou)\b/;
-
 function parserHasPotentialSemanticAnalysis(query: HomeSearchParsedQuery): boolean {
   const residualTokenCount = query.text ? query.text.split(/\s+/).filter(Boolean).length : 0;
   return (
-    residualTokenCount > 1 && Boolean(query.financialMetric || query.period || query.periodSummary)
+    hasSemanticAnalysisSignals(query.original) ||
+    hasNaturalLanguageQuestionSignals(query.original) ||
+    (residualTokenCount > 1 &&
+      Boolean(query.financialMetric || query.period || query.periodSummary))
   );
 }
 
@@ -1787,12 +1939,13 @@ function parserProducedExecutableQuery(query: HomeSearchParsedQuery): boolean {
 
   if (!query.text) return hasStructuredParserResult || Boolean(query.period);
 
-  if (parserHasPotentialSemanticAnalysis(query)) return false;
-
-  // `text` is the parser's remaining entity/client text. A structured intent
-  // plus question/verb residue means the parser recognized fragments, but not
-  // the complete request, so semantic interpretation must get a chance.
-  return !UNPARSED_NATURAL_LANGUAGE.test(query.text);
+  if (
+    parserHasPotentialSemanticAnalysis(query) ||
+    hasNaturalLanguageQuestionSignals(query.original)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function clarificationForIncompleteAnalysis(original: string): HomeSearchParsedQuery {
@@ -1844,6 +1997,23 @@ export class HomeSearchService {
       interpretedQuery = null;
     }
     homeSearchDevLog(interpretedQuery ? 'semantic-success' : 'semantic-fallback');
+    if (
+      interpretedQuery &&
+      !interpretedQuery.analysis &&
+      !interpretedQuery.assistantStatus &&
+      (hasSemanticAnalysisSignals(original) ||
+        (hasNaturalLanguageQuestionSignals(original) &&
+          !(
+            interpretedQuery.financialMetric ||
+            interpretedQuery.factoryMetric ||
+            interpretedQuery.routeMetric ||
+            interpretedQuery.carMetric ||
+            interpretedQuery.clientField ||
+            interpretedQuery.periodSummary
+          )))
+    ) {
+      return this.searchParsedInternal(clarificationForIncompleteAnalysis(original), request);
+    }
     if (!interpretedQuery && parserHasPotentialSemanticAnalysis(fallbackQuery)) {
       return this.searchParsedInternal(clarificationForIncompleteAnalysis(original), request);
     }

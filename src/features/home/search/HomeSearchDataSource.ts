@@ -157,24 +157,26 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
     if (query.clientField && !query.analysis) {
       return { clients, deliveries: [], factoryPurchases: [], coverage, errors };
     }
-    const isClientBucketPriceAnalysis =
-      query.financialMetric === 'bucketPrice' && query.analysis?.groupBy === 'client';
     const isFinancialAnalysis = Boolean(query.analysis);
     const analysisMetric = query.financialMetric;
     const analysisMetrics = [
       analysisMetric,
       query.analysis?.numeratorMetric,
       query.analysis?.denominatorMetric,
+      query.analysis?.secondaryMetric,
     ].filter((metric): metric is NonNullable<typeof metric> => Boolean(metric));
+    const hasFinancialAnalysisMetric = analysisMetrics.some((metric) => metric !== 'bucketPrice');
     const isReport = query.analysis?.operation === 'report';
     const needsFinancial =
       isReport ||
       Boolean(
-        query.financialMetric &&
-        !isClientBucketPriceAnalysis &&
+        hasFinancialAnalysisMetric &&
         (!isFinancialAnalysis ||
           !['route', 'factory'].includes(query.analysis?.groupBy ?? '') ||
-          ['compare', 'percentageChange', 'ratio'].includes(query.analysis?.operation ?? '')),
+          ['compare', 'percentageChange', 'ratio'].includes(query.analysis?.operation ?? '') ||
+          analysisMetrics.some(
+            (metric) => !['distanceKm', 'factoryCost', 'bucketPrice'].includes(metric),
+          )),
       );
     const needsRoutes =
       Boolean(query.routeMetric) ||

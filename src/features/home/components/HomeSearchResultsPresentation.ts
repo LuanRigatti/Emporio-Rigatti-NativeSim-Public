@@ -451,11 +451,13 @@ function financialDetails(
           ? 'semanal'
           : analysis.groupBy === 'client'
             ? 'por cliente'
-            : analysis.groupBy === 'route'
-              ? 'por rota'
-              : analysis.groupBy === 'factory'
-                ? 'por compra da fábrica'
-                : 'mensal';
+            : analysis.groupBy === 'year'
+              ? 'anual'
+              : analysis.groupBy === 'route'
+                ? 'por rota'
+                : analysis.groupBy === 'factory'
+                  ? 'por compra da fábrica'
+                  : 'mensal';
     return {
       primaryTitle: analysis.winner.label,
       relatedCount: formatFinancialAmount(analysis.winner.value, result.data.unit),

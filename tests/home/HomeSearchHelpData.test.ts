@@ -1,7 +1,39 @@
-import { HOME_SEARCH_HELP_CATEGORIES } from '@/features/home/help/HomeSearchHelpData';
+import {
+  getHomeSearchHelpSuggestions,
+  HOME_SEARCH_HELP_CATEGORIES,
+} from '@/features/home/help/HomeSearchHelpData';
 import { homeSearchQueryParser } from '@/features/home/search/HomeSearchQueryParser';
 
 describe('HomeSearchHelpData', () => {
+  it('builds the three quick suggestions from the device month in Portuguese', () => {
+    const suggestions = getHomeSearchHelpSuggestions(new Date(2026, 8, 9, 12));
+
+    expect(suggestions.slice(0, 3).map((suggestion) => suggestion.label)).toEqual([
+      'Faturamento',
+      'Lucro Líquido',
+      'Resumo',
+    ]);
+    expect(suggestions.slice(0, 3).map((suggestion) => suggestion.query)).toEqual([
+      'faturamento setembro',
+      'lucro líquido setembro',
+      'resumo setembro',
+    ]);
+  });
+
+  it('follows the local month across December and January without a hardcoded year', () => {
+    const december = getHomeSearchHelpSuggestions(new Date(2026, 11, 31, 12));
+    const january = getHomeSearchHelpSuggestions(new Date(2027, 0, 1, 12));
+
+    expect(december[0]?.query).toBe('faturamento dezembro');
+    expect(january[0]?.query).toBe('faturamento janeiro');
+    expect(january[0]?.query).not.toContain('2026');
+    expect(homeSearchQueryParser.parse(january[0]?.query ?? '', new Date(2027, 0, 1, 12)).period).toEqual({
+      kind: 'month',
+      month: 1,
+      year: 2027,
+    });
+  });
+
   it('contains exactly 6 categories with valid identifiers and system images', () => {
     expect(HOME_SEARCH_HELP_CATEGORIES).toHaveLength(6);
     expect(HOME_SEARCH_HELP_CATEGORIES.map((cat) => cat.id)).toEqual([

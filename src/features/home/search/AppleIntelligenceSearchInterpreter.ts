@@ -6,6 +6,10 @@ import type {
   HomeSearchAnalysisGroupBy,
   HomeSearchAnalysisOperation,
   HomeSearchAnalysisOrder,
+  HomeSearchAnalysisFilters,
+  HomeSearchAnalysisPeriodSpan,
+  HomeSearchAnalysisPeriodSpanDirection,
+  HomeSearchAnalysisPeriodSpanUnit,
   HomeSearchAssistantContext,
   HomeSearchAssistantStatus,
   HomeSearchCarMetric,
@@ -20,6 +24,7 @@ import type {
   HomeSearchPeriod,
   HomeSearchRouteMetric,
 } from './HomeSearchTypes';
+import { validateHomeSearchAnalysis } from './HomeSearchSemanticValidator';
 
 export type NativeAppleIntelligenceSearchIntent = {
   confidence: number;
@@ -51,6 +56,14 @@ export type NativeAppleIntelligenceSearchIntent = {
   comparisonStartYear: number;
   comparisonEndMonth: number;
   comparisonEndYear: number;
+  periodSpanUnit?: string;
+  periodSpanDirection?: string;
+  periodSpanCount?: number;
+  comparisonInitialStartDate?: string;
+  comparisonInitialEndDate?: string;
+  comparisonFinalStartDate?: string;
+  comparisonFinalEndDate?: string;
+  secondaryMetric?: string;
   limit?: number;
   numeratorMetric?: string;
   denominatorMetric?: string;
@@ -207,10 +220,24 @@ const ANALYSIS_GROUPINGS: ReadonlySet<HomeSearchAnalysisGroupBy> = new Set([
   'client',
   'month',
   'week',
+  'year',
   'route',
   'factory',
 ]);
 const ANALYSIS_ORDERS: ReadonlySet<HomeSearchAnalysisOrder> = new Set(['ascending', 'descending']);
+const PERIOD_SPAN_UNITS: ReadonlySet<HomeSearchAnalysisPeriodSpanUnit> = new Set([
+  'day',
+  'week',
+  'month',
+  'year',
+]);
+const PERIOD_SPAN_DIRECTIONS: ReadonlySet<HomeSearchAnalysisPeriodSpanDirection> = new Set([
+  'last',
+  'current',
+  'previous',
+  'next',
+  'toDate',
+]);
 
 const ASSISTANT_INTENTS: ReadonlyMap<string, HomeSearchAssistantStatus> = new Map([
   ['clarification', 'clarification'],
@@ -246,6 +273,11 @@ function normalizeAnalysisOperation(value: string): HomeSearchAnalysisOperation 
   return normalized as HomeSearchAnalysisOperation;
 }
 
+function normalizePeriodSpanDirection(value: string): HomeSearchAnalysisPeriodSpanDirection | '' {
+  const normalized = value.trim().toLowerCase();
+  return normalized === 'todate' ? 'toDate' : (normalized as HomeSearchAnalysisPeriodSpanDirection);
+}
+
 function validYear(value: number): boolean {
   return Number.isInteger(value) && value >= 1900 && value <= 2100;
 }
@@ -269,6 +301,154 @@ function validISODate(value: string): boolean {
   return (
     date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
+}
+
+function formatLocalISODate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+function startOfLocalWeek(date: Date): Date {
+  const mondayOffset = date.getDay() === 0 ? -6 : 1 - date.getDay();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + mondayOffset, 12);
+}
+
+function endOfLocalWeek(date: Date): Date {
+  const start = startOfLocalWeek(date);
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 12);
+}
+
+function spanUnitPeriod(start: Date, unit: HomeSearchAnalysisPeriodSpanUnit): HomeSearchPeriod {
+  if (unit === 'day') return { kind: 'date', date: formatLocalISODate(start) };
+  if (unit === 'week') {
+    return {
+      kind: 'range',
+      startDate: formatLocalISODate(startOfLocalWeek(start)),
+      endDate: formatLocalISODate(endOfLocalWeek(start)),
+    };
+  }
+  if (unit === 'month') {
+    return { kind: 'month', month: start.getMonth() + 1, year: start.getFullYear() };
+  }
+  return { kind: 'year', year: start.getFullYear() };
+}
+
+function periodSpanRange(
+  start: Date,
+  end: Date,
+  unit: HomeSearchAnalysisPeriodSpanUnit,
+  clampEndToReference = false,
+): HomeSearchPeriod {
+  const first = unit === 'week' ? startOfLocalWeek(start) : start;
+  const last = unit === 'week' && !clampEndToReference ? endOfLocalWeek(end) : end;
+  if (unit === 'day' && formatLocalISODate(first) === formatLocalISODate(last)) {
+    return { kind: 'date', date: formatLocalISODate(first) };
+  }
+  if (
+    unit === 'month' &&
+    first.getMonth() === last.getMonth() &&
+    first.getFullYear() === last.getFullYear()
+  ) {
+    return { kind: 'month', month: first.getMonth() + 1, year: first.getFullYear() };
+  }
+  if (unit === 'year' && first.getFullYear() === last.getFullYear()) {
+    return { kind: 'year', year: first.getFullYear() };
+  }
+  return {
+    kind: 'range',
+    startDate: formatLocalISODate(first),
+    endDate: formatLocalISODate(last),
+  };
+}
+
+function resolvePeriodSpan(
+  intent: NativeAppleIntelligenceSearchIntent,
+  referenceDate: Date,
+): HomeSearchPeriod | undefined {
+  const unit = intent.periodSpanUnit?.trim().toLowerCase() ?? '';
+  const direction = normalizePeriodSpanDirection(intent.periodSpanDirection ?? '');
+  const count = intent.periodSpanCount ?? -1;
+  if (!unit && !direction && count === -1) return undefined;
+  if (!inSet(unit, PERIOD_SPAN_UNITS) || !inSet(direction, PERIOD_SPAN_DIRECTIONS))
+    return undefined;
+  if (!Number.isInteger(count) || count < 1) return undefined;
+
+  const reference = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate(),
+    12,
+  );
+  if (direction === 'toDate') {
+    if (unit === 'year') {
+      return {
+        kind: 'range',
+        startDate: `${reference.getFullYear()}-01-01`,
+        endDate: formatLocalISODate(reference),
+      };
+    }
+    if (unit === 'month') {
+      return {
+        kind: 'range',
+        startDate: `${reference.getFullYear()}-${String(reference.getMonth() + 1).padStart(2, '0')}-01`,
+        endDate: formatLocalISODate(reference),
+      };
+    }
+    if (unit === 'week') {
+      return {
+        kind: 'range',
+        startDate: formatLocalISODate(startOfLocalWeek(reference)),
+        endDate: formatLocalISODate(reference),
+      };
+    }
+    return { kind: 'date', date: formatLocalISODate(reference) };
+  }
+
+  const unitStart =
+    unit === 'week'
+      ? startOfLocalWeek(reference)
+      : unit === 'month'
+        ? new Date(reference.getFullYear(), reference.getMonth(), 1, 12)
+        : unit === 'year'
+          ? new Date(reference.getFullYear(), 0, 1, 12)
+          : reference;
+  const move = direction === 'previous' ? -count : direction === 'next' ? count : 0;
+  const anchor = new Date(unitStart);
+  if (unit === 'day') anchor.setDate(anchor.getDate() + move);
+  if (unit === 'week') anchor.setDate(anchor.getDate() + move * 7);
+  if (unit === 'month') anchor.setMonth(anchor.getMonth() + move);
+  if (unit === 'year') anchor.setFullYear(anchor.getFullYear() + move);
+
+  if (direction === 'current' || direction === 'previous' || direction === 'next') {
+    if (count === 1) return spanUnitPeriod(anchor, unit);
+    const end = new Date(anchor);
+    if (unit === 'day') end.setDate(end.getDate() + count - 1);
+    if (unit === 'week') end.setDate(end.getDate() + (count - 1) * 7);
+    if (unit === 'month') end.setMonth(end.getMonth() + count - 1);
+    if (unit === 'year') end.setFullYear(end.getFullYear() + count - 1);
+    return periodSpanRange(anchor, end, unit);
+  }
+
+  const start = new Date(unitStart);
+  if (unit === 'day') start.setDate(start.getDate() - count + 1);
+  if (unit === 'week') start.setDate(start.getDate() - (count - 1) * 7);
+  if (unit === 'month') start.setMonth(start.getMonth() - count + 1);
+  if (unit === 'year') start.setFullYear(start.getFullYear() - count + 1);
+  return periodSpanRange(start, reference, unit, true);
+}
+
+function periodSpanValue(
+  intent: NativeAppleIntelligenceSearchIntent,
+): HomeSearchAnalysisPeriodSpan | undefined {
+  const unit = intent.periodSpanUnit?.trim().toLowerCase() ?? '';
+  const direction = normalizePeriodSpanDirection(intent.periodSpanDirection ?? '');
+  const count = intent.periodSpanCount ?? -1;
+  if (!inSet(unit, PERIOD_SPAN_UNITS) || !inSet(direction, PERIOD_SPAN_DIRECTIONS)) {
+    return undefined;
+  }
+  if (!Number.isInteger(count) || count < 1) return undefined;
+  return { unit, direction, count };
 }
 
 function buildPeriod(intent: NativeAppleIntelligenceSearchIntent): {
@@ -372,6 +552,14 @@ function readNativeIntent(value: unknown): NativeAppleIntelligenceSearchIntent |
     comparisonStartYear: integerValue(object.comparisonStartYear),
     comparisonEndMonth: integerValue(object.comparisonEndMonth),
     comparisonEndYear: integerValue(object.comparisonEndYear),
+    periodSpanUnit: stringValue(object.periodSpanUnit),
+    periodSpanDirection: stringValue(object.periodSpanDirection),
+    periodSpanCount: integerValue(object.periodSpanCount),
+    comparisonInitialStartDate: stringValue(object.comparisonInitialStartDate),
+    comparisonInitialEndDate: stringValue(object.comparisonInitialEndDate),
+    comparisonFinalStartDate: stringValue(object.comparisonFinalStartDate),
+    comparisonFinalEndDate: stringValue(object.comparisonFinalEndDate),
+    secondaryMetric: stringValue(object.secondaryMetric),
     limit: integerValue(object.limit),
     numeratorMetric: stringValue(object.numeratorMetric),
     denominatorMetric: stringValue(object.denominatorMetric),
@@ -382,6 +570,31 @@ function buildComparisonPeriods(intent: NativeAppleIntelligenceSearchIntent): {
   valid: boolean;
   periods?: [HomeSearchPeriod, HomeSearchPeriod];
 } {
+  const dateValues = [
+    intent.comparisonInitialStartDate ?? '',
+    intent.comparisonInitialEndDate ?? '',
+    intent.comparisonFinalStartDate ?? '',
+    intent.comparisonFinalEndDate ?? '',
+  ];
+  if (dateValues.some(Boolean)) {
+    if (
+      !validISODate(dateValues[0]) ||
+      !validISODate(dateValues[1]) ||
+      !validISODate(dateValues[2]) ||
+      !validISODate(dateValues[3]) ||
+      dateValues[0] > dateValues[1] ||
+      dateValues[2] > dateValues[3]
+    ) {
+      return { valid: false };
+    }
+    return {
+      valid: true,
+      periods: [
+        { kind: 'range', startDate: dateValues[0], endDate: dateValues[1] },
+        { kind: 'range', startDate: dateValues[2], endDate: dateValues[3] },
+      ],
+    };
+  }
   const values = [
     intent.comparisonStartMonth,
     intent.comparisonStartYear,
@@ -411,6 +624,31 @@ function buildComparisonPeriods(intent: NativeAppleIntelligenceSearchIntent): {
         year: intent.comparisonEndYear,
       },
     ],
+  };
+}
+
+function periodBounds(period: HomeSearchPeriod): [string, string] | undefined {
+  if (period.kind === 'date') return [period.date, period.date];
+  if (period.kind === 'dayMonth') return undefined;
+  if (period.kind === 'month') {
+    const year = period.year ?? new Date().getFullYear();
+    const start = `${year}-${String(period.month).padStart(2, '0')}-01`;
+    const end = new Date(year, period.month, 0, 12);
+    return [start, formatLocalISODate(end)];
+  }
+  if (period.kind === 'year') return [`${period.year}-01-01`, `${period.year}-12-31`];
+  return [period.startDate, period.endDate];
+}
+
+function enclosingComparisonPeriod(
+  periods: readonly [HomeSearchPeriod, HomeSearchPeriod],
+): HomeSearchPeriod | undefined {
+  const bounds = periods.map(periodBounds);
+  if (!bounds[0] || !bounds[1]) return undefined;
+  return {
+    kind: 'range',
+    startDate: bounds[0][0] < bounds[1][0] ? bounds[0][0] : bounds[1][0],
+    endDate: bounds[0][1] > bounds[1][1] ? bounds[0][1] : bounds[1][1],
   };
 }
 
@@ -459,18 +697,28 @@ export function toHomeSearchParsedQuery(
   const assistantStatus = ASSISTANT_INTENTS.get(inferredIntentKind);
   if (assistantStatus) return assistantQuery(original, assistantStatus);
 
+  const periodSpan = resolvePeriodSpan(intent, effectiveReferenceDate);
+  const declaredPeriodSpan = periodSpanValue(intent);
+  const hasDeclaredPeriodSpan = Boolean(
+    intent.periodSpanUnit || intent.periodSpanDirection || intent.periodSpanCount !== -1,
+  );
   const periodResult = buildPeriod(intent);
-  if (!periodResult.valid) {
+  if ((!periodResult.valid && !periodSpan) || (hasDeclaredPeriodSpan && !declaredPeriodSpan)) {
     logParserRejection('period', { reason: 'invalidPeriodFields' });
     return null;
   }
 
-  let period = resolvePeriodFromReference(original, periodResult.period, effectiveReferenceDate);
+  let period = resolvePeriodFromReference(
+    original,
+    periodSpan ?? periodResult.period,
+    effectiveReferenceDate,
+  );
   const query: HomeSearchParsedQuery = {
     original,
     normalized: normalizeHomeSearchText(original),
     text: normalizeHomeSearchText(intent.text),
     ...(period ? { period } : {}),
+    ...(declaredPeriodSpan ? { periodSpan: declaredPeriodSpan } : {}),
     detectedTypes: [],
   };
 
@@ -508,12 +756,17 @@ export function toHomeSearchParsedQuery(
   }
   const numeratorMetric = (intent.numeratorMetric ?? '').trim();
   const denominatorMetric = (intent.denominatorMetric ?? '').trim();
+  const secondaryMetric = (intent.secondaryMetric ?? '').trim();
   if (numeratorMetric && !inSet(numeratorMetric, FINANCIAL_METRICS)) {
     logParserRejection('numeratorMetric', { reason: 'unsupportedValue' });
     return null;
   }
   if (denominatorMetric && !inSet(denominatorMetric, FINANCIAL_METRICS)) {
     logParserRejection('denominatorMetric', { reason: 'unsupportedValue' });
+    return null;
+  }
+  if (secondaryMetric && !inSet(secondaryMetric, FINANCIAL_METRICS)) {
+    logParserRejection('secondaryMetric', { reason: 'unsupportedValue' });
     return null;
   }
   if (inSet(intent.clientField, CLIENT_FIELDS)) {
@@ -590,7 +843,12 @@ export function toHomeSearchParsedQuery(
         return assistantQuery(original, 'clarification');
       }
     }
-    if (!period && query.financialMetric !== 'bucketPrice') {
+    const comparison = buildComparisonPeriods(intent);
+    if (
+      !period &&
+      query.financialMetric !== 'bucketPrice' &&
+      !(['compare', 'percentageChange'].includes(operation) && comparison.periods)
+    ) {
       period = {
         kind: 'month',
         month: effectiveReferenceDate.getMonth() + 1,
@@ -599,7 +857,6 @@ export function toHomeSearchParsedQuery(
       query.period = period;
       addDetectedType(query.detectedTypes, 'month');
     }
-    const comparison = buildComparisonPeriods(intent);
     if (
       !comparison.valid ||
       (['compare', 'percentageChange'].includes(operation) && !comparison.periods)
@@ -607,15 +864,26 @@ export function toHomeSearchParsedQuery(
       logParserRejection('analysis', { reason: 'invalidComparisonPeriods' });
       return assistantQuery(original, 'clarification');
     }
+    if (!period && comparison.periods) {
+      period = enclosingComparisonPeriod(comparison.periods);
+      if (period) {
+        query.period = period;
+        addDetectedType(query.detectedTypes, period.kind);
+      }
+    }
     const limit =
       Number.isInteger(intent.limit) && intent.limit! >= 1
         ? Math.min(intent.limit!, 100)
         : undefined;
-    if (operation === 'topN' && limit === undefined) {
+    const normalizedOperation =
+      limit !== undefined && limit > 1 && ['max', 'min'].includes(operation) ? 'topN' : operation;
+    const normalizedOrder =
+      !order && normalizedOperation === 'topN' && operation === 'min' ? 'ascending' : order;
+    if (normalizedOperation === 'topN' && limit === undefined) {
       logParserRejection('analysis', { reason: 'missingLimit' });
       return assistantQuery(original, 'clarification');
     }
-    if (operation === 'ratio' && (!numeratorMetric || !denominatorMetric)) {
+    if (normalizedOperation === 'ratio' && (!numeratorMetric || !denominatorMetric)) {
       logParserRejection('analysis', { reason: 'missingRatioMetrics' });
       return assistantQuery(original, 'clarification');
     }
@@ -625,16 +893,29 @@ export function toHomeSearchParsedQuery(
     const parsedDenominatorMetric = denominatorMetric
       ? (denominatorMetric as HomeSearchFinancialMetric)
       : undefined;
+    const filters: HomeSearchAnalysisFilters = {
+      ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
+      ...(query.documentType ? { documentType: query.documentType } : {}),
+      ...(query.factoryStatus ? { factoryStatus: query.factoryStatus } : {}),
+    };
     query.analysis = {
-      operation,
+      operation: normalizedOperation,
       groupBy: effectiveGroupBy,
-      ...(order ? { order: order as HomeSearchAnalysisOrder } : {}),
+      ...(normalizedOrder ? { order: normalizedOrder as HomeSearchAnalysisOrder } : {}),
       ...(limit !== undefined ? { limit } : {}),
       ...(parsedNumeratorMetric ? { numeratorMetric: parsedNumeratorMetric } : {}),
       ...(parsedDenominatorMetric ? { denominatorMetric: parsedDenominatorMetric } : {}),
+      ...(secondaryMetric ? { secondaryMetric: secondaryMetric as HomeSearchFinancialMetric } : {}),
+      ...(Object.keys(filters).length > 0 ? { filters } : {}),
       ...(comparison.periods ? { comparisonPeriods: comparison.periods } : {}),
     };
     addDetectedType(query.detectedTypes, 'analysis');
+
+    const validation = validateHomeSearchAnalysis(original, query.analysis, query.financialMetric);
+    if (!validation.valid) {
+      logParserRejection('analysis', { reason: validation.reason });
+      return assistantQuery(original, 'clarification', 'incoherentAnalysis');
+    }
   }
 
   if (intent.financialMetric === 'bucketPrice') {

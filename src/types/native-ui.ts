@@ -83,7 +83,7 @@ export type NativeListProps = {
 };
 
 export type NativeDatePickerMode = 'date' | 'time';
-export type NativeDatePickerStyle = 'automatic' | 'compact' | 'graphical' | 'wheel';
+export type NativeDatePickerStyle = 'automatic' | 'compact' | 'wheel';
 
 export type NativeDatePickerProps = {
   value: Date;

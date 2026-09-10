@@ -7,7 +7,6 @@ import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
 import { OverKeyboardView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
-import { NativeDatePicker } from '@/components/native';
 import { CameraBar } from './chatgpt-attachments/camera/camera-bar';
 import { CameraSheet, type CameraSheetHandle } from './chatgpt-attachments/camera/camera-sheet';
 import { AttachmentFlight } from './chatgpt-attachments/composer/attachment-flight';
@@ -20,6 +19,7 @@ import {
 } from './chatgpt-attachments/constants';
 import { AttachmentMenu, type MenuAction } from './chatgpt-attachments/panel/attachment-menu';
 import { AttachmentPanel } from './chatgpt-attachments/panel/attachment-panel';
+import { LocalCalendar } from './chatgpt-attachments/panel/local-calendar';
 import { PhotoGridBar } from './chatgpt-attachments/photos/photo-grid-bar';
 import { PhotoGrid, type PhotoGridHandle } from './chatgpt-attachments/photos/photo-grid';
 import { usePhotoLibrary, type LibraryPhoto } from './chatgpt-attachments/photos/use-photo-library';
@@ -58,7 +58,6 @@ export default function HomeSearchAttachmentsComposer({
   const [flash, setFlash] = useState<FlashMode>('off');
   const capturing = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const clearSelection = useCallback(() => setSelected([]), []);
   const panel = useAttachmentPanel({ onLeaveSheet: clearSelection });
   const {
@@ -191,15 +190,7 @@ export default function HomeSearchAttachmentsComposer({
         onTogglePhoto={togglePhoto}
       />
     ) : panel.mode === 'date' ? (
-      <View style={styles.calendarPage}>
-        <NativeDatePicker
-          accessibilityLabel="Selecionar data"
-          mode="date"
-          onChange={setSelectedDate}
-          style="graphical"
-          value={selectedDate}
-        />
-      </View>
+      <LocalCalendar />
     ) : null;
 
   const flipCamera = useCallback(() => {
@@ -316,11 +307,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  calendarPage: {
-    flex: 1,
-    alignItems: 'stretch',
-    justifyContent: 'center',
-    width: '100%',
   },
 });

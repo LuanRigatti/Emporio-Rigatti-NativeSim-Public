@@ -154,7 +154,8 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
   return (
     <Glass
       radius={COMPOSER.radius}
-      interactive={false}
+      interactive
+      variant="clear"
       fallbackTint={composerSurface}
       style={styles.root}
     >

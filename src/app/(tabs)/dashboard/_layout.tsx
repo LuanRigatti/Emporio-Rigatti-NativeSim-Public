@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 
 import { useAppTheme } from '@/theme';
 
-export default function RegistrarLayout() {
+export default function DashboardLayout() {
   const { resolvedMode } = useAppTheme();
 
   return (

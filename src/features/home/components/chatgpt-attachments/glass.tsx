@@ -10,8 +10,9 @@ import { COLORS } from './constants';
 const LIQUID_GLASS = isLiquidGlassAvailable();
 const BLURS_ITS_BACKDROP = Platform.OS !== 'android';
 const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
-export type GlassStyleName = 'regular' | 'none';
+export type GlassStyleName = 'clear' | 'regular' | 'none';
 
 function useGlassStyle(target: GlassStyleName, duration: number) {
   const [style, setStyle] = useState<GlassStyleName>('none');
@@ -25,12 +26,14 @@ function shapeOf(radius: number): ViewStyle {
   return { borderRadius: radius, borderCurve: 'continuous' };
 }
 
-export interface GlassProps extends ViewProps {
+export interface GlassProps extends Omit<ViewProps, 'style'> {
   fallbackTint?: string;
   radius?: number;
   active?: boolean;
   interactive?: boolean;
+  variant?: Exclude<GlassStyleName, 'none'>;
   duration?: number;
+  style?: AnimatedProps<ViewProps>['style'];
   children?: ReactNode;
 }
 
@@ -40,19 +43,20 @@ export function Glass({
   radius = 0,
   active = true,
   interactive = true,
+  variant = 'regular',
   duration = 0.25,
   style,
   children,
   ...rest
 }: GlassProps) {
   const { resolvedMode, theme } = useAppTheme();
-  const glassEffectStyle = useGlassStyle(active ? 'regular' : 'none', duration);
+  const glassEffectStyle = useGlassStyle(active ? variant : 'none', duration);
   const resolvedFallbackTint =
     fallbackTint ?? (resolvedMode === 'dark' ? COLORS.controlScrim : theme.colors.glassSurface);
 
   if (!LIQUID_GLASS) {
     return (
-      <BlurView
+      <AnimatedBlurView
         intensity={60}
         tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}
         style={[shapeOf(radius), styles.clip, style]}
@@ -63,12 +67,12 @@ export function Glass({
           style={[StyleSheet.absoluteFill, { backgroundColor: resolvedFallbackTint }]}
         />
         {children}
-      </BlurView>
+      </AnimatedBlurView>
     );
   }
 
   return (
-    <GlassView
+    <AnimatedGlassView
       colorScheme={resolvedMode}
       glassEffectStyle={glassEffectStyle}
       isInteractive={interactive}
@@ -76,7 +80,7 @@ export function Glass({
       {...rest}
     >
       {children}
-    </GlassView>
+    </AnimatedGlassView>
   );
 }
 

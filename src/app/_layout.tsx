@@ -1,7 +1,6 @@
 import {
   DefaultTheme,
   Stack,
-  useRouter,
   ThemeProvider as NavigationThemeProvider,
   usePathname,
 } from 'expo-router';
@@ -30,11 +29,6 @@ import { locationTrackingService, routeTrackingRepository } from '@/services/rou
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
-import {
-  RootToolbarProvider,
-  useRootToolbarItems,
-  useRootToolbarLeftItems,
-} from '@/navigation/RootToolbarContext';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -42,22 +36,9 @@ function AppShell() {
   const { status, user } = useSession();
   const { resolvedMode, theme } = useAppTheme();
   const pathname = usePathname();
-  const router = useRouter();
-  const rootToolbarLeftItems = useRootToolbarLeftItems();
-  const rootToolbarItems = useRootToolbarItems();
   const isAuthenticated = status === 'authenticated' && Boolean(user?.id);
   const isSessionLoading = status === 'loading';
   const isStartupRoute = pathname === '/';
-  const configDetailScreenOptions = {
-    animation: 'default' as const,
-    headerShadowVisible: false,
-    headerShown: true,
-    headerTitle: '',
-    headerTransparent: true,
-    unstable_nativeProps: {
-      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
-    },
-  };
   const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
   const isCacheHydrated =
     status === 'loading'
@@ -159,18 +140,9 @@ function AppShell() {
                   name="(tabs)"
                   options={{
                     gestureEnabled: false,
-                    headerShadowVisible: false,
-                    headerShown: true,
-                    headerTitle: '',
-                    headerTransparent: true,
-                    unstable_nativeProps: {
-                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
-                    },
+                    headerShown: false,
                   }}
-                >
-                  <Stack.Toolbar placement="left">{rootToolbarLeftItems}</Stack.Toolbar>
-                  <Stack.Toolbar placement="right">{rootToolbarItems}</Stack.Toolbar>
-                </Stack.Screen>
+                />
                 <Stack.Screen
                   name="registrar"
                   options={{ gestureEnabled: true, headerShown: false }}
@@ -179,178 +151,6 @@ function AppShell() {
                   name="financeiro"
                   options={{ gestureEnabled: true, headerShown: false }}
                 />
-                <Stack.Screen
-                  name="configuracoes/clientes"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/clientes/[clientId]"
-                  options={{
-                    ...configDetailScreenOptions,
-                    gestureEnabled: true,
-                    headerBackButtonMenuEnabled: false,
-                  }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/dados-empresa"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/fabrica"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/fabrica/valor-balde"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/fabrica/compras-menu"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/fabrica/compras"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/fabrica/compras/registrar"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/dados"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="minimal" />
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/dados/mensais"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/dados/diarios"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/dados/carro"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/face-id"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/sistema"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/modo-teste"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/backup"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/estoque"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/localizacao"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: false }}
-                >
-                  <Stack.Toolbar placement="left">
-                    <Stack.Toolbar.Button
-                      accessibilityLabel="Voltar para Configurações"
-                      icon="chevron.left"
-                      onPress={() => router.back()}
-                    />
-                  </Stack.Toolbar>
-                </Stack.Screen>
-                <Stack.Screen
-                  name="configuracoes/localizacao/[routeId]"
-                  options={{ ...configDetailScreenOptions, gestureEnabled: true }}
-                >
-                  <Stack.Screen.BackButton displayMode="minimal" />
-                </Stack.Screen>
                 <Stack.Screen
                   name="(home-shortcuts)"
                   options={{ gestureEnabled: true, headerShown: false }}
@@ -384,9 +184,7 @@ export default function PrototypeRootLayout() {
           <SessionProvider>
             <ThemeProvider>
               <TestModeProvider>
-                <RootToolbarProvider>
-                  <AppShell />
-                </RootToolbarProvider>
+                <AppShell />
               </TestModeProvider>
             </ThemeProvider>
           </SessionProvider>

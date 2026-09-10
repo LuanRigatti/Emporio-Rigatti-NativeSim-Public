@@ -20,7 +20,7 @@ import {
   PLUS_CENTER_X,
   sheetTopFromComposerBottom,
 } from '../constants';
-import { PanelMaterial } from '../glass';
+import { Glass, PanelMaterial } from '../glass';
 
 export interface PanelDrivers {
   open: SharedValue<number>;
@@ -102,35 +102,67 @@ export function AttachmentPanel({
 
   return (
     <Animated.View pointerEvents="box-none" style={[styles.panel, panelStyle]}>
-      <PanelMaterial
-        variant={glass ? 'regular' : 'none'}
-        duration={glassDuration}
-        style={[StyleSheet.absoluteFill, shapeStyle]}
-      />
-      <Animated.View
-        pointerEvents="box-none"
-        style={[StyleSheet.absoluteFill, styles.clip, shapeStyle]}
-      >
-        <Animated.View
-          pointerEvents={interactive === 'grid' ? 'auto' : 'none'}
-          style={[styles.content, { width: gridWidth, height: gridHeight }, gridStyle]}
-        >
-          {grid}
+      {interactive === 'menu' ? (
+        <Animated.View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <Glass
+            active={glass}
+            duration={glassDuration}
+            variant="regular"
+            style={[StyleSheet.absoluteFill, shapeStyle]}
+          >
+            <Animated.View
+              pointerEvents="box-none"
+              style={[StyleSheet.absoluteFill, styles.clip, shapeStyle]}
+            >
+              <Animated.View
+                pointerEvents="auto"
+                style={[styles.content, { width: MENU.width, height: MENU_HEIGHT }, menuStyle]}
+              >
+                {menu}
+              </Animated.View>
+              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, blurStyle]}>
+                <BlurView
+                  intensity={20}
+                  tint={resolvedMode === 'dark' ? 'dark' : 'light'}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            </Animated.View>
+          </Glass>
         </Animated.View>
-        <Animated.View
-          pointerEvents={interactive === 'menu' ? 'auto' : 'none'}
-          style={[styles.content, { width: MENU.width, height: MENU_HEIGHT }, menuStyle]}
-        >
-          {menu}
-        </Animated.View>
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, blurStyle]}>
-          <BlurView
-            intensity={20}
-            tint={resolvedMode === 'dark' ? 'dark' : 'light'}
-            style={StyleSheet.absoluteFill}
+      ) : (
+        <>
+          <PanelMaterial
+            variant={glass ? 'regular' : 'none'}
+            duration={glassDuration}
+            style={[StyleSheet.absoluteFill, shapeStyle]}
           />
-        </Animated.View>
-      </Animated.View>
+          <Animated.View
+            pointerEvents="box-none"
+            style={[StyleSheet.absoluteFill, styles.clip, shapeStyle]}
+          >
+            <Animated.View
+              pointerEvents={interactive === 'grid' ? 'auto' : 'none'}
+              style={[styles.content, { width: gridWidth, height: gridHeight }, gridStyle]}
+            >
+              {grid}
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.content, { width: MENU.width, height: MENU_HEIGHT }, menuStyle]}
+            >
+              {menu}
+            </Animated.View>
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, blurStyle]}>
+              <BlurView
+                intensity={20}
+                tint={resolvedMode === 'dark' ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          </Animated.View>
+        </>
+      )}
     </Animated.View>
   );
 }

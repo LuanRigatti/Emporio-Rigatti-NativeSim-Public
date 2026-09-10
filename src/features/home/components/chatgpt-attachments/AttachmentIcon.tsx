@@ -7,6 +7,7 @@ export type AttachmentIconName =
   | 'camera-flip'
   | 'calendar'
   | 'chevron-left'
+  | 'chevron-right'
   | 'close'
   | 'document-text'
   | 'ellipsis'
@@ -29,6 +30,7 @@ const ICONS: Record<AttachmentIconName, IoniconName> = {
   'camera-flip': 'camera-reverse-outline',
   calendar: 'calendar-outline',
   'chevron-left': 'chevron-back',
+  'chevron-right': 'chevron-forward',
   close: 'close',
   'document-text': 'document-text-outline',
   ellipsis: 'ellipsis-horizontal',

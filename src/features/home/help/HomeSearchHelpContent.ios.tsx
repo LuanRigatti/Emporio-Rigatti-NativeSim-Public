@@ -97,7 +97,7 @@ export default function HomeSearchHelpContent({
       alignment="leading"
       spacing={0}
       modifiers={[
-        padding({ horizontal: 16, top: spacing.xxxl + spacing.lg, bottom: spacing.xxl }),
+        padding({ horizontal: 16, top: spacing.xxxl, bottom: spacing.xxl }),
         frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
       ]}
     >
@@ -118,7 +118,7 @@ export default function HomeSearchHelpContent({
             ),
           ]}
         >
-          {HOME_SEARCH_HELP_SUGGESTIONS.map((suggestion) => (
+          {HOME_SEARCH_HELP_SUGGESTIONS.slice(0, 3).map((suggestion) => (
             <VStack
               key={suggestion.id}
               alignment="leading"

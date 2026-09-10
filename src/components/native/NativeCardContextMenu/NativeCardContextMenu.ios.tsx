@@ -7,6 +7,7 @@ import type { NativeCardContextMenuProps } from './NativeCardContextMenu.types';
 export default function NativeCardContextMenu({
   actions,
   children,
+  matchContents = true,
   preview,
   style,
   title,
@@ -22,11 +23,7 @@ export default function NativeCardContextMenu({
     />
   ));
   return (
-    <Host
-      ignoreSafeArea="all"
-      matchContents
-      style={style as StyleProp<ViewStyle>}
-    >
+    <Host ignoreSafeArea="all" matchContents={matchContents} style={style as StyleProp<ViewStyle>}>
       <ContextMenu>
         <ContextMenu.Trigger>
           <RNHostView matchContents>

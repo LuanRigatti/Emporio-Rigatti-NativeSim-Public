@@ -47,6 +47,8 @@ export { default as NativeGlassIconButton } from './NativeGlassIconButton';
 export type { NativeGlassIconButtonProps } from './NativeGlassIconButton';
 export { default as NativeAvatarButton } from './NativeAvatarButton';
 export type { NativeAvatarButtonProps } from './NativeAvatarButton';
+export { default as NativeHomeToolbarActions } from './NativeHomeToolbarActions';
+export type { NativeHomeToolbarActionsProps } from './NativeHomeToolbarActions';
 export { default as NativeGlassMenu } from './NativeGlassMenu';
 export type { NativeGlassMenuProps } from './NativeGlassMenu';
 export { NativeDatePicker } from './NativeDatePicker';

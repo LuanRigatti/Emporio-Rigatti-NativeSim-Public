@@ -38,7 +38,6 @@ import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type { Delivery } from '@/types/data';
-import { renderEmptyRootToolbarItems, useRootToolbar } from '@/navigation/RootToolbarContext';
 
 const DELIVERY_CARD_GROWTH_DURATION = 200;
 
@@ -103,7 +102,6 @@ export default function PrototypeRegistrar() {
 }
 
 function RegistrarModeSelection() {
-  useRootToolbar('registrar', renderEmptyRootToolbarItems);
   const { resolvedMode, theme } = useAppTheme();
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const registrarModeIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';

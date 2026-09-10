@@ -10,6 +10,8 @@ import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import { DeliveryStatusBadge } from '@/features/history/components/DeliveryStatusBadge';
 import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 
+const TODAY_DELIVERY_ICON_SIZE = 54;
+
 export type TodayDeliveriesCardProps = {
   cardSurfaceColor?: string;
   deliveries: readonly HistoryDelivery[];
@@ -29,6 +31,7 @@ export function TodayDeliveriesCard({
   const totalBuckets = deliveries.reduce((total, delivery) => total + delivery.quantidadeBaldes, 0);
   const isEmpty = deliveries.length === 0;
   const emptyDeliveryCardMinHeight = theme.spacing.xxl * 5;
+  const deliveryRowHeight = TODAY_DELIVERY_ICON_SIZE + theme.spacing.md * 2;
   const transitionDuration = reduceMotionEnabled ? 0 : theme.animations.duration.standard;
   const contentLayoutTransition = LinearTransition.duration(transitionDuration);
 
@@ -113,6 +116,7 @@ export function TodayDeliveriesCard({
                         borderRadius: cardRadius,
                         overflow: preview ? 'hidden' : undefined,
                         padding: theme.spacing.md,
+                        height: deliveryRowHeight,
                         width: '100%',
                       },
                     ]}
@@ -156,6 +160,7 @@ export function TodayDeliveriesCard({
                         backgroundColor: surfaceColor,
                         borderRadius: theme.radius.xl + theme.spacing.sm,
                         overflow: 'hidden',
+                        height: deliveryRowHeight,
                         width: '100%',
                       },
                     ]}
@@ -171,9 +176,10 @@ export function TodayDeliveriesCard({
                           title: 'Excluir',
                         },
                       ]}
+                      matchContents={{ horizontal: true, vertical: false }}
                       style={[
                         styles.contextMenu,
-                        { borderRadius: cardRadius },
+                        { borderRadius: cardRadius, height: deliveryRowHeight },
                       ]}
                       preview={renderDeliveryRow(true)}
                     >

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeSegmentedControl, renderNativeDateToolbarItems } from '@/components/native';
@@ -13,7 +13,6 @@ import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
-import { useRootToolbar } from '@/navigation/RootToolbarContext';
 
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
@@ -273,7 +272,7 @@ export function HistoryScreen() {
     if (nextMode) setViewMode(nextMode);
   }, []);
 
-  const renderRootToolbar = useCallback(
+  const renderHistoryToolbar = useCallback(
     () =>
       renderNativeDateToolbarItems({
         mode: viewMode,
@@ -285,8 +284,6 @@ export function HistoryScreen() {
       }),
     [handleSelectDate, handleSelectWeek, selectedDate, viewMode, weekGroups],
   );
-  useRootToolbar('historico', renderRootToolbar);
-
   const filterHeader = (
     <NativeGlassHeader
       includeTopSafeArea
@@ -371,22 +368,25 @@ export function HistoryScreen() {
   const dayContent = <View style={dayContentStyle}>{dayContentChildren}</View>;
 
   return (
-    <Animated.View style={styles.root}>
-      <PremiumScreen
-        scrollable
-        contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
-        overlayHeader={filterHeader}
-        overlayHeaderUnderlay
-        onOverlayHeaderLayout={setOverlayHeaderHeight}
-        progressiveBlurHeight={
-          insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm
-        }
-        progressiveBlurTopOffset={-theme.spacing.xl}
-        progressiveBlur
-      >
-        <View style={styles.dayContentContainer}>{dayContent}</View>
-      </PremiumScreen>
-    </Animated.View>
+    <>
+      <Stack.Toolbar placement="right">{renderHistoryToolbar()}</Stack.Toolbar>
+      <Animated.View style={styles.root}>
+        <PremiumScreen
+          scrollable
+          contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
+          overlayHeader={filterHeader}
+          overlayHeaderUnderlay
+          onOverlayHeaderLayout={setOverlayHeaderHeight}
+          progressiveBlurHeight={
+            insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm
+          }
+          progressiveBlurTopOffset={-theme.spacing.xl}
+          progressiveBlur
+        >
+          <View style={styles.dayContentContainer}>{dayContent}</View>
+        </PremiumScreen>
+      </Animated.View>
+    </>
   );
 }
 

@@ -34,16 +34,18 @@ export type AvatarProps = {
   name: string;
   imageUri?: string;
   size?: 'small' | 'medium' | 'large';
+  dimension?: number;
   style?: ViewComponentStyle;
 };
 
-export function Avatar({ name, imageUri, size = 'medium', style }: AvatarProps) {
+export function Avatar({ name, imageUri, size = 'medium', dimension, style }: AvatarProps) {
   const { theme } = useAppTheme();
-  const dimensions = {
+  const defaultDimensions = {
     small: theme.sizes.avatarSmall,
     medium: theme.sizes.avatarMedium,
     large: theme.sizes.avatarLarge,
   }[size];
+  const dimensions = dimension ?? defaultDimensions;
   const initials = name
     .trim()
     .split(/\s+/)

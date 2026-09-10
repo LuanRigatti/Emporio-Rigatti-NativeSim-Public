@@ -67,7 +67,7 @@ export default function HomeSearchHelpContent({ cardBackground, onSelectQuery }:
         {
           paddingBottom: theme.spacing.xxxl,
           paddingHorizontal: theme.spacing.lg,
-          paddingTop: theme.spacing.xxxl + theme.spacing.xxl,
+          paddingTop: theme.spacing.xxxl,
         },
       ]}
     >
@@ -84,7 +84,7 @@ export default function HomeSearchHelpContent({ cardBackground, onSelectQuery }:
           resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
         ]}
       >
-        {HOME_SEARCH_HELP_SUGGESTIONS.map((suggestion, index) => (
+        {HOME_SEARCH_HELP_SUGGESTIONS.slice(0, 3).map((suggestion, index) => (
           <View key={suggestion.id}>
             {index > 0 ? (
               <View style={[styles.divider, { backgroundColor: theme.colors.separator }]} />

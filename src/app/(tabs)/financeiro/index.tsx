@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -16,7 +16,6 @@ import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/servi
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { useRootToolbar } from '@/navigation/RootToolbarContext';
 
 export default function PrototypeFinanceiro() {
   const router = useRouter();
@@ -169,7 +168,7 @@ export default function PrototypeFinanceiro() {
     });
   };
 
-  const renderRootToolbar = useCallback(
+  const renderFinanceToolbarItems = useCallback(
     () =>
       renderFinancePeriodToolbarItems({
         composition: 'combined',
@@ -180,10 +179,9 @@ export default function PrototypeFinanceiro() {
       }),
     [displayedMonth, displayedYear],
   );
-  useRootToolbar('financeiro', renderRootToolbar);
-
   return (
     <>
+      <Stack.Toolbar placement="right">{renderFinanceToolbarItems()}</Stack.Toolbar>
       <PremiumScreen
         contentContainerStyle={[
           styles.content,

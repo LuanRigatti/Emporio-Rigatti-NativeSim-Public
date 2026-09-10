@@ -14,6 +14,7 @@ export default function FinanceLayout() {
         headerTitle: '',
         headerTransparent: true,
         unstable_nativeProps: {
+          hidesBottomBarWhenPushed: true,
           headerConfig: {
             experimental_userInterfaceStyle: resolvedMode,
           },

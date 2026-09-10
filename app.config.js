@@ -84,6 +84,7 @@ module.exports = {
       'expo-router',
       ...(isFinalVariant ? [['expo-dev-client', { addGeneratedScheme: false }]] : []),
       './plugins/withHomeScreenQuickActions',
+      './plugins/withRNScreensHideBottomBarWhenPushed',
       'expo-font',
       [
         'expo-camera',

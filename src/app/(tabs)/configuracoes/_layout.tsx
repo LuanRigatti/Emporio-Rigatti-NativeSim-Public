@@ -14,6 +14,7 @@ export default function SettingsLayout() {
         headerTitle: '',
         headerTransparent: true,
         unstable_nativeProps: {
+          hidesBottomBarWhenPushed: true,
           headerConfig: {
             experimental_userInterfaceStyle: resolvedMode,
           },

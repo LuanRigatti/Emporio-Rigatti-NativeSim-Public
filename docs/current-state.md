@@ -34,7 +34,7 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 
 ### Home
 
-- A Home mantém o botão circular de pesquisa, `Entregas de hoje` e os dados e
+- A Home mantém a pílula nativa de ações, `Entregas de hoje` e os dados e
   handlers existentes. Os quatro atalhos `Registrar Entrega`, `Em aberto`,
   `Documentos` e `Fábrica` agora ficam em um único card agrupado, com quatro
   linhas inteiras clicáveis, ícone em círculo `54x54`, título, informação
@@ -43,8 +43,18 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
   `theme.layout.screenHorizontalPadding` (`16 pt`) em cada lado, com largura
   centralizada. O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou
   campo editável na Home.
-- O header mantém o avatar no canto superior esquerdo e a lupa Liquid Glass no
-  canto superior direito, ambos com os handlers e haptics nativos atuais.
+- O header da Home mantém avatar e lupa juntos em uma única pílula no canto
+  superior direito, pertencente ao `Stack.Toolbar` local. Os dois controles
+  continuam com hitboxes nativas independentes, haptics, Profile Sheet e
+  navegação para `/pesquisa`.
+- No caminho iOS com `@expo/ui`, a cápsula visível usa o shared background
+  nativo do `Stack.Toolbar`, como o seletor de período de Finanças. A Home não
+  usa `hidesSharedBackground`, tint, background manual ou `glassEffect` custom
+  nessa composição. O HStack mantém controles de `44 pt`, gap de `4 pt`, foto
+  de `34 pt`, padding nativo assimétrico `leading: 0`/`trailing: 2 pt` e frame
+  efetivo de `94 pt`; o fallback não nativo permanece separado.
+- O card agrupado foi deslocado `4 pt` para baixo por margem local, sem alterar
+  safe area, título, toolbar ou conteúdo restante da Home.
 - O fundo da Home permanece no background original, sem gradientes, glows ou
   camadas BlurView experimentais.
 - O card `Registrar Entrega` navega para `/registrar-entrega`; não abre um
@@ -369,6 +379,10 @@ Windows.
   atualização: TypeScript, lint funcional, testes direcionados e
   `git diff --check` foram validados localmente, mas ainda não há nova
   confirmação visual desses ajustes no iPhone.
+- A migração da pílula avatar+lupa para o background compartilhado do toolbar
+  nativo e os últimos ajustes de largura/foto da Home foram validados com
+  TypeScript, ESLint, testes direcionados e `git diff --check`; a confirmação
+  visual final desses últimos valores no iPhone permanece pendente.
 - A reorganização das rotas de detalhe financeiro foi validada localmente com
   TypeScript, ESLint direcionado, testes financeiros e `git diff --check`; a
   confirmação visual de swipe-back no iPhone continua pendente. A alteração é

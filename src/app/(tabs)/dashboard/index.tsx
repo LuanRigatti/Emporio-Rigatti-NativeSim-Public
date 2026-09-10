@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeHomeToolbarActions } from '@/components/native';
-import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
@@ -136,12 +136,11 @@ export default function Home() {
 
   const renderHomeToolbarItems = useCallback(
     () => (
-      <Stack.Toolbar.View hidesSharedBackground>
+      <Stack.Toolbar.View>
         <NativeHomeToolbarActions
           accessibilityHint="Exibe os dados da conta e a opção de sair"
           accessibilityLabel="Abrir perfil da conta"
           foregroundColor={theme.colors.textPrimary}
-          glassTint={getLiquidGlassTint(resolvedMode)}
           imageUri={user?.photoUrl}
           name={accountName}
           onProfilePress={handleOpenProfile}
@@ -149,14 +148,7 @@ export default function Home() {
         />
       </Stack.Toolbar.View>
     ),
-    [
-      accountName,
-      handleOpenProfile,
-      handleOpenSearch,
-      resolvedMode,
-      theme.colors.textPrimary,
-      user?.photoUrl,
-    ],
+    [accountName, handleOpenProfile, handleOpenSearch, theme.colors.textPrimary, user?.photoUrl],
   );
 
   const homeHeader = (
@@ -199,7 +191,12 @@ export default function Home() {
             <View style={styles.header}>{homeHeader}</View>
           </View>
 
-          <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
+          <View
+            style={{
+              marginTop: 4,
+              paddingHorizontal: theme.layout.screenHorizontalPadding,
+            }}
+          >
             <PremiumCard
               style={[
                 styles.homeShortcutCard,

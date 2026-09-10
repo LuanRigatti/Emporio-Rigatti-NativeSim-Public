@@ -28,11 +28,12 @@ export default function NativeHomeToolbarActionsFallback({
 
   return (
     <GlassSurface
+      glassEffectStyle="clear"
       interactive
       style={[
         styles.surface,
         {
-          backgroundColor: theme.colors.glassSurface,
+          backgroundColor: 'transparent',
           borderRadius: theme.radius.pill,
         },
       ]}

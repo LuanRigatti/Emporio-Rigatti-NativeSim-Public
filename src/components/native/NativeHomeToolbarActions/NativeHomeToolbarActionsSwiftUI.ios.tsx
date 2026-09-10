@@ -7,7 +7,6 @@ import {
   controlSize,
   frame,
   font,
-  glassEffect,
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
@@ -28,7 +27,6 @@ export default function NativeHomeToolbarActionsSwiftUI({
   accessibilityHint: profileHint,
   accessibilityLabel: profileLabel = 'Abrir perfil da conta',
   foregroundColor,
-  glassTint,
   imageUri,
   name,
   onProfilePress,
@@ -41,15 +39,11 @@ export default function NativeHomeToolbarActionsSwiftUI({
         alignment="center"
         spacing={HOME_TOOLBAR_GAP}
         modifiers={[
-          padding({ horizontal: HOME_TOOLBAR_HORIZONTAL_PADDING }),
+          padding({ leading: 0, trailing: HOME_TOOLBAR_HORIZONTAL_PADDING }),
           frame({
             width: HOME_TOOLBAR_WIDTH,
             height: HOME_TOOLBAR_CONTROL_SIZE,
             alignment: 'center',
-          }),
-          glassEffect({
-            glass: { interactive: true, tint: glassTint, variant: 'regular' },
-            shape: 'capsule',
           }),
         ]}
       >

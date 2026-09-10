@@ -105,7 +105,7 @@ export default function Home() {
 
   const handleOpenSearch = useCallback(() => {
     triggerLightImpactHaptic();
-    router.push('/pesquisa');
+    router.push('/dashboard/pesquisa');
   }, [router]);
 
   const handleOpenRecebimentos = useCallback(() => {

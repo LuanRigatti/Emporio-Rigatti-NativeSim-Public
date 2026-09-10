@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 
 import { useAppTheme } from '@/theme';
 
@@ -33,6 +33,15 @@ export default function DashboardLayout() {
       </Stack.Screen>
       <Stack.Screen name="fabrica-compras" options={{ gestureEnabled: true }}>
         <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
+      <Stack.Screen name="pesquisa" options={{ gestureEnabled: true }}>
+        <Stack.Toolbar placement="left">
+          <Stack.Toolbar.Button
+            accessibilityLabel="Voltar para Home"
+            icon="chevron.left"
+            onPress={() => router.back()}
+          />
+        </Stack.Toolbar>
       </Stack.Screen>
     </Stack>
   );

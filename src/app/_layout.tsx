@@ -144,14 +144,6 @@ function AppShell() {
                   }}
                 />
                 <Stack.Screen
-                  name="registrar"
-                  options={{ gestureEnabled: true, headerShown: false }}
-                />
-                <Stack.Screen
-                  name="financeiro"
-                  options={{ gestureEnabled: true, headerShown: false }}
-                />
-                <Stack.Screen
                   name="(home-shortcuts)"
                   options={{ gestureEnabled: true, headerShown: false }}
                 />

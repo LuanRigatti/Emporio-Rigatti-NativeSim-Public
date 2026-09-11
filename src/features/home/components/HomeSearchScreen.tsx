@@ -15,7 +15,7 @@ import HomeSearchScreenNativeHost from './HomeSearchScreenNativeHost';
 
 type NativeStackTransitionNavigation = {
   addListener: (
-    event: 'transitionEnd' | 'focus',
+    event: 'transitionEnd',
     listener: (event: { data?: { closing?: boolean } }) => void,
   ) => () => void;
   getParent?: () => NativeStackTransitionNavigation | undefined;
@@ -62,31 +62,23 @@ export default function HomeSearchScreen() {
     };
 
     let interactionTask: ReturnType<typeof InteractionManager.runAfterInteractions> | null = null;
-    let unsubscribeFocus: (() => void) | null = null;
-    let unsubscribeParentTransitionEnd: (() => void) | null = null;
-
-    const scheduleInteractionFocus = () => {
-      if (interactionTask) interactionTask.cancel();
-      interactionTask = InteractionManager.runAfterInteractions(() => {
-        requestFocus();
-      });
-    };
-
-    unsubscribeFocus = nativeStackNavigation.addListener('focus', scheduleInteractionFocus);
-    if (screenFocusedRef.current) scheduleInteractionFocus();
+    let unsubscribeTransitionEnd: (() => void) | null = null;
 
     if (parentNavigation) {
-      unsubscribeParentTransitionEnd = parentNavigation.addListener('transitionEnd', (event) => {
+      unsubscribeTransitionEnd = nativeStackNavigation.addListener('transitionEnd', (event) => {
         const blockedByClosing = Boolean(event.data?.closing);
 
         if (blockedByClosing) return;
         requestFocus();
       });
+    } else {
+      interactionTask = InteractionManager.runAfterInteractions(() => {
+        requestFocus();
+      });
     }
 
     return () => {
-      unsubscribeParentTransitionEnd?.();
-      unsubscribeFocus?.();
+      unsubscribeTransitionEnd?.();
       interactionTask?.cancel();
     };
   }, [navigation]);

@@ -1,0 +1,8 @@
+{
+  "name": "native-quick-actions",
+  "version": "0.1.0",
+  "description": "Native iOS Home Screen Quick Actions bridge for Expo.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

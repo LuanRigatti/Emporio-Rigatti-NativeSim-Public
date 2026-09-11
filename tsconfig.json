@@ -1,0 +1,15 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "types": ["jest"],
+    "paths": {
+      "@/*": ["src/*"],
+      "native-card-context-menu": ["modules/native-card-context-menu/src"],
+      "native-search-field": ["modules/native-search-field/src"]
+    }
+  },
+  "exclude": ["dist"]
+}

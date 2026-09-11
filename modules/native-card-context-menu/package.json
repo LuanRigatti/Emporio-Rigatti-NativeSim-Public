@@ -1,0 +1,8 @@
+{
+  "name": "native-card-context-menu",
+  "version": "0.1.0",
+  "description": "Native UIKit UIContextMenuInteraction with rounded UITargetedPreview visiblePath.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

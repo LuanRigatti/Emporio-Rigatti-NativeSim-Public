@@ -1,0 +1,8 @@
+{
+  "name": "native-interactive-pager",
+  "version": "0.1.0",
+  "description": "Reusable native SwiftUI paging for Expo views.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

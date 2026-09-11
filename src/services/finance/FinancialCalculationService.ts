@@ -1,0 +1,699 @@
+import type {
+  ClientFinancialRankingItem,
+  DailyExpenses,
+  Delivery,
+  FinancialCalculationFilters,
+  FinancialCalculationInput,
+  FinancialComparison,
+  FinancialComparisonResult,
+  FinancialDeliveryDayComparison,
+  FinancialMonthlyComparisonResult,
+  FinancialPeriod,
+  FinancialSummary,
+  MonthlyExpenses,
+} from '@/types/data';
+import {
+  formatClientName,
+  normalizeClientKey,
+  normalizeLegacyDate,
+  normalizeMoney,
+} from '@/utils/data';
+import { expenseCalculationService } from '@/services/expenses/ExpenseCalculationService';
+import { calculateScheduledMonthComparisonCutoffs } from './FinancialScheduledComparison';
+
+function safeNumber(value: unknown): number {
+  return normalizeMoney(value) ?? 0;
+}
+
+function isoDate(value: string): string {
+  return normalizeLegacyDate(value) ?? value.trim();
+}
+
+function todayIso(today: Date): string {
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+}
+
+function localDate(value: string): Date | undefined {
+  const normalized = normalizeLegacyDate(value);
+  if (!normalized) return undefined;
+  const [year, month, day] = normalized.split('-').map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function sameWeek(left: string, right: string): boolean {
+  const leftDate = localDate(left);
+  const rightDate = localDate(right);
+  if (!leftDate || !rightDate) return false;
+  leftDate.setDate(leftDate.getDate() - leftDate.getDay());
+  rightDate.setDate(rightDate.getDate() - rightDate.getDay());
+  return formatLocalDate(leftDate) === formatLocalDate(rightDate);
+}
+
+function endOfMonth(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return formatLocalDate(new Date(year, monthNumber, 0, 12));
+}
+
+function startOfWeek(value: string): string {
+  const date = localDate(value) ?? new Date();
+  date.setDate(date.getDate() - date.getDay());
+  return formatLocalDate(date);
+}
+
+function matchesPeriod(date: string, filters: FinancialCalculationFilters, today: Date): boolean {
+  if (filters.periodo === 'todos') return true;
+  if (filters.periodo === 'mes')
+    return isoDate(date).startsWith(filters.mesSelecionado ?? todayIso(today).slice(0, 7));
+  if (filters.periodo === 'dia')
+    return isoDate(date) === isoDate(filters.diaSelecionado ?? todayIso(today));
+  if (filters.periodo === 'semana') return sameWeek(date, filters.dataFiltro ?? todayIso(today));
+  const normalized = isoDate(date);
+  const start = filters.dataInicioSelecionada ?? '';
+  const end = filters.dataFimSelecionada ?? '';
+  return normalized >= start && normalized <= end;
+}
+
+function withoutClient(filters: FinancialCalculationFilters): FinancialCalculationFilters {
+  return { ...filters, buscaCliente: undefined };
+}
+
+function comparisonPercentage(current: number, previous: number, useAbsoluteBase: boolean): number {
+  const base = useAbsoluteBase ? Math.abs(previous) : previous;
+  return base !== 0 ? ((current - previous) / base) * 100 : current !== 0 ? 100 : 0;
+}
+
+function comparison(
+  current: number,
+  previous: number,
+  useAbsoluteBase = false,
+): FinancialComparison {
+  const difference = current - previous;
+  return {
+    atual: current,
+    anterior: previous,
+    diferenca: difference,
+    percentual: comparisonPercentage(current, previous, useAbsoluteBase),
+    subiu: difference >= 0,
+  };
+}
+
+function previousMonthKey(month: string): string {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return formatLocalDate(new Date(year, monthNumber - 2, 1, 12)).slice(0, 7);
+}
+
+export class FinancialCalculationService {
+  public filterDeliveries(
+    deliveries: Delivery[],
+    filters: FinancialCalculationFilters,
+    today = new Date(),
+  ): Delivery[] {
+    const search = normalizeClientKey(filters.buscaCliente ?? '');
+    return deliveries.filter((delivery) => {
+      const name = formatClientName(delivery.cliente);
+      const matchesClient = filters.clientId
+        ? delivery.clientId
+          ? delivery.clientId === filters.clientId
+          : !search || normalizeClientKey(name) === search
+        : !search || normalizeClientKey(name).includes(search);
+      return (
+        matchesClient &&
+        (!filters.status || filters.status === 'Todos' || delivery.status === filters.status) &&
+        matchesPeriod(delivery.data, filters, today)
+      );
+    });
+  }
+
+  public calculateFaturamento(deliveries: Delivery[]): number {
+    return deliveries.reduce((total, delivery) => total + safeNumber(delivery.valor), 0);
+  }
+
+  public calculatePago(deliveries: Delivery[]): number {
+    return deliveries.reduce(
+      (total, delivery) =>
+        delivery.status === 'Pago' ? total + safeNumber(delivery.valor) : total,
+      0,
+    );
+  }
+
+  public calculatePendente(deliveries: Delivery[]): number {
+    return deliveries.reduce(
+      (total, delivery) =>
+        delivery.status !== 'Pago' ? total + safeNumber(delivery.valor) : total,
+      0,
+    );
+  }
+
+  public calculateQuantidade(deliveries: Delivery[]): number {
+    return deliveries.reduce((total, delivery) => total + safeNumber(delivery.quantidade), 0);
+  }
+
+  public calculateCustoTotalBaldes(deliveries: Delivery[]): number {
+    return deliveries.reduce(
+      (total, delivery) =>
+        total +
+        safeNumber(delivery.quantidade) *
+          expenseCalculationService.calculateBucketCost(delivery.data),
+      0,
+    );
+  }
+
+  public calculateCombustivel(date: string, expense: DailyExpenses[string] | undefined): number {
+    return expenseCalculationService.calculateFuelCost(date, expense);
+  }
+
+  public calculateEstar(
+    dailyExpenses: DailyExpenses,
+    filters: FinancialCalculationFilters,
+    today = new Date(),
+  ): number {
+    return Object.keys(dailyExpenses)
+      .filter((date) => matchesPeriod(date, filters, today))
+      .reduce((total, date) => total + safeNumber(dailyExpenses[date]?.estar), 0);
+  }
+
+  public calculateOutros(
+    dailyExpenses: DailyExpenses,
+    filters: FinancialCalculationFilters,
+    today = new Date(),
+  ): number {
+    return Object.keys(dailyExpenses)
+      .filter((date) => matchesPeriod(date, filters, today))
+      .reduce((total, date) => total + safeNumber(dailyExpenses[date]?.outros), 0);
+  }
+
+  public calculateLucroBruto(faturamento: number, custoTotalBaldes: number): number {
+    return faturamento - custoTotalBaldes;
+  }
+
+  public calculateLucroLiquido(
+    lucroBruto: number,
+    custoEstar: number,
+    custoCombustivel: number,
+    custoLuz: number,
+    custoOutros = 0,
+  ): number {
+    return lucroBruto - custoEstar - custoCombustivel - custoLuz - custoOutros;
+  }
+
+  public calculateMargemBruta(lucroBruto: number, faturamento: number): number {
+    return faturamento > 0 ? (lucroBruto / faturamento) * 100 : 0;
+  }
+
+  public calculateMargemLiquida(lucroLiquido: number, faturamento: number): number {
+    return faturamento > 0 ? (lucroLiquido / faturamento) * 100 : 0;
+  }
+
+  public calculateCustoMedioBalde(
+    custoTotalBaldes: number,
+    custoEstar: number,
+    custoCombustivel: number,
+    custoLuz: number,
+    quantidadeBaldes: number,
+    custoOutros = 0,
+  ): number {
+    const custoCompleto = custoTotalBaldes + custoEstar + custoCombustivel + custoLuz + custoOutros;
+    return quantidadeBaldes > 0 ? custoCompleto / quantidadeBaldes : 0;
+  }
+
+  public calculatePrecoMedioBalde(faturamento: number, quantidadeBaldes: number): number {
+    return quantidadeBaldes > 0 ? faturamento / quantidadeBaldes : 0;
+  }
+
+  public calculateLucroLiquidoPorBalde(lucroLiquido: number, quantidadeBaldes: number): number {
+    return quantidadeBaldes > 0 ? lucroLiquido / quantidadeBaldes : 0;
+  }
+
+  public calculateLuzDoPeriodo(
+    deliveries: Delivery[],
+    monthlyExpenses: MonthlyExpenses,
+    allPeriod = false,
+    today = new Date(),
+  ): number {
+    return expenseCalculationService.calculateLightForPeriod(
+      deliveries,
+      monthlyExpenses,
+      allPeriod,
+      today,
+    );
+  }
+
+  public calculateRateioLuzPorCliente(
+    clientName: string | undefined,
+    clientDeliveries: Delivery[],
+    periodDeliveries: Delivery[],
+    period: Extract<FinancialPeriod, 'dia' | 'semana' | 'mes'>,
+    dailyExpenses: DailyExpenses,
+    monthlyExpenses: MonthlyExpenses,
+    status: string | undefined,
+  ): number | null {
+    if (!clientName?.trim()) return null;
+    if (clientDeliveries.length === 0) return 0;
+    return expenseCalculationService.calculateClientAllocation(
+      clientDeliveries,
+      periodDeliveries,
+      period === 'dia' ? 'day' : period === 'semana' ? 'week' : 'month',
+      dailyExpenses,
+      monthlyExpenses,
+      status === 'Pago' || status === 'Não Pago' ? status : 'Todos',
+    ).luz;
+  }
+
+  public calculateResumo(input: FinancialCalculationInput): FinancialSummary {
+    const today = input.today ?? new Date();
+    const filtered = this.filterDeliveries(input.deliveries, input.filters, today);
+    const periodDeliveries = this.filterDeliveries(
+      input.deliveries,
+      withoutClient(input.filters),
+      today,
+    );
+    const dailyDates = [
+      ...new Set([
+        ...Object.keys(input.dailyExpenses),
+        ...Object.keys(input.automaticKilometersByDate ?? {}),
+        ...Object.keys(input.fuelCostByDate ?? {}),
+      ]),
+    ].filter((date) => matchesPeriod(date, input.filters, today));
+    let custoEstar = this.calculateEstar(input.dailyExpenses, input.filters, today);
+    const custoOutros = this.calculateOutros(input.dailyExpenses, input.filters, today);
+    let custoCombustivel = dailyDates.reduce((total, date) => {
+      const normalizedDate = isoDate(date);
+      const expense =
+        input.dailyExpenses[date] ??
+        Object.entries(input.dailyExpenses).find(([key]) => isoDate(key) === normalizedDate)?.[1];
+      const automaticKilometers =
+        input.automaticKilometersByDate?.[normalizedDate] ??
+        input.automaticKilometersByDate?.[date] ??
+        0;
+      const resolvedFuelCost =
+        input.fuelCostByDate?.[normalizedDate] ?? input.fuelCostByDate?.[date];
+      if (resolvedFuelCost !== undefined) return total + Math.max(0, resolvedFuelCost);
+      return (
+        total + expenseCalculationService.calculateFuelCost(date, expense, automaticKilometers)
+      );
+    }, 0);
+    let custoLuz =
+      input.filters.periodo === 'mes'
+        ? (() => {
+            return expenseCalculationService.calculateLightForDeliveryDays(
+              periodDeliveries,
+              input.monthlyExpenses,
+              today,
+            );
+          })()
+        : input.fullLightInterval && input.filters.periodo === 'range'
+          ? periodDeliveries.length > 0 &&
+            input.filters.dataInicioSelecionada &&
+            input.filters.dataFimSelecionada
+            ? expenseCalculationService.calculateLightForInterval(
+                input.filters.dataInicioSelecionada,
+                input.filters.dataFimSelecionada,
+                input.monthlyExpenses,
+                today,
+              )
+            : 0
+          : this.calculateLuzDoPeriodo(
+              periodDeliveries,
+              input.monthlyExpenses,
+              input.filters.periodo === 'todos',
+              today,
+            );
+
+    if (input.filters.buscaCliente?.trim()) {
+      const allocation = expenseCalculationService.calculateClientAllocation(
+        filtered,
+        periodDeliveries,
+        input.filters.periodo === 'dia'
+          ? 'day'
+          : input.filters.periodo === 'semana'
+            ? 'week'
+            : 'month',
+        input.dailyExpenses,
+        input.monthlyExpenses,
+        input.filters.status === 'Pago' || input.filters.status === 'Não Pago'
+          ? input.filters.status
+          : 'Todos',
+      );
+      custoEstar = allocation.estar;
+      custoCombustivel = allocation.combustivel;
+      custoLuz = allocation.luz;
+    }
+
+    const faturamento = this.calculateFaturamento(filtered);
+    const valoresPagos = this.calculatePago(filtered);
+    const valoresPendentes = this.calculatePendente(filtered);
+    const quantidadeBaldes = this.calculateQuantidade(filtered);
+    const custoTotalBaldes = this.calculateCustoTotalBaldes(filtered);
+    const lucroBruto = this.calculateLucroBruto(faturamento, custoTotalBaldes);
+    const lucroLiquido = this.calculateLucroLiquido(
+      lucroBruto,
+      custoEstar,
+      custoCombustivel,
+      custoLuz,
+      custoOutros,
+    );
+    const custoTotal = custoTotalBaldes + custoEstar + custoCombustivel + custoLuz + custoOutros;
+    return {
+      faturamento,
+      valoresPagos,
+      valoresPendentes,
+      quantidadeBaldes,
+      custoTotalBaldes,
+      custoCombustivel,
+      custoEstar,
+      custoOutros,
+      custoLuz,
+      custoTotal,
+      lucroBruto,
+      lucroLiquido,
+      margemBruta: this.calculateMargemBruta(lucroBruto, faturamento),
+      margemLiquida: this.calculateMargemLiquida(lucroLiquido, faturamento),
+      custoMedioBalde: this.calculateCustoMedioBalde(
+        custoTotalBaldes,
+        custoEstar,
+        custoCombustivel,
+        custoLuz,
+        quantidadeBaldes,
+        custoOutros,
+      ),
+      precoMedioBalde: this.calculatePrecoMedioBalde(faturamento, quantidadeBaldes),
+      lucroLiquidoPorBalde: this.calculateLucroLiquidoPorBalde(lucroLiquido, quantidadeBaldes),
+      quantidadeEntregas: filtered.length,
+      custoMedioCombustivelPorEntrega: expenseCalculationService.calculateFuelCostPerPeriod(
+        filtered,
+        input.dailyExpenses,
+      ),
+    };
+  }
+
+  public rankClients(
+    deliveries: Delivery[],
+    filters: FinancialCalculationFilters,
+    today = new Date(),
+  ): ClientFinancialRankingItem[] {
+    const grouped = new Map<string, ClientFinancialRankingItem>();
+    this.filterDeliveries(deliveries, filters, today).forEach((delivery) => {
+      const name = formatClientName(delivery.cliente);
+      const key = normalizeClientKey(name);
+      const item = grouped.get(key) ?? {
+        nome: name,
+        valor: 0,
+        quantidade: 0,
+        entregas: 0,
+        percentual: 0,
+      };
+      item.valor += safeNumber(delivery.valor);
+      item.quantidade += safeNumber(delivery.quantidade);
+      item.entregas += 1;
+      grouped.set(key, item);
+    });
+    const ranking = [...grouped.values()].sort(
+      (left, right) =>
+        right.valor - left.valor ||
+        right.quantidade - left.quantidade ||
+        left.nome.localeCompare(right.nome, 'pt-BR'),
+    );
+    const largestValue = Math.max(...ranking.map((item) => item.valor), 1);
+    return ranking.map((item) => ({
+      ...item,
+      percentual: Math.max(4, Math.min(100, (item.valor / largestValue) * 100)),
+    }));
+  }
+
+  public groupDeliveries(
+    deliveries: Delivery[],
+    grouping: 'day' | 'week' | 'month' | 'year',
+  ): Map<string, Delivery[]> {
+    const grouped = new Map<string, Delivery[]>();
+    deliveries.forEach((delivery) => {
+      const date = isoDate(delivery.data);
+      const key =
+        grouping === 'day'
+          ? date
+          : grouping === 'month'
+            ? date.slice(0, 7)
+            : grouping === 'year'
+              ? date.slice(0, 4)
+              : startOfWeek(date);
+      grouped.set(key, [...(grouped.get(key) ?? []), delivery]);
+    });
+    return grouped;
+  }
+
+  public comparePeriods(input: FinancialCalculationInput): FinancialComparisonResult {
+    const today = input.today ?? new Date();
+    const currentRange = this.comparisonRanges(input.filters, today);
+    const currentFilters: FinancialCalculationFilters = {
+      ...input.filters,
+      periodo: 'range',
+      dataInicioSelecionada: currentRange.start,
+      dataFimSelecionada: currentRange.end,
+    };
+    const previousFilters: FinancialCalculationFilters = {
+      ...input.filters,
+      periodo: 'range',
+      dataInicioSelecionada: currentRange.previousStart,
+      dataFimSelecionada: currentRange.previousEnd,
+    };
+    const current = this.calculateResumo({
+      ...input,
+      filters: currentFilters,
+      fullLightInterval: true,
+      today,
+    });
+    const previous = this.calculateResumo({
+      ...input,
+      filters: previousFilters,
+      fullLightInterval: true,
+      today,
+    });
+    return {
+      inicioAtual: currentRange.start,
+      fimAtual: currentRange.end,
+      inicioAnterior: currentRange.previousStart,
+      fimAnterior: currentRange.previousEnd,
+      diasTrabalhados: currentRange.workingDays,
+      faturamento: comparison(current.faturamento, previous.faturamento),
+      quantidadeEntregas: comparison(current.quantidadeEntregas, previous.quantidadeEntregas),
+      lucroLiquido: comparison(current.lucroLiquido, previous.lucroLiquido, true),
+    };
+  }
+
+  public compareByDeliveryDays(input: FinancialCalculationInput): FinancialDeliveryDayComparison {
+    const today = input.today ?? new Date();
+    const currentMonth = input.filters.mesSelecionado ?? todayIso(today).slice(0, 7);
+    const previousMonth = previousMonthKey(currentMonth);
+
+    const cutoffs = calculateScheduledMonthComparisonCutoffs(currentMonth, today);
+
+    if (cutoffs.comparableN === 0 || !cutoffs.currentCutoff || !cutoffs.previousCutoff) {
+      return {
+        currentDeliveryDays: 0,
+        previousDeliveryDays: 0,
+        faturamento: comparison(0, 0),
+        lucroLiquido: comparison(0, 0, true),
+      };
+    }
+
+    const currentFilters: FinancialCalculationFilters = {
+      ...input.filters,
+      periodo: 'mes',
+      mesSelecionado: currentMonth,
+    };
+    const previousFilters: FinancialCalculationFilters = {
+      ...input.filters,
+      periodo: 'mes',
+      mesSelecionado: previousMonth,
+    };
+
+    const currentMonthDeliveries = this.filterDeliveries(input.deliveries, currentFilters, today);
+    const previousMonthDeliveries = this.filterDeliveries(input.deliveries, previousFilters, today);
+
+    const currentCutoffDate = cutoffs.currentCutoff;
+    const previousCutoffDate = cutoffs.previousCutoff;
+
+    const currentDeliveriesInRange = currentMonthDeliveries.filter((d) => {
+      const date = isoDate(d.data);
+      return date >= `${currentMonth}-01` && date <= currentCutoffDate;
+    });
+    const previousDeliveriesInRange = previousMonthDeliveries.filter((d) => {
+      const date = isoDate(d.data);
+      return date >= `${previousMonth}-01` && date <= previousCutoffDate;
+    });
+
+    const currentExpensesInRange = Object.fromEntries(
+      Object.entries(input.dailyExpenses).filter(([key, expense]) => {
+        const date = isoDate(expense.data ?? key);
+        return date >= `${currentMonth}-01` && date <= currentCutoffDate;
+      }),
+    );
+    const previousExpensesInRange = Object.fromEntries(
+      Object.entries(input.dailyExpenses).filter(([key, expense]) => {
+        const date = isoDate(expense.data ?? key);
+        return date >= `${previousMonth}-01` && date <= previousCutoffDate;
+      }),
+    );
+
+    const currentSummary = this.calculateResumo({
+      ...input,
+      deliveries: currentDeliveriesInRange,
+      dailyExpenses: currentExpensesInRange,
+      filters: currentFilters,
+      today,
+    });
+
+    const previousSummary = this.calculateResumo({
+      ...input,
+      deliveries: previousDeliveriesInRange,
+      dailyExpenses: previousExpensesInRange,
+      filters: previousFilters,
+      today,
+    });
+
+    return {
+      currentDeliveryDays: cutoffs.comparableN,
+      previousDeliveryDays: cutoffs.comparableN,
+      faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
+      lucroLiquido: comparison(currentSummary.lucroLiquido, previousSummary.lucroLiquido, true),
+    };
+  }
+
+  public compareCalendarMonths(input: FinancialCalculationInput): FinancialMonthlyComparisonResult {
+    const today = input.today ?? new Date();
+    const currentMonth = input.filters.mesSelecionado ?? todayIso(today).slice(0, 7);
+    const previousMonth = previousMonthKey(currentMonth);
+    const todayDate = todayIso(today);
+    const activeMonth = todayDate.slice(0, 7);
+    const getMonthFilters = (month: string): FinancialCalculationFilters => ({
+      ...input.filters,
+      mesSelecionado: month,
+      periodo: 'mes',
+    });
+    const currentFilters = getMonthFilters(currentMonth);
+    const previousFilters = getMonthFilters(previousMonth);
+    const currentMonthDeliveries = this.filterDeliveries(input.deliveries, currentFilters, today);
+    const previousMonthDeliveries = this.filterDeliveries(input.deliveries, previousFilters, today);
+    const getRealDeliveryDates = (deliveries: Delivery[], month: string): string[] =>
+      [...new Set(deliveries.map((delivery) => isoDate(delivery.data)))]
+        .filter(
+          (date) => date.startsWith(`${month}-`) && (month !== activeMonth || date <= todayDate),
+        )
+        .sort();
+    const currentDeliveryDates = getRealDeliveryDates(currentMonthDeliveries, currentMonth);
+    const previousDeliveryDates = getRealDeliveryDates(previousMonthDeliveries, previousMonth);
+    const comparableN = Math.min(currentDeliveryDates.length, previousDeliveryDates.length);
+    const currentDates = new Set(currentDeliveryDates.slice(0, comparableN));
+    const previousDates = new Set(previousDeliveryDates.slice(0, comparableN));
+    const currentDeliveries = currentMonthDeliveries.filter((delivery) =>
+      currentDates.has(isoDate(delivery.data)),
+    );
+    const previousDeliveries = previousMonthDeliveries.filter((delivery) =>
+      previousDates.has(isoDate(delivery.data)),
+    );
+    const filterByDates = <T extends { data?: string }>(
+      values: Readonly<Record<string, T>>,
+      dates: Set<string>,
+    ) =>
+      Object.fromEntries(
+        Object.entries(values).filter(([key, value]) => dates.has(isoDate(value.data ?? key))),
+      ) as Record<string, T>;
+    const filterDateValues = (
+      values: Readonly<Record<string, number>> | undefined,
+      dates: Set<string>,
+    ) =>
+      values
+        ? Object.fromEntries(Object.entries(values).filter(([key]) => dates.has(isoDate(key))))
+        : undefined;
+    const currentSummary = this.calculateResumo({
+      ...input,
+      automaticKilometersByDate: filterDateValues(input.automaticKilometersByDate, currentDates),
+      dailyExpenses: filterByDates(input.dailyExpenses, currentDates),
+      deliveries: currentDeliveries,
+      filters: currentFilters,
+      fuelCostByDate: filterDateValues(input.fuelCostByDate, currentDates),
+      today,
+    });
+    const previousSummary = this.calculateResumo({
+      ...input,
+      automaticKilometersByDate: filterDateValues(input.automaticKilometersByDate, previousDates),
+      dailyExpenses: filterByDates(input.dailyExpenses, previousDates),
+      deliveries: previousDeliveries,
+      filters: previousFilters,
+      fuelCostByDate: filterDateValues(input.fuelCostByDate, previousDates),
+      today,
+    });
+    const currentStart = `${currentMonth}-01`;
+    const previousStart = `${previousMonth}-01`;
+    const currentEnd = currentDeliveryDates[comparableN - 1] ?? currentStart;
+    const previousEnd = previousDeliveryDates[comparableN - 1] ?? previousStart;
+
+    return {
+      inicioAtual: currentStart,
+      fimAtual: currentEnd,
+      inicioAnterior: previousStart,
+      fimAnterior: previousEnd,
+      faturamento: comparison(currentSummary.faturamento, previousSummary.faturamento),
+      quantidadeEntregas: comparison(
+        currentSummary.quantidadeEntregas,
+        previousSummary.quantidadeEntregas,
+      ),
+      lucroLiquido: comparison(currentSummary.lucroLiquido, previousSummary.lucroLiquido, true),
+    };
+  }
+
+  private comparisonRanges(
+    filters: FinancialCalculationFilters,
+    today: Date,
+  ): {
+    start: string;
+    end: string;
+    previousStart: string;
+    previousEnd: string;
+    workingDays: number;
+  } {
+    const selectedMonth = filters.mesSelecionado ?? todayIso(today).slice(0, 7);
+    const currentMonthDate = localDate(`${selectedMonth}-01`) ?? today;
+    const isCurrentMonth = selectedMonth === todayIso(today).slice(0, 7);
+    const currentEnd = isCurrentMonth ? todayIso(today) : endOfMonth(selectedMonth);
+    const currentStart = `${selectedMonth}-01`;
+    const currentStartDate = localDate(currentStart) ?? today;
+    const currentEndDate = localDate(currentEnd) ?? today;
+    let workingDays = 0;
+    const cursor = new Date(currentStartDate);
+    while (cursor <= currentEndDate) {
+      if ([1, 3, 5].includes(cursor.getDay())) workingDays += 1;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    const previousMonth = new Date(
+      currentMonthDate.getFullYear(),
+      currentMonthDate.getMonth() - 1,
+      1,
+      12,
+    );
+    let previousWorkingDays = 0;
+    let previousEndDay = 0;
+    const lastPreviousDay = new Date(
+      previousMonth.getFullYear(),
+      previousMonth.getMonth() + 1,
+      0,
+    ).getDate();
+    for (let day = 1; day <= lastPreviousDay; day += 1) {
+      const candidate = new Date(previousMonth.getFullYear(), previousMonth.getMonth(), day, 12);
+      if ([1, 3, 5].includes(candidate.getDay())) {
+        previousWorkingDays += 1;
+        if (previousWorkingDays <= workingDays) previousEndDay = day;
+      }
+    }
+    const previousStart = formatLocalDate(previousMonth);
+    const previousEnd = formatLocalDate(
+      new Date(previousMonth.getFullYear(), previousMonth.getMonth(), previousEndDay, 12),
+    );
+    return { start: currentStart, end: currentEnd, previousStart, previousEnd, workingDays };
+  }
+}
+
+export const financialCalculationService = new FinancialCalculationService();

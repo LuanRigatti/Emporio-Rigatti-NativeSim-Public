@@ -21,7 +21,7 @@ export default function SettingsLayout() {
         },
       }}
     >
-      <Stack.Screen name="index" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: false }} />
       <Stack.Screen name="clientes">
         <Stack.Screen.BackButton displayMode="minimal" />
       </Stack.Screen>

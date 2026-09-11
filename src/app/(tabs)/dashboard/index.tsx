@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeHomeToolbarActions } from '@/components/native';
+import { activeTabStore } from '@/navigation/activeTabStore';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import { useAppSafeAreaInsets, useAuth } from '@/providers';
+import { useAppSafeAreaInsets } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
@@ -40,7 +40,6 @@ export default function Home() {
   const { resolvedMode, theme } = useAppTheme();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const homeShortcutIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
-  const { user } = useAuth();
   const {
     currency: maskCurrency,
     enabled: testModeEnabled,
@@ -120,7 +119,7 @@ export default function Home() {
 
   const handleOpenRegistrarEntrega = useCallback(() => {
     triggerLightImpactHaptic();
-    router.push('/dashboard/registrar-entrega');
+    router.push('/registrar-entrega');
   }, [router]);
 
   const handleOpenDocumentos = useCallback(() => {
@@ -132,24 +131,15 @@ export default function Home() {
     setIsProfileSheetVisible(true);
   }, []);
 
-  const accountName = user?.displayName?.trim() || 'Conta';
-
-  const renderHomeToolbarItems = useCallback(
-    () => (
-      <Stack.Toolbar.View>
-        <NativeHomeToolbarActions
-          accessibilityHint="Exibe os dados da conta e a opção de sair"
-          accessibilityLabel="Abrir perfil da conta"
-          foregroundColor={theme.colors.textPrimary}
-          imageUri={user?.photoUrl}
-          name={accountName}
-          onProfilePress={handleOpenProfile}
-          onSearchPress={handleOpenSearch}
-        />
-      </Stack.Toolbar.View>
-    ),
-    [accountName, handleOpenProfile, handleOpenSearch, theme.colors.textPrimary, user?.photoUrl],
-  );
+  useEffect(() => {
+    activeTabStore.setHomeHandlers({
+      onProfilePress: handleOpenProfile,
+      onSearchPress: handleOpenSearch,
+    });
+    return () => {
+      activeTabStore.setHomeHandlers({});
+    };
+  }, [handleOpenProfile, handleOpenSearch]);
 
   const homeHeader = (
     <NativeGlassHeader
@@ -166,9 +156,7 @@ export default function Home() {
     />
   );
   return (
-    <>
-      <Stack.Toolbar placement="right">{renderHomeToolbarItems()}</Stack.Toolbar>
-      <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
         <PremiumScreen
           contentContainerStyle={{
             gap: theme.spacing.lg,
@@ -382,7 +370,6 @@ export default function Home() {
           visible={isProfileSheetVisible}
         />
       </View>
-    </>
   );
 }
 

@@ -7,6 +7,7 @@ import { NativeGlassHeader } from '@/components/layout';
 import { NativeAnimatedNumber } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
 import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
+import { activeTabStore } from '@/navigation/activeTabStore';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
@@ -179,10 +180,16 @@ export default function PrototypeFinanceiro() {
       }),
     [displayedMonth, displayedYear],
   );
+
+  useEffect(() => {
+    activeTabStore.setFinanceToolbarRenderer(renderFinanceToolbarItems);
+    return () => {
+      activeTabStore.setFinanceToolbarRenderer(null);
+    };
+  }, [renderFinanceToolbarItems]);
+
   return (
-    <>
-      <Stack.Toolbar placement="right">{renderFinanceToolbarItems()}</Stack.Toolbar>
-      <PremiumScreen
+    <PremiumScreen
         contentContainerStyle={[
           styles.content,
           {
@@ -334,7 +341,6 @@ export default function PrototypeFinanceiro() {
           title="POR BALDE"
         />
       </PremiumScreen>
-    </>
   );
 }
 

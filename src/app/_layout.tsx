@@ -29,6 +29,7 @@ import { locationTrackingService, routeTrackingRepository } from '@/services/rou
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
+import { ActiveTabToolbarRight } from '@/components/navigation/ActiveTabToolbarRight';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -140,9 +141,35 @@ function AppShell() {
                   name="(tabs)"
                   options={{
                     gestureEnabled: false,
-                    headerShown: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
                   }}
-                />
+                >
+                  <Stack.Toolbar placement="right">
+                    <ActiveTabToolbarRight />
+                  </Stack.Toolbar>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-entrega"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
                 <Stack.Screen
                   name="(home-shortcuts)"
                   options={{ gestureEnabled: true, headerShown: false }}

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useSyncExternalStore } from 'react';
 
 export type TabName = 'dashboard' | 'financeiro' | 'registrar' | 'historico' | 'configuracoes';
@@ -6,14 +7,18 @@ type StoreState = {
   activeTab: TabName;
   homeProfileHandler: (() => void) | null;
   homeSearchHandler: (() => void) | null;
-  financeToolbarRenderer: (() => React.ReactNode) | null;
+  financeToolbar: ReactNode | null;
+  historyToolbar: ReactNode | null;
+  registrarToolbar: ReactNode | null;
 };
 
 let state: StoreState = {
   activeTab: 'dashboard',
   homeProfileHandler: null,
   homeSearchHandler: null,
-  financeToolbarRenderer: null,
+  financeToolbar: null,
+  historyToolbar: null,
+  registrarToolbar: null,
 };
 
 const listeners = new Set<() => void>();
@@ -42,8 +47,16 @@ export const activeTabStore = {
     };
     notify();
   },
-  setFinanceToolbarRenderer(renderer: (() => React.ReactNode) | null) {
-    state = { ...state, financeToolbarRenderer: renderer };
+  setFinanceToolbar(toolbar: ReactNode | null) {
+    state = { ...state, financeToolbar: toolbar };
+    notify();
+  },
+  setHistoryToolbar(toolbar: ReactNode | null) {
+    state = { ...state, historyToolbar: toolbar };
+    notify();
+  },
+  setRegistrarToolbar(toolbar: ReactNode | null) {
+    state = { ...state, registrarToolbar: toolbar };
     notify();
   },
   subscribe(listener: () => void) {

@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -182,165 +182,162 @@ export default function PrototypeFinanceiro() {
   );
 
   useEffect(() => {
-    activeTabStore.setFinanceToolbarRenderer(renderFinanceToolbarItems);
+    activeTabStore.setFinanceToolbar(renderFinanceToolbarItems());
     return () => {
-      activeTabStore.setFinanceToolbarRenderer(null);
+      activeTabStore.setFinanceToolbar(null);
     };
   }, [renderFinanceToolbarItems]);
 
   return (
     <PremiumScreen
-        contentContainerStyle={[
-          styles.content,
+      contentContainerStyle={[
+        styles.content,
+        {
+          marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+        },
+      ]}
+      progressiveBlurHeight={
+        theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
+      }
+      progressiveBlurTopOffset={0}
+      progressiveBlur
+    >
+      <View style={styles.header}>{header}</View>
+      <PremiumCard
+        accessibilityLabel="Abrir detalhes do faturamento"
+        onPress={handleOpenFaturamento}
+        style={[
+          styles.heroCard,
           {
-            marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+            backgroundColor: financeCardSurface,
+            borderRadius: theme.radius.xl + theme.spacing.sm,
           },
         ]}
-        progressiveBlurHeight={
-          theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
-        }
-        progressiveBlurTopOffset={0}
-        progressiveBlur
       >
-        <View style={styles.header}>{header}</View>
-        <PremiumCard
-          accessibilityLabel="Abrir detalhes do faturamento"
-          onPress={handleOpenFaturamento}
-          style={[
-            styles.heroCard,
-            {
-              backgroundColor: financeCardSurface,
-              borderRadius: theme.radius.xl + theme.spacing.sm,
-            },
-          ]}
-        >
-          <View style={styles.heroHeader}>
-            <View style={styles.heroTitle}>
-              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-                FATURAMENTO
-              </Text>
-              <Ionicons
-                color={theme.colors.textSecondary}
-                name="chevron-forward-outline"
-                size={theme.sizes.iconSmall}
-              />
-            </View>
-            <FinancialTrendIndicator
-              comparison={comparison?.faturamento}
-              visible={comparison !== undefined}
+        <View style={styles.heroHeader}>
+          <View style={styles.heroTitle}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+              FATURAMENTO
+            </Text>
+            <Ionicons
+              color={theme.colors.textSecondary}
+              name="chevron-forward-outline"
+              size={theme.sizes.iconSmall}
             />
           </View>
-          <NativeAnimatedNumber
-            animationEnabled={faturamentoReady}
-            color={theme.colors.textPrimary}
-            text={
-              displayedFaturamentoValue !== null ? formatCurrency(displayedFaturamentoValue) : ''
-            }
-            value={displayedFaturamentoValue}
+          <FinancialTrendIndicator
+            comparison={comparison?.faturamento}
+            visible={comparison !== undefined}
           />
-        </PremiumCard>
-        <PremiumCard
-          accessibilityLabel="Abrir detalhes do lucro líquido"
-          onPress={handleOpenLucroLiquido}
-          style={[
-            styles.heroCard,
-            {
-              backgroundColor: financeCardSurface,
-              borderRadius: theme.radius.xl + theme.spacing.sm,
-            },
-          ]}
-        >
-          <View style={styles.heroHeader}>
-            <View style={styles.heroTitle}>
-              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-                LUCRO LÍQUIDO
-              </Text>
-              <Ionicons
-                color={theme.colors.textSecondary}
-                name="chevron-forward-outline"
-                size={theme.sizes.iconSmall}
-              />
-            </View>
-            <FinancialTrendIndicator
-              comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
-              visible={isNetProfitReady && comparison !== undefined}
+        </View>
+        <NativeAnimatedNumber
+          animationEnabled={faturamentoReady}
+          color={theme.colors.textPrimary}
+          text={displayedFaturamentoValue !== null ? formatCurrency(displayedFaturamentoValue) : ''}
+          value={displayedFaturamentoValue}
+        />
+      </PremiumCard>
+      <PremiumCard
+        accessibilityLabel="Abrir detalhes do lucro líquido"
+        onPress={handleOpenLucroLiquido}
+        style={[
+          styles.heroCard,
+          {
+            backgroundColor: financeCardSurface,
+            borderRadius: theme.radius.xl + theme.spacing.sm,
+          },
+        ]}
+      >
+        <View style={styles.heroHeader}>
+          <View style={styles.heroTitle}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+              LUCRO LÍQUIDO
+            </Text>
+            <Ionicons
+              color={theme.colors.textSecondary}
+              name="chevron-forward-outline"
+              size={theme.sizes.iconSmall}
             />
           </View>
-          <NativeAnimatedNumber
-            animationEnabled={lucroLiquidoReady}
-            color={theme.colors.textPrimary}
-            text={
-              displayedLucroLiquidoValue !== null ? formatCurrency(displayedLucroLiquidoValue) : ''
-            }
-            value={displayedLucroLiquidoValue}
+          <FinancialTrendIndicator
+            comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
+            visible={isNetProfitReady && comparison !== undefined}
           />
-        </PremiumCard>
-        <SummaryCard
-          rows={[
-            { label: 'Baldes vendidos', value: summary ? String(summary.quantidadeBaldes) : '' },
-            { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
-            { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
-            { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
-          ]}
-          style={{ backgroundColor: financeCardSurface }}
-          title="OPERAÇÃO"
+        </View>
+        <NativeAnimatedNumber
+          animationEnabled={lucroLiquidoReady}
+          color={theme.colors.textPrimary}
+          text={
+            displayedLucroLiquidoValue !== null ? formatCurrency(displayedLucroLiquidoValue) : ''
+          }
+          value={displayedLucroLiquidoValue}
         />
-        <SummaryCard
-          rows={[
-            {
-              label: 'Custo dos baldes',
-              value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
-            },
-            {
-              label: 'Custo combustível',
-              value: isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
-            },
-            { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
-            { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
-            {
-              label: 'Custo médio de entrega',
-              value:
-                isNetProfitReady && summary
-                  ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
-                  : '',
-            },
-          ]}
-          style={{ backgroundColor: financeCardSurface }}
-          title="CUSTOS"
-        />
-        <SummaryCard
-          rows={[
-            { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
-            { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
-            { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
-            {
-              label: 'Margem líquida',
-              value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
-            },
-          ]}
-          style={{ backgroundColor: financeCardSurface }}
-          title="RECEBIDO/MARGENS"
-        />
-        <SummaryCard
-          rows={[
-            {
-              label: 'Venda p/ balde',
-              value: summary ? formatCurrency(summary.precoMedioBalde) : '',
-            },
-            {
-              label: 'Lucro p/ balde',
-              value:
-                isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
-            },
-            {
-              label: 'Custo p/ balde',
-              value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
-            },
-          ]}
-          style={{ backgroundColor: financeCardSurface }}
-          title="POR BALDE"
-        />
-      </PremiumScreen>
+      </PremiumCard>
+      <SummaryCard
+        rows={[
+          { label: 'Baldes vendidos', value: summary ? String(summary.quantidadeBaldes) : '' },
+          { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
+          { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+          { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
+        ]}
+        style={{ backgroundColor: financeCardSurface }}
+        title="OPERAÇÃO"
+      />
+      <SummaryCard
+        rows={[
+          {
+            label: 'Custo dos baldes',
+            value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
+          },
+          {
+            label: 'Custo combustível',
+            value: isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
+          },
+          { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
+          { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
+          {
+            label: 'Custo médio de entrega',
+            value:
+              isNetProfitReady && summary
+                ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
+                : '',
+          },
+        ]}
+        style={{ backgroundColor: financeCardSurface }}
+        title="CUSTOS"
+      />
+      <SummaryCard
+        rows={[
+          { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+          { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
+          { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
+          {
+            label: 'Margem líquida',
+            value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
+          },
+        ]}
+        style={{ backgroundColor: financeCardSurface }}
+        title="RECEBIDO/MARGENS"
+      />
+      <SummaryCard
+        rows={[
+          {
+            label: 'Venda p/ balde',
+            value: summary ? formatCurrency(summary.precoMedioBalde) : '',
+          },
+          {
+            label: 'Lucro p/ balde',
+            value: isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
+          },
+          {
+            label: 'Custo p/ balde',
+            value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
+          },
+        ]}
+        style={{ backgroundColor: financeCardSurface }}
+        title="POR BALDE"
+      />
+    </PremiumScreen>
   );
 }
 

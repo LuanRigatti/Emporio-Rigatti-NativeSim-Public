@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
-import { Stack, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
+import { activeTabStore } from '@/navigation/activeTabStore';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeSegmentedControl, renderNativeDateToolbarItems } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
@@ -284,6 +285,14 @@ export function HistoryScreen() {
       }),
     [handleSelectDate, handleSelectWeek, selectedDate, viewMode, weekGroups],
   );
+
+  useEffect(() => {
+    activeTabStore.setHistoryToolbar(renderHistoryToolbar());
+    return () => {
+      activeTabStore.setHistoryToolbar(null);
+    };
+  }, [renderHistoryToolbar]);
+
   const filterHeader = (
     <NativeGlassHeader
       includeTopSafeArea
@@ -368,25 +377,22 @@ export function HistoryScreen() {
   const dayContent = <View style={dayContentStyle}>{dayContentChildren}</View>;
 
   return (
-    <>
-      <Stack.Toolbar placement="right">{renderHistoryToolbar()}</Stack.Toolbar>
-      <Animated.View style={styles.root}>
-        <PremiumScreen
-          scrollable
-          contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
-          overlayHeader={filterHeader}
-          overlayHeaderUnderlay
-          onOverlayHeaderLayout={setOverlayHeaderHeight}
-          progressiveBlurHeight={
-            insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm
-          }
-          progressiveBlurTopOffset={-theme.spacing.xl}
-          progressiveBlur
-        >
-          <View style={styles.dayContentContainer}>{dayContent}</View>
-        </PremiumScreen>
-      </Animated.View>
-    </>
+    <Animated.View style={styles.root}>
+      <PremiumScreen
+        scrollable
+        contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
+        overlayHeader={filterHeader}
+        overlayHeaderUnderlay
+        onOverlayHeaderLayout={setOverlayHeaderHeight}
+        progressiveBlurHeight={
+          insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm
+        }
+        progressiveBlurTopOffset={-theme.spacing.xl}
+        progressiveBlur
+      >
+        <View style={styles.dayContentContainer}>{dayContent}</View>
+      </PremiumScreen>
+    </Animated.View>
   );
 }
 

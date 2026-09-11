@@ -158,7 +158,7 @@ function RegistrarModeSelection() {
               styles.modeSelectionCard,
               {
                 backgroundColor: registrarCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
+                borderRadius: theme.radius.xl + theme.spacing.md,
                 padding: theme.spacing.lg,
               },
             ]}
@@ -177,9 +177,6 @@ function RegistrarModeSelection() {
                 <View style={styles.modeCopy}>
                   <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                     Registrar Entrega
-                  </Text>
-                  <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                    Registre uma nova entrega de forma rápida e simples.
                   </Text>
                 </View>
                 <Ionicons
@@ -201,9 +198,6 @@ function RegistrarModeSelection() {
                 <View style={styles.modeCopy}>
                   <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                     Registrar Dados
-                  </Text>
-                  <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                    Cadastre e atualize informações no sistema.
                   </Text>
                 </View>
                 <Ionicons
@@ -841,7 +835,6 @@ function RegistrarDeliveryToolbar({
         accessibilityLabel="Ordenar entregas"
         icon="line.3.horizontal.decrease"
         separateBackground={false}
-        title="Ordenar entregas"
         tintColor={theme.colors.textPrimary}
       >
         <Stack.Toolbar.MenuAction

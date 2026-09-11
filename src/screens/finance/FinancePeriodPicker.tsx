@@ -160,7 +160,7 @@ export function FinancePeriodPicker({
   };
 
   return (
-    <BottomSheet onClose={onClose} title="Selecionar período" visible={visible}>
+    <BottomSheet accessibilityLabel="Selecionar período" onClose={onClose} visible={visible}>
       <ScrollView
         contentContainerStyle={{ gap: theme.spacing.sm }}
         showsVerticalScrollIndicator={false}

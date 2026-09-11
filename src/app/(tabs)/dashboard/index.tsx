@@ -202,7 +202,7 @@ export default function Home() {
                 styles.homeShortcutCard,
                 {
                   backgroundColor: homeCardSurface,
-                  borderRadius: theme.radius.xl + theme.spacing.sm,
+                  borderRadius: theme.radius.xl + theme.spacing.md,
                   padding: theme.spacing.lg,
                 },
               ]}
@@ -366,14 +366,16 @@ export default function Home() {
             </PremiumCard>
           </View>
 
-          <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
-            <TodayDeliveriesCard
-              cardSurfaceColor={homeCardSurface}
-              deliveries={todayDeliveries}
-              onDelete={handleTodayDeliveryDelete}
-              onToggleStatus={handleTodayStatusToggle}
-            />
-          </View>
+          {todayDeliveries.length > 0 ? (
+            <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
+              <TodayDeliveriesCard
+                cardSurfaceColor={homeCardSurface}
+                deliveries={todayDeliveries}
+                onDelete={handleTodayDeliveryDelete}
+                onToggleStatus={handleTodayStatusToggle}
+              />
+            </View>
+          ) : null}
         </PremiumScreen>
         <HomeProfileSheet
           onVisibleChange={setIsProfileSheetVisible}

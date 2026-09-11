@@ -29,7 +29,6 @@ export function renderFinancePeriodToolbarItems({
         accessibilityLabel="Selecionar período"
         key="period"
         separateBackground={false}
-        title="Selecionar período"
       >
         <Stack.Toolbar.Label>{periodLabel}</Stack.Toolbar.Label>
         <Stack.Toolbar.Menu icon="calendar" title="Mês">

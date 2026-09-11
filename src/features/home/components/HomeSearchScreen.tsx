@@ -62,8 +62,18 @@ export default function HomeSearchScreen() {
     };
 
     let interactionTask: ReturnType<typeof InteractionManager.runAfterInteractions> | null = null;
-    let unsubscribeFallbackFocus: (() => void) | null = null;
+    let unsubscribeFocus: (() => void) | null = null;
     let unsubscribeParentTransitionEnd: (() => void) | null = null;
+
+    const scheduleInteractionFocus = () => {
+      if (interactionTask) interactionTask.cancel();
+      interactionTask = InteractionManager.runAfterInteractions(() => {
+        requestFocus();
+      });
+    };
+
+    unsubscribeFocus = nativeStackNavigation.addListener('focus', scheduleInteractionFocus);
+    if (screenFocusedRef.current) scheduleInteractionFocus();
 
     if (parentNavigation) {
       unsubscribeParentTransitionEnd = parentNavigation.addListener('transitionEnd', (event) => {
@@ -72,24 +82,11 @@ export default function HomeSearchScreen() {
         if (blockedByClosing) return;
         requestFocus();
       });
-    } else {
-      const scheduleInteractionFallback = () => {
-        if (interactionTask) interactionTask.cancel();
-        interactionTask = InteractionManager.runAfterInteractions(() => {
-          requestFocus();
-        });
-      };
-
-      unsubscribeFallbackFocus = nativeStackNavigation.addListener(
-        'focus',
-        scheduleInteractionFallback,
-      );
-      if (screenFocusedRef.current) scheduleInteractionFallback();
     }
 
     return () => {
       unsubscribeParentTransitionEnd?.();
-      unsubscribeFallbackFocus?.();
+      unsubscribeFocus?.();
       interactionTask?.cancel();
     };
   }, [navigation]);

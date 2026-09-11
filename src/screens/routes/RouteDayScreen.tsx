@@ -144,8 +144,8 @@ export function RouteDayScreen({ navigation, route }: Props) {
           onPress={() => setDatePickerVisible(true)}
         />
         <BottomSheet
+          accessibilityLabel="Selecionar data da rota"
           onClose={() => setDatePickerVisible(false)}
-          title="Selecionar data da rota"
           visible={datePickerVisible}
         >
           <ScrollView

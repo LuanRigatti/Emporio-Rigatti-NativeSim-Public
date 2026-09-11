@@ -42,6 +42,13 @@ export default function DashboardLayout() {
             onPress={() => router.back()}
           />
         </Stack.Toolbar>
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            accessibilityLabel="Mais opções"
+            icon="ellipsis"
+            onPress={() => undefined}
+          />
+        </Stack.Toolbar>
       </Stack.Screen>
     </Stack>
   );

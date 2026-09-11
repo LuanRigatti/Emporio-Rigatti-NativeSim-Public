@@ -79,12 +79,7 @@ export function renderNativeDateToolbarItems({
   ];
 
   return [
-    <Stack.Toolbar.Menu
-      accessibilityLabel={toolbarTitle}
-      key="date"
-      separateBackground={false}
-      title={toolbarTitle}
-    >
+    <Stack.Toolbar.Menu accessibilityLabel={toolbarTitle} key="date" separateBackground={false}>
       <Stack.Toolbar.Label>{formatToolbarLabel(date, mode)}</Stack.Toolbar.Label>
       {mode === 'week'
         ? weekGroups.map((group) => (

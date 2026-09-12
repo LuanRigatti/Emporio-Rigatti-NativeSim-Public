@@ -21,13 +21,7 @@ export default function FinanceLayout() {
         },
       }}
     >
-      <Stack.Screen name="index" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="faturamento-mensal" options={{ gestureEnabled: true }}>
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
-      <Stack.Screen name="lucro-liquido-mensal" options={{ gestureEnabled: true }}>
-        <Stack.Screen.BackButton displayMode="minimal" />
-      </Stack.Screen>
+      <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: false }} />
     </Stack>
   );
 }

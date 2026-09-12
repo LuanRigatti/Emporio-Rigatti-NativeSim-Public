@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import type { SFSymbol } from 'sf-symbols-typescript';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { activeTabStore } from '@/navigation/activeTabStore';
 import Animated, {
   Easing,
   FadeIn,
@@ -109,12 +110,12 @@ function RegistrarModeSelection() {
 
   const handleOpenRegistrarEntrega = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar/entrega');
+    router.push('/registrar-entrega');
   };
 
   const handleOpenRegistrarDados = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar/dados');
+    router.push('/registrar-dados');
   };
 
   const header = (
@@ -214,7 +215,9 @@ function RegistrarModeSelection() {
   );
 }
 
-export function RegistrarDailyDataScreen({ showLargeTitle = false }: { showLargeTitle?: boolean } = {}) {
+export function RegistrarDailyDataScreen({
+  showLargeTitle = false,
+}: { showLargeTitle?: boolean } = {}) {
   const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
   const useDarkGlassSurface = resolvedMode === 'dark';
@@ -386,72 +389,72 @@ export function RegistrarDailyDataScreen({ showLargeTitle = false }: { showLarge
                 resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
               ]}
             >
-            <NativeCardContextMenu
-              actions={
-                hasDailyData
-                  ? [
-                      {
-                        destructive: true,
-                        disabled: isDeleting,
-                        id: 'delete-daily-data',
-                        onPress: () => {
-                          void handleDeleteDailyData();
+              <NativeCardContextMenu
+                actions={
+                  hasDailyData
+                    ? [
+                        {
+                          destructive: true,
+                          disabled: isDeleting,
+                          id: 'delete-daily-data',
+                          onPress: () => {
+                            void handleDeleteDailyData();
+                          },
+                          systemImage: 'trash',
+                          title: 'Excluir',
                         },
-                        systemImage: 'trash',
-                        title: 'Excluir',
-                      },
-                    ]
-                  : []
-              }
-              style={[
-                styles.dailyDataContextWrapper,
-                {
-                  borderRadius: hasDailyData
-                    ? theme.radius.xl + theme.spacing.sm
-                    : theme.radius.xl + theme.spacing.lg,
-                  height: dailyDataCardMinHeight,
-                },
-              ]}
-              preview={dailyDataPreview}
-            >
-              <Animated.View style={styles.fullWidth}>
-                {hasDailyData ? (
-                  <Animated.View entering={FadeIn.duration(theme.animations.duration.fast)}>
+                      ]
+                    : []
+                }
+                style={[
+                  styles.dailyDataContextWrapper,
+                  {
+                    borderRadius: hasDailyData
+                      ? theme.radius.xl + theme.spacing.sm
+                      : theme.radius.xl + theme.spacing.lg,
+                    height: dailyDataCardMinHeight,
+                  },
+                ]}
+                preview={dailyDataPreview}
+              >
+                <Animated.View style={styles.fullWidth}>
+                  {hasDailyData ? (
+                    <Animated.View entering={FadeIn.duration(theme.animations.duration.fast)}>
+                      <View
+                        style={[
+                          styles.dailyDataCard,
+                          {
+                            backgroundColor: 'transparent',
+                            borderRadius: theme.radius.xl + theme.spacing.sm,
+                            padding: theme.spacing.lg,
+                            width: '100%',
+                          },
+                        ]}
+                      >
+                        {renderDailyDataContent()}
+                      </View>
+                    </Animated.View>
+                  ) : (
                     <View
                       style={[
-                        styles.dailyDataCard,
+                        styles.emptyStateCard,
                         {
-                          backgroundColor: 'transparent',
-                          borderRadius: theme.radius.xl + theme.spacing.sm,
-                          padding: theme.spacing.lg,
-                          width: '100%',
+                          minHeight: dailyDataCardMinHeight,
+                          paddingVertical: theme.spacing.xxl * 2,
                         },
                       ]}
                     >
-                      {renderDailyDataContent()}
+                      <Text
+                        style={[
+                          theme.typography.body,
+                          { color: theme.colors.textSecondary, textAlign: 'center' },
+                        ]}
+                      >
+                        Nenhum dado hoje
+                      </Text>
                     </View>
-                  </Animated.View>
-                ) : (
-                  <View
-                    style={[
-                      styles.emptyStateCard,
-                      {
-                        minHeight: dailyDataCardMinHeight,
-                        paddingVertical: theme.spacing.xxl * 2,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        theme.typography.body,
-                        { color: theme.colors.textSecondary, textAlign: 'center' },
-                      ]}
-                    >
-                      Nenhum dado hoje
-                    </Text>
-                  </View>
-                )}
-              </Animated.View>
+                  )}
+                </Animated.View>
               </NativeCardContextMenu>
             </View>
           </Animated.View>
@@ -482,9 +485,7 @@ export function RegistrarDailyDataScreen({ showLargeTitle = false }: { showLarge
       </View>
       <NativeDailyDataSheet
         glassSurface={useDarkGlassSurface}
-        glassTint={
-          useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined
-        }
+        glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
         initialValues={dailySheetInitialValues}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
@@ -506,8 +507,11 @@ export function RegistrarDeliveryScreen({
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
-  const { quantity: maskQuantity, text: maskText, enabled: testModeEnabled } =
-    useTestModePresentation();
+  const {
+    quantity: maskQuantity,
+    text: maskText,
+    enabled: testModeEnabled,
+  } = useTestModePresentation();
   const dark = colorScheme === 'dark';
   const { clients } = useClients();
   const [currentDate, setCurrentDate] = useState(() => todayIso());
@@ -540,8 +544,7 @@ export function RegistrarDeliveryScreen({
       ).map(toHistoryDelivery),
     [currentDate, deliverySortMode, recentlyAddedDeliveryIds, sourceDeliveries],
   );
-  const emptyDeliveryCardMinHeight =
-    theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
+  const emptyDeliveryCardMinHeight = theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
   const deliveryRowHeight =
     theme.spacing.sm * 2 +
     Math.max(
@@ -598,12 +601,52 @@ export function RegistrarDeliveryScreen({
     />
   ) : null;
 
+  useEffect(() => {
+    if (!inlineClientSelection) {
+      activeTabStore.setRegistrarToolbar(
+        <Stack.Toolbar.Menu
+          accessibilityLabel="Ordenar entregas"
+          icon="line.3.horizontal.decrease"
+          separateBackground={false}
+          tintColor={theme.colors.textPrimary}
+        >
+          <Stack.Toolbar.MenuAction
+            icon={'clock.arrow.circlepath' as SFSymbol}
+            isOn={deliverySortMode === 'latest'}
+            onPress={() => handleDeliverySortChange('latest')}
+          >
+            Recentes
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon={'textformat.abc' as SFSymbol}
+            isOn={deliverySortMode === 'alphabetical'}
+            onPress={() => handleDeliverySortChange('alphabetical')}
+          >
+            Ordem alfabética
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon={'chart.bar.fill' as SFSymbol}
+            isOn={deliverySortMode === 'quantity'}
+            onPress={() => handleDeliverySortChange('quantity')}
+          >
+            Quantidade de baldes
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>,
+      );
+      return () => {
+        activeTabStore.setRegistrarToolbar(null);
+      };
+    }
+  }, [deliverySortMode, handleDeliverySortChange, inlineClientSelection, theme.colors.textPrimary]);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <RegistrarDeliveryToolbar
-        onSortChange={handleDeliverySortChange}
-        sortMode={deliverySortMode}
-      />
+      {inlineClientSelection ? (
+        <RegistrarDeliveryToolbar
+          onSortChange={handleDeliverySortChange}
+          sortMode={deliverySortMode}
+        />
+      ) : null}
       <PremiumScreen
         contentContainerStyle={{
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,

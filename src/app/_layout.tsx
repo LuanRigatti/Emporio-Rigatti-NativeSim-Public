@@ -140,19 +140,452 @@ function AppShell() {
                   name="(tabs)"
                   options={{
                     gestureEnabled: false,
-                    headerShown: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
                   }}
                 />
+                <Stack.Screen
+                  name="registrar-entrega"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-dados"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="em-aberto"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="notas-fiscais-boletos"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica-compras"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="pesquisa"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
                 <Stack.Screen
                   name="(home-shortcuts)"
                   options={{ gestureEnabled: true, headerShown: false }}
                 />
-                <Stack.Screen name="fabrica-compras-menu" />
-                <Stack.Screen name="fabrica-compras-registrar" />
-                <Stack.Screen name="fabrica-valor-balde" />
-                <Stack.Screen name="fabrica" />
-                <Stack.Screen name="pagamentos-em-aberto" />
-                <Stack.Screen name="em-aberto" />
+                <Stack.Screen
+                  name="faturamento-mensal"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="lucro-liquido-mensal"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="clientes"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="clientes/[clientId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="dados-empresa"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica-valor-balde"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica-compras-menu"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica-compras-registrar"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="dados"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="dados/mensais"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="dados/diarios"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="dados/carro"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="localizacao"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="localizacao/[routeId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="estoque"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="face-id"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="sistema"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="modo-teste"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="backup"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="pagamentos-em-aberto"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
                 <Stack.Screen name="dev/native-components-showcase" />
               </Stack.Protected>
             </Stack>

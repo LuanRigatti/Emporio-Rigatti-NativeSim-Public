@@ -8,7 +8,7 @@ import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUti
 import { useAppTheme } from '@/theme';
 
 export function FactoryPurchaseRegisterRoute({
-  nativeHeader = false,
+  nativeHeader = true,
 }: { nativeHeader?: boolean } = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();

@@ -17,7 +17,7 @@ type FactoryPurchasesMenuRouteProps = {
 };
 
 export function FactoryPurchasesMenuRoute({
-  nativeHeader = false,
+  nativeHeader = true,
   navigationPaths,
 }: FactoryPurchasesMenuRouteProps = {}) {
   const { theme } = useAppTheme();

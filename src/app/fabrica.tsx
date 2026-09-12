@@ -16,7 +16,7 @@ type FactoryRouteProps = {
   };
 };
 
-export function FactoryRoute({ nativeHeader = false, navigationPaths }: FactoryRouteProps = {}) {
+export function FactoryRoute({ nativeHeader = true, navigationPaths }: FactoryRouteProps = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();
   const paths = navigationPaths ?? {

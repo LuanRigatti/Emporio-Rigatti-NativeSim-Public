@@ -207,6 +207,15 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 - A instrumentação temporária de lifecycle da Pesquisa foi removida; não há
   contadores, listeners ou helpers de diagnóstico desse fluxo.
 
+### NativeSim auxiliar
+
+- O workflow `.github/workflows/native-sim.yml` é disparado somente por
+  `workflow_dispatch`. O status `native-sim/${{ inputs.session }}` publica
+  `success` no encerramento normal e `failure` somente quando uma etapa real do
+  job falha. Cancelamentos reais não são sobrescritos artificialmente como
+  `failure`; o check do GitHub Actions mantém a conclusão `cancelled` quando
+  aplicável.
+
 ## Estado nativo atual
 
 ### VALIDADO NO IPHONE

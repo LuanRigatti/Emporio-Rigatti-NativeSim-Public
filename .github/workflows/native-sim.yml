@@ -652,10 +652,18 @@ jobs:
           done
           echo "Session window elapsed"
 
-      - name: Mark session ended
-        if: always()
+      - name: Mark session ended successfully
+        if: success()
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=success \
+            -f "context=$STATUS_CONTEXT" \
+            -f "description=session ended" || true
+
+      - name: Mark session failed
+        if: failure()
         run: |
           gh api "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
             -f state=failure \
             -f "context=$STATUS_CONTEXT" \
-            -f "description=session ended" || true
+            -f "description=session failed" || true

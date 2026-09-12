@@ -110,12 +110,12 @@ function RegistrarModeSelection() {
 
   const handleOpenRegistrarEntrega = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar/entrega');
+    router.push('/registrar-entrega');
   };
 
   const handleOpenRegistrarDados = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar/dados');
+    router.push('/registrar-dados');
   };
 
   const header = (

@@ -1,5 +1,1 @@
-import { RegistrarDeliveryScreen } from '@/app/(tabs)/registrar/index';
-
-export default function RegistrarDeliveryRoute() {
-  return <RegistrarDeliveryScreen inlineClientSelection showLargeTitle />;
-}
+export { default } from '@/app/registrar-entrega';

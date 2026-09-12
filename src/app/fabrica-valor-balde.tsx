@@ -7,7 +7,7 @@ import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useFactorySettings } from '@/hooks/useFactorySettings';
 import { useAppTheme } from '@/theme';
 
-export function FactoryBucketValueRoute({ nativeHeader = false }: { nativeHeader?: boolean } = {}) {
+export function FactoryBucketValueRoute({ nativeHeader = true }: { nativeHeader?: boolean } = {}) {
   const { theme } = useAppTheme();
   const router = useRouter();
   const { settings, updateField } = useFactorySettings();

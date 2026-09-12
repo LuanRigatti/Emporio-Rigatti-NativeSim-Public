@@ -1,5 +1,1 @@
-import { MonthlyFinancialDetailScreen } from '@/features/finance';
-
-export default function MonthlyNetProfitRoute() {
-  return <MonthlyFinancialDetailScreen metric="lucroLiquido" />;
-}
+export { default } from '@/app/lucro-liquido-mensal';

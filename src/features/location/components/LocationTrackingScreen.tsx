@@ -202,7 +202,7 @@ export function LocationTrackingScreen() {
   const handleOpenRoute = useCallback(
     (sessionId: string) => {
       triggerLightImpactHaptic();
-      router.push(`/configuracoes/localizacao/${encodeURIComponent(sessionId)}`);
+      router.push(`/localizacao/${encodeURIComponent(sessionId)}`);
     },
     [router],
   );

@@ -60,49 +60,49 @@ export function SettingsScreen() {
             <SettingsSection>
               <SettingItem
                 fallbackIcon="person"
-                onPress={() => router.push('/configuracoes/clientes')}
+                onPress={() => router.push('/clientes')}
                 systemName="person.2"
                 title="Clientes"
               />
               <SettingItem
                 fallbackIcon="business"
-                onPress={() => router.push('/configuracoes/dados-empresa')}
+                onPress={() => router.push('/dados-empresa')}
                 systemName="building.2"
                 title="Dados da Empresa"
               />
               <SettingItem
                 fallbackIcon="business"
-                onPress={() => router.push('/configuracoes/fabrica')}
+                onPress={() => router.push('/fabrica')}
                 systemName="building.2"
                 title="Fábrica"
               />
               <SettingItem
                 fallbackIcon="calculator"
-                onPress={() => router.push('/configuracoes/dados')}
+                onPress={() => router.push('/dados')}
                 systemName="chart.bar"
                 title="Dados"
               />
               <SettingItem
                 fallbackIcon="location-outline"
-                onPress={() => router.push('/configuracoes/localizacao')}
+                onPress={() => router.push('/localizacao')}
                 systemName="location"
                 title="Localização"
               />
               <SettingItem
                 fallbackIcon="cube-outline"
-                onPress={() => router.push('/configuracoes/estoque')}
+                onPress={() => router.push('/estoque')}
                 systemName="shippingbox"
                 title="Estoque"
               />
               <SettingItem
                 fallbackIcon="finger-print-outline"
-                onPress={() => router.push('/configuracoes/face-id')}
+                onPress={() => router.push('/face-id')}
                 systemName="faceid"
                 title="Face ID"
               />
               <SettingItem
                 fallbackIcon="settings-outline"
-                onPress={() => router.push('/configuracoes/sistema')}
+                onPress={() => router.push('/sistema')}
                 systemName="gearshape"
                 title="Sistema"
               />

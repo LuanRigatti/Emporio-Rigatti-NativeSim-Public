@@ -26,14 +26,14 @@ export function SystemSettingsScreen() {
         <SettingsSection>
           <SettingItem
             fallbackIcon="flask-outline"
-            onPress={() => router.push('/configuracoes/modo-teste')}
+            onPress={() => router.push('/modo-teste')}
             systemName="testtube.2"
             title="Modo Teste"
           />
           <SettingItem
             fallbackIcon="archive-outline"
             isLast
-            onPress={() => router.push('/configuracoes/backup')}
+            onPress={() => router.push('/backup')}
             systemName="externaldrive"
             title="Backup"
           />

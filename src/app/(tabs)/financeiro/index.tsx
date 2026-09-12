@@ -156,7 +156,7 @@ export default function PrototypeFinanceiro() {
   const handleOpenFaturamento = () => {
     triggerLightImpactHaptic();
     router.push({
-      pathname: '/financeiro/faturamento-mensal',
+      pathname: '/faturamento-mensal',
       params: { period: displayedPeriod },
     });
   };
@@ -164,7 +164,7 @@ export default function PrototypeFinanceiro() {
   const handleOpenLucroLiquido = () => {
     triggerLightImpactHaptic();
     router.push({
-      pathname: '/financeiro/lucro-liquido-mensal',
+      pathname: '/lucro-liquido-mensal',
       params: { period: displayedPeriod },
     });
   };

@@ -396,3 +396,29 @@ Prefer extending reusable abstractions over creating screen-specific implementat
 Visual styles (glass, glassProminent, primary, bordered, filled, etc.) should be expressed through variants instead of separate component names whenever technically appropriate.
 
 Every new native component should be designed with reuse across the entire application in mind.
+
+## Mem0 — contexto entre sessões
+
+### Ao iniciar toda nova sessão
+
+Antes de responder à primeira solicitação de cada nova sessão, chame obrigatoriamente `mcp__mem0__search_memories` com:
+
+- `user_id = "Luan Rigatti"`
+- `app_id = "LuanRigatti-Emporio-Rigatti-NativeSim-Public"`
+- `query = "NativeSim Public projeto branch fluxo compilação validação Empório Rigatti contexto"`
+- `top_k = 20`
+
+Se o Mem0 falhar ou estiver indisponível, não bloqueie o trabalho.
+
+### Integração com o projeto principal
+
+Quando a solicitação envolver mudança originada no Empório Rigatti, transporte de commit/código, arquitetura ou regras do projeto principal, validação de uma alteração do projeto principal ou comparação entre o NativeSim e o app real, faça também uma segunda busca somente para leitura com `mcp__mem0__search_memories` usando:
+
+- `user_id = "Luan Rigatti"`
+- `app_id = "LuanRigatti-pwa-ios-2026"`
+
+### Escrita de memórias
+
+O NativeSim Public pode criar ou atualizar automaticamente memórias duráveis somente em `app_id = "LuanRigatti-Emporio-Rigatti-NativeSim-Public"`. Antes de criar uma memória, pesquise memórias relacionadas para evitar duplicatas e prefira atualizar uma memória existente quando uma informação a substituir.
+
+Não grave automaticamente no `app_id` do projeto principal. Não memorize logs transitórios, erros temporários, hipóteses, testes inconclusivos, grandes trechos de código, API keys, tokens, credenciais ou dados pessoais/sensíveis. Código e Git atuais continuam prevalecendo sobre o Mem0.

@@ -18,6 +18,7 @@ mcp__mem0__search_memories(
 - Nas mensagens seguintes da mesma sessão, não é necessário repetir a busca automaticamente, salvo quando o contexto recuperado for insuficiente ou potencialmente desatualizado.
 - Durante o trabalho, trate Mem0 apenas como memória auxiliar; código/Git e os documentos do projeto continuam sendo a fonte da verdade.
 - Ao concluir uma alteração, decisão ou investigação que gere informação durável e útil para futuras sessões, mantenha o Mem0 atualizado automaticamente.
+- Quando o usuário solicitar explicitamente criar, atualizar, apagar, validar ou auditar memórias específicas, esse escopo prevalece sobre a gravação automática; durante a operação, não crie, atualize ou apague outras memórias além das autorizadas, e retome a política automática somente após o término.
 - Antes de criar uma nova memória, pesquise memórias relacionadas no mesmo `user_id` + `app_id`.
 - Se a informação nova substituir ou corrigir uma memória existente, prefira atualizar a memória existente em vez de criar uma duplicata.
 - Crie nova memória somente quando for realmente um novo fato ou decisão durável.

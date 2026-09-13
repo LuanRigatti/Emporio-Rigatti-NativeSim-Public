@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { createElement } from 'react';
+import { createElement, useEffect } from 'react';
 
 import { SessionProvider, useSession } from '@/providers/SessionProvider';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
@@ -98,7 +98,7 @@ describe('SessionProvider startup resolution', () => {
     });
 
     expect(currentStatus).toBe('authenticated');
-    renderer!.unmount();
+    act(() => renderer!.unmount());
   });
 
   it('resolves unauthenticated only after the initial auth state is emitted', async () => {
@@ -132,6 +132,103 @@ describe('SessionProvider startup resolution', () => {
     });
 
     expect(currentStatus).toBe('unauthenticated');
-    renderer!.unmount();
+    act(() => renderer!.unmount());
+  });
+
+  it('increments the session version across logout and relogin with the same uid', async () => {
+    const source = new DeferredAuthDataSource();
+    let sessionVersion = -1;
+
+    function Harness() {
+      sessionVersion = useSession().sessionVersion;
+      return null;
+    }
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(SessionProvider, { dataSource: source }, createElement(Harness)),
+      );
+    });
+
+    await act(async () => {
+      source.emit(restoredUser);
+      await Promise.resolve();
+    });
+    const firstLoginVersion = sessionVersion;
+
+    await act(async () => {
+      source.emit(null);
+      await Promise.resolve();
+    });
+    const logoutVersion = sessionVersion;
+
+    await act(async () => {
+      source.emit(restoredUser);
+      await Promise.resolve();
+    });
+
+    expect(logoutVersion).toBeGreaterThan(firstLoginVersion);
+    expect(sessionVersion).toBeGreaterThan(logoutVersion);
+    act(() => renderer!.unmount());
+  });
+
+  it('passes each session version to session-aware data source bindings', async () => {
+    const source = new DeferredAuthDataSource();
+    const clientBinding = { setSessionUser: jest.fn() };
+    const deliveryBinding = { setSessionUser: jest.fn() };
+    const factoryBinding = { setSessionUser: jest.fn() };
+
+    function AppShellBindingHarness() {
+      const { sessionVersion, user } = useSession();
+      useEffect(() => {
+        clientBinding.setSessionUser(user?.id, sessionVersion);
+        deliveryBinding.setSessionUser(user?.id, sessionVersion);
+        factoryBinding.setSessionUser(user?.id, sessionVersion);
+      }, [sessionVersion, user?.id]);
+      return null;
+    }
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(
+          SessionProvider,
+          { dataSource: source },
+          createElement(AppShellBindingHarness),
+        ),
+      );
+    });
+
+    await act(async () => {
+      source.emit(restoredUser);
+      await Promise.resolve();
+    });
+    const firstLoginVersion = clientBinding.setSessionUser.mock.calls.at(-1)?.[1];
+
+    await act(async () => {
+      source.emit(null);
+      await Promise.resolve();
+    });
+    const logoutVersion = clientBinding.setSessionUser.mock.calls.at(-1)?.[1];
+
+    await act(async () => {
+      source.emit(restoredUser);
+      await Promise.resolve();
+    });
+    const secondLoginVersion = clientBinding.setSessionUser.mock.calls.at(-1)?.[1];
+
+    expect(firstLoginVersion).toEqual(expect.any(Number));
+    expect(logoutVersion).toBeGreaterThan(firstLoginVersion as number);
+    expect(secondLoginVersion).toBeGreaterThan(logoutVersion as number);
+    expect(deliveryBinding.setSessionUser).toHaveBeenLastCalledWith(
+      restoredUser.id,
+      secondLoginVersion,
+    );
+    expect(factoryBinding.setSessionUser).toHaveBeenLastCalledWith(
+      restoredUser.id,
+      secondLoginVersion,
+    );
+    act(() => renderer!.unmount());
   });
 });

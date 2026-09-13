@@ -8,17 +8,18 @@ import type { ClientModel } from '@/types/data';
 const EMPTY_CLIENT_QUERY: ClientCatalogQuery = {};
 
 export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
-  const { status: authStatus, user } = useAuth();
+  const { sessionVersion, status: authStatus, user } = useAuth();
   const [loading, setLoading] = useState(
-    clientDataSource.mode === 'firebase' && clientDataSource.getSnapshot() === null,
+    clientDataSource.mode === 'firebase' &&
+      clientDataSource.getSnapshot(user?.id, sessionVersion) === null,
   );
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const snapshot = useSyncExternalStore(
-    clientDataSource.subscribe,
-    clientDataSource.getSnapshot,
-    clientDataSource.getSnapshot,
+  const getSnapshot = useCallback(
+    () => clientDataSource.getSnapshot(user?.id, sessionVersion),
+    [sessionVersion, user?.id],
   );
+  const snapshot = useSyncExternalStore(clientDataSource.subscribe, getSnapshot, getSnapshot);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -31,7 +32,7 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
       }
 
       if (isRefresh) setRefreshing(true);
-      else if (clientDataSource.getSnapshot() === null) setLoading(true);
+      else if (clientDataSource.getSnapshot(user?.id, sessionVersion) === null) setLoading(true);
       setError(undefined);
       try {
         await clientDataSource.load(user?.id);
@@ -51,7 +52,7 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
         setRefreshing(false);
       }
     },
-    [authStatus, user],
+    [authStatus, sessionVersion, user],
   );
 
   useEffect(() => {
@@ -65,8 +66,9 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
     return clientDataSource.list(
       { clientIdForName, includeHistorical, priceDate, search },
       user?.id,
+      sessionVersion,
     );
-  }, [clientIdForName, includeHistorical, priceDate, search, snapshot, user?.id]);
+  }, [clientIdForName, includeHistorical, priceDate, search, sessionVersion, snapshot, user?.id]);
 
   const mutate = useCallback(
     async (operation: () => Promise<void>) => {
@@ -103,6 +105,7 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
       price: number,
       usesInvoice?: boolean,
       usesBoleto?: boolean,
-    ) => mutate(() => clientDataSource.updatePrice(user?.id, client, price, usesInvoice, usesBoleto)),
+    ) =>
+      mutate(() => clientDataSource.updatePrice(user?.id, client, price, usesInvoice, usesBoleto)),
   };
 }

@@ -101,6 +101,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
   public constructor(
     private readonly userId: string,
     private readonly now: () => Date = () => new Date(),
+    private readonly sessionVersion?: number,
   ) {}
 
   public async load(query: HomeSearchParsedQuery): Promise<HomeSearchDataSet> {
@@ -217,11 +218,11 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
     let globalDeliveries: Delivery[] = deliveries;
     if (hasClientFilter) {
       try {
-        globalDeliveries = await firestoreDeliveryDataSource.loadAllHistorical(this.userId);
+        globalDeliveries = await this.loadAllHistoricalDeliveries();
         coverage.push({ source: 'deliveries', mode: 'remote', reason: 'historicalDeliveries' });
       } catch (error) {
         errors.push(sourceError('deliveries', error));
-        globalDeliveries = firestoreDeliveryDataSource.getCached({ mode: 'all' });
+        globalDeliveries = this.getCachedDeliveries({ mode: 'all' });
       }
     }
     const factoryPurchases = await this.loadFactoryPurchases(query, coverage, errors);
@@ -254,7 +255,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       return [];
     }
     try {
-      await factoryReceiptDataSource.restore(this.userId, filters);
+      await this.restoreFactoryReceipts(filters);
       coverage.push({
         source: 'factoryPurchases',
         mode:
@@ -267,7 +268,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       errors.push(sourceError('factoryPurchases', error));
       coverage.push({ source: 'factoryPurchases', mode: 'localFallback', reason: 'sourceError' });
     }
-    return factoryReceiptDataSource.getReceipts();
+    return this.getFactoryReceipts();
   }
 
   private async loadRoutes(
@@ -333,11 +334,15 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
     let deliveryFallback = false;
     let deliveries;
     try {
-      deliveries = await firestoreDeliveryDataSource.load(this.userId, deliveryFilters);
+      deliveries = await this.loadDeliveriesFromFirestore(deliveryFilters);
     } catch (error) {
       deliveryFallback = true;
       errors.push(sourceError('financialData', error));
-      deliveries = firestoreDeliveryDataSource.getCached(deliveryFilters);
+      deliveries = firestoreDeliveryDataSource.getCached(
+        deliveryFilters,
+        this.userId,
+        this.sessionVersion,
+      );
     }
 
     let costsAvailable = true;
@@ -368,8 +373,8 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
     errors: HomeSearchSourceError[],
   ): Promise<ClientModel[]> {
     try {
-      if (clientDataSource.getSnapshot() === null) {
-        await clientDataSource.load(this.userId);
+      if (this.getClientSnapshot() === null) {
+        await this.loadClientsFromFirestore();
         coverage.push({
           source: 'clients',
           mode:
@@ -380,11 +385,11 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
       } else {
         coverage.push({ source: 'clients', mode: 'memory' });
       }
-      return clientDataSource.list({}, this.userId);
+      return this.getClients();
     } catch (error) {
       errors.push(sourceError('clients', error));
       coverage.push({ source: 'clients', mode: 'localFallback', reason: 'sourceError' });
-      return clientDataSource.list({}, this.userId);
+      return this.getClients();
     }
   }
 
@@ -398,18 +403,18 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
 
     if (filters) {
       try {
-        const deliveries = await firestoreDeliveryDataSource.load(this.userId, filters);
+        const deliveries = await this.loadDeliveriesFromFirestore(filters);
         coverage.push({ source: 'deliveries', mode: 'remote' });
         return deliveries;
       } catch (error) {
         errors.push(sourceError('deliveries', error));
         coverage.push({ source: 'deliveries', mode: 'memory', reason: 'remoteFallback' });
-        return firestoreDeliveryDataSource.getCached(filters);
+        return this.getCachedDeliveries(filters);
       }
     }
 
     coverage.push({ source: 'deliveries', mode: 'memory', reason: 'unboundedQuery' });
-    return firestoreDeliveryDataSource.getCached({ mode: 'all' });
+    return this.getCachedDeliveries({ mode: 'all' });
   }
 
   private async loadFactoryPurchases(
@@ -427,7 +432,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
         ...(bounds.endDate ? { endDate: bounds.endDate } : {}),
       };
       try {
-        await factoryReceiptDataSource.restore(this.userId, filters);
+        await this.restoreFactoryReceipts(filters);
         coverage.push({
           source: 'factoryPurchases',
           mode:
@@ -447,7 +452,55 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
         reason: query.text ? 'unrelatedText' : bounds ? 'documentQuery' : 'unboundedQuery',
       });
     }
-    return factoryReceiptDataSource.getReceipts();
+    return this.getFactoryReceipts();
+  }
+
+  private loadClientsFromFirestore(): Promise<void> {
+    return this.sessionVersion === undefined
+      ? clientDataSource.load(this.userId)
+      : clientDataSource.load(this.userId, this.sessionVersion);
+  }
+
+  private loadDeliveriesFromFirestore(filters: DeliveryFilters): Promise<Delivery[]> {
+    return this.sessionVersion === undefined
+      ? firestoreDeliveryDataSource.load(this.userId, filters)
+      : firestoreDeliveryDataSource.load(this.userId, filters, {}, this.sessionVersion);
+  }
+
+  private loadAllHistoricalDeliveries(): Promise<Delivery[]> {
+    return this.sessionVersion === undefined
+      ? firestoreDeliveryDataSource.loadAllHistorical(this.userId)
+      : firestoreDeliveryDataSource.loadAllHistorical(this.userId, this.sessionVersion);
+  }
+
+  private restoreFactoryReceipts(filters: FactoryFilters): Promise<void> {
+    return this.sessionVersion === undefined
+      ? factoryReceiptDataSource.restore(this.userId, filters)
+      : factoryReceiptDataSource.restore(this.userId, filters, this.sessionVersion);
+  }
+
+  private getCachedDeliveries(filters: DeliveryFilters): Delivery[] {
+    return this.sessionVersion === undefined
+      ? firestoreDeliveryDataSource.getCached(filters, this.userId)
+      : firestoreDeliveryDataSource.getCached(filters, this.userId, this.sessionVersion);
+  }
+
+  private getClientSnapshot() {
+    return this.sessionVersion === undefined
+      ? clientDataSource.getSnapshot(this.userId)
+      : clientDataSource.getSnapshot(this.userId, this.sessionVersion);
+  }
+
+  private getClients(): ClientModel[] {
+    return this.sessionVersion === undefined
+      ? clientDataSource.list({}, this.userId)
+      : clientDataSource.list({}, this.userId, this.sessionVersion);
+  }
+
+  private getFactoryReceipts() {
+    return this.sessionVersion === undefined
+      ? factoryReceiptDataSource.getReceipts(this.userId)
+      : factoryReceiptDataSource.getReceipts(this.userId, this.sessionVersion);
   }
 }
 

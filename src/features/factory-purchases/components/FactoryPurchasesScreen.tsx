@@ -42,10 +42,13 @@ export function FactoryPurchasesScreen({
   selectedYear: number;
 }) {
   const { resolvedMode, theme } = useAppTheme();
-  const { currency: maskCurrency, number: maskNumber, enabled: testModeEnabled } =
-    useTestModePresentation();
+  const {
+    currency: maskCurrency,
+    number: maskNumber,
+    enabled: testModeEnabled,
+  } = useTestModePresentation();
   const { settings: factorySettings } = useFactorySettings();
-  const { addPayment, createPurchase, deletePurchase, purchaseById, purchases } =
+  const { addPayment, createPurchase, dataUnavailable, deletePurchase, purchaseById, purchases } =
     useFactoryPurchases({
       month: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
       period: 'month',
@@ -190,9 +193,18 @@ export function FactoryPurchasesScreen({
             <GlassCard
               style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
             >
-              <SummaryMetric label="Total pago" value={maskCurrency(summary.totalPaid)} />
-              <SummaryMetric label="Valor em aberto" value={maskCurrency(summary.openValue)} />
-              <SummaryMetric label="Total de baldes" value={maskNumber(summary.totalBuckets)} />
+              <SummaryMetric
+                label="Total pago"
+                value={dataUnavailable ? 'Indisponível' : maskCurrency(summary.totalPaid)}
+              />
+              <SummaryMetric
+                label="Valor em aberto"
+                value={dataUnavailable ? 'Indisponível' : maskCurrency(summary.openValue)}
+              />
+              <SummaryMetric
+                label="Total de baldes"
+                value={dataUnavailable ? 'Indisponível' : maskNumber(summary.totalBuckets)}
+              />
             </GlassCard>
 
             <View style={styles.purchasesTitle}>
@@ -206,7 +218,17 @@ export function FactoryPurchasesScreen({
                 Compras efetuadas
               </Text>
             </View>
-            {visiblePurchases.length > 0 ? (
+            {dataUnavailable ? (
+              <Text
+                style={[
+                  theme.typography.body,
+                  styles.emptyStateText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Dados indisponíveis sem conexão.
+              </Text>
+            ) : visiblePurchases.length > 0 ? (
               <View style={styles.purchaseList}>
                 {visiblePurchases.map((purchase) => (
                   <PurchaseRow
@@ -281,8 +303,11 @@ function PurchaseRow({
 }) {
   const { resolvedMode, theme } = useAppTheme();
   const purchaseCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.glassSurface);
-  const { currency: maskCurrency, enabled: testModeEnabled, quantity: maskQuantity } =
-    useTestModePresentation();
+  const {
+    currency: maskCurrency,
+    enabled: testModeEnabled,
+    quantity: maskQuantity,
+  } = useTestModePresentation();
   const paidAmount = factoryPurchaseCalculationService.paidAmount(purchase);
   const remainingAmount = factoryPurchaseCalculationService.remainingAmount(purchase);
   const isPaid = factoryPurchaseCalculationService.isPaid(purchase);
@@ -342,7 +367,10 @@ function PurchaseRow({
   );
   return (
     <View
-      style={[{ width: '100%' }, resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated]}
+      style={[
+        { width: '100%' },
+        resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated,
+      ]}
     >
       <View style={[styles.contextContainer, purchaseCardStyle]}>
         <NativeCardContextMenu

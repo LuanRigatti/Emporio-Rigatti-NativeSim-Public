@@ -54,7 +54,8 @@ export default function Home() {
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'today', date: currentDate });
   const { clients } = useClients();
-  const { purchases: factoryPurchases } = useFactoryPurchases();
+  const { dataUnavailable: factoryDataUnavailable, purchases: factoryPurchases } =
+    useFactoryPurchases();
   const eligibleClientIds = useMemo(
     () =>
       clients
@@ -345,7 +346,9 @@ export default function Home() {
                     numberOfLines={1}
                     style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
                   >
-                    {maskCurrency(factoryOpenAmount)}
+                    {factoryDataUnavailable
+                      ? maskText('Indisponível')
+                      : maskCurrency(factoryOpenAmount)}
                   </Text>
                 </View>
                 <PreviewIcon color={theme.colors.textSecondary} name="chevron-forward" />

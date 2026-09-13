@@ -14,8 +14,9 @@ export type CreateFactoryReceiptInput = {
 
 export interface FactoryReceiptDataSource {
   readonly mode: 'mock' | 'firebase';
-  restore(userId?: string, filters?: FactoryFilters): Promise<void>;
-  getReceipts(): FactoryReceipt[];
+  readonly isDataUnavailable?: boolean;
+  restore(userId?: string, filters?: FactoryFilters, sessionVersion?: number): Promise<void>;
+  getReceipts(userId?: string, sessionVersion?: number): FactoryReceipt[];
   createReceipt(input: CreateFactoryReceiptInput): Promise<FactoryReceipt>;
   addPayment(receiptId: string, payment: FactoryPaymentDraft): Promise<FactoryReceipt>;
   removePayment(receiptId: string, paymentId: string): Promise<FactoryReceipt>;
@@ -74,7 +75,11 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     this.listeners.forEach((listener) => listener());
   }
 
-  public restore(): Promise<void> {
+  public restore(
+    _userId?: string,
+    _filters?: FactoryFilters,
+    _sessionVersion?: number,
+  ): Promise<void> {
     if (this.hydrationPromise) return this.hydrationPromise;
 
     this.hydrationPromise = mockFactoryReceiptStorage.load().then((receipts) => {
@@ -86,7 +91,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     return this.hydrationPromise;
   }
 
-  public getReceipts(): FactoryReceipt[] {
+  public getReceipts(_userId?: string, _sessionVersion?: number): FactoryReceipt[] {
     return this.receipts.map(cloneReceipt);
   }
 
@@ -120,10 +125,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
       await this.restore();
       const receipt = this.findReceipt(receiptId);
       const date = requiredDate(payment.date);
-      const amount = factoryCalculationService.assertPaymentWithinBalance(
-        receipt,
-        payment.amount,
-      );
+      const amount = factoryCalculationService.assertPaymentWithinBalance(receipt, payment.amount);
       const updatedReceipt: FactoryReceipt = {
         ...receipt,
         pagamentos: [...receipt.pagamentos, { id: createId('pay'), data: date, valor: amount }],
@@ -182,10 +184,7 @@ export class MockFactoryReceiptDataSource implements FactoryReceiptDataSource {
     await mockFactoryReceiptStorage.save(this.receipts);
   }
 
-  private enqueuePaymentMutation<T>(
-    receiptId: string,
-    operation: () => Promise<T>,
-  ): Promise<T> {
+  private enqueuePaymentMutation<T>(receiptId: string, operation: () => Promise<T>): Promise<T> {
     const previous = this.paymentMutationQueues.get(receiptId) ?? Promise.resolve();
     const next = previous.catch(() => undefined).then(operation);
     this.paymentMutationQueues.set(receiptId, next);

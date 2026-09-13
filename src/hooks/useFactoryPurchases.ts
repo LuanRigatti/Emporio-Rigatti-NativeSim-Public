@@ -11,7 +11,7 @@ import {
 } from '@/services/factory-purchases';
 
 export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' }) {
-  const { status: authStatus, user } = useAuth();
+  const { sessionVersion, status: authStatus, user } = useAuth();
   const { endDate, month, period, startDate } = filters;
   const stableFilters = useMemo(
     () => ({
@@ -32,9 +32,13 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
   }, []);
 
   const receipts = useMemo(
-    () => factoryReceiptQueryService.filter(factoryReceiptDataSource.getReceipts(), stableFilters),
+    () =>
+      factoryReceiptQueryService.filter(
+        factoryReceiptDataSource.getReceipts(user?.id, sessionVersion),
+        stableFilters,
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stableFilters, sourceVersion],
+    [sessionVersion, stableFilters, sourceVersion, user?.id],
   );
 
   const filterKey = JSON.stringify(stableFilters);
@@ -43,7 +47,7 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
   useEffect(() => {
     if (factoryReceiptDataSource.mode === 'firebase' && authStatus === 'loading') return;
     let active = true;
-    void factoryReceiptDataSource.restore(user?.id, stableFilters).then(() => {
+    void factoryReceiptDataSource.restore(user?.id, stableFilters, sessionVersion).then(() => {
       if (active) {
         setLoadedFilterKey(filterKey);
       }
@@ -51,11 +55,11 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     return () => {
       active = false;
     };
-  }, [authStatus, filterKey, stableFilters, user?.id]);
+  }, [authStatus, filterKey, sessionVersion, stableFilters, user?.id]);
 
   const refresh = useCallback(async () => {
-    await factoryReceiptDataSource.restore(user?.id, stableFilters);
-  }, [stableFilters, user?.id]);
+    await factoryReceiptDataSource.restore(user?.id, stableFilters, sessionVersion);
+  }, [sessionVersion, stableFilters, user?.id]);
 
   const createPurchase = useCallback(async (input: CreatePurchaseInput) => {
     const receipt = await factoryReceiptDataSource.createReceipt({
@@ -102,5 +106,6 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     loading:
       (factoryReceiptDataSource.mode === 'firebase' && authStatus === 'loading') ||
       loadedFilterKey !== filterKey,
+    dataUnavailable: factoryReceiptDataSource.isDataUnavailable === true,
   };
 }

@@ -11,6 +11,11 @@ type CachedHistoricalDeliveries = {
   deliveries: Delivery[];
 };
 
+export type FirestoreHistoricalDeliveryCacheEntry = {
+  savedAt: number;
+  deliveries: Delivery[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -35,19 +40,23 @@ function isValidCache(value: unknown): value is CachedHistoricalDeliveries {
 }
 
 export class FirestoreHistoricalDeliveryCache {
-  private readonly memoryCache = new Map<string, { savedAt: number; deliveries: Delivery[] }>();
+  private readonly memoryCache = new Map<string, FirestoreHistoricalDeliveryCacheEntry>();
 
   public getKey(uid: string): string {
     return `${CACHE_PREFIX}${uid}`;
   }
 
-  public getMemory(uid: string): Delivery[] | null {
+  public getMemoryEntry(uid: string): FirestoreHistoricalDeliveryCacheEntry | null {
     const entry = this.memoryCache.get(uid);
-    return entry ? entry.deliveries : null;
+    return entry ?? null;
   }
 
-  public async read(uid: string): Promise<Delivery[] | null> {
-    const memory = this.getMemory(uid);
+  public getMemory(uid: string): Delivery[] | null {
+    return this.getMemoryEntry(uid)?.deliveries ?? null;
+  }
+
+  public async readEntry(uid: string): Promise<FirestoreHistoricalDeliveryCacheEntry | null> {
+    const memory = this.getMemoryEntry(uid);
     if (memory) return memory;
 
     try {
@@ -56,11 +65,18 @@ export class FirestoreHistoricalDeliveryCache {
       const parsed: unknown = JSON.parse(serialized);
       if (!isValidCache(parsed)) return null;
 
-      this.memoryCache.set(uid, { savedAt: parsed.savedAt, deliveries: parsed.deliveries });
-      return parsed.deliveries;
+      this.memoryCache.set(uid, {
+        savedAt: Number.isFinite(parsed.savedAt) ? parsed.savedAt : 0,
+        deliveries: parsed.deliveries,
+      });
+      return this.getMemoryEntry(uid);
     } catch {
       return null;
     }
+  }
+
+  public async read(uid: string): Promise<Delivery[] | null> {
+    return (await this.readEntry(uid))?.deliveries ?? null;
   }
 
   public async write(uid: string, deliveries: readonly Delivery[]): Promise<void> {

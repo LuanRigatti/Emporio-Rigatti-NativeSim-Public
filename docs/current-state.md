@@ -9,8 +9,21 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Este snapshot descreve o código auditado neste fechamento; o commit de
-  publicação deve ser consultado no histórico Git.
+- Este snapshot corresponde à correção de cold start offline e às proteções de
+  sessão e concorrência consolidadas nesta branch; consulte `git log -1` para o
+  hash do commit publicado.
+- Após a publicação deste estado, o working tree deve permanecer limpo e a
+  branch local sincronizada com `origin/ajustes-codex`.
+
+## Consolidação desta sessão — 2026-09-12
+
+- O experimento temporário do micro-delay da toolbar foi encerrado. A
+  instrumentação `[TOOLBAR-PERF]`, `toolbarPerf.ts` e a memoização experimental
+  não fazem parte do estado atual; os arquivos foram restaurados exatamente ao
+  HEAD deste checkpoint.
+- Não houve alteração funcional nova nesta sessão nem novo teste no iPhone.
+  A validação física anterior do estado de navegação permanece registrada nas
+  seções abaixo; esta sessão apenas preservou o checkpoint já aprovado.
 
 ## Aplicativo
 
@@ -28,9 +41,35 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Snapshot funcional auditado — fechamento atual
 
 Este bloco é a fonte resumida do estado atual do código para o fechamento em
-`ajustes-codex`. As alterações pendentes foram auditadas contra o código e o
-histórico local; artefatos gerados de apresentação e instrumentação temporária
-foram removidos. Após o único commit e push, o status deve permanecer limpo.
+`ajustes-codex`. O código e o histórico local foram auditados; artefatos de
+apresentação e instrumentação temporária foram removidos. A correção descrita
+abaixo é a referência operacional após a publicação deste commit.
+
+### Cold start offline, sessão e sincronização
+
+- O cold start autenticado não depende mais de leituras Firestore de dados de
+  negócio para liberar `isCacheHydrated`/`SplashGate`. `hydrateFromCache` é
+  estritamente local, e `factoryReceiptDataSource.restore()` não faz parte do
+  gate.
+- Ausência de cache permite revelar a UI com estado seguro e dados marcados
+  como indisponíveis, sem transformar ausência em mocks ou valores reais. As
+  sincronizações remotas continuam depois da UI e atualizam os dados quando
+  disponíveis.
+- Fontes e operações assíncronas de dados são isoladas por UID e
+  geração/sessionVersion. Logout e novo login com o mesmo UID invalidam a
+  sessão anterior; respostas e mutações obsoletas são descartadas.
+- Consultas equivalentes são coalescidas por escopo válido. O histórico
+  completo é distinguido de memória parcial e fica protegido contra respostas
+  filtradas antigas; mutações de clientes não podem ser sobrescritas por
+  leituras anteriores.
+- Snapshots `metadata.fromCache` são tratados de forma não destrutiva: dados
+  válidos existentes são preservados e uma resposta vazia/parcial não confirma
+  histórico remoto completo. O cache diário só aceita gravações que não
+  substituam dados mais recentes (`savedAt`).
+- A validação local final passou em 10 suítes / 229 testes. Não houve alteração
+  nativa; o código pode ser validado via Metro/Fast Refresh sem nova
+  Development Build, mas a Release instalada precisa ser substituída por uma
+  nova Release para validar o cold start offline real.
 
 ### Home
 
@@ -83,10 +122,11 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
   Blur superior.
 - Sugestões e resultados reutilizam parser, datasource, serviço, ações e rotas
   existentes; as sugestões são apresentadas dentro de um card visual próprio.
-- No iOS Development Build, o campo usa o módulo local `native-search-field`
-  com a opção opt-in `keyboardAccessory`. A apresentação inferior é um
-  accessory SwiftUI via `.toolbar { ToolbarItem(placement: .keyboard) { ... } }`,
-  preservando value, callbacks, foco, blur, submit, clear, placeholder e temas.
+- O campo atual usa `HomeSearchAttachmentsComposer` e o composer portado de
+  `react-native-motion`, com `TextInput` e `OverKeyboardView` de
+  `react-native-keyboard-controller`. Esse é o caminho que posiciona a barra
+  acima do teclado nas telas atuais; o antigo `native-search-field` com
+  `keyboardAccessory` não é mais usado por `HomeSearchScreen`.
 - A rota removeu o reposicionamento artificial do teclado; o foco aguarda a
   transição nativa da entrada e o cleanup dispensa o teclado ao sair.
 
@@ -231,10 +271,11 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
   roteamento/bridge Swift ainda não foi recompilada no iPhone e exige uma nova
   Development Build para validação. Até essa validação, Apple Intelligence não
   deve ser considerado validado.
-- A tela `/pesquisa` e o keyboard accessory nativo do módulo local
-  `native-search-field` também exigem nova Development Build. Essa build deve
-  validar conjuntamente o accessory SwiftUI e as alterações nativas pendentes
-  do Apple Intelligence.
+- O antigo módulo `native-search-field` permanece no repositório como
+  implementação nativa histórica, mas não é uma pendência da tela atual. Uma
+  alteração futura nesse módulo ainda exigiria Development Build; o caminho
+  atual da Pesquisa já está coberto pela build que contém o composer e o
+  `react-native-keyboard-controller`.
 
 ### IMPLEMENTADO, PENDENTE DE VALIDAÇÃO VISUAL NO IPHONE
 
@@ -271,13 +312,13 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
   `NativeTabs hidden`, a ocultação dinâmica pode remontar o navigator e resetar
   estado, então não foi aplicada sem uma solução segura para este fluxo.
 - A sessão Firebase só deixa de estar em `loading` após o primeiro estado real
-  de autenticação; com usuário autenticado, a hidratação inicial aguarda cache de
-  clientes, cache diário, histórico de entregas, recibos da Fábrica e fontes
-  necessárias antes de revelar a Home.
-- O `FirestoreDeliveryDataSource` hidrata o histórico no bootstrap quando o
-  cache não existe, persiste o resultado no `FirestoreHistoricalDeliveryCache`
-  e expõe revisão externa para que a Home derive os dados já hidratados no
-  primeiro render. O cache continua sendo somente cache do Firestore.
+  de autenticação. Com usuário autenticado, o gate inicial aguarda somente
+  hidratações locais e a prontidão visual necessárias para revelar a Home;
+  leituras Firestore de dados de negócio ficam fora desse gate.
+- O `FirestoreDeliveryDataSource` hidrata somente os caches locais disponíveis
+  no bootstrap. Quando não há cache, a Home abre com estado seguro e a
+  sincronização remota posterior pode atualizar os dados; o cache continua
+  sendo somente cache do Firestore.
 - Os cards clicáveis da Home mantêm o feedback de pressão restaurado, sem
   alterar os handlers ou a navegação.
 - Os cards de Entregas de hoje na Home, Registrar Entrega e Histórico usam
@@ -288,10 +329,10 @@ foram removidos. Após o único commit e push, o status deve permanecer limpo.
 - Não há instrumentação `[HomeStartupTrace]`, blobs, `Card Glass`, `Card Blur` ou
   outros experimentos visuais descartados no estado final.
 
-As alterações atuais incluem o módulo iOS local `native-search-field`, seu
-podspec autolinkável e a integração TS/TSX da rota `/pesquisa`. A próxima
-validação visual exige uma nova Development Build; não foi executada neste
-Windows.
+O repositório ainda contém o módulo iOS local `native-search-field` e seu
+podspec autolinkável, mas a rota atual `/pesquisa` usa o composer de anexos e o
+`react-native-keyboard-controller`. Não há uma nova Development Build pendente
+somente por causa do antigo keyboard accessory.
 
 ### Componentes e módulos nativos relevantes
 

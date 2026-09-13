@@ -460,6 +460,27 @@ describe('AppHomeSearchDataSource', () => {
     });
   });
 
+  it('propagates the session version to every session-bound remote source', async () => {
+    mockedClientDataSource.getSnapshot.mockReturnValue(null);
+    mockedClientDataSource.load.mockResolvedValue(undefined);
+    mockedDeliveryDataSource.load.mockResolvedValue(financialDeliveries);
+    mockedDeliveryDataSource.loadAllHistorical.mockResolvedValue(deliveries);
+    mockedFactoryDataSource.restore.mockResolvedValue(undefined);
+    const query = new HomeSearchQueryParser().parse('André agosto 2026');
+
+    await new AppHomeSearchDataSource('uid', undefined, 7).load(query);
+
+    expect(mockedClientDataSource.load).toHaveBeenCalledWith('uid', 7);
+    expect(mockedDeliveryDataSource.load.mock.calls[0]?.[3]).toBe(7);
+    expect(mockedDeliveryDataSource.loadAllHistorical).toHaveBeenCalledWith('uid', 7);
+
+    await new AppHomeSearchDataSource('uid', undefined, 7).load(
+      new HomeSearchQueryParser().parse('resumo agosto 2026'),
+    );
+
+    expect(mockedFactoryDataSource.restore.mock.calls[0]?.[2]).toBe(7);
+  });
+
   it('builds the indexed client plus month query without dropping either dimension', () => {
     const query = new HomeSearchQueryParser().parse('Luciano 08/2025');
 
@@ -495,12 +516,15 @@ describe('AppHomeSearchDataSource', () => {
 
     const data = await new AppHomeSearchDataSource('uid').load(query);
 
-    expect(mockedDeliveryDataSource.getCached).toHaveBeenCalledWith({
-      mode: 'all',
-      startDate: '2026-08-01',
-      endDate: '2026-08-31',
-      clientIds: ['client:andre', 'client:andressa'],
-    });
+    expect(mockedDeliveryDataSource.getCached).toHaveBeenCalledWith(
+      {
+        mode: 'all',
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        clientIds: ['client:andre', 'client:andressa'],
+      },
+      'uid',
+    );
     expect(data.errors).toEqual([
       { source: 'deliveries', message: 'The query requires an index.' },
     ]);

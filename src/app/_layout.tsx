@@ -24,7 +24,7 @@ import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import { firestoreClientDataSource } from '@/services/clients';
 import { firestoreDeliveryDataSource } from '@/services/deliveries';
-import { factoryReceiptDataSource } from '@/services/factory-purchases';
+import { firestoreFactoryReceiptDataSource } from '@/services/factory-purchases';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
@@ -33,19 +33,21 @@ import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
 void SplashScreen.preventAutoHideAsync();
 
 function AppShell() {
-  const { status, user } = useSession();
+  const { sessionVersion, status, user } = useSession();
   const { resolvedMode, theme } = useAppTheme();
   const pathname = usePathname();
   const isAuthenticated = status === 'authenticated' && Boolean(user?.id);
   const isSessionLoading = status === 'loading';
   const isStartupRoute = pathname === '/';
-  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
+  const sessionUid = isAuthenticated ? user?.id : undefined;
+  const sessionKey = isAuthenticated && user?.id ? `${sessionVersion}:${user.id}` : null;
+  const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(null);
   const isCacheHydrated =
     status === 'loading'
       ? false
       : status !== 'authenticated' || !user?.id
         ? true
-        : hydratedUserId === user.id;
+        : hydratedSessionKey === sessionKey;
   const biometricUnlock = useBiometricUnlock({
     activeSession: isAuthenticated && pathname !== '/' && pathname !== '/login',
     relockOnBackground: true,
@@ -69,6 +71,12 @@ function AppShell() {
   );
 
   useEffect(() => {
+    firestoreClientDataSource.setSessionUser(sessionUid, sessionVersion);
+    firestoreDeliveryDataSource.setSessionUser(sessionUid, sessionVersion);
+    firestoreFactoryReceiptDataSource.setSessionUser(sessionUid, sessionVersion);
+  }, [sessionUid, sessionVersion]);
+
+  useEffect(() => {
     let active = true;
 
     if (status !== 'authenticated' || !user?.id) {
@@ -77,22 +85,18 @@ function AppShell() {
       };
     }
 
-    const today = new Date();
-    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
     void Promise.allSettled([
       firestoreClientDataSource.hydrateFromCache(user.id),
       firestoreDeliveryDataSource.hydrateFromCache(user.id),
-      factoryReceiptDataSource.restore(user.id, { month: currentMonth, period: 'month' }),
       Font.loadAsync(Ionicons.font),
     ]).finally(() => {
-      if (active) setHydratedUserId(user.id);
+      if (active) setHydratedSessionKey(sessionKey);
     });
 
     return () => {
       active = false;
     };
-  }, [status, user?.id]);
+  }, [sessionKey, status, user?.id]);
 
   useEffect(() => {
     void locationTrackingService.restoreActiveRouteAfterAppRestart().catch((error) => {

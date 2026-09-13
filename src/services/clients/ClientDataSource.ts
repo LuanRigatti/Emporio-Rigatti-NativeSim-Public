@@ -15,10 +15,10 @@ export type ClientDataMode = 'mock' | 'firebase';
 
 export interface ClientDataSource {
   readonly mode: ClientDataMode;
-  getSnapshot(): UserDataSnapshot | null;
+  getSnapshot(userId?: string, sessionVersion?: number): UserDataSnapshot | null;
   subscribe(listener: () => void): () => void;
-  load(userId?: string): Promise<void>;
-  list(query?: ClientCatalogQuery, userId?: string): ClientModel[];
+  load(userId?: string, sessionVersion?: number): Promise<void>;
+  list(query?: ClientCatalogQuery, userId?: string, sessionVersion?: number): ClientModel[];
   saveCustomClient(
     userId: string | undefined,
     name: string,
@@ -43,14 +43,15 @@ export class FirebaseClientDataSource implements ClientDataSource {
   private snapshot: UserDataSnapshot | null = null;
   private readonly listeners = new Set<() => void>();
 
-  public getSnapshot = (): UserDataSnapshot | null => this.snapshot;
+  public getSnapshot = (_userId?: string, _sessionVersion?: number): UserDataSnapshot | null =>
+    this.snapshot;
 
   public subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
 
-  public async load(userId?: string): Promise<void> {
+  public async load(userId?: string, _sessionVersion?: number): Promise<void> {
     const uid = this.requireUserId(userId);
     await clientIdentityRegistry.load(uid);
     const { userDataService } = await import('@/services/data/UserDataService');
@@ -58,7 +59,11 @@ export class FirebaseClientDataSource implements ClientDataSource {
     this.publish();
   }
 
-  public list(query: ClientCatalogQuery = {}, userId?: string): ClientModel[] {
+  public list(
+    query: ClientCatalogQuery = {},
+    userId?: string,
+    _sessionVersion?: number,
+  ): ClientModel[] {
     if (!this.snapshot || !userId) return [];
 
     return clientCatalogService.list(this.snapshot, {

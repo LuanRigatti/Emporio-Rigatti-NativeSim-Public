@@ -7,7 +7,6 @@ import {
   deliveryNormalizationService,
   deliveryQueryService,
   firestoreDeliveryDataSource,
-  mockDeliveryDataSource,
 } from '@/services/deliveries';
 import { DeliveryMutationService } from '@/services/deliveries/DeliveryMutationService';
 import { APP_DATA_MODE, loadAppData } from '@/services/data';
@@ -28,7 +27,7 @@ const EMPTY_SUBSCRIBE = () => () => {};
 const ZERO_REVISION = () => 0;
 
 export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
-  const { user } = useAuth();
+  const { sessionVersion, user } = useAuth();
   const firestoreEnabled = ENABLE_FIRESTORE_CLIENTS_DELIVERIES;
   const filterSignature = JSON.stringify(filters);
   // The serialized signature intentionally controls this reference's stability.
@@ -65,10 +64,15 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
       try {
         if (firestoreEnabled) {
           try {
-            await firestoreDeliveryDataSource.load(user.id, stableFilters);
+            await firestoreDeliveryDataSource.load(user.id, stableFilters, { force: isRefresh });
             setFirestoreFallbackSnapshot(null);
-          } catch {
-            setFirestoreFallbackSnapshot(emptySnapshot([...mockDeliveryDataSource.getAll()]));
+          } catch (loadError) {
+            setFirestoreFallbackSnapshot(null);
+            setError(
+              loadError instanceof Error
+                ? loadError.message
+                : 'Não foi possível carregar entregas.',
+            );
           }
           return;
         }
@@ -94,7 +98,7 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
         setRefreshing(false);
       }
     },
-    [emptySnapshot, firestoreEnabled, stableFilters, user],
+    [firestoreEnabled, stableFilters, user],
   );
 
   useEffect(() => {
@@ -103,17 +107,19 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
   }, [load]);
 
   const firestoreSnapshot = useMemo(
-    () => emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters)),
+    () =>
+      emptySnapshot(firestoreDeliveryDataSource.getCached(stableFilters, user?.id, sessionVersion)),
     // The external revision intentionally invalidates this derived snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [emptySnapshot, firestoreRevision, stableFilters],
+    [emptySnapshot, firestoreRevision, sessionVersion, stableFilters, user?.id],
   );
   const currentSnapshot = firestoreEnabled
     ? (firestoreFallbackSnapshot ?? firestoreSnapshot)
     : snapshot;
 
   const deliveries = useMemo(
-    () => (currentSnapshot ? deliveryQueryService.filter(currentSnapshot.entregas, stableFilters) : []),
+    () =>
+      currentSnapshot ? deliveryQueryService.filter(currentSnapshot.entregas, stableFilters) : [],
     [currentSnapshot, stableFilters],
   );
 

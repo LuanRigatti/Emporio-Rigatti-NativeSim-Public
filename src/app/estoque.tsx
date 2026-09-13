@@ -53,6 +53,7 @@ export default function StockRoute() {
     mode: 'all',
   });
   const {
+    dataUnavailable: factoryDataUnavailable,
     loading: purchasesLoading,
     receipts,
     refresh: refreshPurchases,
@@ -98,7 +99,8 @@ export default function StockRoute() {
   const bucketCost = normalizeMoney(factorySettings.bucketCost) ?? 0;
   const cacheMatchesSettings =
     cachedStock === null || !factorySettingsHydrated || cachedStock.bucketCost === bucketCost;
-  const sourcesReady = !deliveriesLoading && !purchasesLoading && factorySettingsHydrated;
+  const sourcesReady =
+    !deliveriesLoading && !purchasesLoading && !factoryDataUnavailable && factorySettingsHydrated;
   const stockSummary = sourcesReady
     ? calculatedStockSummary
     : cacheMatchesSettings

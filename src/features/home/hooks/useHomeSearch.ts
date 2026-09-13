@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '@/providers';
 
@@ -7,15 +7,29 @@ import { HomeSearchService } from '../search/HomeSearchService';
 import type { HomeSearchResponse } from '../search/HomeSearchTypes';
 
 export function useHomeSearch() {
-  const { user } = useAuth();
+  const { sessionVersion, user } = useAuth();
   const userId = user?.id;
   const service = useMemo(
-    () => (userId ? new HomeSearchService(new AppHomeSearchDataSource(userId)) : null),
-    [userId],
+    () =>
+      userId
+        ? new HomeSearchService(new AppHomeSearchDataSource(userId, undefined, sessionVersion))
+        : null,
+    [sessionVersion, userId],
   );
+  const sessionKey = `${sessionVersion}:${userId ?? ''}`;
   const requestVersion = useRef(0);
-  const [response, setResponse] = useState<HomeSearchResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [responseState, setResponseState] = useState<{
+    sessionKey: string;
+    response: HomeSearchResponse;
+  } | null>(null);
+  const [loadingState, setLoadingState] = useState<{ sessionKey: string; value: boolean }>({
+    sessionKey: '',
+    value: false,
+  });
+
+  useEffect(() => {
+    requestVersion.current += 1;
+  }, [sessionKey]);
 
   const search = useCallback(
     async (query: string): Promise<HomeSearchResponse | undefined> => {
@@ -23,17 +37,21 @@ export function useHomeSearch() {
       if (!service) {
         return undefined;
       }
-      setLoading(true);
+      setLoadingState({ sessionKey, value: true });
       const nextResponse = await service.search(query);
       if (version !== requestVersion.current || nextResponse.stale) {
         return nextResponse;
       }
-      setResponse(nextResponse);
-      setLoading(false);
+      setResponseState({ sessionKey, response: nextResponse });
+      setLoadingState({ sessionKey, value: false });
       return nextResponse;
     },
-    [service],
+    [service, sessionKey],
   );
 
-  return { search, response, loading };
+  return {
+    search,
+    response: responseState?.sessionKey === sessionKey ? responseState.response : null,
+    loading: loadingState.sessionKey === sessionKey && loadingState.value,
+  };
 }

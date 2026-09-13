@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -30,6 +31,7 @@ export interface SessionContextValue {
   signInWithGoogleMock: () => Promise<void>;
   signOutMock: () => Promise<void>;
   checkAuthentication: () => Promise<boolean>;
+  sessionVersion: number;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -44,6 +46,18 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
+  const sessionUidRef = useRef<string | null>(user?.id ?? null);
+  const [sessionVersion, setSessionVersion] = useState(0);
+
+  const commitSession = useCallback((nextUser: AuthUser | null, nextStatus: SessionStatus) => {
+    const nextUid = nextUser?.id ?? null;
+    if (sessionUidRef.current !== nextUid) {
+      sessionUidRef.current = nextUid;
+      setSessionVersion((version) => version + 1);
+    }
+    setUser(nextUser);
+    setStatus(nextStatus);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -61,8 +75,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
         pendingUser = nextUser;
         resolveFirstAuthState();
         if (!initializationResolved) return;
-        setUser(nextUser);
-        setStatus(nextUser ? 'authenticated' : 'unauthenticated');
+        commitSession(nextUser, nextUser ? 'authenticated' : 'unauthenticated');
         setError(null);
       },
       (authError) => {
@@ -73,8 +86,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
           resolveFirstAuthState();
           return;
         }
-        setUser(null);
-        setStatus('error');
+        commitSession(null, 'error');
         setError(message);
       },
     );
@@ -88,19 +100,16 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
         if (!mounted) return;
         initializationResolved = true;
         if (initialAuthError) {
-          setUser(null);
-          setStatus('error');
+          commitSession(null, 'error');
           setError(initialAuthError);
           return;
         }
         const restoredUser = dataSource.restore ? dataSource.getCurrentUser() : pendingUser;
-        setUser(restoredUser);
-        setStatus(restoredUser ? 'authenticated' : 'unauthenticated');
+        commitSession(restoredUser, restoredUser ? 'authenticated' : 'unauthenticated');
       })
       .catch((authError) => {
         if (!mounted) return;
-        setUser(null);
-        setStatus('error');
+        commitSession(null, 'error');
         setError(mapAuthError(authError, 'session').message);
       });
 
@@ -108,7 +117,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       mounted = false;
       unsubscribe();
     };
-  }, [dataSource]);
+  }, [commitSession, dataSource]);
 
   const runAuthentication = useCallback(
     async (operation: () => Promise<AuthUser>, operationType: 'email' | 'google') => {
@@ -116,22 +125,20 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       setError(null);
       try {
         const nextUser = await operation();
-        setUser(nextUser);
-        setStatus('authenticated');
+        commitSession(nextUser, 'authenticated');
       } catch (authError) {
         const mapped =
           authError instanceof AuthUserFacingError
             ? authError
             : mapAuthError(authError, operationType);
-        setUser(null);
-        setStatus('unauthenticated');
+        commitSession(null, 'unauthenticated');
         setError(mapped.message);
         throw mapped;
       } finally {
         setOperationLoading(false);
       }
     },
-    [],
+    [commitSession],
   );
 
   const signIn = useCallback(
@@ -178,9 +185,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
         setUser(nextUser);
       } catch (authError) {
         const mapped =
-          authError instanceof AuthUserFacingError
-            ? authError
-            : mapAuthError(authError, 'profile');
+          authError instanceof AuthUserFacingError ? authError : mapAuthError(authError, 'profile');
         setError(mapped.message);
         throw mapped;
       } finally {
@@ -195,8 +200,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     setError(null);
     try {
       await dataSource.signOut();
-      setUser(null);
-      setStatus('unauthenticated');
+      commitSession(null, 'unauthenticated');
     } catch (authError) {
       setError(mapAuthError(authError, 'logout').message);
       setStatus(user ? 'authenticated' : 'error');
@@ -204,7 +208,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     } finally {
       setOperationLoading(false);
     }
-  }, [dataSource, user]);
+  }, [commitSession, dataSource, user]);
 
   const clearError = useCallback(() => setError(null), []);
   const signInWithGoogleMock = useCallback(() => signInWithGooglePopup(), [signInWithGooglePopup]);
@@ -229,6 +233,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       updateDisplayName,
       signOut,
       signOutMock,
+      sessionVersion,
       status,
       user,
     }),
@@ -245,6 +250,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       updateDisplayName,
       signOut,
       signOutMock,
+      sessionVersion,
       status,
       user,
     ],

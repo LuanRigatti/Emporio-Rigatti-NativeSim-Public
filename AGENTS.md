@@ -2,6 +2,29 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
+## Mem0 — contexto entre sessões
+
+Antes de responder à primeira solicitação do usuário em cada nova sessão deste repositório, chame obrigatoriamente `mcp__mem0__search_memories`, independentemente de a solicitação ser simples, informativa, de auditoria, de implementação ou de qualquer outro tipo. Só depois da tentativa de recuperação responda à primeira solicitação.
+
+```text
+mcp__mem0__search_memories(
+  query="Empório Rigatti projeto branch arquitetura regras de trabalho NativeSim contexto",
+  filters={"AND":[{"user_id":"Luan Rigatti"},{"app_id":"LuanRigatti-pwa-ios-2026"}]},
+  top_k=20
+)
+```
+
+- Se o Mem0 estiver indisponível ou falhar, não bloqueie a sessão; continue usando o contexto local do projeto.
+- Nas mensagens seguintes da mesma sessão, não é necessário repetir a busca automaticamente, salvo quando o contexto recuperado for insuficiente ou potencialmente desatualizado.
+- Durante o trabalho, trate Mem0 apenas como memória auxiliar; código/Git e os documentos do projeto continuam sendo a fonte da verdade.
+- Ao concluir uma alteração, decisão ou investigação que gere informação durável e útil para futuras sessões, mantenha o Mem0 atualizado automaticamente.
+- Antes de criar uma nova memória, pesquise memórias relacionadas no mesmo `user_id` + `app_id`.
+- Se a informação nova substituir ou corrigir uma memória existente, prefira atualizar a memória existente em vez de criar uma duplicata.
+- Crie nova memória somente quando for realmente um novo fato ou decisão durável.
+- Não memorize automaticamente logs, erros temporários, hipóteses, auditorias inconclusivas, experimentos descartados, detalhes transitórios de testes ou commits triviais.
+- Nunca memorize API keys, credenciais, dados pessoais, dados sensíveis ou grandes trechos de código.
+- Toda gravação, atualização, busca ou exclusão deve permanecer no escopo: `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
+
 ## Regras permanentes do projeto
 
 1. A pasta `ionic-reference` contém o projeto Ionic original e deve ser utilizada somente para consulta.

@@ -422,3 +422,5 @@ Quando a solicitação envolver mudança originada no Empório Rigatti, transpor
 O NativeSim Public pode criar ou atualizar automaticamente memórias duráveis somente em `app_id = "LuanRigatti-Emporio-Rigatti-NativeSim-Public"`. Antes de criar uma memória, pesquise memórias relacionadas para evitar duplicatas e prefira atualizar uma memória existente quando uma informação a substituir.
 
 Não grave automaticamente no `app_id` do projeto principal. Não memorize logs transitórios, erros temporários, hipóteses, testes inconclusivos, grandes trechos de código, API keys, tokens, credenciais ou dados pessoais/sensíveis. Código e Git atuais continuam prevalecendo sobre o Mem0.
+
+Quando o usuário solicitar explicitamente criar, atualizar, apagar, validar ou auditar memórias específicas, esse escopo explícito prevalece sobre a gravação automática. Durante essa operação, não crie, atualize ou apague outras memórias além das explicitamente autorizadas. Depois que a operação explícita terminar, volte à política normal de atualização automática de memórias duráveis.

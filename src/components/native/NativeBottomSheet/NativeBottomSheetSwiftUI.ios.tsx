@@ -127,6 +127,8 @@ export default function NativeBottomSheetSwiftUI({
   const dateMenuMonths = createNativeMonthItems();
   const dateMenuYears = createNativeYearItems();
   const dateMenuDays = createNativeDayItems(selectedYear, selectedMonth);
+  const dateMenuButtonMinWidth = theme.sizes.touchTargetMinimum * 2 + spacing.xxs;
+  const totalValueColumnWidth = theme.sizes.touchTargetMinimum * 2 + spacing.xs * 2 + spacing.sm;
   const effectiveBucketPrice = selectedItem?.bucketPrice ?? bucketPrice;
   const presentedQuantity = maskNumber(bucketQuantity);
   const totalValue = effectiveBucketPrice * bucketQuantity;
@@ -136,12 +138,21 @@ export default function NativeBottomSheetSwiftUI({
         currency: 'BRL',
         style: 'currency',
       }).format(totalValue);
-  const renderAnimatedTotal = (trailing: number = spacing.sm, horizontalOffset: number = 0) => (
+  const renderAnimatedTotal = (
+    trailing: number = spacing.sm,
+    horizontalOffset: number = 0,
+    verticalOffset: number = 0,
+    columnWidth?: number,
+  ) => (
     <HStack
       alignment="center"
       modifiers={[
+        ...(columnWidth
+          ? [frame({ width: columnWidth, height: 22, alignment: 'trailing' })]
+          : []),
         padding({ trailing }),
         ...(horizontalOffset ? [offset({ x: horizontalOffset })] : []),
+        ...(verticalOffset ? [offset({ y: verticalOffset })] : []),
       ]}
     >
       <NativeAnimatedNumber
@@ -403,7 +414,7 @@ export default function NativeBottomSheetSwiftUI({
           alignment="center"
           modifiers={[
             padding({ horizontal: 14, vertical: 8 }),
-            frame({ width: 72, height: 44, alignment: 'center' }),
+            frame({ minWidth: dateMenuButtonMinWidth, height: 44, alignment: 'center' }),
             glassEffect({
               glass: { interactive: true, variant: 'regular' },
               shape: 'capsule',
@@ -581,19 +592,25 @@ export default function NativeBottomSheetSwiftUI({
         ]}
       >
         <NativeSheetFieldIcon systemImage="dollarsign" />
-        <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
-          <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Valor total</Text>
-          <Text
-            modifiers={[
-              roundedFont({ size: 13, weight: 'regular' }),
-              foregroundStyle(theme.colors.textSecondary),
-            ]}
-          >
-            Total da entrega
-          </Text>
-        </VStack>
-        <Spacer />
-        {renderAnimatedTotal(spacing.sm, 22)}
+        <HStack
+          alignment="center"
+          spacing={0}
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
+        >
+          <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
+            <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>Valor total</Text>
+            <Text
+              modifiers={[
+                roundedFont({ size: 13, weight: 'regular' }),
+                foregroundStyle(theme.colors.textSecondary),
+              ]}
+            >
+              Total da entrega
+            </Text>
+          </VStack>
+          <Spacer />
+          {renderAnimatedTotal(spacing.sm, spacing.md + spacing.xs, 0, totalValueColumnWidth)}
+        </HStack>
       </HStack>
     </VStack>
   );
@@ -719,7 +736,11 @@ export default function NativeBottomSheetSwiftUI({
                       alignment="center"
                       modifiers={[
                         padding({ horizontal: 14, vertical: 8 }),
-                        frame({ width: 72, height: 44, alignment: 'center' }),
+                        frame({
+                          minWidth: dateMenuButtonMinWidth,
+                          height: 44,
+                          alignment: 'center',
+                        }),
                         glassEffect({
                           glass: { interactive: true, variant: 'regular' },
                           shape: 'capsule',

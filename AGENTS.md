@@ -408,6 +408,16 @@ Antes de responder à primeira solicitação de cada nova sessão, chame obrigat
 - `query = "NativeSim Public projeto branch fluxo compilação validação Empório Rigatti contexto"`
 - `top_k = 20`
 
+Depois de uma chamada real e bem-sucedida ao Direct MCP `mcp__mem0__search_memories` no início da sessão, mostre uma única vez, no início da primeira resposta. O indicador `Mem0 Active` continua exigindo essa chamada real e bem-sucedida:
+
+`Mem0 Active | user=Luan Rigatti | app=LuanRigatti-Emporio-Rigatti-NativeSim-Public | branch=<branch atual> | memories=<quantidade>`
+
+`memories=<quantidade>` deve representar o total real de memórias existentes no `app_id = "LuanRigatti-Emporio-Rigatti-NativeSim-Public"`. Não use como `memories` a quantidade de resultados retornados por `mcp__mem0__search_memories`, `top_k`, o número de resultados relevantes para a query atual ou qualquer contagem inferida de uma busca semântica.
+
+Para determinar o total, use uma operação do Direct MCP capaz de listar ou obter as memórias do `app_id` completo, por exemplo `mcp__mem0__get_memories`, com o escopo correto. Conte somente as memórias cujo `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-Emporio-Rigatti-NativeSim-Public"`. Se o total real não puder ser determinado de forma confiável, mostre `memories=unknown`. Nunca mostre `memories=0` apenas porque a busca semântica inicial retornou zero resultados.
+
+Obtenha `branch` e `memories` de fontes reais quando possível; nunca invente valores. Use `branch=unknown` ou `memories=unknown` quando não puder determiná-los com segurança. Se a busca falhar ou o Mem0 estiver indisponível, não mostre `Mem0 Active`. Mostre essa linha somente uma vez por sessão.
+
 Se o Mem0 falhar ou estiver indisponível, não bloqueie o trabalho.
 
 ### Integração com o projeto principal

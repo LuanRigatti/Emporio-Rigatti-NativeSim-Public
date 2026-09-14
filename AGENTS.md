@@ -14,6 +14,7 @@ mcp__mem0__search_memories(
 )
 ```
 
+- Após uma chamada real e bem-sucedida ao Direct MCP `mcp__mem0__search_memories`, mostre uma única vez, no início da primeira resposta da sessão, apenas `Mem0 Active | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=<quantidade>`. Obtenha `branch` do Git local e a quantidade real do `app_id` quando possível; caso contrário, use `branch=unknown` ou `memories=unknown`. Esse indicador é somente de status e não deve aparecer se o Mem0 falhar ou estiver indisponível.
 - Se o Mem0 estiver indisponível ou falhar, não bloqueie a sessão; continue usando o contexto local do projeto.
 - Nas mensagens seguintes da mesma sessão, não é necessário repetir a busca automaticamente, salvo quando o contexto recuperado for insuficiente ou potencialmente desatualizado.
 - Durante o trabalho, trate Mem0 apenas como memória auxiliar; código/Git e os documentos do projeto continuam sendo a fonte da verdade.

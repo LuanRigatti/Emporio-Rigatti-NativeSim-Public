@@ -246,6 +246,11 @@ export function useCostSettings() {
     [sessionSettings],
   );
 
+  const getDailyDates = useCallback(
+    () => Object.keys(sessionSettings.periods.day),
+    [sessionSettings],
+  );
+
   const getMonthlySum = useCallback(
     (year: number, month: number, field: CostField) => {
       const prefix = `${year}-${String(month).padStart(2, '0')}-`;
@@ -365,6 +370,7 @@ export function useCostSettings() {
   return {
     addFieldValue,
     deleteDailyData,
+    getDailyDates,
     getMonthlySum,
     getLatestDailyValue,
     getValues,

@@ -229,6 +229,10 @@ abaixo é a referência operacional após a publicação deste commit.
   tela principal e os detalhes. Nenhuma animação custom foi adicionada.
 - A tab bar mantém o comportamento atual confirmado no código: continua
   visível nos detalhes financeiros; não foi aplicado hack para ocultá-la.
+- A agregação de combustível considera a união normalizada e deduplicada de
+  `gastosDiarios`, rotas GPS e datas diárias válidas do Cost Settings. Km
+  manual isolado participa do custo, enquanto `routeCount` continua contando
+  somente sessões GPS.
 
 ### Bottom Sheets nativos e tint escuro
 

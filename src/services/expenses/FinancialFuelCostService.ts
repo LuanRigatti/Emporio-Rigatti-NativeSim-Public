@@ -16,6 +16,7 @@ export type FinancialFuelValues = {
 
 export type FinancialFuelSettings = {
   getDailyValues: (date: string) => FinancialFuelValues;
+  getDailyDates: () => readonly string[];
   getLatestFuelPrice: () => string;
   getLatestFuelType: () => string;
 };
@@ -27,11 +28,20 @@ export function calculateFinancialFuelCostsByDate(
   carSettings: CarSettings,
 ): Readonly<Record<string, number>> {
   const automaticKilometersByDate = summarizeRouteKilometersByDate(routeSessions);
-  const dates = new Set([...Object.keys(dailyExpenses), ...Object.keys(automaticKilometersByDate)]);
+  const dates = new Set<string>();
+  for (const date of [
+    ...Object.keys(dailyExpenses),
+    ...Object.values(dailyExpenses).map((expense) => expense.data),
+    ...Object.keys(automaticKilometersByDate),
+    ...settings.getDailyDates(),
+  ]) {
+    const normalizedDate = normalizeLegacyDate(date);
+    if (normalizedDate) dates.add(normalizedDate);
+  }
 
   return Object.fromEntries(
     [...dates].map((date) => {
-      const normalizedDate = normalizeLegacyDate(date) ?? date.trim();
+      const normalizedDate = date;
       const expense = expenseForDate(dailyExpenses, normalizedDate);
       const dailyValues = settings.getDailyValues(normalizedDate);
       const manualKilometers =

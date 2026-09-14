@@ -137,6 +137,23 @@ describe('FinancialCalculationService', () => {
     expect(result.lucroLiquido).toBe(result.lucroBruto - result.custoEstar - 12 - result.custoLuz);
   });
 
+  it('excludes resolved fuel costs outside the selected month', () => {
+    const result = service.calculateResumo({
+      deliveries: [],
+      dailyExpenses: {},
+      fuelCostByDate: {
+        '2026-08-31': 10,
+        '2026-09-06': 2,
+        '2026-10-01': 20,
+      },
+      monthlyExpenses: {},
+      filters: { periodo: 'mes', mesSelecionado: '2026-09' },
+      today: new Date('2026-09-30T12:00:00'),
+    });
+
+    expect(result.custoCombustivel).toBe(2);
+  });
+
   it('returns zero light allocation when the selected period has no deliveries', () => {
     expect(service.calculateLuzDoPeriodo([], monthlyExpenses, false, today)).toBe(0);
     const result = service.calculateResumo({

@@ -75,6 +75,22 @@ describe('FinancialDailyDetailService', () => {
     expect(detail?.summary.custoCombustivel).toBeCloseTo((5.5 / 7.4) * 6, 8);
   });
 
+  it('does not count manual kilometers as an additional route', () => {
+    const [detail] = service.buildMonth(
+      {
+        dailyExpenses: {
+          '2026-09-06': { data: '2026-09-06', km: 1 },
+        },
+        deliveries: [delivery('one', '2026-09-06', 100)],
+        monthlyExpenses: {},
+        routeSessions: [route('route-one', '2026-09-06', 1000)],
+      },
+      '2026-09',
+    );
+
+    expect(detail?.routeCount).toBe(1);
+  });
+
   it('does not mix dates or months when building a monthly series', () => {
     const details = service.buildMonth(
       {

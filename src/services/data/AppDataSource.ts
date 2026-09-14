@@ -3,7 +3,11 @@ import {
   mockDeliveryDataSource,
   type DeliveryRegistrationInput,
 } from '@/services/deliveries/DeliveryDataSource';
-import { localDailyDataDataSource, type CostSettings } from '@/services/costs';
+import {
+  COST_SETTINGS_DEFAULT_SCOPE,
+  localDailyDataDataSource,
+  type CostSettings,
+} from '@/services/costs';
 import { userDataService } from '@/services/data/UserDataService';
 import type { DailyExpenses, Delivery } from '@/types/data';
 import type { HistoryDelivery } from '@/features/history/data/historyMocks';
@@ -60,8 +64,8 @@ function mapMockMonthlyExpenses(settings: CostSettings): UserDataSnapshot['gasto
   );
 }
 
-async function loadMockData(): Promise<UserDataSnapshot> {
-  const settings = await localDailyDataDataSource.load();
+async function loadMockData(scope = COST_SETTINGS_DEFAULT_SCOPE): Promise<UserDataSnapshot> {
+  const settings = await localDailyDataDataSource.load(scope);
 
   return {
     clientesCustom: {},
@@ -88,7 +92,7 @@ export async function loadAppData(uid?: string): Promise<UserDataSnapshot> {
     return normalizeSnapshot((await userDataService.loadWithCacheFallback(uid)).snapshot);
   }
 
-  return loadMockData();
+  return loadMockData(uid ?? COST_SETTINGS_DEFAULT_SCOPE);
 }
 
 export function subscribeToAppData(listener: () => void): () => void {

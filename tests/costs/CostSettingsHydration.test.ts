@@ -40,12 +40,13 @@ describe('CostSettingsStorage hydration cache', () => {
     const second = await storage.load();
 
     expect(first.periods.day['2026-08-09']?.fuelPrice).toBe('5.69');
-    expect(storage.getCached()).toBe(first);
-    expect(second).toBe(first);
+    expect(storage.getCached()).toEqual(first);
+    expect(second).toEqual(first);
+    expect(second).not.toBe(first);
     expect(AsyncStorage.getItem).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps a real zero distinct from an empty value before hydration', () => {
+  it('keeps a real zero distinct from an empty value before hydration', async () => {
     const storage = new CostSettingsStorage();
     const settings = {
       periods: {
@@ -65,7 +66,7 @@ describe('CostSettingsStorage hydration cache', () => {
       },
     };
 
-    storage.save(settings);
+    await storage.save(settings);
 
     expect(storage.getCached()?.periods.day['2026-08-09']?.estar).toBe('0');
   });

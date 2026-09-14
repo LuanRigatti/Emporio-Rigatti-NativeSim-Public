@@ -71,6 +71,21 @@ abaixo é a referência operacional após a publicação deste commit.
   Development Build, mas a Release instalada precisa ser substituída por uma
   nova Release para validar o cold start offline real.
 
+### Cost Settings
+
+- Edições manuais de custos e quilometragem são local-first: atualizam a UI e
+  persistem no AsyncStorage sem aguardar Firestore; o storage e o cache em
+  memória são isolados por UID.
+- Hidratação e sincronização usam UID + sessionVersion/generation. Logout,
+  troca de UID ou novo login invalidam operações e respostas antigas, sem
+  permitir que falhas locais/remotas apaguem silenciosamente uma edição válida.
+- Mutações remotas do mesmo UID + registro usam fila serial compartilhada para
+  create/update/delete. Firestore recebe patches com merge não destrutivo,
+  preservando campos remotos desconhecidos e permitindo exclusões explícitas.
+- A validação relacionada passou em 7 suítes / 57 testes, incluindo leituras e
+  mutações assíncronas obsoletas, relogin com o mesmo UID, fila de exclusão e
+  persistência local.
+
 ### Home
 
 - A Home mantém a pílula nativa de ações, `Entregas de hoje` e os dados e

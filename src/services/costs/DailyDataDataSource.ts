@@ -1,6 +1,6 @@
 import type { DailyExpenses, MonthlyExpenses } from '@/types/data';
 
-import type { CostSettings } from './CostSettingsStorage';
+import type { CostSettings, CostSettingsOperationOptions } from './CostSettingsStorage';
 
 /**
  * Contrato de persistência dos dados diários editáveis.
@@ -9,8 +9,12 @@ import type { CostSettings } from './CostSettingsStorage';
  * e pode receber uma implementação Firebase em uma etapa posterior.
  */
 export interface DailyDataDataSource {
-  load(): Promise<CostSettings>;
-  save(settings: CostSettings): Promise<void>;
+  load(scope?: string, options?: CostSettingsOperationOptions): Promise<CostSettings>;
+  save(
+    settings: CostSettings,
+    scope?: string,
+    options?: CostSettingsOperationOptions,
+  ): Promise<void>;
 }
 
 export interface FirebaseDailyDataPayload {

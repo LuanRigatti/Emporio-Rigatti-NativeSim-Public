@@ -118,7 +118,7 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
         );
       } catch (remoteError) {
         if (__DEV__) console.warn('[useExpenses] Firestore save fallback local.', remoteError);
-        await saveDailyLocally(date, values);
+        await saveDailyLocally(user.id, date, values);
         setSnapshot((current) =>
           current
             ? {
@@ -175,7 +175,7 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
         );
       } catch (remoteError) {
         if (__DEV__) console.warn('[useExpenses] Firestore save fallback local.', remoteError);
-        await saveMonthlyLocally(draft.month, values);
+        await saveMonthlyLocally(user.id, draft.month, values);
         setSnapshot((current) =>
           current
             ? {
@@ -208,26 +208,32 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
   };
 }
 
-async function saveDailyLocally(date: string, values: CostValues): Promise<void> {
-  const settings = await localDailyDataDataSource.load();
-  await localDailyDataDataSource.save({
-    ...settings,
-    periods: {
-      ...settings.periods,
-      day: { ...settings.periods.day, [date]: values },
+async function saveDailyLocally(uid: string, date: string, values: CostValues): Promise<void> {
+  const settings = await localDailyDataDataSource.load(uid);
+  await localDailyDataDataSource.save(
+    {
+      ...settings,
+      periods: {
+        ...settings.periods,
+        day: { ...settings.periods.day, [date]: values },
+      },
     },
-  });
+    uid,
+  );
 }
 
-async function saveMonthlyLocally(month: string, values: CostValues): Promise<void> {
-  const settings = await localDailyDataDataSource.load();
-  await localDailyDataDataSource.save({
-    ...settings,
-    periods: {
-      ...settings.periods,
-      month: { ...settings.periods.month, [month]: values },
+async function saveMonthlyLocally(uid: string, month: string, values: CostValues): Promise<void> {
+  const settings = await localDailyDataDataSource.load(uid);
+  await localDailyDataDataSource.save(
+    {
+      ...settings,
+      periods: {
+        ...settings.periods,
+        month: { ...settings.periods.month, [month]: values },
+      },
     },
-  });
+    uid,
+  );
 }
 
 function firestoreQueryForExpenseFilters(filters: ExpenseFilters) {

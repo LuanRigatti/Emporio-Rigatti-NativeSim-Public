@@ -1,6 +1,6 @@
 import {
   costValuesToDailyDocument,
-  costValuesToDailyWriteDocument,
+  costValuesToDailyPatchDocument,
   costValuesToMonthlyDocument,
   dailyDocumentToExpense,
   dailyExpenseToCostValues,
@@ -46,9 +46,10 @@ describe('Firestore daily/monthly cost documents', () => {
 
   it('marks cleared daily fields for deletion instead of leaving stale Firestore values', () => {
     expect(
-      costValuesToDailyWriteDocument(
+      costValuesToDailyPatchDocument(
         '2026-08-09',
         { ...values, estar: '', fuel: '', fuelPrice: '', fuelType: '', kilometers: '', other: '' },
+        ['estar', 'fuel', 'fuelPrice', 'fuelType', 'kilometers', 'other'],
         () => 'DELETE_FIELD',
       ),
     ).toEqual({

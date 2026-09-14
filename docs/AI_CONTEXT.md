@@ -59,6 +59,7 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - Finanças, Estoque, gráficos e índices são derivados em memória; não criar uma segunda fonte de verdade para eles.
 - O cold start autenticado deve liberar a aplicação usando somente o estado local necessário e os caches disponíveis; leituras Firestore de dados de negócio, inclusive da Fábrica, não podem ser requisito do gate visual. A sincronização remota ocorre depois que a UI está disponível.
 - Toda operação assíncrona vinculada a dados deve capturar UID e geração/sessionVersion no início e descartar respostas ou mutações obsoletas após logout, troca de UID ou nova sessão com o mesmo UID.
+- Em Cost Settings, mutações remotas do mesmo UID + registro devem ser serializadas na mesma fila para create/update/delete; gravações usam patches/merge não destrutivos e preservam campos remotos não editados.
 - `metadata.fromCache` não confirma uma leitura remota completa: respostas vazias/parciais devem preservar cache válido, e histórico parcial nunca deve ser tratado como histórico global completo.
 
 Áreas já validadas: Clientes, Entregas, Pagamentos em aberto, Notas fiscais/boletos, Fábrica e pagamentos parciais, Dados Diários/Mensais, Finanças, Estoque, FactorySettings, CarSettings, CompanyProfile e Backup/Restore.

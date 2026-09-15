@@ -279,9 +279,20 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
     try {
       const period = query.period;
       const sessions =
-        period?.kind === 'date'
-          ? await routeTrackingRepository.getRouteHistory(period.date)
-          : await routeTrackingRepository.getRouteHistory();
+        this.sessionVersion === undefined
+          ? period?.kind === 'date'
+            ? await routeTrackingRepository.getRouteHistory(period.date)
+            : await routeTrackingRepository.getRouteHistory()
+          : period?.kind === 'date'
+            ? await routeTrackingRepository.getRouteHistoryForUser(
+                this.userId,
+                this.sessionVersion,
+                period.date,
+              )
+            : await routeTrackingRepository.getRouteHistoryForUser(
+                this.userId,
+                this.sessionVersion,
+              );
       coverage.push({ source: 'routeHistory', mode: 'local' });
       return period ? sessions.filter((session) => routeMatchesPeriod(session.date, period)) : [];
     } catch (error) {

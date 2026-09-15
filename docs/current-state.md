@@ -86,6 +86,22 @@ abaixo é a referência operacional após a publicação deste commit.
   mutações assíncronas obsoletas, relogin com o mesmo UID, fila de exclusão e
   persistência local.
 
+### Route Tracking
+
+- Novas rotas autenticadas usam exclusivamente storage v2 e cache em memória
+  isolados pelo UID; a rota ativa persiste `ownerUid`, que continua sendo usado
+  por foreground, background, restauração e finalização.
+- O tracking em background permanece vinculado ao `ownerUid` persistido e não
+  consulta o Auth atual para redirecionar pontos. Operações de UI e preload usam
+  UID + generation/sessionVersion para descartar callbacks e respostas antigas;
+  pontos anteriores ao `startTimestamp` da rota atual também são ignorados.
+- O preload carrega somente o histórico v2 do UID autenticado, sem Firestore e
+  sem reintroduzir dependência remota no cold start. O histórico v2 continua
+  deduplicado por `routeId` pela leitura canônica.
+- As chaves v1 globais permanecem intactas, em quarentena e fora de mapas,
+  `routeCount` e Finanças. A Etapa 2B de claim/migração explícita ainda não foi
+  implementada.
+
 ### Home
 
 - A Home mantém a pílula nativa de ações, `Entregas de hoje` e os dados e
@@ -235,7 +251,8 @@ abaixo é a referência operacional após a publicação deste commit.
   somente sessões GPS.
 - O histórico local de rotas é deduplicado defensivamente por `routeId` na
   leitura canônica; duplicatas persistidas não inflam km, `routeCount` nem
-  custos derivados. O storage legado ainda não foi migrado nem isolado por UID.
+  custos derivados. O legado v1 permanece preservado fora do fluxo normal e
+  ainda não foi migrado/claimado.
 
 ### Bottom Sheets nativos e tint escuro
 

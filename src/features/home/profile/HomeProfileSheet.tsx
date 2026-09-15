@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
 import { useAuth } from '@/providers';
+import { locationTrackingService } from '@/services/routes';
 import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
 
 import HomeProfileSheetContent from './HomeProfileSheetContent';
@@ -18,18 +19,22 @@ type Props = {
 };
 
 export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
-  const { error, isLoading, signOut, updateDisplayName, user } = useAuth();
+  const { error, isLoading, sessionVersion, signOut, updateDisplayName, user } = useAuth();
+  const userId = user?.id;
   const { resolvedMode } = useAppTheme();
   const useDarkGlassSurface = resolvedMode === 'dark';
   const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
 
   const handleSignOut = useCallback(async () => {
     try {
+      if (userId) {
+        await locationTrackingService.stopActiveRouteForLogout(userId, sessionVersion);
+      }
       await signOut();
     } catch {
       // SessionProvider preserves the authenticated session and exposes the mapped error.
     }
-  }, [signOut]);
+  }, [sessionVersion, signOut, userId]);
 
   const handleDismiss = useCallback(() => {
     onVisibleChange(false);

@@ -7,6 +7,8 @@ export interface RouteTrackingSample {
 
 export interface RouteTrackingRecord {
   routeId: string;
+  /** Present on v2 records; absent only on ownerless legacy records. */
+  ownerUid?: string;
   startTimestamp: number;
   active: boolean;
   stopRequestedAt?: number;
@@ -17,6 +19,8 @@ export interface RouteTrackingRecord {
 
 export interface RouteTrackingSession {
   id: string;
+  /** Present on v2 records; absent only on ownerless legacy fixtures/data. */
+  ownerUid?: string;
   date: string;
   startTimestamp: number;
   endTimestamp: number;

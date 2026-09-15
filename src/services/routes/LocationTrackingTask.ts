@@ -10,13 +10,18 @@ type RouteLocationTaskData = {
   locations: Location.LocationObject[];
 };
 
-if (Platform.OS !== 'web' && !TaskManager.isTaskDefined(ROUTE_LOCATION_TASK_NAME)) {
-  TaskManager.defineTask<RouteLocationTaskData>(
-    ROUTE_LOCATION_TASK_NAME,
-    async ({ data, error }) => {
-      if (error || !data?.locations?.length) return;
+export async function handleRouteLocationTask({
+  data,
+  error,
+}: {
+  data?: RouteLocationTaskData;
+  error?: unknown;
+}): Promise<void> {
+  if (error || !data?.locations?.length) return;
 
-      await routeTrackingRepository.appendLocationSamples(data.locations);
-    },
-  );
+  await routeTrackingRepository.appendLocationSamplesForBackground(data.locations);
+}
+
+if (Platform.OS !== 'web' && !TaskManager.isTaskDefined(ROUTE_LOCATION_TASK_NAME)) {
+  TaskManager.defineTask<RouteLocationTaskData>(ROUTE_LOCATION_TASK_NAME, handleRouteLocationTask);
 }

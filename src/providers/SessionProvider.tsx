@@ -12,6 +12,7 @@ import {
 import { authDataSource } from '@/services/auth/AuthDataSource';
 import { AuthUserFacingError, mapAuthError } from '@/services/auth/AuthErrorMapper';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
+import { setRouteTrackingSession } from '@/services/routes/RouteTrackingSessionBridge';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
 
@@ -47,14 +48,17 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   const [error, setError] = useState<string | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
   const sessionUidRef = useRef<string | null>(user?.id ?? null);
+  const sessionVersionRef = useRef(0);
   const [sessionVersion, setSessionVersion] = useState(0);
 
   const commitSession = useCallback((nextUser: AuthUser | null, nextStatus: SessionStatus) => {
     const nextUid = nextUser?.id ?? null;
     if (sessionUidRef.current !== nextUid) {
       sessionUidRef.current = nextUid;
-      setSessionVersion((version) => version + 1);
+      sessionVersionRef.current += 1;
+      setSessionVersion(sessionVersionRef.current);
     }
+    setRouteTrackingSession(nextUid, sessionVersionRef.current);
     setUser(nextUser);
     setStatus(nextStatus);
   }, []);

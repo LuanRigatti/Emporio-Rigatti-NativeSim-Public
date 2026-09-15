@@ -55,12 +55,13 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - Os dados são separados por usuário em `users/{uid}/...`.
 - Clientes, entregas, fábrica, pagamentos, dados diários/mensais e configurações usam documentos próprios e queries granulares.
 - O Realtime Database legado não é fonte de verdade e não deve ser lido ou migrado automaticamente.
-- AsyncStorage/local storage permanece apenas como cache, fallback local ou preferência específica do dispositivo.
+- AsyncStorage/local storage permanece apenas como cache, fallback local ou preferência específica do dispositivo; o histórico GPS é a exceção local-only mantida pelo `RouteTrackingRepository`.
 - Finanças, Estoque, gráficos e índices são derivados em memória; não criar uma segunda fonte de verdade para eles.
 - O cold start autenticado deve liberar a aplicação usando somente o estado local necessário e os caches disponíveis; leituras Firestore de dados de negócio, inclusive da Fábrica, não podem ser requisito do gate visual. A sincronização remota ocorre depois que a UI está disponível.
 - Toda operação assíncrona vinculada a dados deve capturar UID e geração/sessionVersion no início e descartar respostas ou mutações obsoletas após logout, troca de UID ou nova sessão com o mesmo UID.
 - Em Cost Settings, mutações remotas do mesmo UID + registro devem ser serializadas na mesma fila para create/update/delete; gravações usam patches/merge não destrutivos e preservam campos remotos não editados.
 - `metadata.fromCache` não confirma uma leitura remota completa: respostas vazias/parciais devem preservar cache válido, e histórico parcial nunca deve ser tratado como histórico global completo.
+- Novas rotas autenticadas são locais e usam storage v2/cache isolados por UID; a rota ativa persiste `ownerUid` para manter o vínculo no foreground, no background e na restauração. As chaves globais v1 permanecem em quarentena, fora do runtime normal, até um claim explícito.
 
 Áreas já validadas: Clientes, Entregas, Pagamentos em aberto, Notas fiscais/boletos, Fábrica e pagamentos parciais, Dados Diários/Mensais, Finanças, Estoque, FactorySettings, CarSettings, CompanyProfile e Backup/Restore.
 

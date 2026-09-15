@@ -71,6 +71,7 @@ function AppShell() {
   );
 
   useEffect(() => {
+    routeTrackingRepository.setSessionUser(sessionUid, sessionVersion);
     firestoreClientDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreDeliveryDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreFactoryReceiptDataSource.setSessionUser(sessionUid, sessionVersion);
@@ -99,22 +100,30 @@ function AppShell() {
   }, [sessionKey, status, user?.id]);
 
   useEffect(() => {
-    void locationTrackingService.restoreActiveRouteAfterAppRestart().catch((error) => {
-      if (__DEV__) console.warn('[RouteTracking] Falha ao restaurar rota ativa.', error);
+    if (!isAuthenticated || !sessionUid) return;
+
+    let active = true;
+    void Promise.all([
+      locationTrackingService.restoreActiveRouteAfterAppRestart(),
+      routeTrackingRepository.getRouteHistory(),
+    ]).catch((error) => {
+      if (active && __DEV__) {
+        console.warn('[RouteTracking] Falha ao restaurar dados locais de rotas.', error);
+      }
     });
-    void routeTrackingRepository.getRouteHistory().catch((error) => {
-      if (__DEV__) console.warn('[RouteTracking] Falha ao hidratar histórico de rotas.', error);
-    });
-  }, []);
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, sessionKey, sessionUid]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!sessionUid) return;
     const today = new Date();
     const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    void financialPeriodSnapshotCache.read(user.id, currentMonth);
-    void stockPeriodSnapshotCache.read(user.id, currentMonth);
-    void routeTrackingRepository.getRouteHistory();
-  }, [user?.id]);
+    void financialPeriodSnapshotCache.read(sessionUid, currentMonth);
+    void stockPeriodSnapshotCache.read(sessionUid, currentMonth);
+  }, [sessionKey, sessionUid]);
 
   return (
     <InitialCacheHydrationContext.Provider value={isCacheHydrated}>

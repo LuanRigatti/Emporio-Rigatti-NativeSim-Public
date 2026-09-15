@@ -1,7 +1,9 @@
 import { Stack, useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { ListItem } from '@/components/lists';
 import { NativeGlassHeader } from '@/components/layout';
 import {
   NativeCardContextMenu,
@@ -11,17 +13,17 @@ import {
 } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
-import { SettingItem } from '@/features/settings/components/SettingItem';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
+import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 import { useClients } from '@/hooks/useClients';
-import { useAppTheme } from '@/theme';
+import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import type { ClientModel } from '@/types/data';
 import { normalizeMoney } from '@/utils/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 export default function ClientsRoute() {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
   const { clients, error, loading, reload, removeCustomConfiguration, saveCustomClient } =
@@ -70,6 +72,9 @@ export default function ClientsRoute() {
   }, []);
 
   const header = <NativeGlassHeader mode="transparent" title="Clientes" />;
+  const clientCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const clientCardRadius = theme.radius.xl + theme.spacing.sm;
+  const clientRowHeight = 54 + theme.spacing.sm * 2;
 
   return (
     <>
@@ -116,43 +121,96 @@ export default function ClientsRoute() {
               }}
             >
               <SettingsSection>
-                {clients.map((client, index) => (
-                  <NativeCardContextMenu
-                    actions={[
-                      {
-                        destructive: true,
-                        disabled: testModeEnabled,
-                        id: 'delete-client',
-                        onPress: () => {
-                          setDeleteError(undefined);
-                          setClientToDelete(client);
+                {clients.map((client) => {
+                  const renderClientRow = (preview = false) => (
+                    <View
+                      style={[
+                        styles.clientRow,
+                        {
+                          backgroundColor: preview ? clientCardSurface : 'transparent',
+                          borderRadius: clientCardRadius,
+                          height: clientRowHeight,
+                          overflow: preview ? 'hidden' : undefined,
+                          width: '100%',
                         },
-                        systemImage: 'trash',
-                        title: 'Excluir cliente',
-                      },
-                    ]}
-                    key={client.clientId}
-                    style={{ width: '100%' }}
-                  >
-                    <SettingItem
-                      fallbackIcon="person"
-                      isLast={index === clients.length - 1}
-                      leadingInset={theme.spacing.xs}
-                      onPress={() =>
-                        router.push({
-                          params: {
-                            clientId: client.clientId,
-                            clientName: client.canonicalName,
+                        preview ? styles.clientPreviewInset : undefined,
+                      ]}
+                    >
+                      <ListItem
+                        accessibilityLabel={client.canonicalName}
+                        leading={<OpenPaymentClientIcon />}
+                        onPress={() =>
+                          router.push({
+                            params: {
+                              clientId: client.clientId,
+                              clientName: client.canonicalName,
+                            },
+                            pathname: '/clientes/[clientId]',
+                          })
+                        }
+                        style={{ height: clientRowHeight, width: '100%' }}
+                        title={client.canonicalName}
+                        trailing={
+                          <View
+                            style={[
+                              styles.clientChevronSlot,
+                              {
+                                height: theme.sizes.touchTargetMinimum,
+                                width: theme.sizes.iconSmall,
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              color={theme.colors.textTertiary}
+                              name="chevron-forward"
+                              size={theme.sizes.iconSmall}
+                            />
+                          </View>
+                        }
+                      />
+                    </View>
+                  );
+
+                  return (
+                    <View
+                      key={client.clientId}
+                      style={[
+                        styles.clientContextContainer,
+                        {
+                          backgroundColor: clientCardSurface,
+                          borderRadius: clientCardRadius,
+                          height: clientRowHeight,
+                          overflow: 'hidden',
+                          width: '100%',
+                        },
+                      ]}
+                    >
+                      <NativeCardContextMenu
+                        actions={[
+                          {
+                            destructive: true,
+                            disabled: testModeEnabled,
+                            id: 'delete-client',
+                            onPress: () => {
+                              setDeleteError(undefined);
+                              setClientToDelete(client);
+                            },
+                            systemImage: 'trash',
+                            title: 'Excluir cliente',
                           },
-                          pathname: '/clientes/[clientId]',
-                        })
-                      }
-                      systemName="person.crop.circle"
-                      title={client.canonicalName}
-                      trailingInset={theme.spacing.xs}
-                    />
-                  </NativeCardContextMenu>
-                ))}
+                        ]}
+                        matchContents={{ horizontal: true, vertical: false }}
+                        preview={renderClientRow(true)}
+                        style={[
+                          styles.clientContextMenu,
+                          { borderRadius: clientCardRadius, height: clientRowHeight },
+                        ]}
+                      >
+                        {renderClientRow()}
+                      </NativeCardContextMenu>
+                    </View>
+                  );
+                })}
               </SettingsSection>
             </PremiumCard>
           </View>
@@ -181,6 +239,11 @@ export default function ClientsRoute() {
 }
 
 const styles = StyleSheet.create({
+  clientChevronSlot: { alignItems: 'center', justifyContent: 'center' },
+  clientContextContainer: { overflow: 'hidden' },
+  clientContextMenu: { width: '100%' },
+  clientPreviewInset: { paddingLeft: 20, paddingRight: 14 },
+  clientRow: { width: '100%' },
   content: { flexGrow: 1 },
   errorState: { alignItems: 'center', gap: 12 },
 });

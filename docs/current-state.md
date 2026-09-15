@@ -233,6 +233,9 @@ abaixo é a referência operacional após a publicação deste commit.
   `gastosDiarios`, rotas GPS e datas diárias válidas do Cost Settings. Km
   manual isolado participa do custo, enquanto `routeCount` continua contando
   somente sessões GPS.
+- O histórico local de rotas é deduplicado defensivamente por `routeId` na
+  leitura canônica; duplicatas persistidas não inflam km, `routeCount` nem
+  custos derivados. O storage legado ainda não foi migrado nem isolado por UID.
 
 ### Bottom Sheets nativos e tint escuro
 

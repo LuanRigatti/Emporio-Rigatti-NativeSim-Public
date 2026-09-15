@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { calculateFinancialFuelCostsByDate } from '@/services/expenses/FinancialFuelCostService';
 import {
   appendValidLocationSamples,
   calculateDistanceMeters,
@@ -239,6 +240,133 @@ describe('route distance by day', () => {
     await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify([session]));
 
     await expect(routeTrackingRepository.getRouteSessionById(session.id)).resolves.toEqual(session);
+  });
+
+  it('deduplicates identical route ids before calculating distance and route count', async () => {
+    const duplicated = [sessions[0], { ...sessions[0] }];
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(duplicated));
+
+    await expect(routeTrackingRepository.getRouteDistanceForDate('2026-08-06')).resolves.toEqual({
+      routeCount: 1,
+      totalKilometers: 12.4,
+    });
+    expect(routeTrackingRepository.getMemoryRouteHistory()).toEqual([sessions[0]]);
+  });
+
+  it('keeps the more complete record when the same route id has conflicting data', async () => {
+    const completeSample = {
+      accuracy: 10,
+      latitude: -25.4296,
+      longitude: -49.2719,
+      timestamp: 1_500,
+    };
+    const incomplete = { ...sessions[0], pointsCount: 0, samples: [] };
+    const complete = { ...sessions[0], pointsCount: 1, samples: [completeSample] };
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([incomplete, complete]),
+    );
+
+    await expect(routeTrackingRepository.getRouteSessionById(sessions[0].id)).resolves.toEqual(
+      complete,
+    );
+  });
+
+  it('uses the most recent timestamps when duplicate records have equivalent completeness', async () => {
+    const older = { ...sessions[0], endTimestamp: 2_000, startTimestamp: 1_000 };
+    const newer = { ...sessions[0], endTimestamp: 4_000, startTimestamp: 3_000 };
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify([older, newer]));
+
+    await expect(routeTrackingRepository.getRouteSessionById(sessions[0].id)).resolves.toEqual(
+      newer,
+    );
+  });
+
+  it('keeps routes with different ids independent even when date and distance match', async () => {
+    const secondRoute = { ...sessions[0], id: 'route-4' };
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([sessions[0], secondRoute]),
+    );
+
+    await expect(routeTrackingRepository.getRouteDistanceForDate('2026-08-06')).resolves.toEqual({
+      routeCount: 2,
+      totalKilometers: 24.8,
+    });
+  });
+
+  it('preserves a history without duplicate ids exactly as before', async () => {
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(sessions));
+
+    await expect(routeTrackingRepository.getRouteHistory()).resolves.toEqual(sessions);
+  });
+
+  it('does not inflate the financial fuel cost when the same route is stored twice', async () => {
+    const duplicated = [
+      { ...sessions[0], distanceMeters: 10_000 },
+      { ...sessions[0], distanceMeters: 10_000 },
+    ];
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(duplicated));
+
+    const routeHistory = await routeTrackingRepository.getRouteHistory();
+    const result = calculateFinancialFuelCostsByDate(
+      {},
+      routeHistory,
+      {
+        getDailyDates: () => [],
+        getDailyValues: () => ({
+          fuel: '',
+          fuelPrice: '',
+          fuelType: 'gasolina',
+          kilometers: '',
+        }),
+        getLatestFuelPrice: () => '6',
+        getLatestFuelType: () => 'gasolina',
+      },
+      { alcoholAutonomy: '5,6 Km/l', gasolineAutonomy: '7,4 Km/l' },
+    );
+
+    expect(result['2026-08-06']).toBeCloseTo((10 / 7.4) * 6, 8);
+  });
+
+  it('chooses the same duplicate record regardless of storage order', async () => {
+    const incomplete = { ...sessions[0], pointsCount: 0, samples: [] };
+    const complete = {
+      ...sessions[0],
+      pointsCount: 1,
+      samples: [{ accuracy: 10, latitude: -25.4296, longitude: -49.2719, timestamp: 1_500 }],
+    };
+
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([incomplete, complete]),
+    );
+    const firstOrderResult = await routeTrackingRepository.getRouteSessionById(sessions[0].id);
+
+    await AsyncStorage.setItem(
+      ROUTE_TRACKING_HISTORY_STORAGE_KEY,
+      JSON.stringify([complete, incomplete]),
+    );
+    const secondOrderResult = await routeTrackingRepository.getRouteSessionById(sessions[0].id);
+
+    expect(firstOrderResult).toEqual(complete);
+    expect(secondOrderResult).toEqual(complete);
+  });
+
+  it('does not rewrite storage when reading duplicate history and keeps invalid entries safely ignored', async () => {
+    const serialized = JSON.stringify([
+      sessions[0],
+      sessions[0],
+      { id: 'invalid', status: 'finalized' },
+    ]);
+    await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, serialized);
+    jest.mocked(AsyncStorage.setItem).mockClear();
+
+    await expect(routeTrackingRepository.getRouteHistory()).resolves.toEqual([sessions[0]]);
+    expect(jest.mocked(AsyncStorage.setItem)).not.toHaveBeenCalled();
+    await expect(AsyncStorage.getItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY)).resolves.toBe(
+      serialized,
+    );
   });
 
   it('sums multiple routes from the same day', async () => {

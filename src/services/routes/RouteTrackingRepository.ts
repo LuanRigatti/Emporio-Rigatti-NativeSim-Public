@@ -129,6 +129,61 @@ function parseStoredHistory(value: string | null): RouteTrackingSession[] {
   }
 }
 
+function compareSessionsForDeduplication(
+  left: RouteTrackingSession,
+  right: RouteTrackingSession,
+): number {
+  const leftCompleteness = [
+    left.samples.length,
+    left.pointsCount,
+    Number.isFinite(left.endTimestamp) ? 1 : 0,
+    Number.isFinite(left.distanceMeters) && left.distanceMeters >= 0 ? 1 : 0,
+    Number.isFinite(left.durationSeconds) && left.durationSeconds >= 0 ? 1 : 0,
+    left.date.trim() ? 1 : 0,
+    left.status === 'finalized' ? 1 : 0,
+  ];
+  const rightCompleteness = [
+    right.samples.length,
+    right.pointsCount,
+    Number.isFinite(right.endTimestamp) ? 1 : 0,
+    Number.isFinite(right.distanceMeters) && right.distanceMeters >= 0 ? 1 : 0,
+    Number.isFinite(right.durationSeconds) && right.durationSeconds >= 0 ? 1 : 0,
+    right.date.trim() ? 1 : 0,
+    right.status === 'finalized' ? 1 : 0,
+  ];
+
+  for (let index = 0; index < leftCompleteness.length; index += 1) {
+    if (leftCompleteness[index] !== rightCompleteness[index]) {
+      return leftCompleteness[index] > rightCompleteness[index] ? 1 : -1;
+    }
+  }
+
+  if (left.endTimestamp !== right.endTimestamp) {
+    return left.endTimestamp > right.endTimestamp ? 1 : -1;
+  }
+  if (left.startTimestamp !== right.startTimestamp) {
+    return left.startTimestamp > right.startTimestamp ? 1 : -1;
+  }
+
+  const leftSignature = JSON.stringify(left);
+  const rightSignature = JSON.stringify(right);
+  if (leftSignature === rightSignature) return 0;
+  return leftSignature > rightSignature ? 1 : -1;
+}
+
+function deduplicateRouteHistory(history: readonly RouteTrackingSession[]): RouteTrackingSession[] {
+  const sessionsById = new Map<string, RouteTrackingSession>();
+
+  for (const session of history) {
+    const current = sessionsById.get(session.id);
+    if (!current || compareSessionsForDeduplication(session, current) > 0) {
+      sessionsById.set(session.id, session);
+    }
+  }
+
+  return [...sessionsById.values()];
+}
+
 export class RouteTrackingRepository {
   private writeQueue = Promise.resolve();
   private memoryHistory: RouteTrackingSession[] | null = null;
@@ -159,9 +214,9 @@ export class RouteTrackingRepository {
   }
 
   public async getRouteHistory(date?: string): Promise<RouteTrackingSession[]> {
-    const history = parseStoredHistory(
-      await AsyncStorage.getItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY),
-    ).sort((left, right) => left.startTimestamp - right.startTimestamp);
+    const history = deduplicateRouteHistory(await this.readRouteHistory()).sort(
+      (left, right) => left.startTimestamp - right.startTimestamp,
+    );
 
     this.memoryHistory = history;
 
@@ -189,11 +244,13 @@ export class RouteTrackingRepository {
 
   public async removeRouteSession(sessionId: string): Promise<boolean> {
     return this.enqueue(async () => {
-      const history = await this.getRouteHistory();
-      const nextHistory = history.filter((session) => session.id !== sessionId);
-      if (nextHistory.length === history.length) return false;
+      const storedHistory = await this.readRouteHistory();
+      const nextHistory = storedHistory.filter((session) => session.id !== sessionId);
+      if (nextHistory.length === storedHistory.length) return false;
 
-      this.memoryHistory = nextHistory;
+      this.memoryHistory = deduplicateRouteHistory(nextHistory).sort(
+        (left, right) => left.startTimestamp - right.startTimestamp,
+      );
       await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
       return true;
     });
@@ -259,7 +316,8 @@ export class RouteTrackingRepository {
       const finished = current.active ? { ...current, active: false, endTimestamp } : current;
       if (current.active) await this.write(finished);
 
-      const history = await this.getRouteHistory();
+      const storedHistory = await this.readRouteHistory();
+      const history = deduplicateRouteHistory(storedHistory);
       const session: RouteTrackingSession = {
         date: getRouteDateKey(finished.startTimestamp),
         distanceMeters: finished.accumulatedDistanceMeters,
@@ -276,8 +334,10 @@ export class RouteTrackingRepository {
       };
 
       if (!history.some((item) => item.id === session.id)) {
-        const nextHistory = [...history, session];
-        this.memoryHistory = nextHistory;
+        const nextHistory = [...storedHistory, session];
+        this.memoryHistory = deduplicateRouteHistory(nextHistory).sort(
+          (left, right) => left.startTimestamp - right.startTimestamp,
+        );
         await AsyncStorage.setItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
       }
       return finished;
@@ -286,6 +346,12 @@ export class RouteTrackingRepository {
 
   private async write(route: RouteTrackingRecord): Promise<void> {
     await AsyncStorage.setItem(ROUTE_TRACKING_STORAGE_KEY, JSON.stringify(route));
+  }
+
+  private async readRouteHistory(): Promise<RouteTrackingSession[]> {
+    return parseStoredHistory(await AsyncStorage.getItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY)).sort(
+      (left, right) => left.startTimestamp - right.startTimestamp,
+    );
   }
 
   private enqueue<T>(work: () => Promise<T>): Promise<T> {

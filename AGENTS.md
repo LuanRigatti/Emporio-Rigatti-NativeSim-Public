@@ -6,33 +6,60 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 O Mem0 deve ser usado somente pelo Direct MCP remoto como contexto técnico durável entre sessões. Mem0 nunca substitui o estado real do projeto.
 
-### Status inicial
+### Bootstrap inicial obrigatório de cada sessão
 
-- No primeiro prompt de toda nova sessão ou conversa deste projeto, executar uma única vez o procedimento de status abaixo, antes de responder; não repetir o status nos prompts seguintes da mesma sessão.
-- Obter `branch` diretamente do Git atual, nunca do Mem0.
-- Consultar obrigatoriamente o Direct MCP remoto do Mem0 para obter o total real de memórias do escopo, preferindo `mcp__mem0__get_memories` ou a ferramenta de listagem/consulta mais adequada disponível no Direct MCP; não usar quantidade de página, limite ou resultado parcial. Usar sempre o escopo `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
-- Não usar `search_memories` para descobrir a quantidade e não usar `doctor`.
-- Após obter a branch e a quantidade, exibir uma única linha: `Mem0 Active | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=<quantidade atual>`.
-- Se a chamada ao Mem0 falhar, não bloquear a tarefa e exibir: `Mem0 Unavailable | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=?`.
+No primeiro prompt de toda nova sessão ou conversa deste projeto, antes de responder à tarefa, executar uma única vez o bootstrap abaixo. Nos prompts seguintes da mesma sessão, reutilizar o contexto já carregado e não repetir automaticamente o bootstrap.
 
-### Reutilização da consulta inicial
+#### Git
 
-- No primeiro prompt da sessão, reutilizar o resultado da consulta inicial ao Mem0 para todas as necessidades daquele prompt.
-- Se a consulta inicial já retornar a lista ou o conteúdo das memórias, usar essa mesma resposta para calcular `memories=<quantidade>`, listar memórias, resumir memórias e responder perguntas simples sobre essas memórias.
-- NÃO fazer uma segunda chamada ao Mem0 apenas porque o usuário também pediu para mostrar, listar ou resumir as memórias no mesmo primeiro prompt.
-- Uma segunda chamada só é permitida quando a resposta inicial não contém os dados necessários ou quando uma busca semântica específica via `search_memories` for realmente necessária para responder à tarefa.
-- Se o primeiro prompt pedir branch ou commit e memórias, obter branch e commit do Git atual; obter quantidade e conteúdo das memórias, sempre que possível, por uma única chamada ao Direct MCP.
+- Obter a branch diretamente do Git atual, nunca do Mem0.
+- Manter código/Git como a fonte de verdade principal.
+- Obter o `HEAD` somente quando for útil para a tarefa e sem trabalho desnecessário.
+
+#### Documentos do projeto
+
+Consultar automaticamente no bootstrap:
+
+1. `docs/current-state.md`:
+   - ler obrigatoriamente o Snapshot operacional atual no topo;
+   - não reler automaticamente as partes históricas extensas;
+   - abrir seções adicionais somente quando forem relevantes para a tarefa.
+2. `docs/AI_CONTEXT.md`:
+   - carregar a arquitetura, regras, restrições e workflow atuais.
+3. `docs/design-system.md`:
+   - carregar o contrato visual/UX necessário para preservar consistência;
+   - aprofundar seções específicas somente quando a tarefa envolver UI, UX ou design.
+
+O usuário não deve precisar solicitar manualmente a leitura desses documentos.
+
+#### Mem0
+
+- Fazer uma única consulta obrigatória ao Direct MCP remoto do Mem0 durante o bootstrap inicial, sempre no escopo `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
+- Preferir `mcp__mem0__get_memories` ou a ferramenta equivalente que retorne o conjunto atual de memórias desse escopo.
+- Reutilizar a resposta dessa consulta para obter o total real de memórias, carregar o conteúdo disponível e usar as memórias como contexto técnico durável da sessão.
+- Não fazer uma chamada para contar e outra para buscar as mesmas memórias; não usar `search_memories` para descobrir a quantidade.
+- Não usar `doctor`, não executar uma segunda retrieval apenas para verificar se existe algo novo e não consultar o Mem0 novamente em cada prompt.
+- Se a consulta inicial já retornar o conjunto completo de memórias, considerá-lo carregado para toda a sessão. Se não retornar os dados necessários, uma chamada adicional só poderá completar a lacuna concreta identificada.
+
+#### Status
+
+- Exibir uma única vez, no início da resposta ao primeiro prompt, após o bootstrap, a linha `Mem0 Active | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=<quantidade atual>` e, imediatamente abaixo, a linha `Context Ready | docs=<docs carregados>/3 | mem0_loaded=<memórias carregadas>/<total de memórias> | mem0_calls=<número real de chamadas Mem0 feitas no bootstrap> | context=ready`.
+- Derivar `docs=<docs carregados>/3` somente do sucesso real da leitura de `docs/current-state.md`, `docs/AI_CONTEXT.md` e `docs/design-system.md`.
+- Derivar `mem0_loaded=<memórias carregadas>/<total de memórias>` somente do conteúdo efetivamente carregado no bootstrap em relação ao total conhecido; não tratar página, limite ou resultado parcial como conjunto completo.
+- Derivar `mem0_calls=<número real de chamadas Mem0 feitas no bootstrap>` contando somente as chamadas ao Direct MCP realizadas durante o bootstrap, incluindo chamadas adicionais legitimamente necessárias para completar uma resposta paginada, sem fazer chamada extra para obter ou atualizar esse contador.
+- Usar `Context Ready` somente quando os três documentos tiverem sido carregados e o conjunto Mem0 exigido pelo bootstrap estiver completo. Se algum documento falhar mas o Mem0 estiver disponível, não bloquear a tarefa e usar `Context Partial | docs=<docs carregados>/3 | mem0_loaded=<memórias carregadas>/<total de memórias> | mem0_calls=<número real> | context=partial`.
+- Se o Mem0 falhar, não bloquear a tarefa e usar a linha `Mem0 Unavailable | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=?` seguida de `Context Partial | docs=<docs carregados>/3 | mem0_loaded=? | mem0_calls=<número real> | context=docs-only`.
+- O status é somente observabilidade: não fazer chamadas, retrievals ou releituras adicionais para produzi-lo ou atualizá-lo, e não repetir nenhuma das duas linhas nos prompts seguintes da sessão.
 
 ### Retrieval
 
 - NÃO executar `search_memories` automaticamente em todo prompt ou tarefa.
-- A chamada obrigatória de status para obter a quantidade de memórias no início da sessão não significa que uma busca semântica de contexto deve ser feita.
-- No início de uma nova sessão, buscar no Mem0 somente quando o pedido puder realmente se beneficiar de decisões, investigações ou contexto técnico de sessões anteriores.
-- Se a sessão atual já recuperou contexto Mem0 suficiente, NÃO pesquisar novamente.
-- Fazer nova busca na mesma sessão somente quando existir uma lacuna explícita de contexto que não possa ser resolvida pelo histórico já presente na conversa, documentos atuais ou código/Git.
-- Tarefas simples, locais ou independentes de histórico não devem gerar retrieval.
-- Não usar `doctor` como rotina de consulta, autenticação ou teste de funcionamento.
-- Não executar buscas Mem0 somente para validar a integração.
+- A consulta inicial obrigatória do bootstrap carrega o conjunto de memórias e não significa que uma busca semântica de contexto deva ser feita.
+- Depois do bootstrap, reutilizar os documentos e memórias já carregados; não repetir `get_memories` nem a leitura automática dos três documentos em cada tarefa ou prompt.
+- Não executar `search_memories` por rotina, apenas para verificar novas memórias ou somente para validar a integração.
+- Uma nova consulta ao Mem0 na mesma sessão só é permitida quando a consulta inicial não trouxe informação suficiente, quando uma necessidade semântica específica não puder ser resolvida pelo conjunto já carregado, quando o usuário pedir explicitamente nova consulta, ou quando o estado Mem0 for alterado durante a sessão e a tarefa realmente depender desse novo estado.
+- Mesmo nesses casos, evitar chamadas redundantes. Se o conjunto completo já foi carregado e contém o contexto necessário, não consultar novamente.
+- Tarefas simples, locais ou independentes de histórico não devem gerar `search_memories`.
 
 ### Add / manutenção
 
@@ -158,7 +185,7 @@ For every task:
 
 2. Read AGENTS.md.
 
-3. Read docs/AI_CONTEXT.md if necessary.
+3. Use o contexto já carregado pelo bootstrap inicial; não releia automaticamente `docs/AI_CONTEXT.md` em toda tarefa. Consulte-o novamente somente se o bootstrap não estiver disponível ou se a tarefa exigir atualização ou aprofundamento específico.
 
 4. Read ONLY the files directly related to the task.
 

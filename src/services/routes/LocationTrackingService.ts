@@ -13,6 +13,8 @@ import { isExpoGoRuntime } from '@/platform/runtimeEnvironment';
 import { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
 import {
   routeTrackingRepository,
+  type LegacyRouteClaimResult,
+  type LegacyRouteHistoryStatus,
   type RouteTrackingSessionContext,
 } from './RouteTrackingRepository';
 
@@ -152,6 +154,16 @@ export class LocationTrackingService {
 
   public removeRouteSession(sessionId: string): Promise<boolean> {
     return routeTrackingRepository.removeRouteSession(sessionId);
+  }
+
+  public getLegacyRouteHistoryStatus(): Promise<LegacyRouteHistoryStatus> {
+    const session = this.requireSession();
+    return routeTrackingRepository.getLegacyRouteHistoryStatus(session);
+  }
+
+  public claimLegacyRouteHistory(expectedFingerprint?: string): Promise<LegacyRouteClaimResult> {
+    const session = this.requireSession();
+    return routeTrackingRepository.claimLegacyRouteHistory(session, expectedFingerprint);
   }
 
   public async getPermissionStatus(): Promise<LocationPermissionStatus> {

@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeCardContextMenu, NativeTrackingStatusButton } from '@/components/native';
+import { ConfirmationDialog } from '@/components/overlays';
+import { TextButton } from '@/components/buttons';
 import { PremiumScreen } from '@/components/premium';
 import { FinancePeriodToolbar } from '@/features/finance';
 import { NativeTrackedRouteMap } from '@/components/routes';
@@ -80,6 +82,11 @@ export function LocationTrackingScreen() {
   > | null>(null);
   const [trackingError, setTrackingError] = useState<TrackingErrorState | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [legacyHistoryStatus, setLegacyHistoryStatus] = useState<Awaited<
+    ReturnType<LocationTrackingService['getLegacyRouteHistoryStatus']>
+  > | null>(null);
+  const [claimDialogVisible, setClaimDialogVisible] = useState(false);
+  const [claimBusy, setClaimBusy] = useState(false);
   const { enabled: testModeEnabled } = useTestModePresentation();
 
   useEffect(() => {
@@ -113,6 +120,14 @@ export function LocationTrackingScreen() {
     }
   }, []);
 
+  const refreshLegacyHistoryStatus = useCallback(async () => {
+    try {
+      setLegacyHistoryStatus(await locationTrackingService.getLegacyRouteHistoryStatus());
+    } catch {
+      setLegacyHistoryStatus(null);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -127,6 +142,7 @@ export function LocationTrackingScreen() {
       void sync();
       void refreshHistory(selectedPeriod);
       void refreshPermissions();
+      void refreshLegacyHistoryStatus();
       const appStateSubscription = AppState.addEventListener('change', (state) => {
         if (state === 'active') void refreshPermissions();
       });
@@ -136,8 +152,34 @@ export function LocationTrackingScreen() {
         clearInterval(interval);
         appStateSubscription.remove();
       };
-    }, [refreshHistory, refreshPermissions, selectedPeriod]),
+    }, [refreshHistory, refreshLegacyHistoryStatus, refreshPermissions, selectedPeriod]),
   );
+
+  const legacyFingerprint = legacyHistoryStatus?.fingerprint;
+
+  const handleClaimLegacyHistory = useCallback(async () => {
+    if (claimBusy || testModeEnabled) return;
+
+    setClaimBusy(true);
+    setTrackingError(null);
+    try {
+      await locationTrackingService.claimLegacyRouteHistory(legacyFingerprint ?? undefined);
+      await refreshHistory(selectedPeriod);
+      await refreshLegacyHistoryStatus();
+      setClaimDialogVisible(false);
+    } catch (error) {
+      setTrackingError({ message: getErrorMessage(error) });
+    } finally {
+      setClaimBusy(false);
+    }
+  }, [
+    claimBusy,
+    legacyFingerprint,
+    refreshHistory,
+    refreshLegacyHistoryStatus,
+    selectedPeriod,
+    testModeEnabled,
+  ]);
 
   const handleStart = useCallback(async () => {
     if (testModeEnabled) return;
@@ -256,6 +298,33 @@ export function LocationTrackingScreen() {
                 {visibleErrorMessage}
               </Text>
             ) : null}
+            {legacyHistoryStatus?.available && !legacyHistoryStatus.claimed ? (
+              <View
+                style={[
+                  styles.legacyClaimCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.lg,
+                    padding: theme.spacing.md,
+                  },
+                ]}
+              >
+                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                  Encontramos histórico local antigo neste dispositivo. Ele ainda não pertence a
+                  nenhuma conta identificável; ao confirmar, você assume esse histórico para a conta
+                  atual.
+                </Text>
+                <TextButton
+                  accessibilityLabel="Importar histórico antigo"
+                  disabled={claimBusy || testModeEnabled}
+                  loading={claimBusy}
+                  onPress={() => setClaimDialogVisible(true)}
+                  size="small"
+                >
+                  Importar histórico antigo
+                </TextButton>
+              </View>
+            ) : null}
             {routeHistoryByDay.length > 0 ? (
               routeHistoryByDay.map(([date, sessions]) => (
                 <View key={date} style={styles.dayGroup}>
@@ -313,6 +382,17 @@ export function LocationTrackingScreen() {
           </View>
         </View>
       </View>
+      <ConfirmationDialog
+        confirmLabel="Importar histórico"
+        loading={claimBusy}
+        message="Foi encontrado histórico local antigo neste dispositivo. Ele ainda não está vinculado a nenhuma conta identificável. Ao confirmar, você assumirá esse histórico para a conta atual."
+        onCancel={() => {
+          if (!claimBusy) setClaimDialogVisible(false);
+        }}
+        onConfirm={() => void handleClaimLegacyHistory()}
+        title="Assumir histórico antigo?"
+        visible={claimDialogVisible}
+      />
     </>
   );
 }
@@ -427,6 +507,7 @@ const styles = StyleSheet.create({
   routeContextContainer: { overflow: 'hidden' },
   dayGroup: { gap: 12 },
   historySection: { gap: 12 },
+  legacyClaimCard: { gap: 8 },
   routeMeta: { gap: 4, padding: 16 },
   routePreview: { height: 180, overflow: 'hidden' },
   routePreviewMap: { flex: 1 },

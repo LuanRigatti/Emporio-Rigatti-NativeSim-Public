@@ -99,8 +99,12 @@ abaixo é a referência operacional após a publicação deste commit.
   sem reintroduzir dependência remota no cold start. O histórico v2 continua
   deduplicado por `routeId` pela leitura canônica.
 - As chaves v1 globais permanecem intactas, em quarentena e fora de mapas,
-  `routeCount` e Finanças. A Etapa 2B de claim/migração explícita ainda não foi
-  implementada.
+  `routeCount` e Finanças. A importação/claim do legado exige confirmação
+  explícita do usuário em Localização e Rotas; é UID-scoped, idempotente e
+  protegida contra concorrência e troca de sessão. O histórico v2 atual e o
+  legado são combinados pela deduplicação canônica por `routeId`, com staging,
+  read-back, validação e rollback em falhas. O marcador só é gravado após a
+  persistência confirmada, e as chaves v1 não são apagadas nem regravadas.
 
 ### Home
 
@@ -251,8 +255,9 @@ abaixo é a referência operacional após a publicação deste commit.
   somente sessões GPS.
 - O histórico local de rotas é deduplicado defensivamente por `routeId` na
   leitura canônica; duplicatas persistidas não inflam km, `routeCount` nem
-  custos derivados. O legado v1 permanece preservado fora do fluxo normal e
-  ainda não foi migrado/claimado.
+  custos derivados. O legado v1 permanece preservado fora do fluxo normal e só
+  participa das Finanças após claim explícito e persistência no histórico v2;
+  Finanças nunca lê v1 diretamente.
 
 ### Bottom Sheets nativos e tint escuro
 

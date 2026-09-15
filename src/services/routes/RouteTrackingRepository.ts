@@ -14,6 +14,9 @@ export const ROUTE_TRACKING_V2_STORAGE_PREFIX = '@pareact/route-tracking-v2:';
 export const ROUTE_TRACKING_HISTORY_V2_STORAGE_PREFIX = '@pareact/route-tracking-history-v2:';
 export const ROUTE_TRACKING_BACKGROUND_OWNER_STORAGE_KEY =
   '@pareact/route-tracking-v2:background-owner';
+export const ROUTE_TRACKING_LEGACY_CLAIM_STORAGE_PREFIX =
+  '@pareact/route-tracking-legacy-claim-v1:';
+const ROUTE_TRACKING_HISTORY_V2_STAGING_PREFIX = '@pareact/route-tracking-history-v2-staging:';
 
 export function getRouteTrackingStorageKey(uid: string): string {
   return `${ROUTE_TRACKING_V2_STORAGE_PREFIX}${encodeURIComponent(uid)}`;
@@ -23,15 +26,44 @@ export function getRouteTrackingHistoryStorageKey(uid: string): string {
   return `${ROUTE_TRACKING_HISTORY_V2_STORAGE_PREFIX}${encodeURIComponent(uid)}`;
 }
 
+export function getRouteTrackingLegacyClaimStorageKey(uid: string): string {
+  return `${ROUTE_TRACKING_LEGACY_CLAIM_STORAGE_PREFIX}${encodeURIComponent(uid)}`;
+}
+
 export type RouteTrackingSessionContext = {
   uid: string;
   sessionVersion: number;
   sessionKey: string;
 };
 
+export type LegacyRouteHistoryStatus = {
+  available: boolean;
+  claimed: boolean;
+  fingerprint: string | null;
+  sessionCount: number;
+};
+
+export type LegacyRouteClaimResult = {
+  fingerprint: string;
+  importedSessionCount: number;
+  status: 'already-claimed' | 'claimed';
+};
+
 type BackgroundOwner = {
   ownerUid: string;
   routeId: string;
+};
+
+type LegacyClaimMarker = {
+  claimedAt: number;
+  fingerprint: string;
+  schemaVersion: 1;
+  uid: string;
+};
+
+type LegacyClaimInFlight = {
+  promise: Promise<LegacyRouteClaimResult>;
+  sessionKey: string;
 };
 
 function createSessionKey(uid: string, sessionVersion: number): string {
@@ -234,11 +266,67 @@ function deduplicateRouteHistory(history: readonly RouteTrackingSession[]): Rout
   return [...sessionsById.values()];
 }
 
+function sortHistoryDeterministically(
+  history: readonly RouteTrackingSession[],
+): RouteTrackingSession[] {
+  return [...history].sort((left, right) => {
+    if (left.id !== right.id) return left.id < right.id ? -1 : 1;
+    if (left.startTimestamp !== right.startTimestamp) {
+      return left.startTimestamp - right.startTimestamp;
+    }
+    if (left.endTimestamp !== right.endTimestamp) return left.endTimestamp - right.endTimestamp;
+    const leftSignature = JSON.stringify(left);
+    const rightSignature = JSON.stringify(right);
+    return leftSignature === rightSignature ? 0 : leftSignature < rightSignature ? -1 : 1;
+  });
+}
+
+function createLegacyHistoryFingerprint(history: readonly RouteTrackingSession[]): string {
+  return JSON.stringify(sortHistoryDeterministically(deduplicateRouteHistory(history)));
+}
+
+function withOwnerUid(
+  history: readonly RouteTrackingSession[],
+  ownerUid: string,
+): RouteTrackingSession[] {
+  return history.map((session) => ({ ...session, ownerUid }));
+}
+
+function parseLegacyClaimMarker(
+  value: string | null,
+  expectedUid: string,
+): LegacyClaimMarker | null {
+  if (!value) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!isRecord(parsed)) return null;
+    if (
+      parsed.schemaVersion !== 1 ||
+      parsed.uid !== expectedUid ||
+      typeof parsed.fingerprint !== 'string' ||
+      typeof parsed.claimedAt !== 'number' ||
+      !Number.isFinite(parsed.claimedAt)
+    ) {
+      return null;
+    }
+    return {
+      claimedAt: parsed.claimedAt,
+      fingerprint: parsed.fingerprint,
+      schemaVersion: 1,
+      uid: expectedUid,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export class RouteTrackingRepository {
   private currentSession: RouteTrackingSessionContext | null = null;
   private readonly memoryHistoryBySession = new Map<string, RouteTrackingSession[]>();
   private readonly historyReads = new Map<string, Promise<RouteTrackingSession[]>>();
   private readonly historyEpochByUid = new Map<string, number>();
+  private legacyClaimInFlight: LegacyClaimInFlight | null = null;
   // The native task has one active route per device. A single recovered queue
   // serializes all route mutations while each closure still carries its owner
   // UID/session context, so stale work cannot be reused by a new generation.
@@ -289,6 +377,65 @@ export class RouteTrackingRepository {
 
   public clearMemoryCache(): void {
     this.memoryHistoryBySession.clear();
+  }
+
+  public async getLegacyRouteHistoryStatus(
+    expectedSession?: RouteTrackingSessionContext,
+  ): Promise<LegacyRouteHistoryStatus> {
+    const session = expectedSession ?? this.currentSession;
+    if (!session) return { available: false, claimed: false, fingerprint: null, sessionCount: 0 };
+
+    const legacyHistory = await this.readLegacyHistory();
+    if (!this.isSessionCurrent(session)) {
+      return { available: false, claimed: false, fingerprint: null, sessionCount: 0 };
+    }
+
+    const fingerprint = legacyHistory.length ? createLegacyHistoryFingerprint(legacyHistory) : null;
+    if (!fingerprint) {
+      return { available: false, claimed: false, fingerprint: null, sessionCount: 0 };
+    }
+
+    const markerValue = await AsyncStorage.getItem(
+      getRouteTrackingLegacyClaimStorageKey(session.uid),
+    );
+    if (!this.isSessionCurrent(session)) {
+      return { available: false, claimed: false, fingerprint: null, sessionCount: 0 };
+    }
+
+    const marker = parseLegacyClaimMarker(markerValue, session.uid);
+    return {
+      available: true,
+      claimed: marker?.fingerprint === fingerprint,
+      fingerprint,
+      sessionCount: legacyHistory.length,
+    };
+  }
+
+  public claimLegacyRouteHistory(
+    expectedSession?: RouteTrackingSessionContext,
+    expectedFingerprint?: string,
+  ): Promise<LegacyRouteClaimResult> {
+    const session = expectedSession ?? this.currentSession;
+    if (!session) {
+      return Promise.reject(
+        new Error('Uma sessão autenticada é necessária para assumir o histórico.'),
+      );
+    }
+
+    if (this.legacyClaimInFlight) {
+      if (this.legacyClaimInFlight.sessionKey === session.sessionKey) {
+        return this.legacyClaimInFlight.promise;
+      }
+      return Promise.reject(new Error('Já existe uma importação de histórico em andamento.'));
+    }
+
+    const promise = this.enqueueMutation(() =>
+      this.performLegacyClaim(session, expectedFingerprint),
+    ).finally(() => {
+      if (this.legacyClaimInFlight?.promise === promise) this.legacyClaimInFlight = null;
+    });
+    this.legacyClaimInFlight = { promise, sessionKey: session.sessionKey };
+    return promise;
   }
 
   public async getRoute(
@@ -607,6 +754,138 @@ export class RouteTrackingRepository {
       await AsyncStorage.getItem(getRouteTrackingHistoryStorageKey(uid)),
       uid,
     ).sort((left, right) => left.startTimestamp - right.startTimestamp);
+  }
+
+  private async readLegacyHistory(): Promise<RouteTrackingSession[]> {
+    return deduplicateRouteHistory(
+      parseStoredHistory(await AsyncStorage.getItem(ROUTE_TRACKING_HISTORY_STORAGE_KEY)),
+    );
+  }
+
+  private async performLegacyClaim(
+    session: RouteTrackingSessionContext,
+    expectedFingerprint?: string,
+  ): Promise<LegacyRouteClaimResult> {
+    let previousHistoryValue: string | null = null;
+    let previousMarkerValue: string | null = null;
+    let historyWriteAttempted = false;
+    let markerWriteAttempted = false;
+    const historyKey = getRouteTrackingHistoryStorageKey(session.uid);
+    const markerKey = getRouteTrackingLegacyClaimStorageKey(session.uid);
+    const stagingKey = `${ROUTE_TRACKING_HISTORY_V2_STAGING_PREFIX}${encodeURIComponent(session.uid)}`;
+
+    try {
+      this.assertCurrentSession(session);
+      const legacyHistory = await this.readLegacyHistory();
+      this.assertCurrentSession(session);
+      if (legacyHistory.length === 0) {
+        throw new Error('Não há histórico legado válido para importar.');
+      }
+
+      const fingerprint = createLegacyHistoryFingerprint(legacyHistory);
+      if (expectedFingerprint && fingerprint !== expectedFingerprint) {
+        throw new Error('O histórico legado mudou antes da confirmação. Tente novamente.');
+      }
+      previousMarkerValue = await AsyncStorage.getItem(markerKey);
+      this.assertCurrentSession(session);
+      const previousMarker = parseLegacyClaimMarker(previousMarkerValue, session.uid);
+      if (previousMarker?.fingerprint === fingerprint) {
+        return {
+          fingerprint,
+          importedSessionCount: legacyHistory.length,
+          status: 'already-claimed',
+        };
+      }
+
+      previousHistoryValue = await AsyncStorage.getItem(historyKey);
+      this.assertCurrentSession(session);
+      const currentHistory = parseStoredHistory(previousHistoryValue, session.uid);
+      const latestLegacyHistory = await this.readLegacyHistory();
+      this.assertCurrentSession(session);
+      const latestFingerprint = latestLegacyHistory.length
+        ? createLegacyHistoryFingerprint(latestLegacyHistory)
+        : null;
+      if (latestFingerprint !== fingerprint) {
+        throw new Error('O histórico legado mudou antes da gravação. Tente novamente.');
+      }
+      const mergedHistory = sortHistoryDeterministically(
+        deduplicateRouteHistory([
+          ...currentHistory,
+          ...withOwnerUid(latestLegacyHistory, session.uid),
+        ]),
+      );
+      const serializedHistory = JSON.stringify(mergedHistory);
+
+      await AsyncStorage.setItem(stagingKey, serializedHistory);
+      this.assertCurrentSession(session);
+      const stagedValue = await AsyncStorage.getItem(stagingKey);
+      this.assertCurrentSession(session);
+      this.assertPersistedHistory(stagedValue, serializedHistory, session.uid);
+
+      this.invalidateHistoryReads(session.uid);
+      historyWriteAttempted = true;
+      await AsyncStorage.setItem(historyKey, serializedHistory);
+      this.assertCurrentSession(session);
+      const persistedValue = await AsyncStorage.getItem(historyKey);
+      this.assertCurrentSession(session);
+      this.assertPersistedHistory(persistedValue, serializedHistory, session.uid);
+      this.invalidateHistoryReads(session.uid);
+
+      const marker: LegacyClaimMarker = {
+        claimedAt: Date.now(),
+        fingerprint,
+        schemaVersion: 1,
+        uid: session.uid,
+      };
+      markerWriteAttempted = true;
+      await AsyncStorage.setItem(markerKey, JSON.stringify(marker));
+      this.assertCurrentSession(session);
+
+      this.publishMemoryHistory(session, mergedHistory);
+      return {
+        fingerprint,
+        importedSessionCount: legacyHistory.length,
+        status: 'claimed',
+      };
+    } catch (error) {
+      if (historyWriteAttempted) {
+        await this.restoreStorageValue(historyKey, previousHistoryValue);
+        this.invalidateHistoryReads(session.uid);
+      }
+      if (markerWriteAttempted) {
+        await this.restoreStorageValue(markerKey, previousMarkerValue);
+      }
+      throw error;
+    } finally {
+      try {
+        await AsyncStorage.removeItem(stagingKey);
+      } catch {
+        // Staging cleanup is best effort; it is never used by normal reads.
+      }
+    }
+  }
+
+  private assertPersistedHistory(
+    persistedValue: string | null,
+    expectedValue: string,
+    ownerUid: string,
+  ): void {
+    const parsed = parseStoredHistory(persistedValue, ownerUid);
+    const expected = parseStoredHistory(expectedValue, ownerUid);
+    if (
+      JSON.stringify(sortHistoryDeterministically(parsed)) !==
+      JSON.stringify(sortHistoryDeterministically(expected))
+    ) {
+      throw new Error('Não foi possível validar o histórico importado.');
+    }
+  }
+
+  private async restoreStorageValue(key: string, value: string | null): Promise<void> {
+    if (value === null) {
+      await AsyncStorage.removeItem(key);
+      return;
+    }
+    await AsyncStorage.setItem(key, value);
   }
 
   private async readRouteHistory(

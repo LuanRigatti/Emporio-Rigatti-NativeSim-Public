@@ -16,6 +16,7 @@ type Props = {
 const cardLayoutTransition = LinearTransition.duration(200).easing(Easing.out(Easing.quad));
 const rowEnteringAnimation = FadeInDown.duration(200).springify().damping(30).stiffness(220);
 const rowExitingAnimation = FadeOutUp.duration(180);
+const revenueDetailLabels = new Set(['Faturamento', 'Baldes vendidos', 'Entregas']);
 
 export function FinancialDayDetailCard({ detail, metric, animateRowEntrance = true }: Props) {
   const { resolvedMode, theme } = useAppTheme();
@@ -117,9 +118,10 @@ export function FinancialDayDetailCard({ detail, metric, animateRowEntrance = tr
         ]
       : []),
   ];
-  const visibleRows = rows.filter((row) =>
-    metric === 'faturamento' ? row.icon !== 'trending-up-outline' : row.icon !== 'cash-outline',
-  );
+  const visibleRows =
+    metric === 'faturamento'
+      ? rows.filter((row) => revenueDetailLabels.has(row.label))
+      : rows.filter((row) => row.icon !== 'cash-outline');
 
   return (
     <Animated.View

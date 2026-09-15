@@ -244,6 +244,9 @@ abaixo é a referência operacional após a publicação deste commit.
 - Faturamento Mensal e Lucro Líquido Mensal permanecem dentro do mesmo Native
   Stack da aba `financeiro`, com `Stack.Screen.BackButton`, swipe-to-back nativo
   e `FinancePeriodToolbar` preservado.
+- No detalhe diário, Faturamento exibe somente Faturamento, Baldes vendidos e
+  Entregas; custos e quilometragem permanecem nas métricas que dependem deles,
+  especialmente Lucro Líquido.
 - A estrutura `Stack.Toolbar` com `separateBackground={false}` permanece
   responsável pelo seletor Mês/Ano e pelo morph Liquid Glass nativo entre a
   tela principal e os detalhes. Nenhuma animação custom foi adicionada.

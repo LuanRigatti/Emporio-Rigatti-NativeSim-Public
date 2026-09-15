@@ -2,30 +2,79 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
-## Mem0 — contexto entre sessões
+## Mem0 — contexto técnico durável entre sessões
 
-Antes de responder à primeira solicitação do usuário em cada nova sessão deste repositório, chame obrigatoriamente `mcp__mem0__search_memories`, independentemente de a solicitação ser simples, informativa, de auditoria, de implementação ou de qualquer outro tipo. Só depois da tentativa de recuperação responda à primeira solicitação.
+O Mem0 deve ser usado somente pelo Direct MCP remoto como contexto técnico durável entre sessões. Mem0 nunca substitui o estado real do projeto.
 
-```text
-mcp__mem0__search_memories(
-  query="Empório Rigatti projeto branch arquitetura regras de trabalho NativeSim contexto",
-  filters={"AND":[{"user_id":"Luan Rigatti"},{"app_id":"LuanRigatti-pwa-ios-2026"}]},
-  top_k=20
-)
-```
+### Status inicial
 
-- Após uma chamada real e bem-sucedida ao Direct MCP `mcp__mem0__search_memories`, mostre uma única vez, no início da primeira resposta da sessão, apenas `Mem0 Active | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=<quantidade>`. `memories` deve ser o total real de memórias existentes no app_id `LuanRigatti-pwa-ios-2026`, contado somente para `user_id="Luan Rigatti"` e esse `app_id`, por uma operação que liste ou obtenha todas as memórias, como `mcp__mem0__get_memories`. Nunca use a quantidade de resultados de `search_memories`, `top_k`, resultados relevantes ou qualquer contagem inferida de busca semântica; nunca mostre `memories=0` apenas porque a busca semântica não retornou resultados. Se o total não puder ser determinado com confiança, use `memories=unknown`. Obtenha `branch` do Git local ou use `branch=unknown`. Esse indicador é somente de status e não deve aparecer se o Mem0 falhar ou estiver indisponível.
-- Se o Mem0 estiver indisponível ou falhar, não bloqueie a sessão; continue usando o contexto local do projeto.
-- Nas mensagens seguintes da mesma sessão, não é necessário repetir a busca automaticamente, salvo quando o contexto recuperado for insuficiente ou potencialmente desatualizado.
-- Durante o trabalho, trate Mem0 apenas como memória auxiliar; código/Git e os documentos do projeto continuam sendo a fonte da verdade.
-- Ao concluir uma alteração, decisão ou investigação que gere informação durável e útil para futuras sessões, mantenha o Mem0 atualizado automaticamente.
-- Quando o usuário solicitar explicitamente criar, atualizar, apagar, validar ou auditar memórias específicas, esse escopo prevalece sobre a gravação automática; durante a operação, não crie, atualize ou apague outras memórias além das autorizadas, e retome a política automática somente após o término.
-- Antes de criar uma nova memória, pesquise memórias relacionadas no mesmo `user_id` + `app_id`.
-- Se a informação nova substituir ou corrigir uma memória existente, prefira atualizar a memória existente em vez de criar uma duplicata.
-- Crie nova memória somente quando for realmente um novo fato ou decisão durável.
-- Não memorize automaticamente logs, erros temporários, hipóteses, auditorias inconclusivas, experimentos descartados, detalhes transitórios de testes ou commits triviais.
-- Nunca memorize API keys, credenciais, dados pessoais, dados sensíveis ou grandes trechos de código.
-- Toda gravação, atualização, busca ou exclusão deve permanecer no escopo: `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
+- No primeiro prompt de toda nova sessão ou conversa deste projeto, executar uma única vez o procedimento de status abaixo, antes de responder; não repetir o status nos prompts seguintes da mesma sessão.
+- Obter `branch` diretamente do Git atual, nunca do Mem0.
+- Consultar obrigatoriamente o Direct MCP remoto do Mem0 para obter o total real de memórias do escopo, preferindo `mcp__mem0__get_memories` ou a ferramenta de listagem/consulta mais adequada disponível no Direct MCP; não usar quantidade de página, limite ou resultado parcial. Usar sempre o escopo `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
+- Não usar `search_memories` para descobrir a quantidade e não usar `doctor`.
+- Após obter a branch e a quantidade, exibir uma única linha: `Mem0 Active | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=<quantidade atual>`.
+- Se a chamada ao Mem0 falhar, não bloquear a tarefa e exibir: `Mem0 Unavailable | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=?`.
+
+### Reutilização da consulta inicial
+
+- No primeiro prompt da sessão, reutilizar o resultado da consulta inicial ao Mem0 para todas as necessidades daquele prompt.
+- Se a consulta inicial já retornar a lista ou o conteúdo das memórias, usar essa mesma resposta para calcular `memories=<quantidade>`, listar memórias, resumir memórias e responder perguntas simples sobre essas memórias.
+- NÃO fazer uma segunda chamada ao Mem0 apenas porque o usuário também pediu para mostrar, listar ou resumir as memórias no mesmo primeiro prompt.
+- Uma segunda chamada só é permitida quando a resposta inicial não contém os dados necessários ou quando uma busca semântica específica via `search_memories` for realmente necessária para responder à tarefa.
+- Se o primeiro prompt pedir branch ou commit e memórias, obter branch e commit do Git atual; obter quantidade e conteúdo das memórias, sempre que possível, por uma única chamada ao Direct MCP.
+
+### Retrieval
+
+- NÃO executar `search_memories` automaticamente em todo prompt ou tarefa.
+- A chamada obrigatória de status para obter a quantidade de memórias no início da sessão não significa que uma busca semântica de contexto deve ser feita.
+- No início de uma nova sessão, buscar no Mem0 somente quando o pedido puder realmente se beneficiar de decisões, investigações ou contexto técnico de sessões anteriores.
+- Se a sessão atual já recuperou contexto Mem0 suficiente, NÃO pesquisar novamente.
+- Fazer nova busca na mesma sessão somente quando existir uma lacuna explícita de contexto que não possa ser resolvida pelo histórico já presente na conversa, documentos atuais ou código/Git.
+- Tarefas simples, locais ou independentes de histórico não devem gerar retrieval.
+- Não usar `doctor` como rotina de consulta, autenticação ou teste de funcionamento.
+- Não executar buscas Mem0 somente para validar a integração.
+
+### Add / manutenção
+
+O Direct MCP não possui gravação automática própria.
+
+- NÃO chamar `add_memory` automaticamente ao concluir tarefas.
+- Quando uma investigação ou implementação produzir conhecimento técnico realmente durável e útil para sessões futuras, informar ao final, de forma curta: `MEM0: recomendado salvar — <síntese do fato durável>`.
+- Aguardar autorização explícita do usuário antes de chamar `add_memory`.
+- Se o usuário disser “salve no Mem0”, “adicione isso à memória” ou equivalente, executar `add_memory`.
+- Gravar somente:
+  - causa raiz confirmada;
+  - decisão arquitetural durável;
+  - restrição importante;
+  - comportamento validado;
+  - solução técnica reutilizável;
+  - armadilha relevante descoberta.
+- NÃO gravar:
+  - testes executados;
+  - logs;
+  - comandos;
+  - commits ou hashes;
+  - tentativas descartadas;
+  - andamento temporário;
+  - mudanças visuais triviais.
+- Não executar `search_memories` automaticamente antes de `add_memory`.
+- Fazer busca preventiva antes de gravar somente se houver motivo concreto para suspeitar de duplicata, conflito ou memória antiga relevante.
+- Nunca gravar repetidamente o mesmo fato na mesma sessão.
+- Preferir atualizar/consolidar memória existente quando isso for claramente apropriado, em vez de criar duplicatas.
+
+### Prioridade das fontes
+
+1. código/Git atual auditado;
+2. `docs/current-state.md`;
+3. `AI_CONTEXT.md`;
+4. `design-system.md`;
+5. Mem0.
+
+Mem0 é somente contexto técnico durável entre sessões e nunca substitui o estado real do projeto.
+
+### Escopo
+
+Toda gravação, atualização, busca ou exclusão deve permanecer no escopo: `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
 
 ## Regras permanentes do projeto
 

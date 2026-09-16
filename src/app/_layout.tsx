@@ -14,6 +14,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import {
   AppSafeAreaProvider,
+  AppModeProvider,
   InitialCacheHydrationContext,
   SessionProvider,
   TestModeProvider,
@@ -23,6 +24,14 @@ import { BiometricLockOverlay } from '@/components/auth/BiometricLockOverlay';
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import { firestoreClientDataSource } from '@/services/clients';
+import { retailCategoryDataSource, retailProductDataSource } from '@/services/retail-catalog';
+import {
+  retailCompositionDataSource,
+  retailCostEntryDataSource,
+  retailCostItemDataSource,
+} from '@/services/retail-costs';
+import { retailClientDataSource } from '@/services/retail-clients';
+import { retailOrderDataSource, retailPaymentDataSource } from '@/services/retail-orders';
 import { firestoreDeliveryDataSource } from '@/services/deliveries';
 import { firestoreFactoryReceiptDataSource } from '@/services/factory-purchases';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
@@ -73,6 +82,14 @@ function AppShell() {
   useEffect(() => {
     routeTrackingRepository.setSessionUser(sessionUid, sessionVersion);
     firestoreClientDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailCategoryDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailClientDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailProductDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailCostItemDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailCostEntryDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailCompositionDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailOrderDataSource.setSessionUser(sessionUid, sessionVersion);
+    retailPaymentDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreDeliveryDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreFactoryReceiptDataSource.setSessionUser(sessionUid, sessionVersion);
   }, [sessionUid, sessionVersion]);
@@ -312,6 +329,105 @@ function AppShell() {
                 </Stack.Screen>
                 <Stack.Screen
                   name="clientes/[clientId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="clientes-varejo"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="clientes-varejo/[clientId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="catalogo-varejo"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="catalogo-varejo/[categoryId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="custos-varejo"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="custos-varejo/[costItemId]"
                   options={{
                     animation: 'default',
                     gestureEnabled: true,
@@ -620,11 +736,13 @@ export default function PrototypeRootLayout() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AppSafeAreaProvider>
           <SessionProvider>
-            <ThemeProvider>
-              <TestModeProvider>
-                <AppShell />
-              </TestModeProvider>
-            </ThemeProvider>
+            <AppModeProvider>
+              <ThemeProvider>
+                <TestModeProvider>
+                  <AppShell />
+                </TestModeProvider>
+              </ThemeProvider>
+            </AppModeProvider>
           </SessionProvider>
         </AppSafeAreaProvider>
       </SafeAreaProvider>

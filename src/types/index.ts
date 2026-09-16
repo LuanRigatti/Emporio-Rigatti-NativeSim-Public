@@ -1,4 +1,5 @@
 export * from './data';
+export * from './appMode';
 export type {
   AppNotificationEvent,
   NotificationKind,

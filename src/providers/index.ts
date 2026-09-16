@@ -15,6 +15,8 @@ export { SessionProvider, useSession } from './SessionProvider';
 export type { SessionContextValue } from './SessionProvider';
 export { TestModeContext, TestModeProvider, useTestMode } from './TestModeProvider';
 export type { TestModeContextValue } from './TestModeProvider';
+export { AppModeContext, AppModeProvider, useAppMode } from './AppModeProvider';
+export type { AppModeContextValue } from './AppModeProvider';
 export {
   InitialCacheHydrationContext,
   useInitialCacheHydration,

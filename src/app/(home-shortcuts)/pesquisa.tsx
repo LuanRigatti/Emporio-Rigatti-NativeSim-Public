@@ -1,5 +1,5 @@
-import HomeSearchScreen from '@/features/home/components/HomeSearchScreen';
+import { Redirect } from 'expo-router';
 
-export default function HomeSearchRoute() {
-  return <HomeSearchScreen />;
+export default function HomeSearchHomeShortcutRoute() {
+  return <Redirect href="/pesquisa" />;
 }

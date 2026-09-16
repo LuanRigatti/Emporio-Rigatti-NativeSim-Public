@@ -64,6 +64,7 @@ jest.mock('@/providers', () => {
   const InitialCacheHydrationContext = React.createContext(false);
   return {
     AppSafeAreaProvider: mockPassthrough,
+    AppModeProvider: mockPassthrough,
     InitialCacheHydrationContext,
     SessionProvider: mockPassthrough,
     TestModeProvider: mockPassthrough,

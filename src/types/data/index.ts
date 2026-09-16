@@ -18,6 +18,51 @@ export type {
   ClientSource,
   CustomClient,
 } from './client';
+export type {
+  FirestoreTimestamp,
+  RetailClient,
+  RetailClientDraft,
+  RetailClientPatch,
+  RetailClientReferral,
+} from './retailClient';
+export type { RetailCategory, RetailCategoryDraft, RetailCategoryPatch } from './retailCategory';
+export type {
+  RetailCompositionComponent,
+  RetailCompositionVersion,
+  RetailCompositionVersionDraft,
+  RetailCostEntry,
+  RetailCostEntryDraft,
+  RetailCostItem,
+  RetailCostItemDraft,
+  RetailCostItemPatch,
+  RetailCostResolutionReason,
+  RetailIncompleteCostReason,
+  RetailProductCostBreakdown,
+  RetailProductCostResolution,
+} from './retailCost';
+export type {
+  RetailProduct,
+  RetailProductCostMode,
+  RetailProductDraft,
+  RetailProductPatch,
+} from './retailProduct';
+export type {
+  RetailCompositionVersionSnapshot,
+  RetailCostBreakdownSnapshot,
+  RetailFinancialStatus,
+  RetailOrder,
+  RetailOrderCreateInput,
+  RetailOrderFinancialSummary,
+  RetailOrderLineItem,
+  RetailOrderLineItemInput,
+  RetailOrderPatch,
+  RetailOrderQuery,
+  RetailOrderStatus,
+  RetailPayment,
+  RetailPaymentDraft,
+  RetailPaymentMethod,
+  RetailPaymentStatus,
+} from './retailOrder';
 export type { DataMap, DataNodeName, UnknownRecord } from './common';
 export type {
   BoletoStatus,

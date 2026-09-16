@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { useAppMode } from '@/providers';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 
 import { SettingItem } from './SettingItem';
@@ -10,6 +11,7 @@ import { SettingsSection } from './SettingsSection';
 
 export function SettingsScreen() {
   const { resolvedMode, theme } = useAppTheme();
+  const { mode } = useAppMode();
   const settingsCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const router = useRouter();
 
@@ -60,10 +62,26 @@ export function SettingsScreen() {
             <SettingsSection>
               <SettingItem
                 fallbackIcon="person"
-                onPress={() => router.push('/clientes')}
+                onPress={() => router.push(mode === 'retail' ? '/clientes-varejo' : '/clientes')}
                 systemName="person.2"
                 title="Clientes"
               />
+              {mode === 'retail' ? (
+                <SettingItem
+                  fallbackIcon="cube-outline"
+                  onPress={() => router.push('/catalogo-varejo')}
+                  systemName="shippingbox"
+                  title="Catálogo"
+                />
+              ) : null}
+              {mode === 'retail' ? (
+                <SettingItem
+                  fallbackIcon="calculator-outline"
+                  onPress={() => router.push('/custos-varejo')}
+                  systemName="chart.bar.xaxis"
+                  title="Custos"
+                />
+              ) : null}
               <SettingItem
                 fallbackIcon="business"
                 onPress={() => router.push('/dados-empresa')}

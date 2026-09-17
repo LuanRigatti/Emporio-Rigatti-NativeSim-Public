@@ -24,9 +24,13 @@ export type {
 } from './RetailOrderDataSource';
 export {
   RetailOrderHistoryFinancialSummaryService,
+  getRetailOrderHistoryFinancialSignature,
   retailOrderHistoryFinancialSummaryService,
 } from './RetailOrderHistoryFinancialSummaryService';
-export type { RetailOrderHistoryFinancialState } from './RetailOrderHistoryFinancialSummaryService';
+export type {
+  RetailOrderHistoryFinancialLoadOptions,
+  RetailOrderHistoryFinancialState,
+} from './RetailOrderHistoryFinancialSummaryService';
 export { RetailPaymentCatalogCache, retailPaymentCatalogCache } from './RetailPaymentCatalogCache';
 export {
   RetailPaymentDataSource,

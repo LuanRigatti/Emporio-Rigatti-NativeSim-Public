@@ -551,8 +551,7 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
 
   const dismissSuccess = useCallback(() => {
     setSuccessVisible(false);
-    resetFlow();
-  }, [resetFlow]);
+  }, []);
 
   const clearError = useCallback(() => setError(undefined), []);
 

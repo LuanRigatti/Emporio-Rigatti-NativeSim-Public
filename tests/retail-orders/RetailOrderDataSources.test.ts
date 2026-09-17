@@ -433,6 +433,20 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     ]);
   });
 
+  it('distinguishes a hydrated empty payment cache from an unavailable cache', async () => {
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await new RetailPaymentCatalogCache().write('uid-retail', 'order-empty', []);
+
+    await expect(dataSource.hydrateFromCache('order-empty', 'uid-retail', 1)).resolves.toBe(true);
+    expect(dataSource.list('order-empty', 'uid-retail', 1)).toEqual([]);
+
+    await expect(dataSource.hydrateFromCache('order-without-cache', 'uid-retail', 1)).resolves.toBe(
+      false,
+    );
+    expect(dataSource.getSnapshot('order-without-cache', 'uid-retail', 1)).toBeNull();
+  });
+
   it('rejects a payment above the posted balance and cancelled orders', async () => {
     const dataSource = new RetailPaymentDataSource();
     dataSource.setSessionUser('uid-retail', 1);

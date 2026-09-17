@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/feedback';
-import { PremiumCard } from '@/components/premium';
+import { PremiumCard, type AnimatedPressableProps } from '@/components/premium';
 import type { RetailOrder, RetailOrderFinancialSummary } from '@/types/data';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
 import { useAppTheme } from '@/theme';
@@ -11,18 +11,29 @@ import type { RetailOrderHistoryFinancialViewState } from '@/hooks/useRetailOrde
 type RetailOrderHistoryCardProps = {
   order: RetailOrder;
   financialState?: RetailOrderHistoryFinancialViewState;
+  onPress?: AnimatedPressableProps['onPress'];
 };
 
-export function RetailOrderHistoryCard({ order, financialState }: RetailOrderHistoryCardProps) {
+export function RetailOrderHistoryCard({
+  onPress,
+  order,
+  financialState,
+}: RetailOrderHistoryCardProps) {
   const { theme } = useAppTheme();
   const summary = financialState?.status === 'ready' ? financialState.summary : undefined;
+  const financialPlaceholder = financialState?.status === 'error' ? 'Indisponível' : 'Carregando…';
+  const financialMessageColor =
+    financialState?.status === 'error' ? theme.colors.danger : theme.colors.textSecondary;
+  const revalidationError =
+    financialState?.status === 'ready' ? financialState.revalidationError : undefined;
   const productSummary = order.lineItems
     .map((lineItem) => `${lineItem.quantity}× ${lineItem.productNameSnapshot}`)
     .join(' · ');
 
   return (
     <PremiumCard
-      accessibilityLabel={`Pedido de ${order.clientNameSnapshot} em ${formatPtBrDate(order.orderDate)}`}
+      accessibilityLabel={`Abrir detalhes do pedido de ${order.clientNameSnapshot} em ${formatPtBrDate(order.orderDate)}`}
+      onPress={onPress}
       style={[styles.card, { gap: theme.spacing.sm }]}
     >
       <View style={[styles.header, { gap: theme.spacing.xs }]}>
@@ -55,18 +66,28 @@ export function RetailOrderHistoryCard({ order, financialState }: RetailOrderHis
             <FinancialRow label="A receber" value={formatCurrency(summary.outstandingAmount)} />
           </>
         ) : (
-          <FinancialRow
-            label="Pagamento"
-            value={financialState?.status === 'error' ? 'Indisponível' : 'Carregando…'}
-          />
+          <>
+            <FinancialRow label="Pago" value={financialPlaceholder} />
+            <FinancialRow label="A receber" value={financialPlaceholder} />
+          </>
         )}
       </View>
 
       {summary ? (
-        <Badge label={financialStatusLabel(summary)} tone={financialStatusTone(summary)} />
-      ) : financialState?.status === 'error' ? (
-        <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
-          {financialState.message}
+        <>
+          <Badge label={financialStatusLabel(summary)} tone={financialStatusTone(summary)} />
+          {revalidationError ? (
+            <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
+              Atualização do pagamento indisponível: {revalidationError}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
+      {!summary ? (
+        <Text style={[theme.typography.footnote, { color: financialMessageColor }]}>
+          {financialState?.status === 'error'
+            ? financialState.message
+            : 'Status financeiro carregando…'}
         </Text>
       ) : null}
     </PremiumCard>

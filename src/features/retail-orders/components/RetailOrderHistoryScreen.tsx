@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { EmptyState, ErrorState, Loading } from '@/components/feedback';
 import { NativeGlassHeader } from '@/components/layout';
@@ -18,6 +18,7 @@ import {
   getHistoryWeekRange,
 } from '@/features/history/utils/historyPeriodUtils';
 import {
+  getRetailOrderHistoryFinancialCandidateOrders,
   useRetailOrderHistory,
   useRetailOrderHistoryFinancialSummaries,
 } from '@/hooks/useRetailOrderHistory';
@@ -37,6 +38,7 @@ const RETAIL_HISTORY_VIEW_MODES: readonly RetailHistoryViewMode[] = ['day', 'wee
 export function RetailOrderHistoryScreen() {
   const insets = useAppSafeAreaInsets();
   const { theme } = useAppTheme();
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [viewMode, setViewMode] = useState<RetailHistoryViewMode>('day');
   const { error, loading, orders, refreshing, reload, remoteComplete, refreshKey } =
@@ -56,7 +58,15 @@ export function RetailOrderHistoryScreen() {
     () => filterRetailOrdersByOrderDate(orders, selectedRange),
     [orders, selectedRange],
   );
-  const financialStates = useRetailOrderHistoryFinancialSummaries(visibleOrders, refreshKey);
+  const candidateOrders = useMemo(
+    () => getRetailOrderHistoryFinancialCandidateOrders(orders, selectedDate),
+    [orders, selectedDate],
+  );
+  const financialStates = useRetailOrderHistoryFinancialSummaries(
+    visibleOrders,
+    refreshKey,
+    candidateOrders,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -70,6 +80,12 @@ export function RetailOrderHistoryScreen() {
     const nextMode = RETAIL_HISTORY_VIEW_MODES[index];
     if (nextMode) setViewMode(nextMode);
   }, []);
+  const handleOpenOrder = useCallback(
+    (orderId: string) => {
+      router.push({ pathname: '/pedido-varejo/[orderId]', params: { orderId } });
+    },
+    [router],
+  );
 
   const renderHistoryToolbar = useCallback(
     () =>
@@ -121,18 +137,21 @@ export function RetailOrderHistoryScreen() {
     />
   );
 
-  const content = renderContent({
-    error,
-    financialStates,
-    loading,
-    orders,
-    refreshing,
-    remoteComplete,
-    onRetry: reload,
-    selectedRange,
-    theme,
-    viewMode,
-  });
+  const content = (
+    <RetailHistoryContent
+      error={error}
+      financialStates={financialStates}
+      loading={loading}
+      onOrderPress={handleOpenOrder}
+      onRetry={reload}
+      orders={orders}
+      refreshing={refreshing}
+      remoteComplete={remoteComplete}
+      selectedRange={selectedRange}
+      theme={theme}
+      viewMode={viewMode}
+    />
+  );
   const dayContentChildren = (
     <>
       <View
@@ -199,11 +218,12 @@ export function RetailOrderHistoryScreen() {
   );
 }
 
-function renderContent({
+function RetailHistoryContent({
   error,
   financialStates,
   loading,
   onRetry,
+  onOrderPress,
   orders,
   refreshing,
   remoteComplete,
@@ -215,6 +235,7 @@ function renderContent({
   financialStates: Record<string, RetailOrderHistoryFinancialViewState>;
   loading: boolean;
   onRetry: () => void;
+  onOrderPress: (orderId: string) => void;
   orders: readonly RetailOrder[];
   refreshing: boolean;
   remoteComplete: boolean;
@@ -260,23 +281,32 @@ function renderContent({
         <RetailOrderHistoryCard
           financialState={financialStates[order.orderId]}
           key={order.orderId}
+          onPress={() => onOrderPress(order.orderId)}
           order={order}
         />
       ))}
     </View>
   );
 
+  const dateHeadingStyle = [
+    theme.typography.caption,
+    { color: theme.colors.textSecondary, marginLeft: theme.spacing.xs },
+  ];
+
   const content =
-    viewMode === 'day'
-      ? cards(visibleOrders)
-      : groupRetailOrdersByOrderDate(visibleOrders, selectedRange).map((group) => (
-          <View key={group.date} style={[styles.periodSection, { gap: theme.spacing.xs }]}>
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              {formatHistoryDayHeading(group.date)}
-            </Text>
-            {cards(group.orders)}
-          </View>
-        ));
+    viewMode === 'day' ? (
+      <View style={[styles.periodSection, { gap: theme.spacing.xs }]}>
+        <Text style={dateHeadingStyle}>{formatHistoryDayHeading(selectedRange.startDate)}</Text>
+        {cards(visibleOrders)}
+      </View>
+    ) : (
+      groupRetailOrdersByOrderDate(visibleOrders, selectedRange).map((group) => (
+        <View key={group.date} style={[styles.periodSection, { gap: theme.spacing.xs }]}>
+          <Text style={dateHeadingStyle}>{formatHistoryDayHeading(group.date)}</Text>
+          {cards(group.orders)}
+        </View>
+      ))
+    );
 
   return (
     <View style={[styles.periodSections, { gap: theme.spacing.lg }]}>
@@ -284,8 +314,6 @@ function renderContent({
         <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
           Atualização do Histórico Varejo indisponível: {error}
         </Text>
-      ) : refreshing ? (
-        <Loading label="Atualizando histórico Varejo…" />
       ) : null}
       {content}
     </View>

@@ -1,15 +1,20 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { createElement, type ReactNode } from 'react';
+import { createElement, type ReactNode, useEffect } from 'react';
 
 import {
   RetailOrderFlowProvider,
+  type RetailOrderFlowContextValue,
   type RetailOrderFlowStep,
+  useRetailOrderFlow,
 } from '@/features/retail-orders/components/RetailOrderFlowProvider';
 import { RetailOrderStepScreen } from '@/features/retail-orders/components/RetailOrderStepScreen';
 
+let mockPathname = '/registrar-pedido-varejo';
+let observedFlow: RetailOrderFlowContextValue | undefined;
 const mockRouter = {
+  dismissAll: jest.fn(),
   dismissTo: jest.fn(),
   push: jest.fn(),
   replace: jest.fn(),
@@ -93,7 +98,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  usePathname: () => '/registrar-pedido-varejo',
+  usePathname: () => mockPathname,
   useRouter: () => mockRouter,
 }));
 
@@ -239,11 +244,24 @@ function collectText(node: ReactTestInstance): string {
     .trim();
 }
 
+function FlowProbe() {
+  const flow = useRetailOrderFlow();
+  useEffect(() => {
+    observedFlow = flow;
+  }, [flow]);
+  return null;
+}
+
 function renderStep(step: RetailOrderFlowStep): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      createElement(RetailOrderFlowProvider, null, createElement(RetailOrderStepScreen, { step })),
+      createElement(
+        RetailOrderFlowProvider,
+        null,
+        createElement(FlowProbe),
+        createElement(RetailOrderStepScreen, { step }),
+      ),
     );
   });
   return renderer;
@@ -252,8 +270,20 @@ function renderStep(step: RetailOrderFlowStep): ReactTestRenderer {
 function updateStep(renderer: ReactTestRenderer, step: RetailOrderFlowStep) {
   act(() => {
     renderer.update(
-      createElement(RetailOrderFlowProvider, null, createElement(RetailOrderStepScreen, { step })),
+      createElement(
+        RetailOrderFlowProvider,
+        null,
+        createElement(FlowProbe),
+        createElement(RetailOrderStepScreen, { step }),
+      ),
     );
+  });
+}
+
+function leaveWizard(renderer: ReactTestRenderer) {
+  act(() => {
+    mockPathname = '/registrar';
+    renderer.update(createElement(RetailOrderFlowProvider, null, createElement(FlowProbe)));
   });
 }
 
@@ -290,6 +320,9 @@ async function addProductAndPushDetails(renderer: ReactTestRenderer) {
 
 describe('RetailOrderRegistrarScreen wizard', () => {
   beforeEach(() => {
+    mockPathname = '/registrar-pedido-varejo';
+    observedFlow = undefined;
+    mockRouter.dismissAll.mockClear();
     mockRouter.dismissTo.mockClear();
     mockRouter.push.mockClear();
     mockRouter.replace.mockClear();
@@ -327,6 +360,12 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     expect(findNodes(renderer, 'premium-card')[0].props.style).toEqual(
       expect.arrayContaining([expect.objectContaining({ marginTop: 16 })]),
     );
+  });
+
+  it('preserves the safe redirect for an invalid deep entry', () => {
+    renderStep('details');
+
+    expect(mockRouter.replace).toHaveBeenCalledWith('/registrar-pedido-varejo');
   });
 
   it('pushes Produtos after selecting a client', async () => {
@@ -504,10 +543,74 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(mockRegisterForOrder).not.toHaveBeenCalled();
     expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(true);
+    mockRouter.dismissAll.mockImplementationOnce(() => {
+      expect(observedFlow?.draft.clientId).toBe('client-1');
+      expect(observedFlow?.draft.lineItems).toHaveLength(1);
+    });
     await act(async () => {
       findNodes(renderer, 'native-dialog')[0].props.actions[0].onPress();
     });
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/registrar');
+    expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
+    expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/registrar-pedido-varejo');
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+
+    leaveWizard(renderer);
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toHaveLength(0);
+    expect(observedFlow?.pendingOrderId).toBeNull();
+
+    mockPathname = '/registrar-pedido-varejo';
+    updateStep(renderer, 'client');
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toHaveLength(0);
+  });
+
+  it('dismisses after a successful initial payment without resetting before the root pop', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
+    await act(async () => {
+      findButton(renderer, 'Ver resumo').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'summary');
+    await act(async () => {
+      findButton(renderer, 'Continuar para pagamento').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'payment');
+
+    const paymentField = findNodes(renderer, 'native-text-field').find(
+      (node) => node.props.accessibilityLabel === 'Valor do pagamento inicial',
+    );
+    if (!paymentField) throw new Error('Campo de pagamento inicial não encontrado');
+    await act(async () => {
+      paymentField.props.onChangeText('50');
+      await Promise.resolve();
+    });
+    await act(async () => {
+      findButton(renderer, 'Confirmar pedido').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockRegisterForOrder).toHaveBeenCalledTimes(1);
+    expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(true);
+    mockRouter.dismissAll.mockImplementationOnce(() => {
+      expect(observedFlow?.draft.clientId).toBe('client-1');
+      expect(observedFlow?.draft.lineItems).toHaveLength(1);
+    });
+    await act(async () => {
+      findNodes(renderer, 'native-dialog')[0].props.actions[0].onPress();
+    });
+
+    expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/registrar-pedido-varejo');
+    leaveWizard(renderer);
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toHaveLength(0);
+    expect(observedFlow?.paymentValues.amount).toBe('');
+    expect(observedFlow?.pendingOrderId).toBeNull();
   });
 
   it('prevents double submit and keeps the draft visible after creation failure', async () => {

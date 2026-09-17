@@ -6,6 +6,18 @@ import { retailPaymentDataSource, type RetailPaymentDataSource } from './RetailP
 export type RetailOrderHistoryFinancialState =
   { status: 'ready'; summary: RetailOrderFinancialSummary } | { status: 'error'; message: string };
 
+export type RetailOrderHistoryFinancialLoadOptions = {
+  onCachedSummary?: (
+    orderId: string,
+    summary: RetailOrderFinancialSummary,
+    revalidating: boolean,
+  ) => void;
+  revalidate?: boolean;
+};
+
+type RetailPaymentReader = Pick<RetailPaymentDataSource, 'load' | 'list'> &
+  Partial<Pick<RetailPaymentDataSource, 'hydrateFromCache'>>;
+
 type CachedSummary = {
   signature: string;
   summary: RetailOrderFinancialSummary;
@@ -15,10 +27,7 @@ export class RetailOrderHistoryFinancialSummaryService {
   private readonly cache = new Map<string, CachedSummary>();
 
   public constructor(
-    private readonly paymentReader: Pick<
-      RetailPaymentDataSource,
-      'load' | 'list'
-    > = retailPaymentDataSource,
+    private readonly paymentReader: RetailPaymentReader = retailPaymentDataSource,
   ) {}
 
   public clear(userId?: string, sessionVersion?: number): void {
@@ -33,28 +42,113 @@ export class RetailOrderHistoryFinancialSummaryService {
     }
   }
 
+  public getCachedSummary(
+    order: RetailOrder,
+    userId: string,
+    sessionVersion?: number,
+  ): RetailOrderFinancialSummary | undefined {
+    const cached = this.cache.get(this.cacheKey(order, userId, sessionVersion));
+    return cached?.signature === getRetailOrderHistoryFinancialSignature(order)
+      ? cached.summary
+      : undefined;
+  }
+
   public async loadForOrder(
     order: RetailOrder,
     userId: string,
     sessionVersion?: number,
+    options: RetailOrderHistoryFinancialLoadOptions = {},
   ): Promise<RetailOrderFinancialSummary> {
     const key = this.cacheKey(order, userId, sessionVersion);
     const cached = this.cache.get(key);
-    if (cached?.signature === orderSignature(order)) return cached.summary;
+    const summaryMemory =
+      cached?.signature === getRetailOrderHistoryFinancialSignature(order) ? 'hit' : 'miss';
+
+    if (!options.revalidate && cached && summaryMemory === 'hit') {
+      options.onCachedSummary?.(order.orderId, cached.summary, false);
+      return cached.summary;
+    }
+
+    if (!options.revalidate && this.paymentReader.hydrateFromCache) {
+      const cacheHydrated = await this.paymentReader.hydrateFromCache(
+        order.orderId,
+        userId,
+        sessionVersion,
+      );
+      if (cacheHydrated) {
+        const cachedPayments = this.paymentReader.list(order.orderId, userId, sessionVersion);
+        const cachedSummary = calculateRetailOrderFinancials({
+          order,
+          payments: cachedPayments,
+        });
+        options.onCachedSummary?.(order.orderId, cachedSummary, true);
+      }
+    }
 
     await this.paymentReader.load(order.orderId, userId, sessionVersion);
+    const remotePaymentSnapshot = this.paymentReader.list(order.orderId, userId, sessionVersion);
     const summary = calculateRetailOrderFinancials({
       order,
-      payments: this.paymentReader.list(order.orderId, userId, sessionVersion),
+      payments: remotePaymentSnapshot,
     });
-    this.cache.set(key, { signature: orderSignature(order), summary });
+    this.cache.set(key, {
+      signature: getRetailOrderHistoryFinancialSignature(order),
+      summary,
+    });
     return summary;
+  }
+
+  public async primeFromCache(
+    orders: readonly RetailOrder[],
+    userId: string,
+    sessionVersion?: number,
+  ): Promise<void> {
+    const uniqueOrders = [...new Map(orders.map((order) => [order.orderId, order])).values()];
+    const hydrateFromCache = this.paymentReader.hydrateFromCache?.bind(this.paymentReader);
+
+    if (!uniqueOrders.length || !hydrateFromCache) {
+      return;
+    }
+
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < uniqueOrders.length) {
+        const order = uniqueOrders[nextIndex];
+        nextIndex += 1;
+        if (!order) continue;
+
+        const key = this.cacheKey(order, userId, sessionVersion);
+        const signature = getRetailOrderHistoryFinancialSignature(order);
+        const cached = this.cache.get(key);
+        if (cached?.signature === signature) {
+          continue;
+        }
+
+        let hydrated = false;
+        try {
+          hydrated = await hydrateFromCache(order.orderId, userId, sessionVersion);
+        } catch {
+          continue;
+        }
+
+        if (!hydrated) {
+          continue;
+        }
+
+        const payments = this.paymentReader.list(order.orderId, userId, sessionVersion);
+        const summary = calculateRetailOrderFinancials({ order, payments });
+        this.cache.set(key, { signature, summary });
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(2, uniqueOrders.length) }, () => worker()));
   }
 
   public async loadForOrders(
     orders: readonly RetailOrder[],
     userId: string,
     sessionVersion?: number,
+    options: RetailOrderHistoryFinancialLoadOptions = {},
   ): Promise<ReadonlyMap<string, RetailOrderHistoryFinancialState>> {
     const results = new Map<string, RetailOrderHistoryFinancialState>();
     let nextIndex = 0;
@@ -67,7 +161,7 @@ export class RetailOrderHistoryFinancialSummaryService {
         if (!order) continue;
 
         try {
-          const summary = await this.loadForOrder(order, userId, sessionVersion);
+          const summary = await this.loadForOrder(order, userId, sessionVersion, options);
           results.set(order.orderId, { status: 'ready', summary });
         } catch (error) {
           results.set(order.orderId, {
@@ -86,7 +180,7 @@ export class RetailOrderHistoryFinancialSummaryService {
   }
 
   private cacheKey(order: RetailOrder, userId: string, sessionVersion?: number): string {
-    return `${this.sessionPrefix(userId, sessionVersion)}${order.orderId}:${orderSignature(order)}`;
+    return `${this.sessionPrefix(userId, sessionVersion)}${order.orderId}:${getRetailOrderHistoryFinancialSignature(order)}`;
   }
 
   private sessionPrefix(userId: string, sessionVersion?: number): string {
@@ -94,7 +188,7 @@ export class RetailOrderHistoryFinancialSummaryService {
   }
 }
 
-function orderSignature(order: RetailOrder): string {
+export function getRetailOrderHistoryFinancialSignature(order: RetailOrder): string {
   return [
     order.orderId,
     order.orderDate,

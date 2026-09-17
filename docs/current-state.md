@@ -9,11 +9,78 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- Este snapshot corresponde à correção de cold start offline e às proteções de
-  sessão e concorrência consolidadas nesta branch; consulte `git log -1` para o
-  hash do commit publicado.
-- Após a publicação deste estado, o working tree deve permanecer limpo e a
-  branch local sincronizada com `origin/ajustes-codex`.
+- O checkpoint publicado mais recente é `23b33044b1956044928ddd81825bdaf7807d618b`
+  (`feat(retail): add follow-up payments and sync history`).
+- `origin/ajustes-codex` está sincronizada com esse checkpoint. Arquivos locais
+  deliberadamente excluídos do checkpoint podem permanecer no working tree e
+  devem ser preservados em futuras operações seletivas.
+
+## Consolidação da Fase 5C.2A — 2026-09-17
+
+Este bloco registra o contrato operacional atual de pedidos Retail após a
+publicação do checkpoint 5C.2A-2.
+
+### Histórico e navegação Retail
+
+- A aba Histórico compartilha uma entrada, mas separa os domínios por
+  `AppMode`: Atacado continua usando `HistoryScreen`/Delivery e Varejo usa
+  `RetailOrderHistoryScreen`/RetailOrder.
+- `orderDate` é a data comercial usada para agrupar o Histórico Varejo por Dia,
+  Semana e Mês. `deliveryDate` permanece a data de entrega, e timestamps de
+  criação/atualização são técnicos.
+- O wizard Registrar Varejo usa o Root Native Stack nas cinco rotas
+  `/registrar-pedido-varejo`, `/registrar-pedido-varejo/produtos`,
+  `/registrar-pedido-varejo/detalhes`, `/registrar-pedido-varejo/resumo` e
+  `/registrar-pedido-varejo/pagamento`, sem navigator aninhado. O
+  `RetailOrderFlowProvider` compartilha o draft; Back, morph, push/pop e
+  swipe-back permanecem nativos.
+- O detalhe de pedido usa a rota Root `/pedido-varejo/[orderId]`, recebe apenas
+  `orderId` e mantém o domínio Retail isolado de Delivery.
+
+### Pagamento posterior
+
+- O detalhe Retail mantém o CTA de adicionar pagamento e usa o
+  `RetailOrderPaymentSheet` na primeira composição funcional restaurada, com
+  `NativeSheet`, `NativeTextField`, `NativeDropdown`, `NativeDatePicker` e
+  `NativeButton`.
+- Pagamentos posteriores referenciam o mesmo `orderId`, usam status `posted` e
+  nunca criam outro RetailOrder. Pagamento parcial e total são permitidos;
+  overpayment é bloqueado; pedidos `cancelled` não recebem pagamento e pedidos
+  `completed` podem receber pagamento.
+- `calculateRetailOrderFinancials` permanece a fonte única das fórmulas e dos
+  status `unpaid`, `partially_paid` e `paid`. Somente `posted` entra em
+  `paidAmount`; `voided` não altera os totais.
+
+### Resumo financeiro e sincronização pontual
+
+- O resumo financeiro do Histórico usa cache por UID, `sessionVersion`,
+  `orderId` e assinatura financeira, com prewarm local, cache-first,
+  stale-while-revalidate e concorrência limitada somente para pedidos visíveis.
+- `RetailOrderHistoryFinancialSummaryService.updateForOrder()` recalcula
+  somente o pedido afetado usando o snapshot local completo de pagamentos,
+  publica aos listeners e não executa leitura Firestore nem `clear` global.
+  Resumos prontos permanecem prontos e respostas de sessões obsoletas são
+  descartadas.
+- A sincronização local após o pagamento é tolerante a falha: a persistência do
+  pagamento não é convertida em erro por falha posterior de atualização do
+  resumo.
+
+### Limitações preservadas
+
+- A composição visual dos controles `@expo/ui`/SwiftUI durante o scroll do
+  wizard permanece uma pendência conhecida: os frames acompanham o ScrollView,
+  mas o material Liquid Glass pode atravessar visualmente a região do
+  ProgressiveBlur RN de forma diferente das Views RN.
+- O overpayment concorrente multi-device ainda não usa transação Firestore e
+  permanece fora desta fase.
+- Google Sign-In na variante Release/Final permanece fora deste checkpoint.
+
+### Validação do checkpoint
+
+- TypeScript, ESLint direcionado, Prettier check, 14 suítes/86 testes de Retail
+  Orders e 5 suítes/20 testes de History passaram antes da publicação.
+- Não houve alteração de dependências, schema/rules/indexes, configuração
+  nativa ou Atacado neste checkpoint.
 
 ## Consolidação desta sessão — 2026-09-12
 

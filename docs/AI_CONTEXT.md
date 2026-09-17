@@ -48,6 +48,14 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - Não migrar para React Navigation.
 - Preservar a arquitetura existente.
 
+## Retail Orders
+
+- O Histórico usa uma entrada compartilhada e roteia por `AppMode`: Atacado permanece em `HistoryScreen`/Delivery; Varejo usa `RetailOrderHistoryScreen`/`RetailOrder`. As coleções e serviços dos dois domínios não devem ser misturados.
+- O wizard Registrar Varejo participa do Root Native Stack nas rotas `/registrar-pedido-varejo`, `/registrar-pedido-varejo/produtos`, `/registrar-pedido-varejo/detalhes`, `/registrar-pedido-varejo/resumo` e `/registrar-pedido-varejo/pagamento`. Não criar Stack aninhado para esse fluxo; Back, morph, push/pop e swipe-back permanecem nativos, e `RetailOrderFlowProvider` compartilha o draft.
+- O detalhe Retail usa a rota Root `/pedido-varejo/[orderId]` e recebe somente `orderId`. Deve priorizar snapshot/cache disponível, revalidar sem apagar o conteúdo visível e carregar pagamentos apenas do pedido atual; não deve acessar Delivery no ramo Retail.
+- `calculateRetailOrderFinancials` é a única fonte das fórmulas e dos status financeiros. Somente pagamentos `posted` entram nos totais; `voided` pode ser exibido para auditoria, mas não altera o valor pago. Pagamentos posteriores referenciam o mesmo `orderId`; pedidos cancelados bloqueiam novos pagamentos e pedidos completed podem recebê-los.
+- O resumo financeiro do Histórico Retail usa cache isolado por UID, `sessionVersion`, `orderId` e assinatura financeira, com prewarm local, cache-first/stale-while-revalidate e concorrência limitada, restrito aos pedidos visíveis. `updateForOrder()` atualiza somente o pedido afetado a partir do snapshot local completo, publica aos listeners e não faz leitura Firestore nem `clear` global; respostas obsoletas são descartadas.
+
 ## Persistência atual
 
 - Google/Firebase Auth é a autenticação real da conta.
@@ -63,7 +71,7 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - `metadata.fromCache` não confirma uma leitura remota completa: respostas vazias/parciais devem preservar cache válido, e histórico parcial nunca deve ser tratado como histórico global completo.
 - Novas rotas autenticadas são locais e usam storage v2/cache isolados por UID; a rota ativa persiste `ownerUid` para manter o vínculo no foreground, no background e na restauração. As chaves globais v1 permanecem em quarentena, fora do runtime normal, até um claim explícito.
 
-Áreas já validadas: Clientes, Entregas, Pagamentos em aberto, Notas fiscais/boletos, Fábrica e pagamentos parciais, Dados Diários/Mensais, Finanças, Estoque, FactorySettings, CarSettings, CompanyProfile e Backup/Restore.
+Áreas já validadas: Clientes, Entregas, Pagamentos em aberto, Notas fiscais/boletos, Fábrica e pagamentos parciais, Dados Diários/Mensais, Finanças, Estoque, Registrar Varejo, Histórico Varejo, FactorySettings, CarSettings, CompanyProfile e Backup/Restore.
 
 ## Componentes nativos
 
@@ -127,6 +135,8 @@ Priorizar:
 - @expo/ui 0.2.0-beta.9 utiliza ContextMenu no lugar de Menu.
 - Evitar wrappers com overflow:hidden ao redor de componentes SwiftUI.
 - Não envolver Button SwiftUI com Pressable.
+- O overpayment de pagamentos Retail é validado contra a leitura corrente, sem transação Firestore; concorrência multi-device continua sendo uma limitação conhecida.
+- No wizard Retail, controles @expo/ui/SwiftUI podem acompanhar corretamente o ScrollView, mas o material Liquid Glass pode ser composto de forma diferente ao atravessar o ProgressiveBlur RN. Essa pendência visual não deve ser corrigida globalmente sem nova evidência física.
 
 # Fluxo de Desenvolvimento
 

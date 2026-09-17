@@ -38,6 +38,7 @@ import { locationTrackingService, routeTrackingRepository } from '@/services/rou
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
+import { RetailOrderFlowProvider } from '@/features/retail-orders/components/RetailOrderFlowProvider';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -179,6 +180,103 @@ function AppShell() {
                     },
                   }}
                 />
+                <Stack.Screen
+                  name="registrar-pedido-varejo/index"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-pedido-varejo/produtos"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
+                    Voltar
+                  </Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-pedido-varejo/detalhes"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
+                    Voltar
+                  </Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-pedido-varejo/resumo"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
+                    Voltar
+                  </Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-pedido-varejo/pagamento"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
+                    Voltar
+                  </Stack.Screen.BackButton>
+                </Stack.Screen>
                 <Stack.Screen
                   name="registrar-entrega"
                   options={{
@@ -739,7 +837,9 @@ export default function PrototypeRootLayout() {
             <AppModeProvider>
               <ThemeProvider>
                 <TestModeProvider>
-                  <AppShell />
+                  <RetailOrderFlowProvider>
+                    <AppShell />
+                  </RetailOrderFlowProvider>
                 </TestModeProvider>
               </ThemeProvider>
             </AppModeProvider>

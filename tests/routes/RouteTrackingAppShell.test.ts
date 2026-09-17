@@ -146,6 +146,9 @@ jest.mock('@/theme', () => ({
   }),
 }));
 jest.mock('@/features/quick-actions/QuickActionRouter', () => ({ QuickActionRouter: () => null }));
+jest.mock('@/features/retail-orders/components/RetailOrderFlowProvider', () => ({
+  RetailOrderFlowProvider: mockPassthrough,
+}));
 jest.mock('@/services/clients', () => ({ firestoreClientDataSource: mockClientDataSource }));
 jest.mock('@/services/deliveries', () => ({ firestoreDeliveryDataSource: mockDeliveryDataSource }));
 jest.mock('@/services/factory-purchases', () => ({

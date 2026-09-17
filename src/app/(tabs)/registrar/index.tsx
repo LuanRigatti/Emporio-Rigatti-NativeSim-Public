@@ -24,7 +24,7 @@ import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/prem
 import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
 import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
 import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
-import RetailOrderRegistrarScreen from '@/features/retail-orders/components/RetailOrderRegistrarScreen';
+import { RetailOrderRegistrarLauncher } from '@/features/retail-orders/components/RetailOrderRegistrarScreen';
 import { useAppMode, useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -101,7 +101,7 @@ const EMPTY_DAILY_DATA_VALUES: NativeDailyDataValues = {
 
 export default function PrototypeRegistrar() {
   const { mode } = useAppMode();
-  return mode === 'retail' ? <RetailOrderRegistrarScreen /> : <RegistrarModeSelection />;
+  return mode === 'retail' ? <RetailOrderRegistrarLauncher /> : <RegistrarModeSelection />;
 }
 
 function RegistrarModeSelection() {

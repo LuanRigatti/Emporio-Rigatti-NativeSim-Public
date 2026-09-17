@@ -118,4 +118,58 @@ describe('retail catalog form sheets', () => {
     );
     expect(mockOnVisibleChange).toHaveBeenCalledWith(false);
   });
+
+  it('submits the selected direct cost configuration with the product', async () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          costItems: [{ costItemId: 'cafe', label: 'Café', unit: 'un' }],
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    act(() => {
+      findNodes(renderer, 'native-dropdown')
+        .find((node) => node.props.accessibilityLabel === 'Modo de custo')
+        ?.props.onValueChange('direct');
+    });
+    act(() => {
+      findNodes(renderer, 'native-dropdown')
+        .find((node) => node.props.accessibilityLabel === 'Item de custo direto')
+        ?.props.onValueChange('cafe');
+    });
+    expect(
+      renderer.root.findAll((node) =>
+        node.children.some(
+          (child) =>
+            typeof child === 'string' &&
+            child.includes('Custo direto usa o histórico do item selecionado em Custos.'),
+        ),
+      ),
+    ).not.toHaveLength(0);
+    const fields = findNodes(renderer, 'native-text-field');
+    act(() =>
+      fields
+        .find((field) => field.props.accessibilityLabel === 'Nome do produto')
+        ?.props.onChangeText('Cesta Café'),
+    );
+    act(() =>
+      fields
+        .find((field) => field.props.accessibilityLabel === 'Preço de venda')
+        ?.props.onChangeText('100'),
+    );
+    await act(async () => {
+      findNodes(renderer, 'native-button')[0].props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockProductSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ costMode: 'direct', directCostItemId: 'cafe' }),
+    );
+  });
 });

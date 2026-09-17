@@ -7,6 +7,7 @@ import {
   RetailPaymentCatalogCache,
   RetailPaymentDataSource,
   RetailOrderCatalogCache,
+  retailOrderCatalogCache,
   setFirestoreRetailOrderDataSourceOpsForTesting,
   setFirestoreRetailPaymentDataSourceOpsForTesting,
 } from '@/services/retail-orders';
@@ -35,6 +36,7 @@ jest.mock('firebase/firestore', () => ({
   })),
   getDoc: jest.fn(),
   getDocs: jest.fn(),
+  getDocsFromServer: jest.fn(),
   serverTimestamp: jest.fn(() => ({ type: 'serverTimestamp' })),
   setDoc: jest.fn(async () => undefined),
   updateDoc: jest.fn(async () => undefined),
@@ -43,6 +45,7 @@ jest.mock('firebase/firestore', () => ({
 const mockedCollection = jest.mocked(firestoreModule.collection);
 const mockedGetDoc = jest.mocked(firestoreModule.getDoc);
 const mockedGetDocs = jest.mocked(firestoreModule.getDocs);
+const mockedGetDocsFromServer = jest.mocked(firestoreModule.getDocsFromServer);
 const mockedSetDoc = jest.mocked(firestoreModule.setDoc);
 const mockedUpdateDoc = jest.mocked(firestoreModule.updateDoc);
 
@@ -208,6 +211,7 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     jest.clearAllMocks();
     mockedGetDoc.mockReset();
     mockedGetDocs.mockReset();
+    mockedGetDocsFromServer.mockReset();
     mockedSetDoc.mockReset().mockResolvedValue(undefined);
     mockedUpdateDoc.mockReset().mockResolvedValue(undefined);
     mockAsyncStorage = new Map();
@@ -248,6 +252,55 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
         totalCharged: 30,
       }),
     );
+  });
+
+  it('marks the complete server snapshot separately from cached history', async () => {
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await retailOrderCatalogCache.write('uid-retail', [
+      { ...orderRecord(), id: 'order-1' } as RetailOrderRecord,
+    ]);
+    mockedGetDocsFromServer.mockResolvedValueOnce(queryResult([]));
+
+    await dataSource.loadHistorical('uid-retail', 1);
+
+    expect(mockedGetDocsFromServer).toHaveBeenCalledTimes(1);
+    expect(dataSource.getLoadState('uid-retail', 1)).toMatchObject({
+      remoteComplete: true,
+      revalidating: false,
+      source: 'remote',
+    });
+    expect(dataSource.getSnapshot('uid-retail', 1)).toEqual([]);
+  });
+
+  it('does not treat cached history as remote-complete while server revalidation is pending', async () => {
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await retailOrderCatalogCache.write('uid-retail', [
+      { ...orderRecord(), id: 'order-1' } as RetailOrderRecord,
+    ]);
+    await dataSource.hydrateFromCache('uid-retail', 1);
+
+    let resolveServer: (value: Awaited<ReturnType<typeof firestoreModule.getDocs>>) => void = () =>
+      undefined;
+    mockedGetDocsFromServer.mockReturnValueOnce(
+      new Promise<Awaited<ReturnType<typeof firestoreModule.getDocs>>>((resolve) => {
+        resolveServer = resolve;
+      }),
+    );
+
+    const load = dataSource.loadHistorical('uid-retail', 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(dataSource.getLoadState('uid-retail', 1)).toMatchObject({
+      remoteComplete: false,
+      revalidating: true,
+      source: 'cache',
+    });
+    expect(dataSource.getSnapshot('uid-retail', 1)).toHaveLength(1);
+
+    resolveServer(queryResult([]));
+    await load;
   });
 
   it('updates allowed draft fields, reallocates changed discounts, and completes orders', async () => {

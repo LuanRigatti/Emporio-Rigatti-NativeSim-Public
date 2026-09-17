@@ -54,6 +54,10 @@ type DeliveryLoadOptions = {
   force?: boolean;
 };
 
+type HistoricalLoadOptions = {
+  revalidate?: boolean;
+};
+
 type LoadState = {
   latestVersion: number;
   pendingVersions: Set<number>;
@@ -334,9 +338,6 @@ export class FirestoreDeliveryDataSource {
     const shouldApplyDailyCache =
       cached !== null && (historicalCached === null || cached.savedAt >= historicalCached.savedAt);
     if (shouldApplyDailyCache) {
-      for (const [id, delivery] of this.records) {
-        if (delivery.data === date) this.records.delete(id);
-      }
       cached.deliveries.forEach((delivery) => this.records.set(delivery.id, delivery));
     }
     if (historicalCached !== null) {
@@ -521,14 +522,18 @@ export class FirestoreDeliveryDataSource {
     }
   }
 
-  public async loadAllHistorical(uid: string, sessionVersion?: number): Promise<Delivery[]> {
+  public async loadAllHistorical(
+    uid: string,
+    sessionVersion?: number,
+    options: HistoricalLoadOptions = {},
+  ): Promise<Delivery[]> {
     const sessionGeneration = this.beginSessionRequest(uid, sessionVersion);
     if (sessionGeneration === null) return [];
-    const key = this.requestKey(uid, sessionGeneration);
+    const key = `${this.requestKey(uid, sessionGeneration)}:${options.revalidate ? 'revalidate' : 'cache'}`;
     const existing = this.inFlightHistoricalLoads.get(key);
     if (existing) return existing;
 
-    const load = this.loadAllHistoricalInternal(uid, sessionGeneration, sessionVersion);
+    const load = this.loadAllHistoricalInternal(uid, sessionGeneration, sessionVersion, options);
     this.inFlightHistoricalLoads.set(key, load);
     void load.then(
       () => {
@@ -549,6 +554,7 @@ export class FirestoreDeliveryDataSource {
     uid: string,
     sessionGeneration: number,
     sessionVersion: number | undefined,
+    options: HistoricalLoadOptions,
   ): Promise<Delivery[]> {
     const hydration = this.inFlightHydrations.get(this.requestKey(uid, sessionGeneration));
     if (hydration) await hydration;
@@ -575,7 +581,7 @@ export class FirestoreDeliveryDataSource {
         this.stateVersion += 1;
         this.publish();
       }
-      return this.getCached({ mode: 'all' }, uid);
+      if (!options.revalidate) return this.getCached({ mode: 'all' }, uid);
     }
 
     try {

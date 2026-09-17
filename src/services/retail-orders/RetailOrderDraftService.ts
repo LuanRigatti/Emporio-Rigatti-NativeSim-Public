@@ -60,6 +60,11 @@ export type RetailInitialPaymentValues = {
   notes: string;
 };
 
+export type RetailInitialPaymentPreview = {
+  amount: number;
+  outstandingAmount: number;
+};
+
 export const RETAIL_PAYMENT_METHOD_OPTIONS = [
   { label: 'Pix', value: 'Pix' },
   { label: 'Dinheiro', value: 'Dinheiro' },
@@ -154,7 +159,8 @@ export function buildRetailInitialPaymentDraft(
   if (!values.amount.trim()) return undefined;
 
   const amount = normalizeRetailMoney(values.amount, 'O pagamento');
-  if (amount <= 0) throw new Error('O pagamento deve ser maior que zero.');
+  if (amount === 0) return undefined;
+  if (amount < 0) throw new Error('O pagamento deve ser maior que zero.');
   if (amount > totalCharged) {
     throw new Error('O pagamento não pode superar o total cobrado.');
   }
@@ -167,5 +173,18 @@ export function buildRetailInitialPaymentDraft(
     method: values.method,
     notes: optionalRetailOrderText(values.notes),
     paidAt: normalizeRetailDate(values.paidAt),
+  };
+}
+
+export function calculateRetailInitialPaymentPreview(
+  values: RetailInitialPaymentValues,
+  totalCharged: number,
+): RetailInitialPaymentPreview {
+  const payment = buildRetailInitialPaymentDraft(values, totalCharged);
+  const amount = payment?.amount ?? 0;
+
+  return {
+    amount,
+    outstandingAmount: roundRetailOrderMoney(Math.max(0, totalCharged - amount)),
   };
 }

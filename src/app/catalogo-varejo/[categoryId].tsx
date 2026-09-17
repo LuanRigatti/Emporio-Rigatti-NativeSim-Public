@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { TextButton } from '@/components/buttons';
 import { ListItem } from '@/components/lists';
 import {
   NativeCardContextMenu,
@@ -54,6 +55,8 @@ function productFormValues(product?: RetailProduct | null): Partial<NativeRetail
   return product
     ? {
         categoryId: product.categoryId,
+        costMode: product.costMode ?? '',
+        directCostItemId: product.directCostItemId ?? '',
         flavor: product.flavor ?? '',
         packageSize: product.packageSize ?? '',
         productName: product.productName,
@@ -62,6 +65,22 @@ function productFormValues(product?: RetailProduct | null): Partial<NativeRetail
         variant: product.variant ?? '',
       }
     : {};
+}
+
+function productCostDraft(values: NativeRetailProductFormValues, product?: RetailProduct | null) {
+  if (values.costMode === 'direct') {
+    if (!values.directCostItemId) throw new Error('Selecione o item de custo direto.');
+    return { costMode: 'direct' as const, directCostItemId: values.directCostItemId };
+  }
+  if (values.costMode === 'composition') {
+    return {
+      costMode: 'composition' as const,
+      ...(product?.compositionVersionId
+        ? { compositionVersionId: product.compositionVersionId }
+        : {}),
+    };
+  }
+  return {};
 }
 
 function productCostFormValues(
@@ -132,8 +151,19 @@ export default function RetailCategoryProductsRoute() {
     async (values: NativeRetailProductFormValues) => {
       if (testModeEnabled) return;
       const draft = toProductDraft(values, categoryOptions);
-      if (productToEdit) await update(productToEdit.productId, draft);
-      else await create(draft);
+      const costDraft = productCostDraft(values, productToEdit);
+      if (productToEdit) {
+        await update(productToEdit.productId, {
+          ...draft,
+          ...costDraft,
+          costMode: values.costMode || null,
+          directCostItemId: values.costMode === 'direct' ? values.directCostItemId || null : null,
+          compositionVersionId:
+            values.costMode === 'composition' ? (productToEdit.compositionVersionId ?? null) : null,
+        });
+      } else {
+        await create({ ...draft, ...costDraft });
+      }
     },
     [categoryOptions, create, productToEdit, testModeEnabled, update],
   );
@@ -158,13 +188,18 @@ export default function RetailCategoryProductsRoute() {
   const costItemOptions = useMemo<readonly NativeRetailProductCostItemOption[]>(
     () =>
       costItems
-        .filter((item) => item.active || item.costItemId === productForCost?.directCostItemId)
+        .filter(
+          (item) =>
+            item.active ||
+            item.costItemId === productForCost?.directCostItemId ||
+            item.costItemId === productToEdit?.directCostItemId,
+        )
         .map((item) => ({
           costItemId: item.costItemId,
           label: item.active ? item.name : `${item.name} (desativado)`,
           unit: item.unit,
         })),
-    [costItems, productForCost?.directCostItemId],
+    [costItems, productForCost?.directCostItemId, productToEdit?.directCostItemId],
   );
   const compositionCostItemOptions = useMemo<readonly NativeRetailCompositionCostItemOption[]>(
     () =>
@@ -320,6 +355,17 @@ export default function RetailCategoryProductsRoute() {
                   const subtitle = [product.variant, product.flavor, product.packageSize]
                     .filter(Boolean)
                     .join(' · ');
+                  const hasCostConfiguration =
+                    (product.costMode === 'direct' && Boolean(product.directCostItemId)) ||
+                    (product.costMode === 'composition' && Boolean(product.compositionVersionId));
+                  const costStatus = hasCostConfiguration
+                    ? product.costMode === 'direct'
+                      ? 'Custo direto configurado'
+                      : 'Composição configurada'
+                    : 'Custo não configurado';
+                  const costActionLabel = hasCostConfiguration
+                    ? 'Editar custo'
+                    : 'Configurar custo';
                   const renderRow = (preview = false) => (
                     <View
                       style={[
@@ -408,6 +454,27 @@ export default function RetailCategoryProductsRoute() {
                       >
                         {renderRow()}
                       </NativeCardContextMenu>
+                      <View
+                        style={[
+                          styles.costActionRow,
+                          {
+                            borderTopColor: theme.colors.separator,
+                            paddingHorizontal: theme.spacing.sm,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                        >
+                          {costStatus}
+                        </Text>
+                        <TextButton
+                          accessibilityLabel={`${costActionLabel} de ${product.productName}`}
+                          label={costActionLabel}
+                          onPress={() => setProductForCost(product)}
+                          size="small"
+                        />
+                      </View>
                     </View>
                   );
                 })
@@ -425,10 +492,19 @@ export default function RetailCategoryProductsRoute() {
       </PremiumScreen>
       <NativeRetailProductFormSheet
         categories={categoryOptions}
+        costItems={costItemOptions}
         initialValues={productFormValues(productToEdit)}
         mode={productToEdit ? 'edit' : 'create'}
         onSubmit={submitProduct}
         onVisibleChange={setFormVisible}
+        onOpenComposition={
+          productToEdit
+            ? () => {
+                setFormVisible(false);
+                setProductForComposition(productToEdit);
+              }
+            : undefined
+        }
         visible={formVisible}
       />
       <NativeRetailProductCostSheet
@@ -471,6 +547,12 @@ export default function RetailCategoryProductsRoute() {
 
 const styles = StyleSheet.create({
   content: { flexGrow: 1 },
+  costActionRow: {
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   iconSlot: { alignItems: 'center', justifyContent: 'center', width: 34 },
   mutationError: { marginBottom: 12, paddingHorizontal: 8 },
   row: { width: '100%' },

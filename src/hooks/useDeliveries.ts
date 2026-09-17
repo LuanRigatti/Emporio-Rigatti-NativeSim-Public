@@ -26,9 +26,17 @@ import { todayIso } from '@/utils/data';
 const EMPTY_SUBSCRIBE = () => () => {};
 const ZERO_REVISION = () => 0;
 
-export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
+export type UseDeliveriesOptions = {
+  scope?: 'default' | 'historical';
+};
+
+export function useDeliveries(
+  filters: DeliveryFilters = { mode: 'today' },
+  options: UseDeliveriesOptions = {},
+) {
   const { sessionVersion, user } = useAuth();
   const firestoreEnabled = ENABLE_FIRESTORE_CLIENTS_DELIVERIES;
+  const historicalScope = options.scope === 'historical';
   const filterSignature = JSON.stringify(filters);
   // The serialized signature intentionally controls this reference's stability.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +72,13 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
       try {
         if (firestoreEnabled) {
           try {
-            await firestoreDeliveryDataSource.load(user.id, stableFilters, { force: isRefresh });
+            if (historicalScope) {
+              await firestoreDeliveryDataSource.loadAllHistorical(user.id, sessionVersion, {
+                revalidate: true,
+              });
+            } else {
+              await firestoreDeliveryDataSource.load(user.id, stableFilters, { force: isRefresh });
+            }
             setFirestoreFallbackSnapshot(null);
           } catch (loadError) {
             setFirestoreFallbackSnapshot(null);
@@ -98,7 +112,7 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
         setRefreshing(false);
       }
     },
-    [firestoreEnabled, stableFilters, user],
+    [firestoreEnabled, historicalScope, sessionVersion, stableFilters, user],
   );
 
   useEffect(() => {
@@ -246,6 +260,10 @@ export function useDeliveries(filters: DeliveryFilters = { mode: 'today' }) {
     loading,
     refreshing,
     error,
+    historicalDataState:
+      firestoreEnabled && historicalScope
+        ? firestoreDeliveryDataSource.getHistoricalDataState()
+        : undefined,
     reload,
     create,
     update,

@@ -16,6 +16,8 @@ import type {
 
 const EMPTY_VALUES: NativeRetailProductFormValues = {
   categoryId: '',
+  costMode: '',
+  directCostItemId: '',
   flavor: '',
   packageSize: '',
   productName: '',
@@ -26,8 +28,10 @@ const EMPTY_VALUES: NativeRetailProductFormValues = {
 
 export default function NativeRetailProductFormSheetFallback({
   categories,
+  costItems = [],
   initialValues,
   mode = 'create',
+  onOpenComposition,
   onSubmit,
   onVisibleChange,
   title,
@@ -71,6 +75,10 @@ export default function NativeRetailProductFormSheetFallback({
       normalizeMoney(values.standardSalePrice) === undefined
     ) {
       setError('Informe um preço de venda válido.');
+      return;
+    }
+    if (values.costMode === 'direct' && !values.directCostItemId) {
+      setError('Selecione o item de custo direto.');
       return;
     }
     setError(undefined);
@@ -153,6 +161,74 @@ export default function NativeRetailProductFormSheetFallback({
           placeholder="Código comercial"
           value={values.skuCode}
         />
+        <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+          Custo do produto
+        </Text>
+        <NativeDropdown
+          accessibilityLabel="Modo de custo"
+          disabled={testModeEnabled || submitting}
+          items={[
+            { label: 'Sem custo configurado', value: '' },
+            { label: 'Direto', value: 'direct' },
+            { label: 'Composição', value: 'composition' },
+          ]}
+          label="Modo de custo"
+          onValueChange={(costMode) =>
+            setValues((current) => ({
+              ...current,
+              costMode: costMode as NativeRetailProductFormValues['costMode'],
+              directCostItemId: costMode === 'direct' ? current.directCostItemId : '',
+            }))
+          }
+          selectedValue={values.costMode}
+        />
+        {values.costMode === 'direct' ? (
+          <>
+            <NativeDropdown
+              accessibilityLabel="Item de custo direto"
+              disabled={testModeEnabled || submitting || !costItems.length}
+              items={costItems.map((item) => ({
+                label: `${item.label} (${item.unit})`,
+                value: item.costItemId,
+              }))}
+              label="Item de custo"
+              onValueChange={(directCostItemId) => update('directCostItemId', directCostItemId)}
+              selectedValue={values.directCostItemId}
+            />
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              Custo direto usa o histórico do item selecionado em Custos.
+            </Text>
+            {!costItems.length ? (
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                Cadastre um item de custo em Custos antes de vincular o custo direto.
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+        {values.costMode === 'composition' ? (
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Composição usa os componentes e seus custos históricos.
+          </Text>
+        ) : null}
+        {values.costMode === 'composition' && onOpenComposition && costItems.length ? (
+          <NativeButton
+            disabled={testModeEnabled || submitting}
+            haptic="light"
+            label="Editar composição"
+            onPress={onOpenComposition}
+            variant="surface"
+          />
+        ) : null}
+        {values.costMode === 'composition' && !onOpenComposition && costItems.length ? (
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Salve o produto para criar a composição.
+          </Text>
+        ) : null}
+        {values.costMode === 'composition' && !costItems.length ? (
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Cadastre itens de custo em Custos antes de criar uma composição.
+          </Text>
+        ) : null}
         {error ? (
           <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
         ) : null}

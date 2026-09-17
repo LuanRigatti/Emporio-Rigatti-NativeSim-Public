@@ -1,6 +1,7 @@
 import {
   buildRetailInitialPaymentDraft,
   buildRetailOrderCreateInput,
+  calculateRetailInitialPaymentPreview,
   calculateRetailOrderDraftTotals,
 } from '@/services/retail-orders/RetailOrderDraftService';
 import type { RetailClient, RetailProduct } from '@/types/data';
@@ -99,6 +100,13 @@ describe('RetailOrderDraftService', () => {
 
     expect(
       buildRetailInitialPaymentDraft(
+        { amount: 'R$ 0,00', cardFee: 'invalid', method: 'Pix', notes: '', paidAt: '' },
+        100,
+      ),
+    ).toBeUndefined();
+
+    expect(
+      buildRetailInitialPaymentDraft(
         {
           amount: '40',
           cardFee: '1,50',
@@ -115,6 +123,22 @@ describe('RetailOrderDraftService', () => {
       notes: 'Sinal',
       paidAt: '2026-09-15',
     });
+  });
+
+  it('previews the amount still outstanding without duplicating payment rules', () => {
+    expect(
+      calculateRetailInitialPaymentPreview(
+        { amount: '40', cardFee: '', method: 'Pix', notes: '', paidAt: '2026-09-15' },
+        100,
+      ),
+    ).toEqual({ amount: 40, outstandingAmount: 60 });
+
+    expect(
+      calculateRetailInitialPaymentPreview(
+        { amount: '0,00', cardFee: '', method: 'Pix', notes: '', paidAt: '2026-09-15' },
+        100,
+      ),
+    ).toEqual({ amount: 0, outstandingAmount: 100 });
   });
 
   it('rejects invalid quantities, discounts and payments', () => {

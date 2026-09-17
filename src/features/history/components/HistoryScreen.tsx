@@ -59,7 +59,7 @@ export function HistoryScreen() {
     remove: removeDelivery,
     deliveries,
     toggleDelivered: toggleDelivery,
-  } = useDeliveries({ mode: 'all' });
+  } = useDeliveries({ mode: 'all' }, { scope: 'historical' });
   const allDeliveries = useMemo(() => deliveries.map(toHistoryDelivery), [deliveries]);
   const selectedYear = Number(selectedDate.slice(0, 4));
   const weekGroups = useMemo(() => createHistoryWeekGroups(selectedYear), [selectedYear]);

@@ -18,7 +18,10 @@ export default function NativeSegmentedControlSwiftUI({
   return (
     <Host matchContents={!style} style={style}>
       <Picker
-        onSelectionChange={(selection) => onSelectedIndexChange(Number(selection))}
+        onSelectionChange={(selection) => {
+          const nextIndex = Number(selection);
+          onSelectedIndexChange(nextIndex);
+        }}
         selection={selectedIndex}
         modifiers={[
           pickerStyle('segmented'),

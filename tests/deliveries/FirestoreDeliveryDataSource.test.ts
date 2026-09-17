@@ -135,6 +135,65 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     expect(result).toEqual(cachedDeliveries);
   });
 
+  it('revalidates a cached historical snapshot when explicitly requested', async () => {
+    const cachedDelivery: Delivery = {
+      id: 'del-cached-revalidate',
+      clientId: 'client:andre',
+      cliente: 'André',
+      data: '2026-08-12',
+      quantidade: 1,
+      valor: 50,
+      status: 'Pago',
+      entregue: true,
+    };
+    const remoteDelivery: Delivery = {
+      ...cachedDelivery,
+      id: 'del-remote-revalidate',
+      data: '2026-09-02',
+    };
+    await firestoreHistoricalDeliveryCache.write('uid-test', [cachedDelivery]);
+
+    let resolveFirestore: (
+      value: Awaited<ReturnType<typeof firestoreModule.getDocs>>,
+    ) => void = () => undefined;
+    const pendingFirestore = new Promise<Awaited<ReturnType<typeof firestoreModule.getDocs>>>(
+      (resolve) => {
+        resolveFirestore = resolve;
+      },
+    );
+    mockedGetDocs.mockReturnValueOnce(pendingFirestore);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    const load = dataSource.loadAllHistorical('uid-test', undefined, { revalidate: true });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
+    expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toEqual([cachedDelivery]);
+
+    resolveFirestore({
+      empty: false,
+      metadata: { fromCache: false },
+      docs: [
+        {
+          id: remoteDelivery.id,
+          data: () => ({
+            clientId: 'andre',
+            clientNameSnapshot: remoteDelivery.cliente,
+            date: remoteDelivery.data,
+            quantity: remoteDelivery.quantidade,
+            totalValue: remoteDelivery.valor,
+            status: remoteDelivery.status,
+            delivered: remoteDelivery.entregue,
+          }),
+        },
+      ],
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+
+    await expect(load).resolves.toEqual([remoteDelivery]);
+    expect(dataSource.getHistoricalDataState()).toBe('remote');
+    expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toEqual([remoteDelivery]);
+  });
+
   it('hydrates the historical cache for first-render filtered queries', async () => {
     const cachedDeliveries: Delivery[] = [
       {
@@ -359,6 +418,50 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
 
     expect(dataSource.getCached({ mode: 'today', date: '2026-08-29' }, 'uid-test')).toEqual([
       historicalDelivery,
+    ]);
+  });
+
+  it('merges a newer daily cache by id without removing historical records', async () => {
+    const historicalDeliveries: Delivery[] = [
+      {
+        id: 'del-daily-merge-update',
+        clientId: 'client:andre',
+        cliente: 'André',
+        data: '2026-08-29',
+        quantidade: 2,
+        valor: 100,
+        status: 'Pago',
+        entregue: true,
+      },
+      {
+        id: 'del-daily-merge-preserve',
+        clientId: 'client:andre',
+        cliente: 'André',
+        data: '2026-08-29',
+        quantidade: 1,
+        valor: 50,
+        status: 'Não Pago',
+        entregue: true,
+      },
+    ];
+    const dailyUpdate = {
+      ...historicalDeliveries[0],
+      quantidade: 3,
+      valor: 150,
+      status: 'Não Pago' as const,
+    };
+    const now = jest.spyOn(Date, 'now');
+    now.mockReturnValueOnce(100).mockReturnValueOnce(200);
+    await firestoreHistoricalDeliveryCache.write('uid-test', historicalDeliveries);
+    await firestoreDeliveryCacheService.write('uid-test', '2026-08-29', [dailyUpdate]);
+    now.mockRestore();
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    await dataSource.hydrateFromCache('uid-test', '2026-08-29');
+
+    expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toEqual([
+      dailyUpdate,
+      historicalDeliveries[1],
     ]);
   });
 

@@ -3,54 +3,89 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ReactNode } from 'react';
 
-import RetailOrderRegistrarScreen from '@/features/retail-orders/components/RetailOrderRegistrarScreen';
+import {
+  RetailOrderFlowProvider,
+  type RetailOrderFlowStep,
+} from '@/features/retail-orders/components/RetailOrderFlowProvider';
+import { RetailOrderStepScreen } from '@/features/retail-orders/components/RetailOrderStepScreen';
 
-const mockRouterPush = jest.fn();
+const mockRouter = {
+  dismissTo: jest.fn(),
+  push: jest.fn(),
+  replace: jest.fn(),
+};
 const mockCreate = jest.fn<Promise<string>, [unknown, unknown]>().mockResolvedValue('order-1');
 const mockPrepareForOrder = jest.fn().mockResolvedValue({});
 const mockRegisterForOrder = jest
   .fn<Promise<string>, [string, unknown]>()
   .mockResolvedValue('payment-1');
 
+const products: {
+  active: boolean;
+  categoryId: string;
+  costMode: 'direct';
+  directCostItemId?: string;
+  productId: string;
+  productName: string;
+  standardSalePrice: number;
+}[] = [
+  {
+    active: true,
+    categoryId: 'category-1',
+    costMode: 'direct' as const,
+    directCostItemId: 'cost-1',
+    productId: 'product-1',
+    productName: 'Cesta Café',
+    standardSalePrice: 100,
+  },
+  {
+    active: true,
+    categoryId: 'category-1',
+    costMode: 'direct' as const,
+    directCostItemId: 'cost-1',
+    productId: 'product-2',
+    productName: 'Cesta Chocolate',
+    standardSalePrice: 50,
+  },
+];
 const mockCatalog = {
   categories: [{ categoryId: 'category-1', label: 'Cestas' }],
   clients: [
     {
       active: true,
+      address: 'Rua Principal, 10',
       clientId: 'client-1',
       defaultDeliveryFee: 12,
       name: 'Cliente Varejo',
       phone: '99999-0000',
     },
-    {
-      active: true,
-      clientId: 'client-2',
-      defaultDeliveryFee: 20,
-      name: 'Outro Cliente',
-    },
   ],
   error: undefined,
   loading: false,
   prepareForOrder: mockPrepareForOrder,
-  products: [
-    {
-      active: true,
-      categoryId: 'category-1',
-      productId: 'product-1',
-      productName: 'Cesta Café',
-      standardSalePrice: 100,
-    },
-    {
-      active: true,
-      categoryId: 'category-1',
-      productId: 'product-2',
-      productName: 'Cesta Chocolate',
-      standardSalePrice: 50,
-    },
-  ],
+  products,
 };
-const defaultClients = mockCatalog.clients;
-const defaultProducts = mockCatalog.products;
+const mockOrderCatalog = {
+  categories: mockCatalog.categories,
+  compositionVersionsByProductId: new Map(),
+  costEntriesByItemId: new Map([
+    [
+      'cost-1',
+      [
+        {
+          entryId: 'entry-1',
+          effectiveDate: '2026-09-15',
+          normalizedUnitCost: 20,
+          purchasedQuantity: 1,
+          purchaseTotalCost: 20,
+          unit: 'un',
+        },
+      ],
+    ],
+  ]),
+  costItems: [{ costItemId: 'cost-1', name: 'Custo', unit: 'un' }],
+  products,
+};
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -58,13 +93,25 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockRouterPush }),
+  usePathname: () => '/registrar-pedido-varejo',
+  useRouter: () => mockRouter,
+}));
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
 }));
 
 jest.mock('@/components/layout', () => ({
   NativeGlassHeader: (props: Record<string, unknown>) => {
     const React = require('react') as typeof import('react');
-    return React.createElement('native-glass-header', props);
+    return React.createElement('native-header', props);
+  },
+}));
+
+jest.mock('@/components/feedback', () => ({
+  Loading: (props: Record<string, unknown>) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('native-loading', props);
   },
 }));
 
@@ -85,10 +132,6 @@ jest.mock('@/components/native', () => ({
     const React = require('react') as typeof import('react');
     return React.createElement('native-dropdown', props);
   },
-  NativeSheet: ({ children, ...props }: { children?: ReactNode }) => {
-    const React = require('react') as typeof import('react');
-    return React.createElement('native-sheet', props, children);
-  },
   NativeTextField: (props: Record<string, unknown>) => {
     const React = require('react') as typeof import('react');
     return React.createElement('native-text-field', props);
@@ -104,6 +147,10 @@ jest.mock('@/components/premium', () => ({
     const React = require('react') as typeof import('react');
     return React.createElement('premium-screen', props, children);
   },
+}));
+
+jest.mock('@/providers', () => ({
+  useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
 }));
 
 jest.mock('@/hooks/useRetailOrderCatalog', () => ({
@@ -125,14 +172,14 @@ jest.mock('@/theme', () => ({
     theme: {
       colors: {
         background: '#F7F7F7',
-        contrastContent: '#FFFFFF',
-        contrastSurface: '#000000',
         danger: '#FF0000',
         surface: '#FFFFFF',
+        surfaceMuted: '#F2F2F7',
         textPrimary: '#111111',
         textSecondary: '#666666',
       },
-      radius: { xl: 24 },
+      layout: { screenHorizontalPadding: 24, tabBarHeight: 64 },
+      radius: { md: 12, xl: 24 },
       spacing: {
         lg: 20,
         md: 16,
@@ -140,15 +187,12 @@ jest.mock('@/theme', () => ({
         xl: 24,
         xs: 4,
         xxl: 32,
-        xxs: 2,
-        xxxl: 40,
       },
       typography: {
         body: {},
         footnote: {},
         headline: {},
         title2: {},
-        title3: {},
       },
     },
   }),
@@ -156,7 +200,12 @@ jest.mock('@/theme', () => ({
 
 jest.mock('@/utils/data', () => ({
   formatCurrency: (value: number) => `R$ ${value.toFixed(2)}`,
-  normalizeClientKey: (value: string) => value.trim().toLowerCase(),
+  normalizeClientKey: (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim(),
   normalizeMoney: (value: unknown) => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
     if (typeof value !== 'string' || value.trim() === '') return undefined;
@@ -168,11 +217,8 @@ jest.mock('@/utils/data', () => ({
     return Number.isFinite(parsed) ? parsed : undefined;
   },
   parseIsoCalendarDate: jest.fn(() => new Date(2026, 8, 15)),
+  formatPtBrDate: (value: string) => (value === '2026-09-15' ? '15/09/2026' : value),
   todayIso: jest.fn(() => '2026-09-15'),
-}));
-
-jest.mock('@/utils/haptics', () => ({
-  triggerLightImpactHaptic: jest.fn(),
 }));
 
 function findNodes(renderer: ReactTestRenderer, type: string): ReactTestInstance[] {
@@ -185,264 +231,369 @@ function findButton(renderer: ReactTestRenderer, label: string): ReactTestInstan
   return button;
 }
 
-function renderScreen(): ReactTestRenderer {
+function collectText(node: ReactTestInstance): string {
+  return node.children
+    .map((child) => (typeof child === 'string' ? child : collectText(child)))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function renderStep(step: RetailOrderFlowStep): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(createElement(RetailOrderRegistrarScreen));
+    renderer = create(
+      createElement(RetailOrderFlowProvider, null, createElement(RetailOrderStepScreen, { step })),
+    );
   });
   return renderer;
 }
 
-async function openAndGoToDetails(renderer: ReactTestRenderer): Promise<void> {
+function updateStep(renderer: ReactTestRenderer, step: RetailOrderFlowStep) {
+  act(() => {
+    renderer.update(
+      createElement(RetailOrderFlowProvider, null, createElement(RetailOrderStepScreen, { step })),
+    );
+  });
+}
+
+async function selectClientAndPushProducts(renderer: ReactTestRenderer) {
   await act(async () => {
-    findButton(renderer, 'Novo pedido').props.onPress();
+    findNodes(renderer, 'native-dropdown')[0].props.onValueChange('client-1');
     await Promise.resolve();
   });
-  const clientPicker = findNodes(renderer, 'native-dropdown')[0];
-  await act(async () => {
-    clientPicker.props.onValueChange('client-1');
-    await Promise.resolve();
-  });
-  expect(findNodes(renderer, 'native-dropdown')[0].props.label).toBe('Cliente Varejo');
   await act(async () => {
     findButton(renderer, 'Continuar').props.onPress();
     await Promise.resolve();
   });
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/registrar-pedido-varejo/produtos');
+  updateStep(renderer, 'products');
+}
 
-  const productPicker = findNodes(renderer, 'native-dropdown')[0];
+async function addProductAndPushDetails(renderer: ReactTestRenderer) {
   await act(async () => {
-    productPicker.props.onValueChange('product-1');
+    findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
     await Promise.resolve();
   });
   await act(async () => {
     findButton(renderer, 'Adicionar produto').props.onPress();
     await Promise.resolve();
   });
+  expect(findNodes(renderer, 'native-text-field')).toHaveLength(1);
   await act(async () => {
     findButton(renderer, 'Continuar').props.onPress();
     await Promise.resolve();
   });
+  expect(mockRouter.push).toHaveBeenLastCalledWith('/registrar-pedido-varejo/detalhes');
+  updateStep(renderer, 'details');
 }
 
-async function goToPayment(renderer: ReactTestRenderer): Promise<void> {
-  await openAndGoToDetails(renderer);
-  await act(async () => {
-    findButton(renderer, 'Ver resumo').props.onPress();
-    await Promise.resolve();
-  });
-  await act(async () => {
-    findButton(renderer, 'Continuar').props.onPress();
-    await Promise.resolve();
-  });
-}
-
-describe('RetailOrderRegistrarScreen', () => {
+describe('RetailOrderRegistrarScreen wizard', () => {
   beforeEach(() => {
-    mockCatalog.clients = defaultClients;
-    mockCatalog.products = defaultProducts;
-    mockRouterPush.mockClear();
+    mockRouter.dismissTo.mockClear();
+    mockRouter.push.mockClear();
+    mockRouter.replace.mockClear();
     mockCreate.mockClear().mockResolvedValue('order-1');
-    mockPrepareForOrder.mockClear().mockResolvedValue({});
+    mockPrepareForOrder.mockClear().mockResolvedValue(mockOrderCatalog);
     mockRegisterForOrder.mockClear().mockResolvedValue('payment-1');
+    mockCatalog.clients = [
+      {
+        active: true,
+        address: 'Rua Principal, 10',
+        clientId: 'client-1',
+        defaultDeliveryFee: 12,
+        name: 'Cliente Varejo',
+        phone: '99999-0000',
+      },
+    ];
+    mockCatalog.products = products;
   });
 
-  it('uses the client default delivery fee as the initial suggestion', async () => {
-    const renderer = renderScreen();
-    await openAndGoToDetails(renderer);
+  it('starts at Cliente without a NativeSheet and uses the native-stack page shell', () => {
+    const renderer = renderStep('client');
+    const premiumScreen = findNodes(renderer, 'premium-screen')[0];
 
-    const deliveryFee = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Taxa de entrega cobrada',
+    expect(findNodes(renderer, 'native-sheet')).toHaveLength(0);
+    expect(premiumScreen.props.overlayHeader).toBeDefined();
+    expect(premiumScreen.props.overlayHeader.props.title).toBe('Cliente');
+    expect(premiumScreen.props.progressiveBlur).toBe(true);
+    expect(premiumScreen.props.scrollViewProps).toBeUndefined();
+    expect(collectText(renderer.root)).toContain('Etapa 1 de 5');
+    expect(findNodes(renderer, 'native-button').some((node) => node.props.label === 'Voltar')).toBe(
+      false,
     );
-    expect(deliveryFee?.props.value).toBe('12');
+    expect(premiumScreen.props.contentContainerStyle[1].paddingTop).toBeUndefined();
+    expect(premiumScreen.props.contentContainerStyle[1].paddingBottom).toBe(88);
+    expect(findNodes(renderer, 'premium-card')[0].props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ marginTop: 16 })]),
+    );
   });
 
-  it('does not overwrite manual fee or address edits when the client changes', async () => {
-    const renderer = renderScreen();
-    await openAndGoToDetails(renderer);
-    const deliveryFee = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Taxa de entrega cobrada',
-    );
-    const deliveryAddress = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Endereço de entrega',
-    );
-    act(() => deliveryFee?.props.onChangeText('25'));
-    act(() => deliveryAddress?.props.onChangeText('Rua manual, 20'));
+  it('pushes Produtos after selecting a client', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
 
-    await act(async () => {
-      findButton(renderer, 'Voltar').props.onPress();
-      await Promise.resolve();
-    });
-    await act(async () => {
-      findButton(renderer, 'Voltar').props.onPress();
-      await Promise.resolve();
-    });
-    await act(async () => {
-      findNodes(renderer, 'native-dropdown')[0].props.onValueChange('client-2');
-      await Promise.resolve();
-    });
-    await act(async () => {
-      findButton(renderer, 'Continuar').props.onPress();
-      await Promise.resolve();
-    });
-    await act(async () => {
-      findButton(renderer, 'Continuar').props.onPress();
-      await Promise.resolve();
-    });
-
-    const nextDeliveryFee = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Taxa de entrega cobrada',
+    expect(collectText(renderer.root)).toContain('Etapa 2 de 5');
+    expect(findNodes(renderer, 'premium-screen')[0].props.overlayHeader.props.title).toBe(
+      'Produtos',
     );
-    const nextDeliveryAddress = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Endereço de entrega',
+    expect(findNodes(renderer, 'premium-screen')[0].props.progressiveBlur).toBe(true);
+    expect(findNodes(renderer, 'native-button').some((node) => node.props.label === 'Voltar')).toBe(
+      false,
     );
-    expect(nextDeliveryFee?.props.value).toBe('25');
-    expect(nextDeliveryAddress?.props.value).toBe('Rua manual, 20');
   });
 
-  it('guides the user to Retail clients when no active client exists', () => {
-    mockCatalog.clients = [];
-    const renderer = renderScreen();
-    const button = findButton(renderer, 'Abrir Clientes Varejo');
+  it('does not create a line item until the product is explicitly added', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
 
-    expect(button.props.color).toBe('#FFFFFF');
-    expect(button.props.glassTint).toBe('#000000');
-
-    act(() => button.props.onPress());
-
-    expect(mockRouterPush).toHaveBeenCalledWith('/clientes-varejo');
-  });
-
-  it('guides the user to the Retail catalog when no active product exists', () => {
-    mockCatalog.products = [];
-    const renderer = renderScreen();
-    const button = findButton(renderer, 'Abrir Catálogo Varejo');
-
-    act(() => button.props.onPress());
-
-    expect(mockRouterPush).toHaveBeenCalledWith('/catalogo-varejo');
-  });
-
-  it('supports multiple products, builds the order and registers an optional initial payment', async () => {
-    const renderer = renderScreen();
-    await act(async () => {
-      findButton(renderer, 'Novo pedido').props.onPress();
-      await Promise.resolve();
-    });
-    await act(async () => {
-      findNodes(renderer, 'native-dropdown')[0].props.onValueChange('client-1');
-      await Promise.resolve();
-    });
-    await act(async () => {
-      findButton(renderer, 'Continuar').props.onPress();
-      await Promise.resolve();
-    });
     await act(async () => {
       findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
       await Promise.resolve();
     });
-    expect(findNodes(renderer, 'native-dropdown')[0].props.label).toContain('Cesta Café');
+    expect(findNodes(renderer, 'native-text-field')).toHaveLength(0);
+
     await act(async () => {
       findButton(renderer, 'Adicionar produto').props.onPress();
       await Promise.resolve();
     });
+    expect(findNodes(renderer, 'native-text-field')).toHaveLength(1);
+    expect(collectText(renderer.root)).toContain('Cesta Café');
+  });
+
+  it('shows the cost problem in the product card and blocks Details', async () => {
+    mockPrepareForOrder.mockResolvedValueOnce({
+      ...mockOrderCatalog,
+      products: [{ ...products[0], costMode: undefined }, products[1]],
+    });
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
     await act(async () => {
-      findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-2');
+      findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
       await Promise.resolve();
     });
     await act(async () => {
       findButton(renderer, 'Adicionar produto').props.onPress();
       await Promise.resolve();
     });
-    expect(findNodes(renderer, 'native-text-field')).toHaveLength(2);
+
+    expect(collectText(renderer.root)).toContain(
+      'Configure o modo de custo deste produto no Catálogo Varejo.',
+    );
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+  });
+
+  it('direct cost without a linked item points to the product configuration', async () => {
+    const invalidProducts = [{ ...products[0], directCostItemId: undefined }, products[1]];
+    mockCatalog.products = invalidProducts;
+    mockPrepareForOrder.mockResolvedValueOnce({
+      ...mockOrderCatalog,
+      products: invalidProducts,
+    });
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
     await act(async () => {
-      findButton(renderer, 'Continuar').props.onPress();
+      findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
       await Promise.resolve();
     });
+    await act(async () => {
+      findButton(renderer, 'Adicionar produto').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(collectText(renderer.root)).toContain(
+      'Selecione o item de custo direto no Catálogo Varejo.',
+    );
+  });
+
+  it('direct cost without historical entry points to Costs with item and date', async () => {
+    mockPrepareForOrder.mockResolvedValueOnce({
+      ...mockOrderCatalog,
+      costEntriesByItemId: new Map([['cost-1', []]]),
+    });
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await act(async () => {
+      findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+      await Promise.resolve();
+    });
+    await act(async () => {
+      findButton(renderer, 'Adicionar produto').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(collectText(renderer.root)).toContain(
+      'Não há custo histórico válido para Custo em 15/09/2026. Cadastre uma entrada em Custos com data igual ou anterior à data do pedido.',
+    );
+  });
+
+  it('pushes Details only after the product cost is valid', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
+
+    expect(findNodes(renderer, 'premium-screen')[0].props.overlayHeader.props.title).toBe(
+      'Detalhes do pedido',
+    );
+    expect(collectText(renderer.root)).toContain('Data do pedido');
+    expect(collectText(renderer.root)).toContain('Taxa de entrega cobrada');
+    expect(collectText(renderer.root)).toContain('Custo real da entrega');
+    expect(findNodes(renderer, 'native-button').some((node) => node.props.label === 'Voltar')).toBe(
+      false,
+    );
+  });
+
+  it('preserves the draft through Details and renders a non-empty Summary', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
     await act(async () => {
       findButton(renderer, 'Ver resumo').props.onPress();
       await Promise.resolve();
     });
-    await act(async () => {
-      findButton(renderer, 'Continuar').props.onPress();
-      await Promise.resolve();
-    });
-    expect(
-      findNodes(renderer, 'native-dropdown').find(
-        (node) => node.props.accessibilityLabel === 'Forma do pagamento inicial',
-      )?.props.label,
-    ).toBe('Pix');
+    updateStep(renderer, 'summary');
 
-    const paymentAmount = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Valor do pagamento inicial',
-    );
-    act(() => paymentAmount?.props.onChangeText('30'));
-    await act(async () => {
-      findButton(renderer, 'Confirmar pedido').props.onPress();
-      await Promise.resolve();
-    });
-
-    expect(mockPrepareForOrder).toHaveBeenCalledWith(['product-1', 'product-2']);
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        clientId: 'client-1',
-        deliveryFee: 12,
-        lineItems: [
-          { productId: 'product-1', quantity: 1 },
-          { productId: 'product-2', quantity: 1 },
-        ],
-      }),
-      {},
-    );
-    expect(mockRegisterForOrder).toHaveBeenCalledWith(
-      'order-1',
-      expect.objectContaining({ amount: 30, method: 'Pix' }),
-    );
-    expect(findNodes(renderer, 'native-sheet')[0].props.visible).toBe(false);
-    expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(true);
-    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(collectText(renderer.root)).toContain('Cliente Varejo');
+    expect(collectText(renderer.root)).toContain('Cesta Café');
+    expect(collectText(renderer.root)).toContain('Subtotal dos produtos');
+    expect(collectText(renderer.root)).toContain('Total cobrado');
+    expect(collectText(renderer.root)).not.toContain('Não foi possível calcular o resumo');
   });
 
-  it('can confirm without a payment and keeps the draft visible when creation fails', async () => {
-    const renderer = renderScreen();
-    await goToPayment(renderer);
-    mockCreate.mockRejectedValueOnce(new Error('Falha de rede'));
-    const paymentAmount = findNodes(renderer, 'native-text-field').find(
-      (field) => field.props.accessibilityLabel === 'Valor do pagamento inicial',
-    );
-    act(() => paymentAmount?.props.onChangeText('30'));
+  it('pushes Payment with its financial context and has no content Back button', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
+    await act(async () => {
+      findButton(renderer, 'Ver resumo').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'summary');
+    await act(async () => {
+      findButton(renderer, 'Continuar para pagamento').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'payment');
 
+    expect(collectText(renderer.root)).toContain('Total do pedido');
+    expect(collectText(renderer.root)).toContain('A receber após este pagamento');
+    expect(findNodes(renderer, 'native-button').some((node) => node.props.label === 'Voltar')).toBe(
+      false,
+    );
+  });
+
+  it('confirms without payment, shows success, and dismisses the wizard to Registrar', async () => {
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
+    await act(async () => {
+      findButton(renderer, 'Ver resumo').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'summary');
+    await act(async () => {
+      findButton(renderer, 'Continuar para pagamento').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'payment');
     await act(async () => {
       findButton(renderer, 'Confirmar pedido').props.onPress();
       await Promise.resolve();
     });
 
+    expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(mockRegisterForOrder).not.toHaveBeenCalled();
-    expect(findNodes(renderer, 'native-sheet')[0].props.visible).toBe(true);
-    expect(paymentAmount?.props.value).toBe('30');
-    expect(findButton(renderer, 'Confirmar pedido')).toBeDefined();
+    expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(true);
+    await act(async () => {
+      findNodes(renderer, 'native-dialog')[0].props.actions[0].onPress();
+    });
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/registrar');
   });
 
-  it('does not submit twice while the order persistence is pending', async () => {
+  it('prevents double submit and keeps the draft visible after creation failure', async () => {
     let resolveCreate!: (orderId: string) => void;
     mockCreate.mockImplementationOnce(
       () => new Promise<string>((resolve) => (resolveCreate = resolve)),
     );
-    const renderer = renderScreen();
-    await goToPayment(renderer);
-
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
     await act(async () => {
-      findButton(renderer, 'Sem pagamento agora').props.onPress();
+      findButton(renderer, 'Ver resumo').props.onPress();
       await Promise.resolve();
     });
+    updateStep(renderer, 'summary');
     await act(async () => {
-      findButton(renderer, 'Sem pagamento agora').props.onPress();
+      findButton(renderer, 'Continuar para pagamento').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'payment');
+    const paymentAmount = findNodes(renderer, 'native-text-field').find(
+      (field) => field.props.accessibilityLabel === 'Valor do pagamento inicial',
+    );
+    act(() => paymentAmount?.props.onChangeText('30'));
+    await act(async () => {
+      findButton(renderer, 'Confirmar pedido').props.onPress();
+      findButton(renderer, 'Confirmar pedido').props.onPress();
       await Promise.resolve();
     });
     expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(findNodes(renderer, 'native-loading')[0]?.props.label).toBe('Salvando pedido…');
 
     await act(async () => {
       resolveCreate('order-1');
       await Promise.resolve();
     });
+    expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(true);
+  });
+
+  it('preserves the pending order after payment failure and retries only the payment', async () => {
+    mockRegisterForOrder.mockRejectedValueOnce(new Error('Falha no pagamento'));
+    const renderer = renderStep('client');
+    await selectClientAndPushProducts(renderer);
+    await addProductAndPushDetails(renderer);
+    await act(async () => {
+      findButton(renderer, 'Ver resumo').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'summary');
+    await act(async () => {
+      findButton(renderer, 'Continuar para pagamento').props.onPress();
+      await Promise.resolve();
+    });
+    updateStep(renderer, 'payment');
+    const paymentAmount = findNodes(renderer, 'native-text-field').find(
+      (field) => field.props.accessibilityLabel === 'Valor do pagamento inicial',
+    );
+    act(() => paymentAmount?.props.onChangeText('1'));
+
+    await act(async () => {
+      findButton(renderer, 'Confirmar pedido').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockRegisterForOrder).toHaveBeenCalledTimes(1);
+    expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(false);
+    expect(collectText(renderer.root)).toContain(
+      'O pedido foi criado, mas o pagamento não foi registrado.',
+    );
+    expect(paymentAmount?.props.value).toBe('1');
+    expect(findButton(renderer, 'Tentar registrar pagamento')).toBeDefined();
+
+    mockRegisterForOrder.mockResolvedValueOnce('payment-retry');
+    await act(async () => {
+      findButton(renderer, 'Tentar registrar pagamento').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockRegisterForOrder).toHaveBeenCalledTimes(2);
+    expect(findNodes(renderer, 'native-dialog')[0].props.visible).toBe(true);
+    expect(
+      findNodes(renderer, 'native-button').some(
+        (button) => button.props.label === 'Tentar registrar pagamento',
+      ),
+    ).toBe(false);
   });
 });

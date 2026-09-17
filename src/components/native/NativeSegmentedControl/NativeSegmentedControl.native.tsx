@@ -15,6 +15,7 @@ export default function NativeSegmentedControlNative(props: NativeSegmentedContr
   const NativeImplementation = useLazyNativeImplementation(canUseExpoUI, loadImplementation);
 
   return NativeImplementation ? (
+    // eslint-disable-next-line react-hooks/static-components
     <NativeImplementation {...props} />
   ) : (
     <NativeSegmentedControlExpo {...props} />

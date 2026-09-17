@@ -87,9 +87,9 @@ jest.mock('@/features/open-payments/components/OpenPaymentClientIcon', () => ({
 }));
 jest.mock('@/features/retail-orders/components/RetailOrderRegistrarScreen', () => ({
   __esModule: true,
-  default: () => {
+  RetailOrderRegistrarLauncher: () => {
     const React = require('react') as typeof import('react');
-    return React.createElement('retail-order-registrar');
+    return React.createElement('retail-order-registrar-launcher');
   },
 }));
 jest.mock('@/hooks/useClients', () => ({ useClients: mockUseClients }));
@@ -170,7 +170,7 @@ describe('Registrar app mode routing', () => {
     const renderer = renderRegistrar();
 
     expect(
-      renderer.root.findAll((node) => String(node.type) === 'retail-order-registrar'),
+      renderer.root.findAll((node) => String(node.type) === 'retail-order-registrar-launcher'),
     ).toHaveLength(1);
     expect(renderer.root.findAll((node) => String(node.type) === 'native-header')).toHaveLength(0);
     expect(mockUseClients).not.toHaveBeenCalled();
@@ -186,7 +186,7 @@ describe('Registrar app mode routing', () => {
     act(() => renderer.update(createElement(PrototypeRegistrar)));
 
     expect(
-      renderer.root.findAll((node) => String(node.type) === 'retail-order-registrar'),
+      renderer.root.findAll((node) => String(node.type) === 'retail-order-registrar-launcher'),
     ).toHaveLength(0);
     expect(renderer.root.findAll((node) => String(node.type) === 'native-header')).toHaveLength(1);
   });

@@ -59,7 +59,9 @@ type FirestoreOps = Pick<
   | 'serverTimestamp'
   | 'setDoc'
   | 'updateDoc'
->;
+> & {
+  getDocsFromServer?: (typeof import('firebase/firestore'))['getDocsFromServer'];
+};
 
 let firestoreOpsOverride: FirestoreOps | undefined;
 let firestoreDbOverride: unknown | undefined;
@@ -292,6 +294,21 @@ function sortOrders(orders: readonly RetailOrder[]): RetailOrder[] {
 export type RetailOrderStateErrorCode =
   'order_not_found' | 'order_not_editable' | 'order_has_posted_payment' | 'invalid_order_patch';
 
+export type RetailOrderLoadSource = 'none' | 'cache' | 'local' | 'remote';
+
+export type RetailOrderLoadState = {
+  source: RetailOrderLoadSource;
+  revalidating: boolean;
+  remoteComplete: boolean;
+  error?: string;
+};
+
+const INITIAL_RETAIL_ORDER_LOAD_STATE: RetailOrderLoadState = {
+  remoteComplete: false,
+  revalidating: false,
+  source: 'none',
+};
+
 export class RetailOrderStateError extends Error {
   public readonly code: RetailOrderStateErrorCode;
 
@@ -313,6 +330,7 @@ export class RetailOrderDataSource {
   private boundSessionVersion: number | undefined;
   private loadEpoch = 0;
   private lastAppliedSource: 'cache' | 'remote' | 'local' | null = null;
+  private loadState: RetailOrderLoadState = INITIAL_RETAIL_ORDER_LOAD_STATE;
   private readonly inFlightHydrations = new Map<string, Promise<boolean>>();
   private readonly inFlightLoads = new Map<string, Promise<void>>();
 
@@ -326,6 +344,11 @@ export class RetailOrderDataSource {
   ): readonly RetailOrder[] | null => {
     if (!this.isSessionVisible(userId, sessionVersion)) return null;
     return this.snapshot;
+  };
+
+  public getLoadState = (userId?: string, sessionVersion?: number): RetailOrderLoadState => {
+    if (!this.isSessionVisible(userId, sessionVersion)) return INITIAL_RETAIL_ORDER_LOAD_STATE;
+    return this.loadState;
   };
 
   public subscribe = (listener: () => void): (() => void) => {
@@ -349,6 +372,7 @@ export class RetailOrderDataSource {
     this.records.clear();
     this.snapshot = null;
     this.lastAppliedSource = null;
+    this.loadState = INITIAL_RETAIL_ORDER_LOAD_STATE;
     this.publish();
   }
 
@@ -390,6 +414,12 @@ export class RetailOrderDataSource {
     this.records = new Map(cachedRecords.map((record) => [record.id, record]));
     this.snapshot = sortOrders(snapshotForRecords(this.records.values()));
     this.lastAppliedSource = 'cache';
+    this.loadState = {
+      error: undefined,
+      remoteComplete: false,
+      revalidating: false,
+      source: 'cache',
+    };
     this.publish();
     return true;
   }
@@ -415,12 +445,43 @@ export class RetailOrderDataSource {
     return load;
   }
 
+  public async loadHistorical(userId?: string, sessionVersion?: number): Promise<void> {
+    if (!userId) throw new Error('Sessão não disponível.');
+    const generation = this.beginSessionRequest(userId, sessionVersion);
+    if (generation === null) return;
+    const epoch = this.loadEpoch;
+    const key = `${this.requestKey(userId, generation)}:${epoch}:historical`;
+    const existing = this.inFlightLoads.get(key);
+    if (existing) return existing;
+    const load = this.loadFromFirestore(userId, generation, sessionVersion, epoch, true);
+    this.inFlightLoads.set(key, load);
+    void load.then(
+      () => {
+        if (this.inFlightLoads.get(key) === load) this.inFlightLoads.delete(key);
+      },
+      () => {
+        if (this.inFlightLoads.get(key) === load) this.inFlightLoads.delete(key);
+      },
+    );
+    return load;
+  }
+
   private async loadFromFirestore(
     userId: string,
     generation: number,
     sessionVersion: number | undefined,
     epoch: number,
+    historical = false,
   ): Promise<void> {
+    if (historical) {
+      this.loadState = {
+        error: undefined,
+        remoteComplete: false,
+        revalidating: true,
+        source: this.loadSourceFromLastAppliedSource(),
+      };
+      this.publish();
+    }
     await this.hydrateFromCache(userId, sessionVersion);
     if (
       !this.isSessionRequestCurrent(userId, generation, sessionVersion) ||
@@ -428,8 +489,21 @@ export class RetailOrderDataSource {
     ) {
       return;
     }
+    if (historical) {
+      this.loadState = {
+        error: undefined,
+        remoteComplete: false,
+        revalidating: true,
+        source: this.loadSourceFromLastAppliedSource(),
+      };
+      this.publish();
+    }
     try {
-      const { getDocs } = await getFirestoreOps();
+      const firestoreOps = await getFirestoreOps();
+      const getDocs =
+        historical && firestoreOps.getDocsFromServer
+          ? firestoreOps.getDocsFromServer
+          : firestoreOps.getDocs;
       const result = (await getDocs(await collectionFor(userId))) as QuerySnapshotLike;
       if (
         !this.isSessionRequestCurrent(userId, generation, sessionVersion) ||
@@ -451,6 +525,15 @@ export class RetailOrderDataSource {
       if (result.metadata?.fromCache !== true) {
         void retailOrderCatalogCache.write(userId, [...records.values()]).catch(() => undefined);
       }
+      if (historical) {
+        const remoteComplete = result.metadata?.fromCache !== true;
+        this.loadState = {
+          error: remoteComplete ? undefined : 'A atualização remota ainda não foi confirmada.',
+          remoteComplete,
+          revalidating: false,
+          source: remoteComplete ? 'remote' : 'cache',
+        };
+      }
       this.publish();
     } catch (error) {
       if (
@@ -458,6 +541,15 @@ export class RetailOrderDataSource {
         this.loadEpoch !== epoch
       ) {
         return;
+      }
+      if (historical) {
+        this.loadState = {
+          error: error instanceof Error ? error.message : 'Não foi possível atualizar o histórico.',
+          remoteComplete: false,
+          revalidating: false,
+          source: this.loadSourceFromLastAppliedSource(),
+        };
+        this.publish();
       }
       throw error;
     }
@@ -543,6 +635,12 @@ export class RetailOrderDataSource {
     this.records.set(reference.id, { id: reference.id, ...order });
     this.rebuildSnapshot();
     this.lastAppliedSource = 'local';
+    this.loadState = {
+      error: undefined,
+      remoteComplete: false,
+      revalidating: false,
+      source: 'local',
+    };
     this.publish();
     void retailOrderCatalogCache
       .write(request.userId, [...this.records.values()])
@@ -774,6 +872,10 @@ export class RetailOrderDataSource {
 
   private rebuildSnapshot(): void {
     this.snapshot = sortOrders(snapshotForRecords(this.records.values()));
+  }
+
+  private loadSourceFromLastAppliedSource(): RetailOrderLoadSource {
+    return this.lastAppliedSource ?? 'none';
   }
 
   private publish(): void {

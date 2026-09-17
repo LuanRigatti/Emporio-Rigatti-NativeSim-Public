@@ -17,7 +17,16 @@ export {
   setFirestoreRetailOrderDataSourceOpsForTesting,
   RetailOrderStateError,
 } from './RetailOrderDataSource';
-export type { RetailOrderRecord } from './RetailOrderDataSource';
+export type {
+  RetailOrderLoadSource,
+  RetailOrderLoadState,
+  RetailOrderRecord,
+} from './RetailOrderDataSource';
+export {
+  RetailOrderHistoryFinancialSummaryService,
+  retailOrderHistoryFinancialSummaryService,
+} from './RetailOrderHistoryFinancialSummaryService';
+export type { RetailOrderHistoryFinancialState } from './RetailOrderHistoryFinancialSummaryService';
 export { RetailPaymentCatalogCache, retailPaymentCatalogCache } from './RetailPaymentCatalogCache';
 export {
   RetailPaymentDataSource,
@@ -36,11 +45,13 @@ export {
 export {
   buildRetailInitialPaymentDraft,
   buildRetailOrderCreateInput,
+  calculateRetailInitialPaymentPreview,
   calculateRetailOrderDraftTotals,
   RETAIL_PAYMENT_METHOD_OPTIONS,
 } from './RetailOrderDraftService';
 export type {
   RetailInitialPaymentValues,
+  RetailInitialPaymentPreview,
   RetailOrderDraftLine,
   RetailOrderDraftLineTotal,
   RetailOrderDraftTotals,

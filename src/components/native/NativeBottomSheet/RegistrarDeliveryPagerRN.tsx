@@ -7,6 +7,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { Host } from '@expo/ui/swift-ui';
@@ -26,30 +27,32 @@ export default function RegistrarDeliveryPagerRN({
 }: RegistrarDeliveryPagerRNProps) {
   const pagerRef = useRef<ScrollView>(null);
   const settledPageRef = useRef<0 | 1>(0);
+  const { width: viewportWidth } = useWindowDimensions();
   const [pagerWidth, setPagerWidth] = useState(0);
+  const effectivePagerWidth = pagerWidth || viewportWidth;
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
-    const width = event.nativeEvent.layout.width;
-    if (width > 0) setPagerWidth(width);
+    const { width } = event.nativeEvent.layout;
+    if (width > 0) setPagerWidth((current) => (current === width ? current : width));
   }, []);
 
   useEffect(() => {
-    if (pagerWidth <= 0) return;
+    if (effectivePagerWidth <= 0) return;
 
     pagerRef.current?.scrollTo({
       animated: true,
-      x: pagerWidth * requestedPage,
+      x: effectivePagerWidth * requestedPage,
       y: 0,
     });
-  }, [pagerWidth, requestedPage]);
+  }, [effectivePagerWidth, requestedPage]);
 
   const handleMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (pagerWidth <= 0) return;
+      if (effectivePagerWidth <= 0) return;
 
       const page = Math.min(
         1,
-        Math.max(0, Math.round(event.nativeEvent.contentOffset.x / pagerWidth)),
+        Math.max(0, Math.round(event.nativeEvent.contentOffset.x / effectivePagerWidth)),
       ) as 0 | 1;
 
       if (page === settledPageRef.current) return;
@@ -57,7 +60,7 @@ export default function RegistrarDeliveryPagerRN({
       settledPageRef.current = page;
       onPageSettled(page);
     },
-    [onPageSettled, pagerWidth],
+    [effectivePagerWidth, onPageSettled],
   );
 
   return (
@@ -72,10 +75,10 @@ export default function RegistrarDeliveryPagerRN({
         showsHorizontalScrollIndicator={false}
         style={styles.pager}
       >
-        <View style={[styles.page, { width: pagerWidth }]}>
+        <View style={[styles.page, { width: effectivePagerWidth }]}>
           <Host style={styles.nativePage}>{listPage}</Host>
         </View>
-        <View style={[styles.page, { width: pagerWidth }]}>
+        <View style={[styles.page, { width: effectivePagerWidth }]}>
           <Host style={styles.nativePage}>{detailPage}</Host>
         </View>
       </ScrollView>
@@ -100,5 +103,6 @@ const styles = StyleSheet.create({
   },
   pagerContent: {
     alignItems: 'stretch',
+    flexGrow: 1,
   },
 });

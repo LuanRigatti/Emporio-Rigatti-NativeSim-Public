@@ -33,7 +33,9 @@ export default function NativeSegmentedControlExpo({
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             key={option}
-            onPress={() => onSelectedIndexChange(index)}
+            onPress={() => {
+              onSelectedIndexChange(index);
+            }}
             style={({ pressed }) => [
               styles.item,
               {

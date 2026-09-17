@@ -1,4 +1,4 @@
-import type { RetailOrder, RetailOrderFinancialSummary } from '@/types/data';
+import type { RetailOrder, RetailOrderFinancialSummary, RetailPayment } from '@/types/data';
 
 import { calculateRetailOrderFinancials } from './RetailOrderCalculationService';
 import { retailPaymentDataSource, type RetailPaymentDataSource } from './RetailPaymentDataSource';
@@ -16,7 +16,7 @@ export type RetailOrderHistoryFinancialLoadOptions = {
 };
 
 type RetailPaymentReader = Pick<RetailPaymentDataSource, 'load' | 'list'> &
-  Partial<Pick<RetailPaymentDataSource, 'hydrateFromCache'>>;
+  Partial<Pick<RetailPaymentDataSource, 'getSnapshot' | 'hydrateFromCache'>>;
 
 type CachedSummary = {
   signature: string;
@@ -25,10 +25,16 @@ type CachedSummary = {
 
 export class RetailOrderHistoryFinancialSummaryService {
   private readonly cache = new Map<string, CachedSummary>();
+  private readonly listeners = new Set<() => void>();
 
   public constructor(
     private readonly paymentReader: RetailPaymentReader = retailPaymentDataSource,
   ) {}
+
+  public subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
 
   public clear(userId?: string, sessionVersion?: number): void {
     if (!userId) {
@@ -95,6 +101,27 @@ export class RetailOrderHistoryFinancialSummaryService {
       signature: getRetailOrderHistoryFinancialSignature(order),
       summary,
     });
+    return summary;
+  }
+
+  public updateForOrder(
+    order: RetailOrder,
+    payments: readonly RetailPayment[],
+    userId: string,
+    sessionVersion?: number,
+  ): RetailOrderFinancialSummary | undefined {
+    const currentPayments = this.paymentReader.getSnapshot?.(order.orderId, userId, sessionVersion);
+    if (this.paymentReader.getSnapshot && currentPayments === null) return undefined;
+
+    const summary = calculateRetailOrderFinancials({
+      order,
+      payments: currentPayments ?? payments,
+    });
+    this.cache.set(this.cacheKey(order, userId, sessionVersion), {
+      signature: getRetailOrderHistoryFinancialSignature(order),
+      summary,
+    });
+    this.listeners.forEach((listener) => listener());
     return summary;
   }
 

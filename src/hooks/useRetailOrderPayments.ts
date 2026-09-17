@@ -4,7 +4,19 @@ import { useAuth } from '@/providers';
 import { retailPaymentDataSource } from '@/services/retail-orders';
 import type { RetailPayment, RetailPaymentDraft } from '@/types/data';
 
-export function useRetailOrderPayments(orderId?: string) {
+export type RetailOrderPaymentRegistrationSuccessHandler = (
+  orderId: string,
+  payments: readonly RetailPayment[],
+) => void;
+
+export type UseRetailOrderPaymentsOptions = {
+  onRegisterSuccess?: RetailOrderPaymentRegistrationSuccessHandler;
+};
+
+export function useRetailOrderPayments(
+  orderId?: string,
+  { onRegisterSuccess }: UseRetailOrderPaymentsOptions = {},
+) {
   const { sessionVersion, status: authStatus, user } = useAuth();
   const userId = user?.id;
   const [loading, setLoading] = useState(Boolean(user && orderId));
@@ -57,9 +69,30 @@ export function useRetailOrderPayments(orderId?: string) {
 
   const payments = orderId ? retailPaymentDataSource.list(orderId, userId, sessionVersion) : [];
   const register = useCallback(
-    (input: RetailPaymentDraft) =>
-      retailPaymentDataSource.register(userId, orderId ?? '', input, sessionVersion),
-    [orderId, sessionVersion, userId],
+    async (input: RetailPaymentDraft) => {
+      const paymentId = await retailPaymentDataSource.register(
+        userId,
+        orderId ?? '',
+        input,
+        sessionVersion,
+      );
+      if (orderId && onRegisterSuccess) {
+        const currentPayments = retailPaymentDataSource.getSnapshot(
+          orderId,
+          userId,
+          sessionVersion,
+        );
+        if (currentPayments) {
+          try {
+            onRegisterSuccess(orderId, currentPayments);
+          } catch {
+            // The payment is already persisted; a stale/failed cache update must not turn it into an error.
+          }
+        }
+      }
+      return paymentId;
+    },
+    [onRegisterSuccess, orderId, sessionVersion, userId],
   );
   const registerForOrder = useCallback(
     (targetOrderId: string, input: RetailPaymentDraft) =>

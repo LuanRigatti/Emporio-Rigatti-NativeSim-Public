@@ -1,15 +1,22 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge, EmptyState, ErrorState, InlineError, Loading } from '@/components/feedback';
 import { NativeGlassHeader } from '@/components/layout';
+import { NativeButton } from '@/components/native';
 import { PremiumCard, PremiumScreen, PremiumSection } from '@/components/premium';
 import { useRetailOrderDetail } from '@/hooks/useRetailOrderDetail';
 import { useRetailOrderPayments } from '@/hooks/useRetailOrderPayments';
-import { calculateRetailOrderFinancials } from '@/services/retail-orders';
+import { useAuth } from '@/providers';
+import {
+  calculateRetailOrderFinancials,
+  retailOrderHistoryFinancialSummaryService,
+} from '@/services/retail-orders';
 import type { RetailOrder, RetailOrderFinancialSummary, RetailPayment } from '@/types/data';
 import { useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
+
+import { RetailOrderPaymentSheet } from './RetailOrderPaymentSheet';
 
 type RetailOrderDetailScreenProps = {
   orderId?: string;
@@ -18,7 +25,24 @@ type RetailOrderDetailScreenProps = {
 export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProps) {
   const { theme } = useAppTheme();
   const detail = useRetailOrderDetail(orderId);
-  const paymentState = useRetailOrderPayments(orderId);
+  const { sessionVersion, user } = useAuth();
+  const userId = user?.id;
+  const handlePaymentRegistered = useCallback(
+    (registeredOrderId: string, payments: readonly RetailPayment[]) => {
+      if (!detail.order || registeredOrderId !== detail.order.orderId || !userId) return;
+      retailOrderHistoryFinancialSummaryService.updateForOrder(
+        detail.order,
+        payments,
+        userId,
+        sessionVersion,
+      );
+    },
+    [detail.order, sessionVersion, userId],
+  );
+  const paymentState = useRetailOrderPayments(orderId, {
+    onRegisterSuccess: handlePaymentRegistered,
+  });
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const financialState = useMemo(() => {
     if (!detail.order || paymentState.snapshot === null || paymentState.error) return undefined;
     try {
@@ -54,6 +78,7 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
   ) : (
     <OrderDetailsContent
       financialState={financialState}
+      onAddPayment={() => setPaymentSheetVisible(true)}
       order={detail.order}
       paymentState={paymentState}
       theme={theme}
@@ -61,28 +86,38 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
   );
 
   return (
-    <PremiumScreen
-      contentContainerStyle={{ gap: theme.spacing.xl, paddingBottom: theme.spacing.xxl }}
-      overlayHeader={header}
-      overlayHeaderSpacing={theme.spacing.sm}
-      progressiveBlur
-    >
-      {detail.revalidating ? <Loading label="Atualizando pedido…" /> : null}
-      {detail.error && detail.order ? (
-        <InlineError message={`Atualização indisponível: ${detail.error}`} />
-      ) : null}
-      {body}
-    </PremiumScreen>
+    <>
+      <PremiumScreen
+        contentContainerStyle={{ gap: theme.spacing.xl, paddingBottom: theme.spacing.xxl }}
+        overlayHeader={header}
+        overlayHeaderSpacing={theme.spacing.sm}
+        progressiveBlur
+      >
+        {detail.revalidating ? <Loading label="Atualizando pedido…" /> : null}
+        {detail.error && detail.order ? (
+          <InlineError message={`Atualização indisponível: ${detail.error}`} />
+        ) : null}
+        {body}
+      </PremiumScreen>
+      <RetailOrderPaymentSheet
+        onRegister={paymentState.register}
+        onVisibleChange={setPaymentSheetVisible}
+        outstandingAmount={financialState?.summary?.outstandingAmount ?? 0}
+        visible={paymentSheetVisible}
+      />
+    </>
   );
 }
 
 function OrderDetailsContent({
   financialState,
+  onAddPayment,
   order,
   paymentState,
   theme,
 }: {
   financialState?: { summary: RetailOrderFinancialSummary } | { error: string };
+  onAddPayment: () => void;
   order: RetailOrder;
   paymentState: ReturnType<typeof useRetailOrderPayments>;
   theme: ReturnType<typeof useAppTheme>['theme'];
@@ -164,6 +199,8 @@ function OrderDetailsContent({
       <PremiumSection title="Resumo financeiro">
         <FinancialSummaryContent
           financialState={financialState}
+          onAddPayment={onAddPayment}
+          order={order}
           paymentState={paymentState}
           theme={theme}
         />
@@ -222,10 +259,14 @@ function PaymentsContent({
 
 function FinancialSummaryContent({
   financialState,
+  onAddPayment,
+  order,
   paymentState,
   theme,
 }: {
   financialState?: { summary: RetailOrderFinancialSummary } | { error: string };
+  onAddPayment: () => void;
+  order: RetailOrder;
   paymentState: ReturnType<typeof useRetailOrderPayments>;
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
@@ -238,6 +279,15 @@ function FinancialSummaryContent({
         <DetailRow label="Pago" value={formatCurrency(summary.paidAmount)} />
         <DetailRow label="A receber" value={formatCurrency(summary.outstandingAmount)} />
         <Badge label={financialStatusLabel(summary)} tone={financialStatusTone(summary)} />
+        {order.status !== 'cancelled' && summary.outstandingAmount > 0 ? (
+          <NativeButton
+            accessibilityLabel="Adicionar pagamento"
+            haptic="light"
+            label="Adicionar pagamento"
+            onPress={onAddPayment}
+            variant="primary"
+          />
+        ) : null}
       </PremiumCard>
     );
   }

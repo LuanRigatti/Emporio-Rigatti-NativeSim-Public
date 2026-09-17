@@ -131,6 +131,58 @@ describe('Retail order history data', () => {
     expect(paymentReader.load).toHaveBeenCalledTimes(2);
   });
 
+  it('updates only the target summary from the complete current payment snapshot', async () => {
+    const snapshots: Record<string, RetailPayment[]> = {
+      'order-target': [],
+      'order-other': [],
+    };
+    const paymentReader = {
+      getSnapshot: jest.fn((orderId: string) => snapshots[orderId] ?? null),
+      list: jest.fn((orderId: string) => snapshots[orderId] ?? []),
+      load: jest.fn(async () => undefined),
+    };
+    const service = new RetailOrderHistoryFinancialSummaryService(paymentReader);
+    const target = order('order-target');
+    const other = order('order-other');
+
+    await service.loadForOrder(target, 'uid-retail', 1);
+    await service.loadForOrder(other, 'uid-retail', 1);
+    snapshots['order-target'] = [payment('first', 30), payment('second', 20)];
+    const listener = jest.fn();
+    service.subscribe(listener);
+
+    const summary = service.updateForOrder(target, [payment('second', 20)], 'uid-retail', 1);
+
+    expect(summary).toMatchObject({ financialStatus: 'partially_paid', paidAmount: 50 });
+    expect(service.getCachedSummary(target, 'uid-retail', 1)).toMatchObject({ paidAmount: 50 });
+    expect(service.getCachedSummary(other, 'uid-retail', 1)).toMatchObject({ paidAmount: 0 });
+    expect(paymentReader.load).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a point update when the payment snapshot belongs to another session', () => {
+    const paymentReader = {
+      getSnapshot: jest.fn(
+        (
+          _orderId: string,
+          userId?: string,
+          sessionVersion?: number,
+        ): readonly RetailPayment[] | null =>
+          userId === 'uid-current' && sessionVersion === 2 ? [payment('current', 20)] : null,
+      ),
+      list: jest.fn((_orderId: string): RetailPayment[] => []),
+      load: jest.fn(async () => undefined),
+    };
+    const service = new RetailOrderHistoryFinancialSummaryService(paymentReader);
+    const target = order('order-stale');
+
+    expect(service.updateForOrder(target, [payment('stale', 20)], 'uid-old', 1)).toBeUndefined();
+    expect(service.getCachedSummary(target, 'uid-old', 1)).toBeUndefined();
+    expect(
+      service.updateForOrder(target, [payment('current', 20)], 'uid-current', 2),
+    ).toMatchObject({ paidAmount: 20 });
+  });
+
   it('publishes a hydrated payment summary before remote revalidation completes', async () => {
     let payments: RetailPayment[] = [payment('cached', 30)];
     let resolveRemote!: () => void;

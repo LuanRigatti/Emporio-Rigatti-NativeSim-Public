@@ -15,6 +15,7 @@ const mockLoadForOrders = jest.fn();
 const mockClear = jest.fn();
 const mockPrimeFromCache = jest.fn();
 const mockGetCachedSummary = jest.fn();
+const mockSummaryListeners = new Set<() => void>();
 let mockAuth = {
   sessionVersion: 1,
   status: 'authenticated' as const,
@@ -51,6 +52,10 @@ jest.mock('@/services/retail-orders', () => ({
   retailOrderDataSource: {},
   retailOrderHistoryFinancialSummaryService: {
     clear: () => mockClear(),
+    subscribe: (listener: () => void) => {
+      mockSummaryListeners.add(listener);
+      return () => mockSummaryListeners.delete(listener);
+    },
     getCachedSummary: (order: RetailOrder, userId: string, sessionVersion?: number) =>
       mockGetCachedSummary(order, userId, sessionVersion),
     primeFromCache: (orders: readonly RetailOrder[], userId: string, sessionVersion?: number) =>
@@ -133,6 +138,7 @@ describe('useRetailOrderHistoryFinancialSummaries', () => {
     mockClear.mockReset();
     mockPrimeFromCache.mockReset();
     mockGetCachedSummary.mockReset();
+    mockSummaryListeners.clear();
     pendingLoads.length = 0;
   });
 
@@ -346,6 +352,37 @@ describe('useRetailOrderHistoryFinancialSummaries', () => {
       await settle();
     });
     expect(current['order-a']).toMatchObject({ status: 'ready' });
+    act(() => renderer.unmount());
+  });
+
+  it('publishes a point-updated summary without returning the card to loading', async () => {
+    let current: SummaryState = {};
+    let renderer!: ReactTestRenderer;
+    const target = order('order-a');
+
+    await act(async () => {
+      renderer = create(
+        createElement(Harness, { onRender: (value) => (current = value), orders: [target] }),
+      );
+      await settle();
+    });
+    await act(async () => {
+      pendingLoads[0]?.resolve(readyResults([target]));
+      await settle();
+    });
+
+    mockGetCachedSummary.mockReturnValue(
+      summary({ financialStatus: 'partially_paid', outstandingAmount: 60, paidAmount: 50 }),
+    );
+    await act(async () => {
+      mockSummaryListeners.forEach((listener) => listener());
+      await settle();
+    });
+
+    expect(current['order-a']).toMatchObject({
+      status: 'ready',
+      summary: { financialStatus: 'partially_paid', outstandingAmount: 60, paidAmount: 50 },
+    });
     act(() => renderer.unmount());
   });
 

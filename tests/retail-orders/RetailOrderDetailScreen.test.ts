@@ -34,8 +34,14 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).not.toContain('FirestoreDeliveryDataSource');
   });
 
-  it('contains no payment or order mutation action', () => {
-    expect(detailSource).not.toContain('.register(');
+  it('contains only the scoped payment action and no other order mutation action', () => {
+    expect(detailSource).toContain('RetailOrderPaymentSheet');
+    expect(detailSource).toContain('Adicionar pagamento');
+    expect(detailSource).toContain('onRegisterSuccess: handlePaymentRegistered');
+    expect(detailSource).toContain('retailOrderHistoryFinancialSummaryService.updateForOrder');
+    expect(detailSource).toContain("order.status !== 'cancelled'");
+    expect(detailSource).toContain('summary.outstandingAmount > 0');
+    expect(detailSource).toContain('onRegister={paymentState.register}');
     expect(detailSource).not.toContain('.update(');
     expect(detailSource).not.toContain('.cancel(');
     expect(detailSource).not.toContain('.complete(');

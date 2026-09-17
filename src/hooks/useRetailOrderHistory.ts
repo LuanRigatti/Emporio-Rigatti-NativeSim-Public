@@ -245,17 +245,50 @@ export function useRetailOrderHistoryFinancialSummaries(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey, refreshKey, scopeKey, sessionVersion, userId]);
 
+  useEffect(() => {
+    if (!userId) return undefined;
+    return retailOrderHistoryFinancialSummaryService.subscribe(() => {
+      setStateStore((previousStore) => {
+        if (previousStore.scopeKey !== scopeKey) return previousStore;
+        let changed = false;
+        const next = { ...previousStore.states };
+        orders.forEach((order) => {
+          const summary = retailOrderHistoryFinancialSummaryService.getCachedSummary(
+            order,
+            userId,
+            sessionVersion,
+          );
+          if (!summary) return;
+          const previousState = next[order.orderId];
+          if (
+            previousState?.status === 'ready' &&
+            previousState.summary === summary &&
+            !previousState.revalidating &&
+            !previousState.revalidationError
+          ) {
+            return;
+          }
+          next[order.orderId] = { status: 'ready', summary };
+          changed = true;
+        });
+        return changed ? { scopeKey, states: next } : previousStore;
+      });
+    });
+  }, [orders, scopeKey, sessionVersion, userId]);
+
   return useMemo(() => {
     if (scopeChanged || !userId) return {};
     const next = { ...stateStore.states };
     orders.forEach((order) => {
-      if (next[order.orderId]?.status === 'ready') return;
       const summary = retailOrderHistoryFinancialSummaryService.getCachedSummary(
         order,
         userId,
         sessionVersion,
       );
-      if (summary) next[order.orderId] = { status: 'ready', summary };
+      if (!summary) return;
+      const previousState = next[order.orderId];
+      if (previousState?.status === 'ready' && previousState.summary === summary) return;
+      next[order.orderId] = { status: 'ready', summary };
     });
     return next;
   }, [orders, scopeChanged, sessionVersion, stateStore.states, userId]);

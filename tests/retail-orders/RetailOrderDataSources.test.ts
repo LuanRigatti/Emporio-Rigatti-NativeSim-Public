@@ -433,6 +433,32 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     ]);
   });
 
+  it('allows a payment for a completed order without creating another order', async () => {
+    mockedGetDoc.mockResolvedValueOnce(documentResult({ status: 'completed', totalCharged: 100 }));
+    mockedGetDocs.mockResolvedValueOnce(queryResult());
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+
+    await expect(
+      dataSource.register(
+        'uid-retail',
+        'order-completed',
+        { amount: 40, method: 'Pix', paidAt: '2026-02-02' },
+        1,
+      ),
+    ).resolves.toBe('generated-id');
+
+    expect(mockedSetDoc).toHaveBeenCalledTimes(1);
+    expect(mockedCollection).toHaveBeenCalledWith(
+      {},
+      'users',
+      'uid-retail',
+      'retailOrders',
+      'order-completed',
+      'payments',
+    );
+  });
+
   it('distinguishes a hydrated empty payment cache from an unavailable cache', async () => {
     const dataSource = new RetailPaymentDataSource();
     dataSource.setSessionUser('uid-retail', 1);

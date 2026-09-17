@@ -8,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Font from 'expo-font';
 import { useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -169,16 +170,23 @@ function AppShell() {
               <Stack.Protected guard={isAuthenticated}>
                 <Stack.Screen
                   name="(tabs)"
-                  options={{
-                    gestureEnabled: false,
-                    headerShadowVisible: false,
-                    headerShown: true,
-                    headerTitle: '',
-                    headerTransparent: true,
-                    unstable_nativeProps: {
-                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
-                    },
-                  }}
+                  options={
+                    Platform.OS === 'ios'
+                      ? {
+                          gestureEnabled: false,
+                          headerShadowVisible: false,
+                          headerShown: true,
+                          headerTitle: '',
+                          headerTransparent: true,
+                          unstable_nativeProps: {
+                            headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                          },
+                        }
+                      : {
+                          gestureEnabled: false,
+                          headerShown: false,
+                        }
+                  }
                 />
                 <Stack.Screen
                   name="registrar-pedido-varejo/index"

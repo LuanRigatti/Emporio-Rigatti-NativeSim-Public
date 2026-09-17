@@ -1,9 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import type { SFSymbol } from 'sf-symbols-typescript';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { activeTabStore } from '@/navigation/activeTabStore';
 import Animated, {
   Easing,
   FadeIn,
@@ -603,52 +602,12 @@ export function RegistrarDeliveryScreen({
     />
   ) : null;
 
-  useEffect(() => {
-    if (!inlineClientSelection) {
-      activeTabStore.setRegistrarToolbar(
-        <Stack.Toolbar.Menu
-          accessibilityLabel="Ordenar entregas"
-          icon="line.3.horizontal.decrease"
-          separateBackground={false}
-          tintColor={theme.colors.textPrimary}
-        >
-          <Stack.Toolbar.MenuAction
-            icon={'clock.arrow.circlepath' as SFSymbol}
-            isOn={deliverySortMode === 'latest'}
-            onPress={() => handleDeliverySortChange('latest')}
-          >
-            Recentes
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon={'textformat.abc' as SFSymbol}
-            isOn={deliverySortMode === 'alphabetical'}
-            onPress={() => handleDeliverySortChange('alphabetical')}
-          >
-            Ordem alfabética
-          </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction
-            icon={'chart.bar.fill' as SFSymbol}
-            isOn={deliverySortMode === 'quantity'}
-            onPress={() => handleDeliverySortChange('quantity')}
-          >
-            Quantidade de baldes
-          </Stack.Toolbar.MenuAction>
-        </Stack.Toolbar.Menu>,
-      );
-      return () => {
-        activeTabStore.setRegistrarToolbar(null);
-      };
-    }
-  }, [deliverySortMode, handleDeliverySortChange, inlineClientSelection, theme.colors.textPrimary]);
-
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      {inlineClientSelection ? (
-        <RegistrarDeliveryToolbar
-          onSortChange={handleDeliverySortChange}
-          sortMode={deliverySortMode}
-        />
-      ) : null}
+      <RegistrarDeliveryToolbar
+        onSortChange={handleDeliverySortChange}
+        sortMode={deliverySortMode}
+      />
       <PremiumScreen
         contentContainerStyle={{
           paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,

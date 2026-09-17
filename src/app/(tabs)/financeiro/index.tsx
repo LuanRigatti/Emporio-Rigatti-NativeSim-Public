@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -7,7 +7,6 @@ import { NativeGlassHeader } from '@/components/layout';
 import { NativeAnimatedNumber } from '@/components/native';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
 import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
-import { activeTabStore } from '@/navigation/activeTabStore';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
@@ -169,7 +168,7 @@ export default function PrototypeFinanceiro() {
     });
   };
 
-  const renderFinanceToolbarItems = useCallback(
+  const financeToolbarItems = useMemo(
     () =>
       renderFinancePeriodToolbarItems({
         composition: 'combined',
@@ -180,13 +179,6 @@ export default function PrototypeFinanceiro() {
       }),
     [displayedMonth, displayedYear],
   );
-
-  useEffect(() => {
-    activeTabStore.setFinanceToolbar(renderFinanceToolbarItems());
-    return () => {
-      activeTabStore.setFinanceToolbar(null);
-    };
-  }, [renderFinanceToolbarItems]);
 
   return (
     <PremiumScreen
@@ -202,6 +194,7 @@ export default function PrototypeFinanceiro() {
       progressiveBlurTopOffset={0}
       progressiveBlur
     >
+      <Stack.Toolbar placement="right">{financeToolbarItems}</Stack.Toolbar>
       <View style={styles.header}>{header}</View>
       <PremiumCard
         accessibilityLabel="Abrir detalhes do faturamento"

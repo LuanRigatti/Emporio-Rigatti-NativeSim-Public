@@ -21,7 +21,7 @@ export default function SettingsLayout() {
         },
       }}
     >
-      <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: false }} />
+      <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: true }} />
     </Stack>
   );
 }

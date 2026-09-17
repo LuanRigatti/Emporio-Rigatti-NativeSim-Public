@@ -59,7 +59,7 @@ describe('RetailOrderRegistrarRoute', () => {
       }),
     );
     expect(screens[0].props.options).toEqual(
-      expect.objectContaining({ gestureEnabled: false, headerShown: false }),
+      expect.objectContaining({ gestureEnabled: false, headerShown: true }),
     );
     expect(renderer.root.findAll((node) => String(node.type) === 'stack-back-button')).toHaveLength(
       0,

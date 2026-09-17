@@ -5,9 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
-import { activeTabStore } from '@/navigation/activeTabStore';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import { useAppSafeAreaInsets } from '@/providers';
+import { HomeToolbar } from '@/components/navigation/HomeToolbar';
+import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
@@ -37,6 +37,7 @@ function PreviewIcon({
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
   const { resolvedMode, theme } = useAppTheme();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const homeShortcutIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
@@ -132,16 +133,6 @@ export default function Home() {
     setIsProfileSheetVisible(true);
   }, []);
 
-  useEffect(() => {
-    activeTabStore.setHomeHandlers({
-      onProfilePress: handleOpenProfile,
-      onSearchPress: handleOpenSearch,
-    });
-    return () => {
-      activeTabStore.setHomeHandlers({});
-    };
-  }, [handleOpenProfile, handleOpenSearch]);
-
   const homeHeader = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -158,6 +149,13 @@ export default function Home() {
   );
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <HomeToolbar
+        foregroundColor={theme.colors.textPrimary}
+        imageUri={user?.photoUrl}
+        name={user?.displayName?.trim() || 'Conta'}
+        onProfilePress={handleOpenProfile}
+        onSearchPress={handleOpenSearch}
+      />
       <PremiumScreen
         contentContainerStyle={{
           gap: theme.spacing.lg,

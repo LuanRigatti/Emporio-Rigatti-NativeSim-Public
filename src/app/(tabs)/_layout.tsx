@@ -1,9 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Stack } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 
-import { ActiveTabToolbarRight } from '@/components/navigation/ActiveTabToolbarRight';
-import { activeTabStore, type TabName } from '@/navigation/activeTabStore';
 import { useAppTheme } from '@/theme';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
@@ -35,19 +34,20 @@ function TabsNavigator() {
 
   return (
     <View collapsable={false} style={styles.root}>
-      <ActiveTabToolbarRight />
+      {Platform.OS === 'ios' ? (
+        <>
+          <Stack.Toolbar placement="left">
+            <Stack.Toolbar.Spacer width={0} />
+          </Stack.Toolbar>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Spacer width={0} />
+          </Stack.Toolbar>
+        </>
+      ) : null}
       <NativeTabs
         labelVisibilityMode="unlabeled"
         tintColor={iconColor}
         unstable_nativeProps={nativeTabsProps}
-        screenListeners={({ route }) => ({
-          focus: () => {
-            activeTabStore.setActiveTab(route.name as TabName);
-          },
-          tabPress: () => {
-            activeTabStore.setActiveTab(route.name as TabName);
-          },
-        })}
       >
         <NativeTabs.Trigger name="dashboard">
           <NativeTabs.Trigger.Icon {...icon('home-outline', 'house', 'house.fill', iconColor)} />

@@ -21,7 +21,7 @@ export default function RegistrarLayout() {
         },
       }}
     >
-      <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: false }} />
+      <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: true }} />
     </Stack>
   );
 }

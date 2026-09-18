@@ -35,6 +35,7 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
     pending: statusMutationPending,
   } = useRetailOrderStatus(orderId);
   const [cancelDialogVisible, setCancelDialogVisible] = useState(false);
+  const [voidPaymentDialogId, setVoidPaymentDialogId] = useState<string>();
   const handleComplete = useCallback(() => {
     void completeOrder();
   }, [completeOrder]);
@@ -57,9 +58,31 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
     },
     [detail.order, sessionVersion, userId],
   );
+  const handlePaymentVoided = useCallback(
+    (voidedOrderId: string, payments: readonly RetailPayment[]) => {
+      if (!detail.order || voidedOrderId !== detail.order.orderId || !userId) return;
+      retailOrderHistoryFinancialSummaryService.updateForOrder(
+        detail.order,
+        payments,
+        userId,
+        sessionVersion,
+      );
+    },
+    [detail.order, sessionVersion, userId],
+  );
   const paymentState = useRetailOrderPayments(orderId, {
     onRegisterSuccess: handlePaymentRegistered,
+    onVoidSuccess: handlePaymentVoided,
   });
+  const handleVoidPaymentRequest = useCallback((paymentId: string) => {
+    setVoidPaymentDialogId(paymentId);
+  }, []);
+  const voidPayment = paymentState.voidPayment;
+  const handleVoidPaymentConfirmed = useCallback(() => {
+    const paymentId = voidPaymentDialogId;
+    setVoidPaymentDialogId(undefined);
+    if (paymentId) void voidPayment(paymentId);
+  }, [voidPayment, voidPaymentDialogId]);
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const financialState = useMemo(() => {
     if (!detail.order || paymentState.snapshot === null || paymentState.error) return undefined;
@@ -99,10 +122,13 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
       onCancel={handleCancelRequest}
       onComplete={handleComplete}
       onAddPayment={() => setPaymentSheetVisible(true)}
+      onVoidPayment={handleVoidPaymentRequest}
       order={detail.order}
+      paymentMutationError={paymentState.mutationError}
       paymentState={paymentState}
       statusMutationError={statusMutationError}
       statusMutationPending={statusMutationPending}
+      voidingPaymentId={paymentState.voidingPaymentId}
       theme={theme}
     />
   );
@@ -141,6 +167,20 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
         title="Cancelar pedido?"
         visible={cancelDialogVisible}
       />
+      <NativeDialog
+        actions={[
+          {
+            destructive: true,
+            id: 'void-payment',
+            onPress: handleVoidPaymentConfirmed,
+            title: 'Anular pagamento',
+          },
+        ]}
+        message="O pagamento permanecerá no histórico, mas deixará de contar como valor pago."
+        onDismiss={() => setVoidPaymentDialogId(undefined)}
+        title="Anular pagamento?"
+        visible={voidPaymentDialogId !== undefined}
+      />
     </>
   );
 }
@@ -150,20 +190,26 @@ function OrderDetailsContent({
   onCancel,
   onComplete,
   onAddPayment,
+  onVoidPayment,
   order,
+  paymentMutationError,
   paymentState,
   statusMutationError,
   statusMutationPending,
+  voidingPaymentId,
   theme,
 }: {
   financialState?: { summary: RetailOrderFinancialSummary } | { error: string };
   onCancel: () => void;
   onComplete: () => void;
   onAddPayment: () => void;
+  onVoidPayment: (paymentId: string) => void;
   order: RetailOrder;
+  paymentMutationError?: string;
   paymentState: ReturnType<typeof useRetailOrderPayments>;
   statusMutationError?: string;
   statusMutationPending: boolean;
+  voidingPaymentId?: string;
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
   return (
@@ -263,7 +309,13 @@ function OrderDetailsContent({
       </PremiumSection>
 
       <PremiumSection title="Pagamentos">
-        <PaymentsContent paymentState={paymentState} theme={theme} />
+        <PaymentsContent
+          onVoidPayment={onVoidPayment}
+          paymentMutationError={paymentMutationError}
+          paymentState={paymentState}
+          theme={theme}
+          voidingPaymentId={voidingPaymentId}
+        />
       </PremiumSection>
 
       <PremiumSection title="Resumo financeiro">
@@ -290,11 +342,17 @@ function OrderDetailsContent({
 }
 
 function PaymentsContent({
+  onVoidPayment,
+  paymentMutationError,
   paymentState,
   theme,
+  voidingPaymentId,
 }: {
+  onVoidPayment: (paymentId: string) => void;
+  paymentMutationError?: string;
   paymentState: ReturnType<typeof useRetailOrderPayments>;
   theme: ReturnType<typeof useAppTheme>['theme'];
+  voidingPaymentId?: string;
 }) {
   if (paymentState.loading && paymentState.snapshot === null) {
     return <Loading label="Carregando pagamentos…" />;
@@ -312,7 +370,13 @@ function PaymentsContent({
     <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
       {paymentState.payments.length ? (
         paymentState.payments.map((payment) => (
-          <PaymentRow key={payment.paymentId} payment={payment} theme={theme} />
+          <PaymentRow
+            key={payment.paymentId}
+            onVoidPayment={onVoidPayment}
+            payment={payment}
+            theme={theme}
+            voidingPaymentId={voidingPaymentId}
+          />
         ))
       ) : (
         <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
@@ -322,6 +386,7 @@ function PaymentsContent({
       {paymentState.error ? (
         <InlineError message={`Atualização dos pagamentos indisponível: ${paymentState.error}`} />
       ) : null}
+      {paymentMutationError ? <InlineError message={paymentMutationError} /> : null}
       {paymentState.refreshing ? <Loading label="Atualizando pagamentos…" /> : null}
     </PremiumCard>
   );
@@ -381,11 +446,15 @@ function FinancialSummaryContent({
 }
 
 function PaymentRow({
+  onVoidPayment,
   payment,
   theme,
+  voidingPaymentId,
 }: {
+  onVoidPayment: (paymentId: string) => void;
   payment: RetailPayment;
   theme: ReturnType<typeof useAppTheme>['theme'];
+  voidingPaymentId?: string;
 }) {
   return (
     <View style={[styles.paymentRow, { gap: theme.spacing.md }]}>
@@ -414,6 +483,16 @@ function PaymentRow({
           label={payment.status === 'posted' ? 'Registrado' : 'Anulado'}
           tone={payment.status === 'posted' ? 'success' : 'neutral'}
         />
+        {payment.status === 'posted' ? (
+          <NativeButton
+            accessibilityLabel="Anular pagamento"
+            disabled={voidingPaymentId !== undefined}
+            haptic="light"
+            label="Anular pagamento"
+            onPress={() => onVoidPayment(payment.paymentId)}
+            variant="surface"
+          />
+        ) : null}
       </View>
     </View>
   );

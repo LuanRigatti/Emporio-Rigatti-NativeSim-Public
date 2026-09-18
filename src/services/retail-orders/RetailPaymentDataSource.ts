@@ -35,7 +35,7 @@ type DocumentSnapshotLike = {
 
 type FirestoreOps = Pick<
   typeof import('firebase/firestore'),
-  'collection' | 'doc' | 'getDoc' | 'getDocs' | 'serverTimestamp' | 'setDoc'
+  'collection' | 'doc' | 'getDoc' | 'getDocs' | 'serverTimestamp' | 'setDoc' | 'updateDoc'
 >;
 
 let firestoreOpsOverride: FirestoreOps | undefined;
@@ -122,7 +122,12 @@ function sortPayments(payments: readonly RetailPayment[]): RetailPayment[] {
 }
 
 export type RetailPaymentErrorCode =
-  'invalid_payment' | 'order_not_found' | 'order_cancelled' | 'payment_exceeds_balance';
+  | 'invalid_payment'
+  | 'order_not_found'
+  | 'order_cancelled'
+  | 'payment_exceeds_balance'
+  | 'payment_not_found'
+  | 'payment_already_voided';
 
 export class RetailPaymentError extends Error {
   public readonly code: RetailPaymentErrorCode;
@@ -146,6 +151,7 @@ export class RetailPaymentDataSource {
   private loadEpoch = 0;
   private readonly inFlightHydrations = new Map<string, Promise<boolean>>();
   private readonly inFlightLoads = new Map<string, Promise<void>>();
+  private readonly inFlightVoids = new Map<string, Promise<void>>();
 
   public getSnapshot = (
     orderId: string,
@@ -176,6 +182,7 @@ export class RetailPaymentDataSource {
     this.activeUid = userId;
     this.recordsByOrderId.clear();
     this.snapshotsByOrderId.clear();
+    this.inFlightVoids.clear();
     this.publish();
   }
 
@@ -407,6 +414,95 @@ export class RetailPaymentDataSource {
       .write(request.userId, orderId, nextRecords)
       .catch(() => undefined);
     return paymentId;
+  }
+
+  public async voidPayment(
+    userId: string | undefined,
+    orderId: string,
+    paymentId: string,
+    sessionVersion?: number,
+  ): Promise<void> {
+    assertId(orderId, 'pedido');
+    assertId(paymentId, 'pagamento');
+    const requestKey = `${userId ?? 'none'}:${sessionVersion ?? 'none'}:${orderId}:${paymentId}`;
+    const existing = this.inFlightVoids.get(requestKey);
+    if (existing) return existing;
+
+    const operation = this.voidPaymentInternal(userId, orderId, paymentId, sessionVersion);
+    this.inFlightVoids.set(requestKey, operation);
+    void operation.then(
+      () => {
+        if (this.inFlightVoids.get(requestKey) === operation) this.inFlightVoids.delete(requestKey);
+      },
+      () => {
+        if (this.inFlightVoids.get(requestKey) === operation) this.inFlightVoids.delete(requestKey);
+      },
+    );
+    return operation;
+  }
+
+  private async voidPaymentInternal(
+    userId: string | undefined,
+    orderId: string,
+    paymentId: string,
+    sessionVersion?: number,
+  ): Promise<void> {
+    const request = this.captureSessionRequest(userId, sessionVersion);
+    const { doc, getDoc, updateDoc } = await getFirestoreOps();
+    this.assertSessionRequestCurrent(request);
+
+    const orderSnapshot = (await getDoc(
+      doc(await orderCollectionFor(request.userId), orderId),
+    )) as unknown as DocumentSnapshotLike;
+    if (!orderSnapshot.exists()) {
+      throw new RetailPaymentError('order_not_found', 'Pedido Varejo não encontrado.');
+    }
+
+    if (this.getSnapshot(orderId, request.userId, request.sessionVersion) === null) {
+      await this.load(orderId, request.userId, request.sessionVersion);
+      this.assertSessionRequestCurrent(request);
+    }
+
+    const paymentReference = doc(await collectionFor(request.userId, orderId), paymentId);
+    const paymentSnapshot = (await getDoc(paymentReference)) as unknown as DocumentSnapshotLike;
+    if (!paymentSnapshot.exists()) {
+      throw new RetailPaymentError('payment_not_found', 'Pagamento não encontrado.');
+    }
+    const paymentData = paymentSnapshot.data();
+    if (!paymentData) {
+      throw new RetailPaymentError('invalid_payment', 'Os dados do pagamento são inválidos.');
+    }
+    const paymentRecord = recordFromDocument(paymentId, paymentData);
+    const payment = documentToPayment(paymentRecord);
+    if (!payment) {
+      throw new RetailPaymentError('invalid_payment', 'Os dados do pagamento são inválidos.');
+    }
+    if (payment.status === 'voided') {
+      throw new RetailPaymentError('payment_already_voided', 'O pagamento já está anulado.');
+    }
+    if (payment.status !== 'posted') {
+      throw new RetailPaymentError('invalid_payment', 'O status do pagamento é inválido.');
+    }
+
+    this.assertSessionRequestCurrent(request);
+    await updateDoc(paymentReference, { status: 'voided' });
+    this.assertSessionRequestCurrent(request);
+
+    const currentRecords = this.recordsByOrderId.get(orderId) ?? [];
+    const voidedRecord: RetailPaymentRecord = { ...paymentRecord, status: 'voided' };
+    const nextRecords: RetailPaymentRecord[] = currentRecords.some(
+      (record) => record.id === paymentId,
+    )
+      ? currentRecords.map((record) =>
+          record.id === paymentId ? { ...record, status: 'voided' } : record,
+        )
+      : [...currentRecords, voidedRecord];
+    this.recordsByOrderId.set(orderId, nextRecords);
+    this.snapshotsByOrderId.set(orderId, sortPayments(snapshotForRecords(nextRecords)));
+    this.publish();
+    void retailPaymentCatalogCache
+      .write(request.userId, orderId, nextRecords)
+      .catch(() => undefined);
   }
 
   private captureSessionRequest(

@@ -535,6 +535,122 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     );
   });
 
+  it.each(['created', 'completed', 'cancelled'] as const)(
+    'voids a posted payment for a %s order without changing its fields',
+    async (orderStatus) => {
+      mockedGetDoc
+        .mockResolvedValueOnce(documentResult({ status: orderStatus }))
+        .mockResolvedValueOnce(documentResult(paymentRecord('payment-1')));
+      mockedGetDocs.mockResolvedValueOnce(
+        queryResult([paymentRecord('payment-1', { amount: 40, notes: 'Entrada' })]),
+      );
+      const dataSource = new RetailPaymentDataSource();
+      dataSource.setSessionUser('uid-retail', 1);
+
+      await expect(dataSource.voidPayment('uid-retail', 'order-1', 'payment-1', 1)).resolves.toBe(
+        undefined,
+      );
+
+      expect(mockedUpdateDoc).toHaveBeenCalledWith(expect.objectContaining({ id: 'payment-1' }), {
+        status: 'voided',
+      });
+      expect(dataSource.list('order-1', 'uid-retail', 1)).toEqual([
+        expect.objectContaining({
+          amount: 40,
+          method: 'Pix',
+          notes: 'Entrada',
+          paidAt: '2026-02-02',
+          paymentId: 'payment-1',
+          status: 'voided',
+        }),
+      ]);
+    },
+  );
+
+  it('rejects voiding a payment that is already voided', async () => {
+    mockedGetDoc
+      .mockResolvedValueOnce(documentResult({ status: 'cancelled' }))
+      .mockResolvedValueOnce(documentResult(paymentRecord('payment-voided', { status: 'voided' })));
+    mockedGetDocs.mockResolvedValueOnce(
+      queryResult([paymentRecord('payment-voided', { status: 'voided' })]),
+    );
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+
+    await expect(
+      dataSource.voidPayment('uid-retail', 'order-1', 'payment-voided', 1),
+    ).rejects.toMatchObject({ code: 'payment_already_voided' });
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('rejects voiding a missing order or payment', async () => {
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+
+    mockedGetDoc.mockResolvedValueOnce(documentResult({}, false));
+    await expect(
+      dataSource.voidPayment('uid-retail', 'missing-order', 'payment-1', 1),
+    ).rejects.toMatchObject({
+      code: 'order_not_found',
+    });
+
+    mockedGetDoc
+      .mockResolvedValueOnce(documentResult({ status: 'created' }))
+      .mockResolvedValueOnce(documentResult({}, false));
+    mockedGetDocs.mockResolvedValueOnce(queryResult([]));
+    await expect(
+      dataSource.voidPayment('uid-retail', 'order-1', 'missing-payment', 1),
+    ).rejects.toMatchObject({
+      code: 'payment_not_found',
+    });
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('blocks a synchronous double void for the same payment', async () => {
+    let resolveOrder!: (value: Awaited<ReturnType<typeof firestoreModule.getDoc>>) => void;
+    const pendingOrder = new Promise<Awaited<ReturnType<typeof firestoreModule.getDoc>>>(
+      (resolve) => {
+        resolveOrder = resolve;
+      },
+    );
+    mockedGetDoc.mockReturnValueOnce(pendingOrder);
+    mockedGetDocs.mockResolvedValueOnce(queryResult([paymentRecord('payment-1')]));
+    mockedGetDoc.mockResolvedValueOnce(documentResult(paymentRecord('payment-1')));
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+
+    const first = dataSource.voidPayment('uid-retail', 'order-1', 'payment-1', 1);
+    const second = dataSource.voidPayment('uid-retail', 'order-1', 'payment-1', 1);
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(mockedGetDoc).toHaveBeenCalledTimes(1);
+    resolveOrder(documentResult({ status: 'created' }));
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a void response after the UID/session changes', async () => {
+    let resolveOrder!: (value: Awaited<ReturnType<typeof firestoreModule.getDoc>>) => void;
+    const pendingOrder = new Promise<Awaited<ReturnType<typeof firestoreModule.getDoc>>>(
+      (resolve) => {
+        resolveOrder = resolve;
+      },
+    );
+    mockedGetDoc.mockReturnValueOnce(pendingOrder);
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-old', 1);
+    const mutation = dataSource.voidPayment('uid-old', 'order-1', 'payment-1', 1);
+
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    dataSource.setSessionUser('uid-new', 2);
+    resolveOrder(documentResult({ status: 'created' }));
+
+    await expect(mutation).rejects.toThrow('Sessão alterada durante a operação.');
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+    expect(dataSource.getSnapshot('order-1', 'uid-old', 1)).toBeNull();
+    expect(dataSource.getSnapshot('order-1', 'uid-new', 2)).toBeNull();
+  });
+
   it('distinguishes a hydrated empty payment cache from an unavailable cache', async () => {
     const dataSource = new RetailPaymentDataSource();
     dataSource.setSessionUser('uid-retail', 1);

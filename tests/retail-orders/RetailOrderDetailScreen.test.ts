@@ -34,10 +34,11 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).not.toContain('FirestoreDeliveryDataSource');
   });
 
-  it('contains scoped payment and lifecycle actions without navigation or payment mutations', () => {
+  it('contains scoped payment and lifecycle actions without navigation changes', () => {
     expect(detailSource).toContain('RetailOrderPaymentSheet');
     expect(detailSource).toContain('Adicionar pagamento');
     expect(detailSource).toContain('onRegisterSuccess: handlePaymentRegistered');
+    expect(detailSource).toContain('onVoidSuccess: handlePaymentVoided');
     expect(detailSource).toContain('retailOrderHistoryFinancialSummaryService.updateForOrder');
     expect(detailSource).toContain("order.status !== 'cancelled'");
     expect(detailSource).toContain('summary.outstandingAmount > 0');
@@ -46,6 +47,10 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).toContain('Ações do pedido');
     expect(detailSource).toContain('Concluir pedido');
     expect(detailSource).toContain('Cancelar pedido');
+    expect(detailSource).toContain('Anular pagamento');
+    expect(detailSource).toContain('voidPayment');
+    expect(detailSource).toContain("payment.status === 'posted'");
+    expect(detailSource).toContain('O pagamento permanecerá no histórico');
     expect(detailSource).toContain('NativeDialog');
     expect(detailSource).toContain("order.status === 'created'");
     expect(detailSource).not.toContain('.update(');

@@ -1,4 +1,5 @@
 export type NativeRetailCompositionCostItemOption = {
+  active?: boolean;
   costItemId: string;
   label: string;
   unit: string;

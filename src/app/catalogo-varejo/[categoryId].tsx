@@ -25,9 +25,9 @@ import { useRetailCostItems } from '@/hooks/useRetailCostItems';
 import { useRetailProducts } from '@/hooks/useRetailProducts';
 import { useRetailProductCurrentCost } from '@/hooks/useRetailProductCurrentCost';
 import { useAppMode } from '@/providers';
-import { normalizeRetailQuantity } from '@/services/retail-costs';
+import { normalizeRetailQuantity, type RetailCompositionCostItem } from '@/services/retail-costs';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import type { RetailCostItem, RetailProduct } from '@/types/data';
+import type { RetailProduct } from '@/types/data';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import SettingsIcon from '@/features/settings/components/SettingsIcon';
@@ -208,20 +208,6 @@ export default function RetailCategoryProductsRoute() {
         })),
     [costItems, productForCost?.directCostItemId, productToEdit?.directCostItemId],
   );
-  const compositionCostItemOptions = useMemo<readonly NativeRetailCompositionCostItemOption[]>(
-    () =>
-      costItems.map((item) => ({
-        costItemId: item.costItemId,
-        label: item.active ? item.name : `${item.name} (desativado)`,
-        unit: item.unit,
-      })),
-    [costItems],
-  );
-  const costItemsById = useMemo(
-    () =>
-      new Map<string, RetailCostItem>(costItems.map((item) => [item.costItemId, item] as const)),
-    [costItems],
-  );
   const selectedComposition = useMemo(
     () =>
       productForComposition
@@ -244,6 +230,46 @@ export default function RetailCategoryProductsRoute() {
     }),
     [selectedComposition],
   );
+  const compositionCostItemOptions = useMemo<
+    readonly NativeRetailCompositionCostItemOption[]
+  >(() => {
+    const optionsById = new Map<string, NativeRetailCompositionCostItemOption>();
+    costItems
+      .filter((item) => item.active)
+      .forEach((item) => {
+        optionsById.set(item.costItemId, {
+          active: true,
+          costItemId: item.costItemId,
+          label: item.name,
+          unit: item.unit,
+        });
+      });
+    selectedComposition?.components.forEach((component) => {
+      if (optionsById.has(component.costItemId)) return;
+      const item = costItems.find((candidate) => candidate.costItemId === component.costItemId);
+      optionsById.set(component.costItemId, {
+        active: false,
+        costItemId: component.costItemId,
+        label: item?.name ?? component.costItemNameSnapshot,
+        unit: item?.unit ?? component.unit,
+      });
+    });
+    return [...optionsById.values()];
+  }, [costItems, selectedComposition]);
+  const compositionCostItemsById = useMemo(() => {
+    const itemsById = new Map<string, RetailCompositionCostItem>(
+      costItems.map((item) => [item.costItemId, item] as const),
+    );
+    selectedComposition?.components.forEach((component) => {
+      if (itemsById.has(component.costItemId)) return;
+      itemsById.set(component.costItemId, {
+        costItemId: component.costItemId,
+        name: component.costItemNameSnapshot,
+        unit: component.unit,
+      });
+    });
+    return itemsById;
+  }, [costItems, selectedComposition]);
 
   const submitProductCost = useCallback(
     async (values: NativeRetailProductCostFormValues) => {
@@ -281,7 +307,7 @@ export default function RetailCategoryProductsRoute() {
     async (values: NativeRetailCompositionFormValues) => {
       if (!productForComposition || testModeEnabled) return;
       const components = values.components.map((component) => {
-        const item = costItemsById.get(component.costItemId);
+        const item = compositionCostItemsById.get(component.costItemId);
         if (!item) throw new Error('Um componente selecionado não foi encontrado.');
         return {
           costItemId: item.costItemId,
@@ -292,7 +318,7 @@ export default function RetailCategoryProductsRoute() {
       });
       const compositionVersionId = await createVersion(
         { components, effectiveFrom: values.effectiveFrom },
-        costItemsById,
+        compositionCostItemsById,
       );
       await update(productForComposition.productId, {
         compositionVersionId,
@@ -300,7 +326,7 @@ export default function RetailCategoryProductsRoute() {
         directCostItemId: null,
       });
     },
-    [costItemsById, createVersion, productForComposition, testModeEnabled, update],
+    [compositionCostItemsById, createVersion, productForComposition, testModeEnabled, update],
   );
 
   const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);

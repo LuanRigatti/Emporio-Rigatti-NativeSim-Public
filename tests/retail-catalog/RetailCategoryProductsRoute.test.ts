@@ -365,4 +365,67 @@ describe('retail category products cost configuration affordance', () => {
       directCostItemId: null,
     });
   });
+
+  it('keeps a persisted composition component when its cost item is absent from the catalog', async () => {
+    mockCostItems = [{ active: true, costItemId: 'drip', name: 'Drip', unit: 'un' }];
+    mockCurrentProduct = {
+      ...baseProduct,
+      compositionVersionId: 'old-version',
+      costMode: 'composition',
+    };
+    mockCompositionVersions = [
+      {
+        active: true,
+        components: [
+          {
+            costItemId: 'legacy-id',
+            costItemNameSnapshot: 'Componente antigo',
+            quantity: 1,
+            unit: 'un',
+          },
+        ],
+        compositionVersionId: 'old-version',
+        effectiveFrom: '2026-09-16',
+        productId: 'product-1',
+      },
+    ];
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(RetailCategoryProductsRoute));
+    });
+    act(() => findNodes(renderer, 'list-item')[0]?.props.onPress());
+    act(() => findNodes(renderer, 'product-form-sheet')[0]?.props.onOpenComposition());
+
+    const compositionSheet = findNodes(renderer, 'composition-sheet')[0];
+    expect(compositionSheet?.props.costItems).toEqual([
+      { active: true, costItemId: 'drip', label: 'Drip', unit: 'un' },
+      { active: false, costItemId: 'legacy-id', label: 'Componente antigo', unit: 'un' },
+    ]);
+    expect(compositionSheet?.props.initialValues.components).toEqual([
+      { costItemId: 'legacy-id', key: 'existing-component-0', quantity: '1' },
+    ]);
+
+    await act(async () => {
+      await compositionSheet?.props.onSubmit({
+        components: [{ costItemId: 'legacy-id', key: 'existing-component-0', quantity: '1' }],
+        effectiveFrom: '2026-09-18',
+      });
+    });
+
+    expect(mockCreateVersion).toHaveBeenCalledWith(
+      {
+        components: [
+          {
+            costItemId: 'legacy-id',
+            costItemNameSnapshot: 'Componente antigo',
+            quantity: 1,
+            unit: 'un',
+          },
+        ],
+        effectiveFrom: '2026-09-18',
+      },
+      expect.any(Map),
+    );
+  });
 });

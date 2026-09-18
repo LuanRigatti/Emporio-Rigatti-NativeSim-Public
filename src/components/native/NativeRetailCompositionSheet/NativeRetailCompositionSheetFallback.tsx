@@ -35,15 +35,39 @@ function compositionOptionLabel(
   costItem: NativeRetailCompositionSheetProps['costItems'][number],
   costItems: NativeRetailCompositionSheetProps['costItems'],
 ): string {
-  const normalizedLabel = costItem.label.trim().toLocaleLowerCase('pt-BR');
-  const hasDuplicateName = costItems.some(
+  const baseLabel = costItem.label.replace(/\s+\(desativado\)$/iu, '').trim();
+  const normalizedLabel = baseLabel.toLocaleLowerCase('pt-BR');
+  const sameNameItems = costItems.filter(
+    (candidate) =>
+      candidate.label
+        .replace(/\s+\(desativado\)$/iu, '')
+        .trim()
+        .toLocaleLowerCase('pt-BR') === normalizedLabel,
+  );
+  const hasDuplicateName = sameNameItems.length > 1;
+  const sameNameAndUnit = sameNameItems.some(
     (candidate) =>
       candidate.costItemId !== costItem.costItemId &&
-      candidate.label.trim().toLocaleLowerCase('pt-BR') === normalizedLabel,
+      candidate.unit.trim().toLocaleLowerCase('pt-BR') ===
+        costItem.unit.trim().toLocaleLowerCase('pt-BR'),
   );
-  return `${costItem.label} (${costItem.unit})${
-    hasDuplicateName ? ` · ID ${costItem.costItemId}` : ''
-  }`;
+  const unitSuffix = hasDuplicateName ? ` — ${costItem.unit}` : '';
+  const shortId = sameNameAndUnit
+    ? ` · ${compactCostItemId(costItem.costItemId, sameNameItems)}`
+    : '';
+  const inactiveSuffix = costItem.active === false ? ' (desativado)' : '';
+  return `${baseLabel}${unitSuffix}${shortId}${inactiveSuffix}`;
+}
+
+function compactCostItemId(
+  costItemId: string,
+  sameNameItems: readonly NativeRetailCompositionSheetProps['costItems'][number][],
+): string {
+  const suffix = costItemId.slice(-6);
+  const suffixIsUnique = sameNameItems.every(
+    (candidate) => candidate.costItemId === costItemId || !candidate.costItemId.endsWith(suffix),
+  );
+  return suffixIsUnique ? `…${suffix}` : `${costItemId.slice(0, 4)}…${suffix}`;
 }
 
 export default function NativeRetailCompositionSheetFallback({
@@ -97,10 +121,12 @@ export default function NativeRetailCompositionSheetFallback({
 
   const addComponent = () => {
     const selected = new Set(values.components.map((component) => component.costItemId));
-    const nextItem = costItems.find((item) => !selected.has(item.costItemId));
+    const nextItem = costItems.find(
+      (item) => item.active !== false && !selected.has(item.costItemId),
+    );
     if (!nextItem) {
       setError(
-        costItems.length
+        costItems.some((item) => item.active !== false)
           ? 'Cada item de custo só pode aparecer uma vez.'
           : 'Cadastre itens de custo antes de criar a composição.',
       );
@@ -165,12 +191,16 @@ export default function NativeRetailCompositionSheetFallback({
         </View>
         {values.components.map((component) => {
           const item = costItems.find((candidate) => candidate.costItemId === component.costItemId);
+          const componentCostItems = costItems.filter(
+            (candidate) =>
+              candidate.active !== false || candidate.costItemId === component.costItemId,
+          );
           return (
             <View key={component.key} style={styles.componentRow}>
               <NativeDropdown
                 accessibilityLabel="Item do componente"
-                disabled={testModeEnabled || submitting || !costItems.length}
-                items={costItems.map((costItem) => ({
+                disabled={testModeEnabled || submitting || !componentCostItems.length}
+                items={componentCostItems.map((costItem) => ({
                   label: compositionOptionLabel(costItem, costItems),
                   value: costItem.costItemId,
                 }))}
@@ -205,7 +235,11 @@ export default function NativeRetailCompositionSheetFallback({
           );
         })}
         <NativeButton
-          disabled={testModeEnabled || submitting || !costItems.length}
+          disabled={
+            testModeEnabled ||
+            submitting ||
+            !costItems.some((costItem) => costItem.active !== false)
+          }
           haptic="light"
           label="Adicionar componente"
           onPress={addComponent}

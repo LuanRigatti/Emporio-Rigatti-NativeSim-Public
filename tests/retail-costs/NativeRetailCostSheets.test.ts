@@ -226,7 +226,13 @@ describe('retail cost native sheets', () => {
       .filter((item: { value: string }) => item.value !== 'drip')
       .map((item: { label: string }) => item.label);
     expect(new Set(duplicateLabels).size).toBe(2);
-    expect(duplicateLabels?.every((label: string) => label.includes('ID'))).toBe(true);
+    expect(duplicateLabels?.every((label: string) => label.includes('…'))).toBe(true);
+    expect(duplicateLabels?.some((label: string) => label.includes('valid-croassaint'))).toBe(
+      false,
+    );
+    expect(duplicateLabels?.some((label: string) => label.includes('stale-croassaint'))).toBe(
+      false,
+    );
 
     const removeButtons = findNodes(renderer, 'native-button').filter(
       (button) => button.props.label === 'Remover',
@@ -271,5 +277,82 @@ describe('retail cost native sheets', () => {
     act(() => findNodes(renderer, 'native-dropdown')[1]?.props.onValueChange('croassaint'));
 
     expect(findNodes(renderer, 'native-dropdown')[1]?.props.selectedValue).toBe('drip');
+  });
+
+  it('uses unit before a short identifier for homonyms and hides IDs for unique names', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailCompositionSheetFallback, {
+          costItems: [
+            { costItemId: 'unit', label: 'Croassaint', unit: 'unidade' },
+            { costItemId: 'package', label: 'Croassaint', unit: 'pacote' },
+            { costItemId: 'drip', label: 'Drip', unit: 'unidade' },
+          ],
+          initialValues: {
+            components: [{ costItemId: 'drip', key: 'drip', quantity: '1' }],
+            effectiveFrom: '2026-01-01',
+          },
+          onSubmit: mockCompositionSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    const labels = findNodes(renderer, 'native-dropdown')[0]?.props.items.map(
+      (item: { label: string }) => item.label,
+    );
+    expect(labels).toEqual(['Croassaint — unidade', 'Croassaint — pacote', 'Drip']);
+    expect(labels?.every((label: string) => !label.includes('ID'))).toBe(true);
+  });
+
+  it('keeps persisted inactive items visible but excludes them from new components', async () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailCompositionSheetFallback, {
+          costItems: [
+            { active: true, costItemId: 'active', label: 'Drip', unit: 'unidade' },
+            { active: false, costItemId: 'inactive', label: 'Croassaint', unit: 'unidade' },
+          ],
+          initialValues: {
+            components: [{ costItemId: 'inactive', key: 'inactive', quantity: '1' }],
+            effectiveFrom: '2026-01-01',
+          },
+          onSubmit: mockCompositionSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    expect(findNodes(renderer, 'native-dropdown')[0]?.props.items).toEqual([
+      { label: 'Drip', value: 'active' },
+      { label: 'Croassaint (desativado)', value: 'inactive' },
+    ]);
+
+    await act(async () => {
+      findNodes(renderer, 'native-button')
+        .find((button) => button.props.label === 'Salvar composição')
+        ?.props.onPress();
+      await Promise.resolve();
+    });
+    expect(mockCompositionSubmit).toHaveBeenCalledWith({
+      components: [{ costItemId: 'inactive', key: 'inactive', quantity: '1' }],
+      effectiveFrom: '2026-01-01',
+    });
+    mockCompositionSubmit.mockClear();
+
+    act(() =>
+      findNodes(renderer, 'native-button')
+        .find((button) => button.props.label === 'Adicionar componente')
+        ?.props.onPress(),
+    );
+
+    expect(findNodes(renderer, 'native-dropdown')[1]?.props.selectedValue).toBe('active');
+    expect(findNodes(renderer, 'native-dropdown')[1]?.props.items).toEqual([
+      { label: 'Drip', value: 'active' },
+    ]);
   });
 });

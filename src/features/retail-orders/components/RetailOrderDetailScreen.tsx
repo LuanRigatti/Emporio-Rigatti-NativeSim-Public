@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -25,6 +26,7 @@ type RetailOrderDetailScreenProps = {
 
 export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProps) {
   const { theme } = useAppTheme();
+  const router = useRouter();
   const detail = useRetailOrderDetail(orderId);
   const { sessionVersion, user } = useAuth();
   const userId = user?.id;
@@ -46,6 +48,10 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
     setCancelDialogVisible(false);
     void cancelOrder();
   }, [cancelOrder]);
+  const handleEdit = useCallback(() => {
+    if (!orderId) return;
+    router.push({ pathname: '/pedido-varejo/[orderId]/editar', params: { orderId } });
+  }, [orderId, router]);
   const handlePaymentRegistered = useCallback(
     (registeredOrderId: string, payments: readonly RetailPayment[]) => {
       if (!detail.order || registeredOrderId !== detail.order.orderId || !userId) return;
@@ -121,6 +127,7 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
       financialState={financialState}
       onCancel={handleCancelRequest}
       onComplete={handleComplete}
+      onEdit={handleEdit}
       onAddPayment={() => setPaymentSheetVisible(true)}
       onVoidPayment={handleVoidPaymentRequest}
       order={detail.order}
@@ -189,6 +196,7 @@ function OrderDetailsContent({
   financialState,
   onCancel,
   onComplete,
+  onEdit,
   onAddPayment,
   onVoidPayment,
   order,
@@ -202,6 +210,7 @@ function OrderDetailsContent({
   financialState?: { summary: RetailOrderFinancialSummary } | { error: string };
   onCancel: () => void;
   onComplete: () => void;
+  onEdit: () => void;
   onAddPayment: () => void;
   onVoidPayment: (paymentId: string) => void;
   order: RetailOrder;
@@ -233,6 +242,14 @@ function OrderDetailsContent({
       {order.status === 'created' ? (
         <PremiumSection title="Ações do pedido">
           <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+            <NativeButton
+              accessibilityLabel="Editar pedido"
+              disabled={statusMutationPending}
+              haptic="light"
+              label="Editar pedido"
+              onPress={onEdit}
+              variant="primary"
+            />
             <NativeButton
               accessibilityLabel="Concluir pedido"
               disabled={statusMutationPending}

@@ -34,7 +34,7 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).not.toContain('FirestoreDeliveryDataSource');
   });
 
-  it('contains scoped payment and lifecycle actions without navigation changes', () => {
+  it('contains scoped payment, lifecycle and edit actions without changing existing actions', () => {
     expect(detailSource).toContain('RetailOrderPaymentSheet');
     expect(detailSource).toContain('Adicionar pagamento');
     expect(detailSource).toContain('onRegisterSuccess: handlePaymentRegistered');
@@ -48,13 +48,16 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).toContain('Concluir pedido');
     expect(detailSource).toContain('Cancelar pedido');
     expect(detailSource).toContain('Anular pagamento');
+    expect(detailSource).toContain('Editar pedido');
+    expect(detailSource).toContain(
+      "router.push({ pathname: '/pedido-varejo/[orderId]/editar', params: { orderId } })",
+    );
     expect(detailSource).toContain('voidPayment');
     expect(detailSource).toContain("payment.status === 'posted'");
     expect(detailSource).toContain('O pagamento permanecerá no histórico');
     expect(detailSource).toContain('NativeDialog');
     expect(detailSource).toContain("order.status === 'created'");
     expect(detailSource).not.toContain('.update(');
-    expect(detailSource).not.toContain('router.push');
     expect(detailSource).not.toContain('router.replace');
   });
 });

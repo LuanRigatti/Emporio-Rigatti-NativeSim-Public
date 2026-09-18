@@ -736,8 +736,15 @@ export class RetailOrderDataSource {
     const { doc, updateDoc } = await getFirestoreOps();
     await updateDoc(doc(await collectionFor(request.userId), orderId), firestorePatch);
     this.assertSessionRequestCurrent(request);
-    await this.load(request.userId, request.sessionVersion);
-    this.assertSessionRequestCurrent(request);
+    this.applyLocalPatch(
+      orderId,
+      current,
+      patch,
+      nextDiscount,
+      nextDeliveryFee,
+      nextDeliveryCost,
+      request.userId,
+    );
   }
 
   public async complete(
@@ -894,6 +901,73 @@ export class RetailOrderDataSource {
       ...(currentRecord ?? { id: orderId, ...current }),
       status: nextStatus,
     });
+    this.rebuildSnapshot();
+    this.lastAppliedSource = 'local';
+    this.loadState = {
+      ...this.loadState,
+      error: undefined,
+      revalidating: false,
+      source: 'local',
+    };
+    this.publish();
+    void retailOrderCatalogCache.write(userId, [...this.records.values()]).catch(() => undefined);
+  }
+
+  private applyLocalPatch(
+    orderId: string,
+    current: RetailOrder,
+    patch: RetailOrderPatch,
+    nextDiscount: number,
+    nextDeliveryFee: number,
+    nextDeliveryCost: number,
+    userId: string,
+  ): void {
+    const currentRecord = this.records.get(orderId);
+    const nextRecord: RetailOrderRecord = {
+      ...(currentRecord ?? { id: orderId, ...current }),
+    };
+
+    if (patch.deliveryDate !== undefined) {
+      nextRecord.deliveryDate = normalizeRetailDate(patch.deliveryDate);
+    }
+    if (patch.deliveryAddressSnapshot !== undefined) {
+      nextRecord.deliveryAddressSnapshot = patch.deliveryAddressSnapshot.trim();
+    }
+    if (patch.occasion !== undefined) {
+      const occasion = optionalRetailOrderText(patch.occasion);
+      if (occasion) nextRecord.occasion = occasion;
+      else delete nextRecord.occasion;
+    }
+    if (patch.recipient !== undefined) {
+      const recipient = optionalRetailOrderText(patch.recipient);
+      if (recipient) nextRecord.recipient = recipient;
+      else delete nextRecord.recipient;
+    }
+    if (patch.notes !== undefined) {
+      const notes = optionalRetailOrderText(patch.notes);
+      if (notes) nextRecord.notes = notes;
+      else delete nextRecord.notes;
+    }
+    if (patch.discount !== undefined) {
+      nextRecord.discount = nextDiscount;
+      const discountAllocations = allocateDiscountCents(
+        current.lineItems.map((lineItem) => moneyToCents(lineItem.lineSubtotal)),
+        moneyToCents(nextDiscount),
+      );
+      nextRecord.lineItems = current.lineItems.map((lineItem, index) => ({
+        ...lineItem,
+        discountAllocatedSnapshot: centsToMoney(discountAllocations[index] ?? 0),
+      }));
+    }
+    if (patch.deliveryFee !== undefined) nextRecord.deliveryFee = nextDeliveryFee;
+    if (patch.deliveryCost !== undefined) nextRecord.deliveryCost = nextDeliveryCost;
+    if (patch.discount !== undefined || patch.deliveryFee !== undefined) {
+      nextRecord.totalCharged = roundRetailOrderMoney(
+        current.subtotalProducts - nextDiscount + nextDeliveryFee,
+      );
+    }
+
+    this.records.set(orderId, nextRecord);
     this.rebuildSnapshot();
     this.lastAppliedSource = 'local';
     this.loadState = {

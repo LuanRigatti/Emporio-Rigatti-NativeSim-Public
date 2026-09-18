@@ -306,6 +306,26 @@ function AppShell() {
                   </Stack.Screen.BackButton>
                 </Stack.Screen>
                 <Stack.Screen
+                  name="pedido-varejo/[orderId]/editar"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
+                    Voltar
+                  </Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
                   name="registrar-entrega"
                   options={{
                     animation: 'default',

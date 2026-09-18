@@ -333,14 +333,60 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
         totalCharged: 29.95,
       }),
     );
+    expect(dataSource.getById('order-1', 'uid-retail', 1)).toMatchObject({
+      discount: 0.05,
+      totalCharged: 29.95,
+    });
 
     await dataSource.complete('uid-retail', 'order-1', 1);
     expect(mockedUpdateDoc).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: 'order-1' }),
       expect.objectContaining({ status: 'completed' }),
     );
-    expect(mockedGetDocs).toHaveBeenCalledTimes(2);
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
     expect(dataSource.getById('order-1', 'uid-retail', 1)?.status).toBe('completed');
+  });
+
+  it('allows non-financial edits with posted payments but blocks monetary edits', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    const paymentReader = {
+      list: jest.fn(() => [payment('posted', 10, 'posted')]),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const dataSource = new RetailOrderDataSource(paymentReader);
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(
+      dataSource.update('uid-retail', 'order-1', { discount: 0.05 }, 1),
+    ).rejects.toMatchObject({ code: 'order_has_posted_payment' });
+    await expect(
+      dataSource.update('uid-retail', 'order-1', { notes: 'Entregar no portão' }, 1),
+    ).resolves.toBeUndefined();
+
+    expect(dataSource.getById('order-1', 'uid-retail', 1)?.notes).toBe('Entregar no portão');
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows monetary edits when the order has only voided payments', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    const paymentReader = {
+      list: jest.fn(() => [payment('voided', 10, 'voided')]),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const dataSource = new RetailOrderDataSource(paymentReader);
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(
+      dataSource.update('uid-retail', 'order-1', { deliveryFee: 25 }, 1),
+    ).resolves.toBeUndefined();
+
+    expect(dataSource.getById('order-1', 'uid-retail', 1)).toMatchObject({
+      deliveryFee: 25,
+      totalCharged: 35,
+    });
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
   });
 
   it('cancels an order without changing its posted payments', async () => {

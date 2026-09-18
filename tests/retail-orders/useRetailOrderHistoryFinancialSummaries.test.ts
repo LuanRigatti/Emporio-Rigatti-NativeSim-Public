@@ -274,6 +274,49 @@ describe('useRetailOrderHistoryFinancialSummaries', () => {
     act(() => renderer.unmount());
   });
 
+  it('keeps a ready summary visible while a financial signature changes', async () => {
+    let current: SummaryState = {};
+    let renderer!: ReactTestRenderer;
+    const firstOrder = order('order-a');
+
+    await act(async () => {
+      renderer = create(
+        createElement(Harness, { onRender: (value) => (current = value), orders: [firstOrder] }),
+      );
+      await settle();
+    });
+    await act(async () => {
+      pendingLoads[0]?.resolve(readyResults([firstOrder]));
+      await settle();
+    });
+
+    await act(async () => {
+      renderer.update(
+        createElement(Harness, {
+          onRender: (value) => (current = value),
+          orders: [order('order-a', { discount: 5 })],
+        }),
+      );
+      await settle();
+    });
+
+    expect(current['order-a']).toMatchObject({ status: 'ready', revalidating: true });
+    expect(pendingLoads).toHaveLength(2);
+
+    await act(async () => {
+      pendingLoads[1]?.resolve(
+        readyResults([order('order-a', { discount: 5 })], summary({ totalCharged: 105 })),
+      );
+      await settle();
+    });
+
+    expect(current['order-a']).toMatchObject({
+      status: 'ready',
+      summary: { totalCharged: 105 },
+    });
+    act(() => renderer.unmount());
+  });
+
   it('revalidates ready summaries without clearing the cache or showing structural loading', async () => {
     let current: SummaryState = {};
     let renderer!: ReactTestRenderer;

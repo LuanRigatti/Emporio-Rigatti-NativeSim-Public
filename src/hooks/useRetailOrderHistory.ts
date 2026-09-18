@@ -183,6 +183,15 @@ export function useRetailOrderHistoryFinancialSummaries(
           return;
         }
 
+        if (previousState?.status === 'ready') {
+          next[order.orderId] = {
+            ...previousState,
+            revalidating: true,
+            revalidationError: undefined,
+          };
+          return;
+        }
+
         next[order.orderId] = { status: 'loading' };
       });
       return { scopeKey, states: next };

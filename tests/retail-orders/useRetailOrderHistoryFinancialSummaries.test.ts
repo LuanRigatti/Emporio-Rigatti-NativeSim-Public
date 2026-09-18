@@ -43,7 +43,6 @@ jest.mock('@/services/retail-orders', () => ({
     [
       order.orderId,
       order.orderDate,
-      order.status,
       order.subtotalProducts,
       order.discount,
       order.deliveryFee,

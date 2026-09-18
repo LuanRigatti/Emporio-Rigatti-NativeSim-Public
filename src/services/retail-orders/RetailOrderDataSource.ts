@@ -292,7 +292,11 @@ function sortOrders(orders: readonly RetailOrder[]): RetailOrder[] {
 }
 
 export type RetailOrderStateErrorCode =
-  'order_not_found' | 'order_not_editable' | 'order_has_posted_payment' | 'invalid_order_patch';
+  | 'order_not_found'
+  | 'order_not_editable'
+  | 'order_has_posted_payment'
+  | 'invalid_order_patch'
+  | 'invalid_order_status';
 
 export type RetailOrderLoadSource = 'none' | 'cache' | 'local' | 'remote';
 
@@ -741,24 +745,7 @@ export class RetailOrderDataSource {
     orderId: string,
     sessionVersion?: number,
   ): Promise<void> {
-    const request = this.captureSessionRequest(userId, sessionVersion);
-    assertId(orderId, 'pedido');
-    const current = await this.requireCurrentOrder(orderId, request);
-    if (current.status !== 'created') {
-      throw new RetailOrderStateError(
-        'order_not_editable',
-        'Somente pedidos criados podem ser concluídos.',
-      );
-    }
-    const { doc, serverTimestamp, updateDoc } = await getFirestoreOps();
-    this.assertSessionRequestCurrent(request);
-    await updateDoc(doc(await collectionFor(request.userId), orderId), {
-      status: 'completed',
-      updatedAt: serverTimestamp(),
-    });
-    this.assertSessionRequestCurrent(request);
-    await this.load(request.userId, request.sessionVersion);
-    this.assertSessionRequestCurrent(request);
+    return this.updateStatus(userId, orderId, 'completed', sessionVersion);
   }
 
   public async cancel(
@@ -766,22 +753,44 @@ export class RetailOrderDataSource {
     orderId: string,
     sessionVersion?: number,
   ): Promise<void> {
+    return this.updateStatus(userId, orderId, 'cancelled', sessionVersion);
+  }
+
+  public async updateStatus(
+    userId: string | undefined,
+    orderId: string,
+    nextStatus: RetailOrderStatus,
+    sessionVersion?: number,
+  ): Promise<void> {
     const request = this.captureSessionRequest(userId, sessionVersion);
     assertId(orderId, 'pedido');
-    const current = await this.requireCurrentOrder(orderId, request);
-    if (current.status === 'cancelled') {
-      throw new RetailOrderStateError('order_not_editable', 'O pedido já está cancelado.');
+    if (nextStatus !== 'completed' && nextStatus !== 'cancelled') {
+      throw new RetailOrderStateError(
+        'invalid_order_status',
+        'O status solicitado não é permitido para este pedido.',
+      );
     }
-    await this.assertNoPostedPayments(orderId, request);
+    const current = await this.requireCurrentOrder(orderId, request);
+    const transitionAllowed =
+      (current.status === 'created' &&
+        (nextStatus === 'completed' || nextStatus === 'cancelled')) ||
+      (current.status === 'completed' && nextStatus === 'cancelled');
+    if (!transitionAllowed) {
+      throw new RetailOrderStateError(
+        'order_not_editable',
+        current.status === 'cancelled'
+          ? 'O pedido já está cancelado.'
+          : 'Esta transição de status não é permitida.',
+      );
+    }
     const { doc, serverTimestamp, updateDoc } = await getFirestoreOps();
     this.assertSessionRequestCurrent(request);
     await updateDoc(doc(await collectionFor(request.userId), orderId), {
-      status: 'cancelled',
+      status: nextStatus,
       updatedAt: serverTimestamp(),
     });
     this.assertSessionRequestCurrent(request);
-    await this.load(request.userId, request.sessionVersion);
-    this.assertSessionRequestCurrent(request);
+    this.applyLocalStatus(orderId, current, nextStatus, request.userId);
   }
 
   private async requireCurrentOrder(
@@ -872,6 +881,29 @@ export class RetailOrderDataSource {
 
   private rebuildSnapshot(): void {
     this.snapshot = sortOrders(snapshotForRecords(this.records.values()));
+  }
+
+  private applyLocalStatus(
+    orderId: string,
+    current: RetailOrder,
+    nextStatus: RetailOrderStatus,
+    userId: string,
+  ): void {
+    const currentRecord = this.records.get(orderId);
+    this.records.set(orderId, {
+      ...(currentRecord ?? { id: orderId, ...current }),
+      status: nextStatus,
+    });
+    this.rebuildSnapshot();
+    this.lastAppliedSource = 'local';
+    this.loadState = {
+      ...this.loadState,
+      error: undefined,
+      revalidating: false,
+      source: 'local',
+    };
+    this.publish();
+    void retailOrderCatalogCache.write(userId, [...this.records.values()]).catch(() => undefined);
   }
 
   private loadSourceFromLastAppliedSource(): RetailOrderLoadSource {

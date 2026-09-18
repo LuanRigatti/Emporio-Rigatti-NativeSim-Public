@@ -3,10 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge, EmptyState, ErrorState, InlineError, Loading } from '@/components/feedback';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeButton } from '@/components/native';
+import { NativeButton, NativeDialog } from '@/components/native';
 import { PremiumCard, PremiumScreen, PremiumSection } from '@/components/premium';
 import { useRetailOrderDetail } from '@/hooks/useRetailOrderDetail';
 import { useRetailOrderPayments } from '@/hooks/useRetailOrderPayments';
+import { useRetailOrderStatus } from '@/hooks/useRetailOrderStatus';
 import { useAuth } from '@/providers';
 import {
   calculateRetailOrderFinancials,
@@ -27,6 +28,23 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
   const detail = useRetailOrderDetail(orderId);
   const { sessionVersion, user } = useAuth();
   const userId = user?.id;
+  const {
+    cancel: cancelOrder,
+    complete: completeOrder,
+    error: statusMutationError,
+    pending: statusMutationPending,
+  } = useRetailOrderStatus(orderId);
+  const [cancelDialogVisible, setCancelDialogVisible] = useState(false);
+  const handleComplete = useCallback(() => {
+    void completeOrder();
+  }, [completeOrder]);
+  const handleCancelRequest = useCallback(() => {
+    setCancelDialogVisible(true);
+  }, []);
+  const handleCancelConfirmed = useCallback(() => {
+    setCancelDialogVisible(false);
+    void cancelOrder();
+  }, [cancelOrder]);
   const handlePaymentRegistered = useCallback(
     (registeredOrderId: string, payments: readonly RetailPayment[]) => {
       if (!detail.order || registeredOrderId !== detail.order.orderId || !userId) return;
@@ -78,9 +96,13 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
   ) : (
     <OrderDetailsContent
       financialState={financialState}
+      onCancel={handleCancelRequest}
+      onComplete={handleComplete}
       onAddPayment={() => setPaymentSheetVisible(true)}
       order={detail.order}
       paymentState={paymentState}
+      statusMutationError={statusMutationError}
+      statusMutationPending={statusMutationPending}
       theme={theme}
     />
   );
@@ -105,21 +127,43 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
         outstandingAmount={financialState?.summary?.outstandingAmount ?? 0}
         visible={paymentSheetVisible}
       />
+      <NativeDialog
+        actions={[
+          {
+            destructive: true,
+            id: 'cancel-order',
+            onPress: handleCancelConfirmed,
+            title: 'Cancelar pedido',
+          },
+        ]}
+        message="O pedido será cancelado, mas os pagamentos existentes serão preservados para auditoria."
+        onDismiss={() => setCancelDialogVisible(false)}
+        title="Cancelar pedido?"
+        visible={cancelDialogVisible}
+      />
     </>
   );
 }
 
 function OrderDetailsContent({
   financialState,
+  onCancel,
+  onComplete,
   onAddPayment,
   order,
   paymentState,
+  statusMutationError,
+  statusMutationPending,
   theme,
 }: {
   financialState?: { summary: RetailOrderFinancialSummary } | { error: string };
+  onCancel: () => void;
+  onComplete: () => void;
   onAddPayment: () => void;
   order: RetailOrder;
   paymentState: ReturnType<typeof useRetailOrderPayments>;
+  statusMutationError?: string;
+  statusMutationPending: boolean;
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
   return (
@@ -139,6 +183,32 @@ function OrderDetailsContent({
           <DetailRow label="Data de entrega" value={formatPtBrDate(order.deliveryDate)} />
         </PremiumCard>
       </PremiumSection>
+
+      {order.status === 'created' ? (
+        <PremiumSection title="Ações do pedido">
+          <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+            <NativeButton
+              accessibilityLabel="Concluir pedido"
+              disabled={statusMutationPending}
+              haptic="light"
+              label="Concluir pedido"
+              onPress={onComplete}
+              variant="primary"
+            />
+            <NativeButton
+              accessibilityLabel="Cancelar pedido"
+              destructive
+              disabled={statusMutationPending}
+              haptic="light"
+              label="Cancelar pedido"
+              onPress={onCancel}
+              variant="primary"
+            />
+            {statusMutationError ? <InlineError message={statusMutationError} /> : null}
+            {statusMutationPending ? <Loading label="Atualizando pedido…" /> : null}
+          </PremiumCard>
+        </PremiumSection>
+      ) : null}
 
       <PremiumSection title="Cliente">
         <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>

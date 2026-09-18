@@ -34,7 +34,7 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).not.toContain('FirestoreDeliveryDataSource');
   });
 
-  it('contains only the scoped payment action and no other order mutation action', () => {
+  it('contains scoped payment and lifecycle actions without navigation or payment mutations', () => {
     expect(detailSource).toContain('RetailOrderPaymentSheet');
     expect(detailSource).toContain('Adicionar pagamento');
     expect(detailSource).toContain('onRegisterSuccess: handlePaymentRegistered');
@@ -42,8 +42,14 @@ describe('RetailOrderDetailScreen contract', () => {
     expect(detailSource).toContain("order.status !== 'cancelled'");
     expect(detailSource).toContain('summary.outstandingAmount > 0');
     expect(detailSource).toContain('onRegister={paymentState.register}');
+    expect(detailSource).toContain('useRetailOrderStatus');
+    expect(detailSource).toContain('Ações do pedido');
+    expect(detailSource).toContain('Concluir pedido');
+    expect(detailSource).toContain('Cancelar pedido');
+    expect(detailSource).toContain('NativeDialog');
+    expect(detailSource).toContain("order.status === 'created'");
     expect(detailSource).not.toContain('.update(');
-    expect(detailSource).not.toContain('.cancel(');
-    expect(detailSource).not.toContain('.complete(');
+    expect(detailSource).not.toContain('router.push');
+    expect(detailSource).not.toContain('router.replace');
   });
 });

@@ -117,6 +117,22 @@ describe('Retail order history data', () => {
     expect(second).toEqual(first);
   });
 
+  it('reuses the financial summary when only the operational status changes', async () => {
+    const paymentReader = {
+      list: jest.fn(() => [payment('posted', 30)]),
+      load: jest.fn(async () => undefined),
+    };
+    const service = new RetailOrderHistoryFinancialSummaryService(paymentReader);
+    const createdOrder = order('order-status');
+    const completedOrder = { ...createdOrder, status: 'completed' as const };
+
+    const first = await service.loadForOrder(createdOrder, 'uid-retail', 1);
+    const second = await service.loadForOrder(completedOrder, 'uid-retail', 1);
+
+    expect(paymentReader.load).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+  });
+
   it('can revalidate a cached summary without clearing the session cache', async () => {
     const paymentReader = {
       list: jest.fn(() => [payment('posted', 30)]),

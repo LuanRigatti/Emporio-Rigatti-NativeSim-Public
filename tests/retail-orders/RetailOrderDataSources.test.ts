@@ -303,7 +303,7 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     await load;
   });
 
-  it('updates allowed draft fields, reallocates changed discounts, and completes orders', async () => {
+  it('updates allowed draft fields and applies lifecycle status locally', async () => {
     mockedGetDocs
       .mockResolvedValueOnce(queryResult([orderRecord()]))
       .mockResolvedValueOnce(
@@ -339,9 +339,11 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
       expect.objectContaining({ id: 'order-1' }),
       expect.objectContaining({ status: 'completed' }),
     );
+    expect(mockedGetDocs).toHaveBeenCalledTimes(2);
+    expect(dataSource.getById('order-1', 'uid-retail', 1)?.status).toBe('completed');
   });
 
-  it('blocks cancellation when a posted payment exists', async () => {
+  it('cancels an order without changing its posted payments', async () => {
     mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
     const paymentReader = {
       list: jest.fn(() => [payment('posted', 10, 'posted')]),
@@ -351,10 +353,84 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     dataSource.setSessionUser('uid-retail', 1);
     await dataSource.load('uid-retail', 1);
 
-    await expect(dataSource.cancel('uid-retail', 'order-1', 1)).rejects.toMatchObject({
-      code: 'order_has_posted_payment',
+    await expect(dataSource.cancel('uid-retail', 'order-1', 1)).resolves.toBeUndefined();
+
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'order-1' }),
+      expect.objectContaining({ status: 'cancelled' }),
+    );
+    expect(paymentReader.load).not.toHaveBeenCalled();
+    expect(dataSource.getById('order-1', 'uid-retail', 1)?.status).toBe('cancelled');
+  });
+
+  it('preserves the existing completed-to-cancelled transition without changing payments', async () => {
+    mockedGetDocs.mockResolvedValueOnce(
+      queryResult([orderRecord('order-completed', { status: 'completed' })]),
+    );
+    const paymentReader = {
+      list: jest.fn(() => [payment('posted', 10, 'posted')]),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const dataSource = new RetailOrderDataSource(paymentReader);
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await dataSource.updateStatus('uid-retail', 'order-completed', 'cancelled', 1);
+
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'order-completed' }),
+      expect.objectContaining({ status: 'cancelled' }),
+    );
+    expect(paymentReader.load).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid lifecycle status and transitions from cancelled orders', async () => {
+    mockedGetDocs.mockResolvedValueOnce(
+      queryResult([orderRecord('order-cancelled', { status: 'cancelled' })]),
+    );
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(
+      dataSource.updateStatus('uid-retail', 'order-cancelled', 'created', 1),
+    ).rejects.toMatchObject({ code: 'invalid_order_status' });
+    await expect(dataSource.complete('uid-retail', 'order-cancelled', 1)).rejects.toMatchObject({
+      code: 'order_not_editable',
     });
     expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('rejects a lifecycle mutation when the order is missing', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([]));
+    mockedGetDoc.mockResolvedValueOnce(documentResult({}, false));
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+
+    await expect(dataSource.complete('uid-retail', 'missing-order', 1)).rejects.toMatchObject({
+      code: 'order_not_found',
+    });
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('discards a status response after the UID/session changes', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    let resolveUpdate!: () => void;
+    const pendingUpdate = new Promise<void>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    mockedUpdateDoc.mockReturnValueOnce(pendingUpdate);
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-old', 1);
+    await dataSource.load('uid-old', 1);
+
+    const mutation = dataSource.complete('uid-old', 'order-1', 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    dataSource.setSessionUser('uid-new', 2);
+    resolveUpdate();
+
+    await expect(mutation).rejects.toThrow('Sessão alterada durante a operação.');
+    expect(dataSource.getSnapshot('uid-new', 2)).toBeNull();
   });
 
   it('discards an order response after the UID/session changes', async () => {

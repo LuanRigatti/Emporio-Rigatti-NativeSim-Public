@@ -70,8 +70,7 @@ export function PremiumScreen({
     progressiveBlur && ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
   const resolvedProgressiveBlurHeight =
     progressiveBlurHeight ?? insets.top + theme.spacing.xxxl + theme.spacing.xs * 2;
-  const bottomScrollSpace =
-    theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg;
+  const bottomScrollSpace = theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg;
   const overlayContentPaddingTop = Math.max(
     0,
     overlayHeaderUnderlay

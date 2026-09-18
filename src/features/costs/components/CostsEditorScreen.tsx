@@ -163,7 +163,11 @@ export function CostsEditorScreen({ mode, nativeHeader = false }: CostsEditorScr
           <NativeDateToolbar onDateChange={setSelectedDate} selectedDate={selectedDate} />
         )
       ) : null}
-      <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
+      <PremiumScreen
+        contentContainerStyle={styles.content}
+        overlayHeader={header}
+        progressiveBlur
+      >
         <GlassCard
           style={[
             styles.card,

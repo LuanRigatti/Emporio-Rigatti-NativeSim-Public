@@ -497,3 +497,80 @@ Prefer extending reusable abstractions over creating screen-specific implementat
 Visual styles (glass, glassProminent, primary, bordered, filled, etc.) should be expressed through variants instead of separate component names whenever technically appropriate.
 
 Every new native component should be designed with reuse across the entire application in mind.
+
+## Handoff para o Orquestrador
+
+Ao finalizar tarefas de auditoria ou implementação, produza um `HANDOFF PARA ORQUESTRADOR`, destinado a transportar o estado real da tarefa para outro agente sem depender de screenshots.
+
+Escolha automaticamente entre dois modos:
+
+### 1. Somente HANDOFF — completo
+
+Quando o handoff puder substituir adequadamente a resposta final, entregue somente um `HANDOFF PARA ORQUESTRADOR` completo.
+
+Ele deve conter, conforme aplicável:
+
+- tarefa executada;
+- causa raiz e evidências relevantes;
+- decisões técnicas tomadas;
+- arquivos auditados e/ou alterados;
+- comportamento antes/depois;
+- escopo importante deliberadamente preservado;
+- validações executadas e respectivos resultados;
+- validações não executadas ou ainda pendentes;
+- necessidade ou não de nova Development Build;
+- branch, HEAD e Git status;
+- alterações preexistentes no working tree que foram preservadas;
+- pendências;
+- divergências relevantes entre código/Git e documentação;
+- estado da documentação: não alterada, atualizada ou divergente.
+
+Nesse modo, o handoff pode ser detalhado o suficiente para outro agente continuar o trabalho sem precisar da resposta anterior.
+
+### 2. Resposta normal + HANDOFF curto
+
+Quando uma explicação detalhada for útil ao usuário, entregue a resposta normal e depois um `HANDOFF PARA ORQUESTRADOR` curto.
+
+Esse handoff deve conter somente o delta necessário para atualizar o Orquestrador, sem repetir a explicação detalhada já apresentada.
+
+Priorize:
+
+- tarefa;
+- causa raiz/conclusão;
+- alteração ou decisão;
+- arquivos relevantes;
+- validações;
+- Development Build;
+- Git;
+- pendências.
+
+Nunca produza uma resposta detalhada seguida de um handoff igualmente detalhado.
+
+### Formato
+
+O handoff deve começar exatamente com:
+
+`HANDOFF PARA ORQUESTRADOR`
+
+Quando houver resposta normal + handoff, coloque o handoff inteiro em um único bloco de código Markdown `text`, isolado do restante da resposta, para permitir cópia rápida em um clique.
+
+Quando a resposta for somente o handoff, mantenha-o como um bloco único e facilmente copiável.
+
+### Regras
+
+- Não invente resultados de testes, validações ou estado do Git.
+- Informe explicitamente o que não foi testado.
+- Diferencie alterações desta tarefa de mudanças preexistentes no working tree.
+- Não trate uma sugestão ou plano como implementação concluída.
+- Código/Git auditado continuam sendo a fonte da verdade.
+- Preserve todas as regras já existentes de auditoria, root cause first, escopo mínimo, validação, Development Build e Git.
+- O handoff não substitui validações exigidas pela tarefa.
+- Não faça commit ou push sem solicitação explícita.
+
+Depois da alteração:
+
+1. mostre o diff exato de `AGENTS.md`;
+2. confirme que nenhuma linha existente foi modificada;
+3. execute `git diff --check -- AGENTS.md`;
+4. informe o Git status;
+5. não altere mais nada.

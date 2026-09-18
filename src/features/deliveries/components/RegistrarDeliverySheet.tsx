@@ -17,7 +17,6 @@ export function RegistrarDeliverySheet({
 }) {
   const { resolvedMode } = useAppTheme();
   const useDarkGlassSurface = resolvedMode === 'dark';
-
   return (
     <NativeBottomSheet
       bucketPrice={DEFAULT_REGISTRAR_DELIVERY_BUCKET_PRICE}

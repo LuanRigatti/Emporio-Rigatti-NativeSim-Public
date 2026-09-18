@@ -9,11 +9,83 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- O checkpoint publicado mais recente é `23b33044b1956044928ddd81825bdaf7807d618b`
-  (`feat(retail): add follow-up payments and sync history`).
-- `origin/ajustes-codex` está sincronizada com esse checkpoint. Arquivos locais
-  deliberadamente excluídos do checkpoint podem permanecer no working tree e
-  devem ser preservados em futuras operações seletivas.
+- O checkpoint funcional da sincronização das toolbars das tabs é
+  `2b303fe44d1803e7462974bb9ffbc1787a8ca641`
+  (`fix(ios): synchronize tab toolbar and preserve native morph`).
+- O fechamento documental desta correção pode estar em commit posterior na
+  mesma branch; o checkpoint funcional acima continua sendo a referência da
+  implementação. Arquivos locais deliberadamente excluídos de checkpoints
+  podem permanecer no working tree e devem ser preservados em futuras
+  operações seletivas.
+
+## Fechamento da sincronização nativa das toolbars das tabs — 2026-09-17
+
+Este bloco registra a correção do micro-delay entre o conteúdo e os controles
+superiores ao trocar entre Home, Registrar, Finanças, Histórico e Configurações.
+O NativeSim Public foi usado somente como ambiente auxiliar de compilação e
+validação; este repositório continua sendo a fonte da verdade.
+
+### Causa raiz e tentativas
+
+- Na arquitetura original, o NativeTabs selecionava o conteúdo, um callback
+  chegava ao JavaScript, o `activeTabStore` mudava e o `Stack.Toolbar`
+  compartilhado no Stack raiz reaplicava a configuração. Os
+  `UIBarButtonItem`s eram recriados depois de o conteúdo da tab já poder ser
+  revelado, introduzindo o frame perceptível de atraso da toolbar.
+- A tentativa intermediária moveu header e toolbar para um Native Stack próprio
+  de cada tab. Isso eliminou o delay porque a toolbar passou a acompanhar o
+  stack da tab, mas removeu a continuidade da mesma `UINavigationBar`; por
+  isso, o morph Liquid Glass entre tabs deixou de ocorrer. O morph dentro de
+  um mesmo stack, como em Configurações, permaneceu funcionando.
+
+### Solução híbrida final
+
+- O `(tabs)` voltou a possuir uma única `UINavigationBar`/`Stack.Toolbar`
+  compartilhada no Stack raiz. Os NativeTabs, Native Stacks, estado de
+  navegação independente das tabs, push/pop, swipe-back e
+  `hidesBottomBarWhenPushed` permanecem preservados; a tab bar continua
+  reservada às telas raiz.
+- O coordinator nativo no `RNSTabBarController` prepara a toolbar da tab de
+  destino antes da seleção visual: cobre `shouldSelectViewController` para
+  toque físico e `setSelectedIndex`/`setSelectedViewController` para seleção
+  programática. O fluxo também sincroniza novamente depois que o
+  `RNSScreenStackHeaderConfig` materializa ou reaplica os itens.
+- A toolbar é obtida dos `UIBarButtonItem`s reais do `navigationItem` raiz do
+  stack da tab de destino e reaplicada no `navigationItem` do controller
+  compartilhado. Os itens e seus `customView`s, handlers, menus, avatar, lupa
+  e seletores continuam nativos; não há toolbar fake em React Native nem
+  duplicação permanente de itens.
+- A preparação nativa remove o round-trip pelo JavaScript do caminho crítico:
+  os itens corretos já estão no `navigationItem` compartilhado antes de o
+  `UITabBarController` revelar a nova tab. A continuidade dessa mesma
+  `UINavigationBar`, inclusive com shared background, é o que permite
+  preservar o morph Liquid Glass cross-tab.
+
+### Config plugin e contrato de manutenção
+
+- `plugins/withRNScreensHideBottomBarWhenPushed.js` aplica, durante o prebuild,
+  o patch reproduzível ao `react-native-screens` instalado. Ele integra o
+  coordinator ao `RNSTabBarController`, expõe a sincronização para o
+  `RNSScreenStackHeaderConfig` e preserva o suporte a
+  `hidesBottomBarWhenPushed`.
+- O plugin usa marcadores, é idempotente e falha quando a estrutura esperada
+  da versão instalada não está presente; não depende de edição manual de
+  `node_modules`. Dependências e o próprio plugin não foram alterados neste
+  fechamento documental.
+- O mecanismo não deve ser removido ou substituído em futuras refatorações
+  sem reproduzir e validar conjuntamente os dois critérios: ausência do frame
+  atrasado na troca de tab e morph Liquid Glass entre tabs.
+
+### Validação
+
+- A implementação funcional foi compilada e validada no NativeSim iOS: o
+  micro-delay foi eliminado, o morph Liquid Glass cross-tab foi restaurado e
+  a troca repetida de conteúdo e toolbar ocorreu sem o frame atrasado
+  anterior. NativeTabs, Native Stack, Stack.Toolbar, UINavigationBar
+  compartilhada e handlers existentes permaneceram ativos.
+- A validação em iPhone físico ainda não foi realizada. Ela permanece como a
+  validação nativa final da correção; este fechamento documental não executa
+  prebuild nem altera código funcional.
 
 ## Consolidação da Fase 5C.2A — 2026-09-17
 
@@ -185,7 +257,8 @@ abaixo é a referência operacional após a publicação deste commit.
   centralizada. O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou
   campo editável na Home.
 - O header da Home mantém avatar e lupa juntos em uma única pílula no canto
-  superior direito, pertencente ao `Stack.Toolbar` local. Os dois controles
+  superior direito, pertencente ao `Stack.Toolbar` compartilhado do Stack raiz
+  `(tabs)`, sincronizado nativamente antes da troca de tab. Os dois controles
   continuam com hitboxes nativas independentes, haptics, Profile Sheet e
   navegação para `/pesquisa`.
 - No caminho iOS com `@expo/ui`, a cápsula visível usa o shared background
@@ -362,6 +435,15 @@ abaixo é a referência operacional após a publicação deste commit.
   contadores, listeners ou helpers de diagnóstico desse fluxo.
 
 ## Estado nativo atual
+
+### VALIDADO NO NATIVESIM IOS — 2026-09-17
+
+- A correção híbrida de sincronização das toolbars foi compilada e validada no
+  NativeSim: o coordinator nativo prepara os itens da tab de destino antes da
+  seleção, elimina o round-trip JS do caminho crítico e preserva o morph
+  Liquid Glass da `UINavigationBar` compartilhada.
+- Esta validação confirma a troca sem frame atrasado, mas não substitui o teste
+  no iPhone físico, que ainda está pendente.
 
 ### VALIDADO NO IPHONE
 

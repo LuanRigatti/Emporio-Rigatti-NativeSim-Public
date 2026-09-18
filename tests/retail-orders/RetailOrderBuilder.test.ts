@@ -7,6 +7,7 @@ import type {
   RetailProduct,
 } from '@/types/data';
 import {
+  buildRetailOrderLineItemsUpdate,
   buildRetailOrderWriteData,
   RetailOrderCostError,
   type RetailOrderCatalogContext,
@@ -259,5 +260,137 @@ describe('buildRetailOrderWriteData', () => {
     expect(allocations).toEqual([0.02, 0.02, 0.01]);
     expect(allocations.reduce((total, value) => total + value, 0)).toBe(0.05);
     expect(result.totalCharged).toBe(49.95);
+  });
+
+  it('preserves existing snapshots while recalculating quantity-derived values', () => {
+    const item = costItem('unit', 'Unidade');
+    const original = buildRetailOrderWriteData(
+      'order-1',
+      orderInput([{ productId: 'product-1', quantity: 1 }]),
+      directContext(
+        [product('product-1', 10, { costMode: 'direct', directCostItemId: item.costItemId })],
+        item,
+        [costEntry('unit-entry', '2026-01-01', 4)],
+      ),
+    );
+
+    const result = buildRetailOrderLineItemsUpdate(original, [
+      { productId: 'product-1', quantity: 3 },
+    ]);
+
+    expect(result.lineItems[0]).toMatchObject({
+      costBreakdownSnapshot: original.lineItems[0]?.costBreakdownSnapshot,
+      lineCostTotal: 12,
+      lineSubtotal: 30,
+      productNameSnapshot: original.lineItems[0]?.productNameSnapshot,
+      quantity: 3,
+      unitCostSnapshot: 4,
+      unitSalePriceSnapshot: 10,
+    });
+    expect(result.subtotalProducts).toBe(30);
+    expect(result.totalCharged).toBe(50);
+  });
+
+  it('builds a new line from the current active catalog using the order date', () => {
+    const item = costItem('unit', 'Unidade');
+    const existingProduct = product('product-1', 10, {
+      costMode: 'direct',
+      directCostItemId: item.costItemId,
+    });
+    const newProduct = product('product-2', 15, {
+      costMode: 'direct',
+      directCostItemId: item.costItemId,
+    });
+    const original = buildRetailOrderWriteData(
+      'order-1',
+      orderInput([{ productId: existingProduct.productId, quantity: 1 }]),
+      directContext([existingProduct, newProduct], item, [
+        costEntry('unit-entry', '2026-01-01', 4),
+      ]),
+    );
+
+    const result = buildRetailOrderLineItemsUpdate(
+      original,
+      [
+        { productId: existingProduct.productId, quantity: 1 },
+        { productId: newProduct.productId, quantity: 2 },
+      ],
+      directContext([existingProduct, newProduct], item, [
+        costEntry('unit-entry', '2026-01-01', 4),
+      ]),
+    );
+
+    expect(result.lineItems[1]).toMatchObject({
+      lineCostTotal: 8,
+      lineSubtotal: 30,
+      productId: 'product-2',
+      productNameSnapshot: 'Produto product-2',
+      quantity: 2,
+      unitCostSnapshot: 4,
+      unitSalePriceSnapshot: 15,
+    });
+  });
+
+  it('rejects removing the final line and blocks a discount above the new subtotal', () => {
+    const item = costItem('unit', 'Unidade');
+    const original = buildRetailOrderWriteData(
+      'order-1',
+      orderInput([{ productId: 'product-1', quantity: 1 }]),
+      directContext(
+        [product('product-1', 10, { costMode: 'direct', directCostItemId: item.costItemId })],
+        item,
+        [costEntry('unit-entry', '2026-01-01', 4)],
+      ),
+    );
+
+    expect(() => buildRetailOrderLineItemsUpdate(original, [])).toThrow(
+      'O pedido precisa manter ao menos um produto.',
+    );
+    expect(() =>
+      buildRetailOrderLineItemsUpdate(
+        original,
+        [{ productId: 'product-1', quantity: 1 }],
+        undefined,
+        {
+          discount: 11,
+        },
+      ),
+    ).toThrow('O desconto não pode superar o subtotal do pedido.');
+  });
+
+  it('consolidates duplicate product inputs and rejects an inactive new product', () => {
+    const item = costItem('unit', 'Unidade');
+    const existing = product('product-1', 10, {
+      costMode: 'direct',
+      directCostItemId: item.costItemId,
+    });
+    const inactive = product('product-inactive', 12, {
+      active: false,
+      costMode: 'direct',
+      directCostItemId: item.costItemId,
+    });
+    const context = directContext([existing, inactive], item, [
+      costEntry('unit-entry', '2026-01-01', 4),
+    ]);
+    const original = buildRetailOrderWriteData(
+      'order-1',
+      orderInput([{ productId: existing.productId, quantity: 1 }]),
+      context,
+    );
+
+    const consolidated = buildRetailOrderLineItemsUpdate(original, [
+      { productId: existing.productId, quantity: 1 },
+      { productId: existing.productId, quantity: 2 },
+    ]);
+    expect(consolidated.lineItems).toHaveLength(1);
+    expect(consolidated.lineItems[0]?.quantity).toBe(3);
+
+    expect(() =>
+      buildRetailOrderLineItemsUpdate(
+        original,
+        [{ productId: inactive.productId, quantity: 1 }],
+        context,
+      ),
+    ).toThrow('está inativo');
   });
 });

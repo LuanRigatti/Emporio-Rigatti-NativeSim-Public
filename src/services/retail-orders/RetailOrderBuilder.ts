@@ -6,6 +6,7 @@ import type {
   RetailOrder,
   RetailOrderCreateInput,
   RetailOrderLineItem,
+  RetailOrderLineItemInput,
   RetailProduct,
   RetailProductCostResolution,
 } from '@/types/data';
@@ -33,6 +34,16 @@ export type RetailOrderCatalogContext = {
 };
 
 export type RetailOrderWriteData = Omit<RetailOrder, 'createdAt' | 'updatedAt'>;
+
+export type RetailOrderLineItemEditInput = RetailOrderLineItemInput;
+
+export type RetailOrderLineItemsUpdate = {
+  deliveryFee: number;
+  discount: number;
+  lineItems: readonly RetailOrderLineItem[];
+  subtotalProducts: number;
+  totalCharged: number;
+};
 
 export type RetailOrderValidationCode =
   | 'invalid_order_id'
@@ -191,6 +202,91 @@ function buildLineItem(
       ? { compositionVersionSnapshot: compositionSnapshotFor(resolution, context) }
       : {}),
     discountAllocatedSnapshot: 0,
+  };
+}
+
+export function buildRetailOrderLineItem(
+  input: RetailOrderLineItemEditInput,
+  orderDate: string,
+  context: RetailOrderCatalogContext,
+): RetailOrderLineItem {
+  return buildLineItem(input, normalizeRetailDate(orderDate), context);
+}
+
+export function buildRetailOrderLineItemsUpdate(
+  order: Pick<RetailOrder, 'orderDate' | 'discount' | 'deliveryFee' | 'lineItems'>,
+  inputs: readonly RetailOrderLineItemEditInput[],
+  context?: RetailOrderCatalogContext,
+  overrides: Partial<Pick<RetailOrder, 'discount' | 'deliveryFee'>> = {},
+): RetailOrderLineItemsUpdate {
+  if (!Array.isArray(inputs) || inputs.length === 0) {
+    throw new RetailOrderValidationError(
+      'invalid_line_items',
+      'O pedido precisa manter ao menos um produto.',
+    );
+  }
+
+  const quantitiesByProductId = new Map<string, number>();
+  for (const input of inputs) {
+    const productId = assertId(
+      input.productId,
+      'invalid_line_items',
+      'O item do pedido possui um produto inválido.',
+    );
+    const quantity = normalizeRetailQuantity(input.quantity, 'A quantidade do produto');
+    quantitiesByProductId.set(productId, (quantitiesByProductId.get(productId) ?? 0) + quantity);
+  }
+
+  const existingByProductId = new Map(
+    order.lineItems.map((lineItem) => [lineItem.productId, lineItem] as const),
+  );
+  const lineItems = [...quantitiesByProductId].map(([productId, quantity]) => {
+    const existing = existingByProductId.get(productId);
+    if (existing) {
+      return {
+        ...existing,
+        lineCostTotal: roundRetailOrderMoney(quantity * existing.unitCostSnapshot),
+        lineSubtotal: roundRetailOrderMoney(quantity * existing.unitSalePriceSnapshot),
+        quantity,
+      };
+    }
+    if (!context) {
+      throw new RetailOrderValidationError(
+        'product_not_found',
+        'O catálogo é necessário para adicionar um produto novo ao pedido.',
+      );
+    }
+    return buildRetailOrderLineItem({ productId, quantity }, order.orderDate, context);
+  });
+
+  const subtotalProducts = centsToMoney(
+    lineItems.reduce((total, lineItem) => total + moneyToCents(lineItem.lineSubtotal), 0),
+  );
+  const discount = normalizeRetailMoney(overrides.discount ?? order.discount, 'O desconto');
+  if (moneyToCents(discount) > moneyToCents(subtotalProducts)) {
+    throw new Error('O desconto não pode superar o subtotal do pedido.');
+  }
+  const deliveryFee = normalizeRetailMoney(
+    overrides.deliveryFee ?? order.deliveryFee,
+    'A taxa de entrega',
+  );
+  const discountAllocations = allocateDiscountCents(
+    lineItems.map((lineItem) => moneyToCents(lineItem.lineSubtotal)),
+    moneyToCents(discount),
+  );
+  const nextLineItems = lineItems.map((lineItem, index) => ({
+    ...lineItem,
+    discountAllocatedSnapshot: centsToMoney(discountAllocations[index] ?? 0),
+  }));
+
+  return {
+    deliveryFee,
+    discount,
+    lineItems: nextLineItems,
+    subtotalProducts,
+    totalCharged: centsToMoney(
+      moneyToCents(subtotalProducts) - moneyToCents(discount) + moneyToCents(deliveryFee),
+    ),
   };
 }
 

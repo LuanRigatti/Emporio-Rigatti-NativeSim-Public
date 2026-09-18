@@ -22,6 +22,7 @@ export function useRetailOrderDetail(orderId?: string): RetailOrderDetailState {
     [orderId, sessionVersion, userId],
   );
   const order = useSyncExternalStore(retailOrderDataSource.subscribe, getSnapshot, getSnapshot);
+  const previousOrderRef = useRef(order);
   const [loading, setLoading] = useState(Boolean(orderId));
   const [revalidating, setRevalidating] = useState(false);
   const [error, setError] = useState<string>();
@@ -61,7 +62,8 @@ export function useRetailOrderDetail(orderId?: string): RetailOrderDetailState {
     try {
       const loadedOrder = await retailOrderDataSource.loadById(orderId, userId, sessionVersion);
       if (requestGeneration.current !== requestId) return;
-      setNotFound(!loadedOrder);
+      const currentOrder = retailOrderDataSource.getById(orderId, userId, sessionVersion);
+      setNotFound(!loadedOrder && !currentOrder);
     } catch (loadError) {
       if (requestGeneration.current !== requestId) return;
       setError(
@@ -79,7 +81,30 @@ export function useRetailOrderDetail(orderId?: string): RetailOrderDetailState {
   }, [authStatus, orderId, sessionVersion, userId]);
 
   useEffect(() => {
-    void Promise.resolve().then(() => load());
+    if (
+      previousOrderRef.current &&
+      order &&
+      previousOrderRef.current !== order &&
+      previousOrderRef.current.orderId === order.orderId
+    ) {
+      // A mutation local already produced a newer visible snapshot. The remote
+      // revalidation may continue, but it must not keep the UI in a busy state.
+      setLoading(false);
+      setRevalidating(false);
+      setNotFound(false);
+    }
+    previousOrderRef.current = order;
+  }, [order]);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) void load();
+    });
+    return () => {
+      active = false;
+      requestGeneration.current += 1;
+    };
   }, [load]);
 
   return {

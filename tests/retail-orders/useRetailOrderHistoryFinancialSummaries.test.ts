@@ -47,6 +47,19 @@ jest.mock('@/services/retail-orders', () => ({
       order.discount,
       order.deliveryFee,
       order.deliveryCost,
+      order.lineItems
+        .map((lineItem) =>
+          [
+            lineItem.productId,
+            lineItem.quantity,
+            lineItem.unitSalePriceSnapshot,
+            lineItem.lineSubtotal,
+            lineItem.unitCostSnapshot,
+            lineItem.lineCostTotal,
+            lineItem.discountAllocatedSnapshot,
+          ].join(':'),
+        )
+        .join(';'),
     ].join('|'),
   retailOrderDataSource: {},
   retailOrderHistoryFinancialSummaryService: {
@@ -78,6 +91,21 @@ jest.mock('@/services/retail-orders', () => ({
 
 function order(id: string, overrides: Partial<RetailOrder> = {}): RetailOrder {
   return {
+    lineItems: [
+      {
+        categoryIdSnapshot: 'category-1',
+        categorySnapshot: 'Cestas',
+        costBreakdownSnapshot: [],
+        discountAllocatedSnapshot: 0,
+        lineCostTotal: 40,
+        lineSubtotal: 100,
+        productId: `product-${id}`,
+        productNameSnapshot: `Produto ${id}`,
+        quantity: 1,
+        unitCostSnapshot: 40,
+        unitSalePriceSnapshot: 100,
+      },
+    ],
     orderDate: '2026-09-15',
     orderId: id,
     status: 'created',

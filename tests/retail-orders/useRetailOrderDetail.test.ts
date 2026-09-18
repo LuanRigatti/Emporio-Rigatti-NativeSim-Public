@@ -31,6 +31,7 @@ jest.mock('@/services/retail-orders', () => ({
 
 const cachedOrder = { orderId: 'order-1', clientNameSnapshot: 'Cliente cache' } as never;
 const remoteOrder = { orderId: 'order-1', clientNameSnapshot: 'Cliente remoto' } as never;
+const localOrder = { orderId: 'order-1', clientNameSnapshot: 'Cliente local atualizado' } as never;
 
 describe('useRetailOrderDetail', () => {
   beforeEach(() => {
@@ -123,5 +124,61 @@ describe('useRetailOrderDetail', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+
+  it('ends visual revalidation when a newer local snapshot is published', async () => {
+    let resolveLoad!: (value: typeof remoteOrder) => void;
+    mockGetById.mockReturnValue(cachedOrder);
+    mockLoadById.mockImplementation(
+      () => new Promise<typeof remoteOrder>((resolve) => (resolveLoad = resolve)),
+    );
+    let current: ReturnType<typeof useRetailOrderDetail> | undefined;
+    function Harness() {
+      current = useRetailOrderDetail('order-1');
+      return null;
+    }
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(Harness));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(current?.revalidating).toBe(true);
+
+    act(() => {
+      mockGetById.mockReturnValue(localOrder);
+      mockNotify();
+    });
+    expect(current?.order).toBe(localOrder);
+    expect(current?.revalidating).toBe(false);
+
+    await act(async () => {
+      resolveLoad(remoteOrder);
+      await Promise.resolve();
+    });
+    expect(current?.order).toBe(localOrder);
+    expect(current?.revalidating).toBe(false);
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('does not start a deferred load after unmount', async () => {
+    function Harness() {
+      useRetailOrderDetail('order-1');
+      return null;
+    }
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(Harness));
+      renderer.unmount();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockLoadById).not.toHaveBeenCalled();
   });
 });

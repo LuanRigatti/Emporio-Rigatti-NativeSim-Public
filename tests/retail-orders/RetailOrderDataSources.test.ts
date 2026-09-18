@@ -389,6 +389,103 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     expect(mockedGetDocs).toHaveBeenCalledTimes(1);
   });
 
+  it('updates line items and all derived totals in one local order mutation', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    const paymentReader = {
+      list: jest.fn(() => []),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const dataSource = new RetailOrderDataSource(paymentReader);
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await dataSource.updateContents(
+      'uid-retail',
+      'order-1',
+      { lineItems: [{ productId: 'product-1', quantity: 2 }] },
+      1,
+    );
+
+    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'order-1' }),
+      expect.objectContaining({
+        lineItems: [expect.objectContaining({ lineCostTotal: 8, lineSubtotal: 20, quantity: 2 })],
+        subtotalProducts: 20,
+        totalCharged: 40,
+      }),
+    );
+    expect(dataSource.getById('order-1', 'uid-retail', 1)).toMatchObject({
+      subtotalProducts: 20,
+      totalCharged: 40,
+      lineItems: [expect.objectContaining({ quantity: 2 })],
+    });
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks deep content edits with posted payments and non-created orders', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    const postedReader = {
+      list: jest.fn(() => [payment('posted', 10, 'posted')]),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const postedDataSource = new RetailOrderDataSource(postedReader);
+    postedDataSource.setSessionUser('uid-retail', 1);
+    await postedDataSource.load('uid-retail', 1);
+
+    await expect(
+      postedDataSource.updateContents(
+        'uid-retail',
+        'order-1',
+        { lineItems: [{ productId: 'product-1', quantity: 2 }] },
+        1,
+      ),
+    ).rejects.toMatchObject({ code: 'order_has_posted_payment' });
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+
+    mockedGetDocs.mockResolvedValueOnce(
+      queryResult([orderRecord('order-completed', { status: 'completed' })]),
+    );
+    const completedDataSource = new RetailOrderDataSource({
+      list: jest.fn(() => []),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource);
+    completedDataSource.setSessionUser('uid-retail', 1);
+    await completedDataSource.load('uid-retail', 1);
+
+    await expect(
+      completedDataSource.updateContents(
+        'uid-retail',
+        'order-completed',
+        { lineItems: [{ productId: 'product-1', quantity: 2 }] },
+        1,
+      ),
+    ).rejects.toMatchObject({ code: 'order_not_editable' });
+  });
+
+  it('allows a deep edit with only voided payments and preserves the payment records', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    const paymentReader = {
+      list: jest.fn(() => [payment('voided', 10, 'voided')]),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const dataSource = new RetailOrderDataSource(paymentReader);
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(
+      dataSource.updateContents(
+        'uid-retail',
+        'order-1',
+        { lineItems: [{ productId: 'product-1', quantity: 2 }] },
+        1,
+      ),
+    ).resolves.toBeUndefined();
+    expect(paymentReader.list('order-1', 'uid-retail', 1)).toEqual([
+      expect.objectContaining({ paymentId: 'voided', status: 'voided' }),
+    ]);
+  });
+
   it('cancels an order without changing its posted payments', async () => {
     mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
     const paymentReader = {

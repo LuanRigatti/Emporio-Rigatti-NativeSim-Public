@@ -1,10 +1,14 @@
 export {
   buildRetailOrderWriteData,
+  buildRetailOrderLineItem,
+  buildRetailOrderLineItemsUpdate,
   RetailOrderCostError,
   RetailOrderValidationError,
 } from './RetailOrderBuilder';
 export type {
   RetailOrderCatalogContext,
+  RetailOrderLineItemEditInput,
+  RetailOrderLineItemsUpdate,
   RetailOrderValidationCode,
   RetailOrderWriteData,
 } from './RetailOrderBuilder';
@@ -27,6 +31,7 @@ export {
 export type {
   RetailOrderLoadSource,
   RetailOrderLoadState,
+  RetailOrderContentsUpdateInput,
   RetailOrderRecord,
 } from './RetailOrderDataSource';
 export {

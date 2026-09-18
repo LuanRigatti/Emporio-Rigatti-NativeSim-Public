@@ -9,6 +9,7 @@ const editSource = readFileSync(
 describe('RetailOrderEditScreen contract', () => {
   it('exposes only the supported editable fields', () => {
     for (const label of [
+      'Produtos',
       'Data de entrega',
       'Endereço de entrega',
       'Ocasião',
@@ -23,8 +24,11 @@ describe('RetailOrderEditScreen contract', () => {
     }
     expect(editSource).toContain('RetailOrderPatch');
     expect(editSource).toContain('useRetailOrderEdit');
+    expect(editSource).toContain('saveContents');
+    expect(editSource).toContain('updateLineQuantity');
+    expect(editSource).toContain('onRemoveLine');
+    expect(editSource).toContain('prepareForOrder');
     expect(editSource).not.toContain('RetailOrderFlowProvider');
-    expect(editSource).not.toContain('lineItems');
     expect(editSource).not.toContain('clientId');
     expect(editSource).not.toContain('orderDate');
   });
@@ -41,7 +45,12 @@ describe('RetailOrderEditScreen contract', () => {
     expect(editSource).toContain('useRetailOrderPayments');
     expect(editSource).toContain('useRetailOrderEdit');
     expect(editSource).toContain('overlayHeaderSpacing={theme.spacing.sm}');
-    expect(editSource).toContain('router.back()');
+    expect(editSource).toContain('useIsFocused');
+    expect(editSource).toContain('useNavigation');
+    expect(editSource).toContain('navigation.canGoBack()');
+    expect(editSource).toContain('isMountedRef');
+    expect(editSource).toContain('didNavigateBackRef');
+    expect(editSource.match(/router\.back\(\)/g)).toHaveLength(1);
   });
 
   it('keeps the edit form scrollable above the iOS keyboard', () => {

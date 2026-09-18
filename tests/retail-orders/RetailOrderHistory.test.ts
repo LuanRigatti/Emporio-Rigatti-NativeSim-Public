@@ -1,5 +1,6 @@
 import type { FirestoreTimestamp, RetailOrder, RetailPayment } from '@/types/data';
 import {
+  getRetailOrderHistoryFinancialSignature,
   RetailOrderHistoryFinancialSummaryService,
   type RetailOrderHistoryFinancialState,
 } from '@/services/retail-orders';
@@ -75,6 +76,22 @@ async function settle(): Promise<void> {
 }
 
 describe('Retail order history data', () => {
+  it('changes the financial signature when line cost changes with the same subtotal', () => {
+    const original = order('order-signature');
+    const changed = order('order-signature', {
+      lineItems: [
+        {
+          ...original.lineItems[0]!,
+          lineCostTotal: 45,
+        },
+      ],
+    });
+
+    expect(getRetailOrderHistoryFinancialSignature(changed)).not.toBe(
+      getRetailOrderHistoryFinancialSignature(original),
+    );
+  });
+
   it('filters and groups by orderDate, independent of deliveryDate', () => {
     const orders = [
       order('order-b', { deliveryDate: '2026-09-20', orderDate: '2026-09-05' }),

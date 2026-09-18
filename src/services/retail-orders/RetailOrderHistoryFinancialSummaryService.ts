@@ -216,6 +216,19 @@ export class RetailOrderHistoryFinancialSummaryService {
 }
 
 export function getRetailOrderHistoryFinancialSignature(order: RetailOrder): string {
+  const lineItemsSignature = order.lineItems
+    .map((lineItem) =>
+      [
+        lineItem.productId,
+        lineItem.quantity,
+        lineItem.unitSalePriceSnapshot,
+        lineItem.lineSubtotal,
+        lineItem.unitCostSnapshot,
+        lineItem.lineCostTotal,
+        lineItem.discountAllocatedSnapshot,
+      ].join(':'),
+    )
+    .join(';');
   return [
     order.orderId,
     order.orderDate,
@@ -223,6 +236,7 @@ export function getRetailOrderHistoryFinancialSignature(order: RetailOrder): str
     order.discount,
     order.deliveryFee,
     order.deliveryCost,
+    lineItemsSignature,
   ].join('|');
 }
 

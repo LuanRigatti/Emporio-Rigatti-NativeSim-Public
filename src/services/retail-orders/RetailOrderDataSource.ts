@@ -15,7 +15,12 @@ import {
   normalizeRetailMoney,
 } from '@/services/retail-costs/retailCostUtils';
 
-import { buildRetailOrderWriteData, type RetailOrderCatalogContext } from './RetailOrderBuilder';
+import {
+  buildRetailOrderLineItemsUpdate,
+  buildRetailOrderWriteData,
+  type RetailOrderCatalogContext,
+  type RetailOrderLineItemEditInput,
+} from './RetailOrderBuilder';
 import { retailOrderCatalogCache } from './RetailOrderCatalogCache';
 import { retailPaymentDataSource, type RetailPaymentDataSource } from './RetailPaymentDataSource';
 import {
@@ -305,6 +310,12 @@ export type RetailOrderLoadState = {
   revalidating: boolean;
   remoteComplete: boolean;
   error?: string;
+};
+
+export type RetailOrderContentsUpdateInput = {
+  catalog?: RetailOrderCatalogContext;
+  lineItems: readonly RetailOrderLineItemEditInput[];
+  patch?: RetailOrderPatch;
 };
 
 const INITIAL_RETAIL_ORDER_LOAD_STATE: RetailOrderLoadState = {
@@ -747,6 +758,90 @@ export class RetailOrderDataSource {
     );
   }
 
+  public async updateContents(
+    userId: string | undefined,
+    orderId: string,
+    input: RetailOrderContentsUpdateInput,
+    sessionVersion?: number,
+  ): Promise<void> {
+    const request = this.captureSessionRequest(userId, sessionVersion);
+    assertId(orderId, 'pedido');
+    const current = await this.requireCurrentOrder(orderId, request);
+    if (current.status !== 'created') {
+      throw new RetailOrderStateError(
+        'order_not_editable',
+        'Somente pedidos criados podem ser editados.',
+      );
+    }
+    await this.assertNoPostedPayments(orderId, request);
+
+    const patch = input.patch ?? {};
+    const nextDiscount =
+      patch.discount === undefined
+        ? current.discount
+        : normalizeRetailMoney(patch.discount, 'O desconto');
+    const nextDeliveryFee =
+      patch.deliveryFee === undefined
+        ? current.deliveryFee
+        : normalizeRetailMoney(patch.deliveryFee, 'A taxa de entrega');
+    const nextDeliveryCost =
+      patch.deliveryCost === undefined
+        ? current.deliveryCost
+        : normalizeRetailMoney(patch.deliveryCost, 'O custo da entrega');
+    const rebuilt = buildRetailOrderLineItemsUpdate(current, input.lineItems, input.catalog, {
+      discount: nextDiscount,
+      deliveryFee: nextDeliveryFee,
+    });
+
+    const firestorePatch: Record<string, unknown> = {
+      lineItems: rebuilt.lineItems,
+      subtotalProducts: rebuilt.subtotalProducts,
+      totalCharged: rebuilt.totalCharged,
+    };
+    if (patch.deliveryCost !== undefined) firestorePatch.deliveryCost = nextDeliveryCost;
+    if (patch.deliveryFee !== undefined) firestorePatch.deliveryFee = rebuilt.deliveryFee;
+    if (patch.discount !== undefined) firestorePatch.discount = rebuilt.discount;
+    if (patch.deliveryDate !== undefined) {
+      firestorePatch.deliveryDate = normalizeRetailDate(patch.deliveryDate);
+    }
+    if (patch.deliveryAddressSnapshot !== undefined) {
+      firestorePatch.deliveryAddressSnapshot = patch.deliveryAddressSnapshot.trim();
+    }
+    if (patch.occasion !== undefined) {
+      firestorePatch.occasion = patch.occasion?.trim()
+        ? patch.occasion.trim()
+        : (await getFirestoreOps()).deleteField();
+    }
+    if (patch.recipient !== undefined) {
+      firestorePatch.recipient = patch.recipient?.trim()
+        ? patch.recipient.trim()
+        : (await getFirestoreOps()).deleteField();
+    }
+    if (patch.notes !== undefined) {
+      firestorePatch.notes = patch.notes?.trim()
+        ? patch.notes.trim()
+        : (await getFirestoreOps()).deleteField();
+    }
+    firestorePatch.updatedAt = (await getFirestoreOps()).serverTimestamp();
+    this.assertSessionRequestCurrent(request);
+    const { doc, updateDoc } = await getFirestoreOps();
+    await updateDoc(doc(await collectionFor(request.userId), orderId), firestorePatch);
+    this.assertSessionRequestCurrent(request);
+
+    this.applyLocalContents(
+      orderId,
+      current,
+      patch,
+      rebuilt.lineItems,
+      rebuilt.subtotalProducts,
+      rebuilt.discount,
+      rebuilt.deliveryFee,
+      nextDeliveryCost,
+      rebuilt.totalCharged,
+      request.userId,
+    );
+  }
+
   public async complete(
     userId: string | undefined,
     orderId: string,
@@ -965,6 +1060,63 @@ export class RetailOrderDataSource {
       nextRecord.totalCharged = roundRetailOrderMoney(
         current.subtotalProducts - nextDiscount + nextDeliveryFee,
       );
+    }
+
+    this.records.set(orderId, nextRecord);
+    this.rebuildSnapshot();
+    this.lastAppliedSource = 'local';
+    this.loadState = {
+      ...this.loadState,
+      error: undefined,
+      revalidating: false,
+      source: 'local',
+    };
+    this.publish();
+    void retailOrderCatalogCache.write(userId, [...this.records.values()]).catch(() => undefined);
+  }
+
+  private applyLocalContents(
+    orderId: string,
+    current: RetailOrder,
+    patch: RetailOrderPatch,
+    lineItems: RetailOrder['lineItems'],
+    subtotalProducts: number,
+    discount: number,
+    deliveryFee: number,
+    deliveryCost: number,
+    totalCharged: number,
+    userId: string,
+  ): void {
+    const currentRecord = this.records.get(orderId);
+    const nextRecord: RetailOrderRecord = {
+      ...(currentRecord ?? { id: orderId, ...current }),
+      deliveryCost,
+      deliveryFee,
+      discount,
+      lineItems,
+      subtotalProducts,
+      totalCharged,
+    };
+    if (patch.deliveryDate !== undefined) {
+      nextRecord.deliveryDate = normalizeRetailDate(patch.deliveryDate);
+    }
+    if (patch.deliveryAddressSnapshot !== undefined) {
+      nextRecord.deliveryAddressSnapshot = patch.deliveryAddressSnapshot.trim();
+    }
+    if (patch.occasion !== undefined) {
+      const occasion = optionalRetailOrderText(patch.occasion);
+      if (occasion) nextRecord.occasion = occasion;
+      else delete nextRecord.occasion;
+    }
+    if (patch.recipient !== undefined) {
+      const recipient = optionalRetailOrderText(patch.recipient);
+      if (recipient) nextRecord.recipient = recipient;
+      else delete nextRecord.recipient;
+    }
+    if (patch.notes !== undefined) {
+      const notes = optionalRetailOrderText(patch.notes);
+      if (notes) nextRecord.notes = notes;
+      else delete nextRecord.notes;
     }
 
     this.records.set(orderId, nextRecord);

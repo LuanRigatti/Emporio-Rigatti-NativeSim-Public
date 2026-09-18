@@ -11,9 +11,11 @@ import { useRetailOrderPayments } from '@/hooks/useRetailOrderPayments';
 import { useRetailOrderStatus } from '@/hooks/useRetailOrderStatus';
 import { useAuth } from '@/providers';
 import {
+  calculateRetailOrderCostSummary,
   calculateRetailOrderFinancials,
   retailOrderHistoryFinancialSummaryService,
 } from '@/services/retail-orders';
+import type { RetailOrderCostSummary } from '@/services/retail-orders';
 import type { RetailOrder, RetailOrderFinancialSummary, RetailPayment } from '@/types/data';
 import { useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
@@ -108,6 +110,19 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
       };
     }
   }, [detail.order, paymentState.error, paymentState.payments, paymentState.snapshot]);
+  const costState = useMemo(() => {
+    if (!detail.order) return undefined;
+    try {
+      return { summary: calculateRetailOrderCostSummary(detail.order) };
+    } catch (calculationError) {
+      return {
+        error:
+          calculationError instanceof Error
+            ? calculationError.message
+            : 'Não foi possível calcular os custos históricos.',
+      };
+    }
+  }, [detail.order]);
 
   const header = <NativeGlassHeader mode="transparent" title="Pedido Varejo" />;
   const body = !detail.order ? (
@@ -124,6 +139,7 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
     )
   ) : (
     <OrderDetailsContent
+      costState={costState}
       financialState={financialState}
       onCancel={handleCancelRequest}
       onComplete={handleComplete}
@@ -193,6 +209,7 @@ export function RetailOrderDetailScreen({ orderId }: RetailOrderDetailScreenProp
 }
 
 function OrderDetailsContent({
+  costState,
   financialState,
   onCancel,
   onComplete,
@@ -207,6 +224,7 @@ function OrderDetailsContent({
   voidingPaymentId,
   theme,
 }: {
+  costState?: { summary: RetailOrderCostSummary } | { error: string };
   financialState?: { summary: RetailOrderFinancialSummary } | { error: string };
   onCancel: () => void;
   onComplete: () => void;
@@ -325,6 +343,10 @@ function OrderDetailsContent({
         </PremiumCard>
       </PremiumSection>
 
+      <PremiumSection title="Custos e margem">
+        <OrderCostSummaryContent costState={costState} theme={theme} />
+      </PremiumSection>
+
       <PremiumSection title="Pagamentos">
         <PaymentsContent
           onVoidPayment={onVoidPayment}
@@ -355,6 +377,32 @@ function OrderDetailsContent({
         </PremiumSection>
       ) : null}
     </View>
+  );
+}
+
+function OrderCostSummaryContent({
+  costState,
+  theme,
+}: {
+  costState?: { summary: RetailOrderCostSummary } | { error: string };
+  theme: ReturnType<typeof useAppTheme>['theme'];
+}) {
+  if (!costState || 'error' in costState) {
+    return (
+      <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+        <InlineError message={costState?.error ?? 'Os custos históricos estão indisponíveis.'} />
+      </PremiumCard>
+    );
+  }
+  const { summary } = costState;
+  return (
+    <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+      <DetailRow label="Venda" value={formatCurrency(summary.totalCharged)} strong />
+      <DetailRow label="Custo dos produtos" value={formatCurrency(summary.productCost)} />
+      <DetailRow label="Custo de entrega" value={formatCurrency(summary.deliveryCost)} />
+      <DetailRow label="Custo total" value={formatCurrency(summary.totalCost)} />
+      <DetailRow label="Margem bruta" value={formatCurrency(summary.grossMargin)} strong />
+    </PremiumCard>
   );
 }
 

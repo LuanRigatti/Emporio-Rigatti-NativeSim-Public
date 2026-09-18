@@ -31,6 +31,21 @@ function withKeys(
   }));
 }
 
+function compositionOptionLabel(
+  costItem: NativeRetailCompositionSheetProps['costItems'][number],
+  costItems: NativeRetailCompositionSheetProps['costItems'],
+): string {
+  const normalizedLabel = costItem.label.trim().toLocaleLowerCase('pt-BR');
+  const hasDuplicateName = costItems.some(
+    (candidate) =>
+      candidate.costItemId !== costItem.costItemId &&
+      candidate.label.trim().toLocaleLowerCase('pt-BR') === normalizedLabel,
+  );
+  return `${costItem.label} (${costItem.unit})${
+    hasDuplicateName ? ` · ID ${costItem.costItemId}` : ''
+  }`;
+}
+
 export default function NativeRetailCompositionSheetFallback({
   costItems,
   initialValues,
@@ -61,13 +76,24 @@ export default function NativeRetailCompositionSheetFallback({
   }, [initialValues, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const updateComponent = (key: string, patch: Partial<NativeRetailCompositionComponentValues>) =>
+  const updateComponent = (key: string, patch: Partial<NativeRetailCompositionComponentValues>) => {
+    if (
+      patch.costItemId !== undefined &&
+      values.components.some(
+        (component) => component.key !== key && component.costItemId === patch.costItemId,
+      )
+    ) {
+      setError('Esse item de custo já está na composição.');
+      return;
+    }
+    setError(undefined);
     setValues((current) => ({
       ...current,
       components: current.components.map((component) =>
         component.key === key ? { ...component, ...patch } : component,
       ),
     }));
+  };
 
   const addComponent = () => {
     const selected = new Set(values.components.map((component) => component.costItemId));
@@ -100,6 +126,13 @@ export default function NativeRetailCompositionSheetFallback({
       values.components.some((component) => !component.costItemId || !component.quantity.trim())
     ) {
       setError('Informe o item e a quantidade de cada componente.');
+      return;
+    }
+    if (
+      new Set(values.components.map((component) => component.costItemId)).size !==
+      values.components.length
+    ) {
+      setError('Cada item de custo só pode aparecer uma vez.');
       return;
     }
     setError(undefined);
@@ -138,7 +171,7 @@ export default function NativeRetailCompositionSheetFallback({
                 accessibilityLabel="Item do componente"
                 disabled={testModeEnabled || submitting || !costItems.length}
                 items={costItems.map((costItem) => ({
-                  label: `${costItem.label} (${costItem.unit})`,
+                  label: compositionOptionLabel(costItem, costItems),
                   value: costItem.costItemId,
                 }))}
                 label="Item"

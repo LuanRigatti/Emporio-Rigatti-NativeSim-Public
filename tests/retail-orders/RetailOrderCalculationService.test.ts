@@ -1,5 +1,8 @@
 import type { FirestoreTimestamp, RetailPayment } from '@/types/data';
-import { calculateRetailOrderFinancials } from '@/services/retail-orders/RetailOrderCalculationService';
+import {
+  calculateRetailOrderCostSummary,
+  calculateRetailOrderFinancials,
+} from '@/services/retail-orders/RetailOrderCalculationService';
 
 const timestamp = { nanoseconds: 0, seconds: 1 } as FirestoreTimestamp;
 
@@ -85,5 +88,35 @@ describe('calculateRetailOrderFinancials', () => {
       recebido: 0,
       resultadoEntregas: 0,
     });
+  });
+});
+
+describe('calculateRetailOrderCostSummary', () => {
+  it('uses order snapshots to calculate total cost and gross margin', () => {
+    expect(
+      calculateRetailOrderCostSummary({
+        ...order,
+        totalCharged: 220,
+      }),
+    ).toEqual({
+      deliveryCost: 5,
+      grossMargin: 115,
+      productCost: 100,
+      totalCharged: 220,
+      totalCost: 105,
+    });
+  });
+
+  it('does not depend on payments or current catalog costs', () => {
+    const first = calculateRetailOrderCostSummary({ ...order, totalCharged: 220 });
+    const second = calculateRetailOrderCostSummary({
+      ...order,
+      lineItems: [{ lineCostTotal: 150, lineSubtotal: 201.9 }],
+      totalCharged: 220,
+    });
+
+    expect(first.productCost).toBe(100);
+    expect(second.productCost).toBe(150);
+    expect(second.totalCost).toBe(155);
   });
 });

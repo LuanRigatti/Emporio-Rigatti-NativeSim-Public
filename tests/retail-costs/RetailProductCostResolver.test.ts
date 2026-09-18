@@ -132,6 +132,61 @@ describe('resolveRetailProductCost', () => {
     expect(result.status === 'available' ? result.breakdown : []).toHaveLength(2);
   });
 
+  it('resolves the replacement composition after removing a stale same-name component', () => {
+    const validCroassaint = costItem('valid-croassaint', 'Croassaint');
+    const drip = costItem('drip', 'Drip de Café Orfeu');
+    const staleCroassaint = costItem('stale-croassaint', 'Croassaint');
+    const oldVersion = composition('old-version', '2026-09-16', [
+      {
+        costItemId: validCroassaint.costItemId,
+        costItemNameSnapshot: validCroassaint.name,
+        quantity: 1,
+        unit: validCroassaint.unit,
+      },
+      {
+        costItemId: staleCroassaint.costItemId,
+        costItemNameSnapshot: staleCroassaint.name,
+        quantity: 1,
+        unit: staleCroassaint.unit,
+      },
+    ]);
+    const replacementVersion = composition('replacement-version', '2026-09-16', [
+      {
+        costItemId: validCroassaint.costItemId,
+        costItemNameSnapshot: validCroassaint.name,
+        quantity: 1,
+        unit: validCroassaint.unit,
+      },
+      {
+        costItemId: drip.costItemId,
+        costItemNameSnapshot: drip.name,
+        quantity: 1,
+        unit: drip.unit,
+      },
+    ]);
+
+    const result = resolveRetailProductCost({
+      compositionVersions: [oldVersion, replacementVersion],
+      costEntriesByItemId: new Map([
+        [validCroassaint.costItemId, [costEntry('croassaint-entry', '2026-09-16', 1)]],
+        [drip.costItemId, [costEntry('drip-entry', '2026-09-16', 4.9)]],
+        [staleCroassaint.costItemId, []],
+      ]),
+      costItems: [validCroassaint, drip, staleCroassaint],
+      product: { costMode: 'composition', productId: 'product-1' },
+      referenceDate: '2026-09-18',
+    });
+
+    expect(result).toMatchObject({
+      compositionVersionId: 'replacement-version',
+      cost: 5.9,
+      status: 'available',
+    });
+    expect(
+      result.status === 'available' ? result.breakdown.map((item) => item.costItemId) : [],
+    ).toEqual([validCroassaint.costItemId, drip.costItemId]);
+  });
+
   it('keeps an old composition and cost resolution unchanged after future versions exist', () => {
     const basket = costItem('basket', 'Cesta');
     const oldVersion = composition('v1', '2026-01-01', [

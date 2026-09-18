@@ -6,11 +6,15 @@ import { createElement, type ReactNode } from 'react';
 import RetailCategoryProductsRoute from '@/app/catalogo-varejo/[categoryId]';
 
 const mockUpdate = jest.fn<Promise<void>, [string, unknown]>().mockResolvedValue(undefined);
+const mockCreateVersion = jest
+  .fn<Promise<string>, [unknown, unknown]>()
+  .mockResolvedValue('new-version');
 let mockCostItems: { active: boolean; costItemId: string; name: string; unit: string }[] = [];
 const baseProduct: {
   active: boolean;
   categoryId: string;
-  costMode?: 'direct';
+  compositionVersionId?: string;
+  costMode?: 'composition' | 'direct';
   directCostItemId?: string;
   productId: string;
   productName: string;
@@ -23,6 +27,7 @@ const baseProduct: {
   standardSalePrice: 100,
 };
 let mockCurrentProduct = { ...baseProduct };
+let mockCompositionVersions: unknown[] = [];
 
 jest.mock('expo-router', () => {
   const React = require('react') as typeof import('react');
@@ -65,7 +70,10 @@ jest.mock('@/components/native', () => ({
     const React = require('react') as typeof import('react');
     return React.createElement('context-menu', props, children);
   },
-  NativeRetailCompositionSheet: () => null,
+  NativeRetailCompositionSheet: (props: Record<string, unknown>) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('composition-sheet', props);
+  },
   NativeRetailProductCostSheet: (props: Record<string, unknown>) => {
     const React = require('react') as typeof import('react');
     return React.createElement('product-cost-sheet', props);
@@ -109,11 +117,23 @@ jest.mock('@/hooks/useRetailCategories', () => ({
 }));
 
 jest.mock('@/hooks/useRetailCompositions', () => ({
-  useRetailCompositions: () => ({ createVersion: jest.fn(), versions: [] }),
+  useRetailCompositions: () => ({
+    createVersion: mockCreateVersion,
+    versions: mockCompositionVersions,
+  }),
 }));
 
 jest.mock('@/hooks/useRetailCostItems', () => ({
   useRetailCostItems: () => ({ items: mockCostItems }),
+}));
+
+jest.mock('@/hooks/useRetailProductCurrentCost', () => ({
+  useRetailProductCurrentCost: () => ({
+    cost: 12.9,
+    mode: 'composition',
+    referenceDate: '2026-09-16',
+    status: 'available',
+  }),
 }));
 
 jest.mock('@/hooks/useRetailProducts', () => ({
@@ -180,8 +200,10 @@ function collectText(node: ReactTestInstance): string {
 describe('retail category products cost configuration affordance', () => {
   beforeEach(() => {
     mockUpdate.mockClear();
+    mockCreateVersion.mockClear().mockResolvedValue('new-version');
     mockCostItems = [];
     mockCurrentProduct = { ...baseProduct };
+    mockCompositionVersions = [];
   });
 
   it('shows the missing-cost state and opens the existing configuration sheet', () => {
@@ -238,6 +260,9 @@ describe('retail category products cost configuration affordance', () => {
     act(() => findNodes(renderer, 'list-item')[0]?.props.onPress());
 
     const form = findNodes(renderer, 'product-form-sheet')[0];
+    expect(form.props.currentCost).toEqual(
+      expect.objectContaining({ cost: 12.9, status: 'available' }),
+    );
     await act(async () => {
       await form.props.onSubmit({
         categoryId: 'category-1',
@@ -260,5 +285,84 @@ describe('retail category products cost configuration affordance', () => {
         directCostItemId: 'cost-1',
       }),
     );
+  });
+
+  it('persists a composition from exactly the selected component IDs', async () => {
+    mockCostItems = [
+      { active: true, costItemId: 'valid-croassaint', name: 'Croassaint', unit: 'un' },
+      { active: true, costItemId: 'drip', name: 'Drip', unit: 'un' },
+      { active: true, costItemId: 'stale-croassaint', name: 'Croassaint', unit: 'un' },
+    ];
+    mockCurrentProduct = {
+      ...baseProduct,
+      compositionVersionId: 'old-version',
+      costMode: 'composition',
+    };
+    mockCompositionVersions = [
+      {
+        active: true,
+        components: [
+          {
+            costItemId: 'valid-croassaint',
+            costItemNameSnapshot: 'Croassaint',
+            quantity: 1,
+            unit: 'un',
+          },
+          {
+            costItemId: 'stale-croassaint',
+            costItemNameSnapshot: 'Croassaint',
+            quantity: 1,
+            unit: 'un',
+          },
+        ],
+        compositionVersionId: 'old-version',
+        effectiveFrom: '2026-09-16',
+        productId: 'product-1',
+      },
+    ];
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(RetailCategoryProductsRoute));
+    });
+    act(() => findNodes(renderer, 'list-item')[0]?.props.onPress());
+    act(() => findNodes(renderer, 'product-form-sheet')[0]?.props.onOpenComposition());
+
+    const compositionSheet = findNodes(renderer, 'composition-sheet')[0];
+    expect(compositionSheet?.props.initialValues.components).toEqual([
+      { costItemId: 'valid-croassaint', key: 'existing-component-0', quantity: '1' },
+      { costItemId: 'stale-croassaint', key: 'existing-component-1', quantity: '1' },
+    ]);
+
+    await act(async () => {
+      await compositionSheet?.props.onSubmit({
+        components: [
+          { costItemId: 'valid-croassaint', key: 'existing-component-0', quantity: '1' },
+          { costItemId: 'drip', key: 'new-component', quantity: '2' },
+        ],
+        effectiveFrom: '2026-09-18',
+      });
+    });
+
+    expect(mockCreateVersion).toHaveBeenCalledWith(
+      {
+        components: [
+          {
+            costItemId: 'valid-croassaint',
+            costItemNameSnapshot: 'Croassaint',
+            quantity: 1,
+            unit: 'un',
+          },
+          { costItemId: 'drip', costItemNameSnapshot: 'Drip', quantity: 2, unit: 'un' },
+        ],
+        effectiveFrom: '2026-09-18',
+      },
+      expect.any(Map),
+    );
+    expect(mockUpdate).toHaveBeenCalledWith('product-1', {
+      compositionVersionId: 'new-version',
+      costMode: 'composition',
+      directCostItemId: null,
+    });
   });
 });

@@ -6,13 +6,18 @@ import NativeDropdown from '@/components/native/NativeDropdown';
 import { NativeSheet } from '@/components/native/NativeSheet';
 import { NativeTextField } from '@/components/native/NativeTextField';
 import { useAppTheme } from '@/theme';
-import { normalizeMoney } from '@/utils/data';
+import { formatCurrency, formatPtBrDate, normalizeMoney } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type {
+  NativeRetailProductCurrentCost,
   NativeRetailProductFormSheetProps,
   NativeRetailProductFormValues,
 } from './NativeRetailProductFormSheet.types';
+import {
+  retailProductCostConfigurationKey,
+  retailProductFormInitializationKey,
+} from './retailProductFormState';
 
 const EMPTY_VALUES: NativeRetailProductFormValues = {
   categoryId: '',
@@ -29,6 +34,7 @@ const EMPTY_VALUES: NativeRetailProductFormValues = {
 export default function NativeRetailProductFormSheetFallback({
   categories,
   costItems = [],
+  currentCost,
   initialValues,
   mode = 'create',
   onOpenComposition,
@@ -42,10 +48,29 @@ export default function NativeRetailProductFormSheetFallback({
   const [values, setValues] = useState<NativeRetailProductFormValues>(EMPTY_VALUES);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const initializationKey = retailProductFormInitializationKey(
+    initialValues,
+    categories,
+    costItems,
+  );
+  const [initializedKey, setInitializedKey] = useState<string>();
+  const costConfigurationInitialized =
+    initializedKey !== undefined && initializedKey === initializationKey;
+  const summaryCostMode = costConfigurationInitialized
+    ? values.costMode
+    : (initialValues?.costMode ?? values.costMode);
+  const costConfigurationDirty =
+    costConfigurationInitialized &&
+    retailProductCostConfigurationKey(initialValues) !== retailProductCostConfigurationKey(values);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (visible) {
+    if (!visible) {
+      if (initializedKey !== undefined) setInitializedKey(undefined);
+      return;
+    }
+    if (initializedKey !== initializationKey) {
+      setInitializedKey(initializationKey);
       setValues({
         ...EMPTY_VALUES,
         ...initialValues,
@@ -54,7 +79,7 @@ export default function NativeRetailProductFormSheetFallback({
       setError(undefined);
       setSubmitting(false);
     }
-  }, [categories, initialValues, visible]);
+  }, [categories, costItems, initialValues, initializedKey, initializationKey, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const update = (key: keyof NativeRetailProductFormValues, value: string) =>
@@ -229,6 +254,13 @@ export default function NativeRetailProductFormSheetFallback({
             Cadastre itens de custo em Custos antes de criar uma composição.
           </Text>
         ) : null}
+        {currentCost ? (
+          <CurrentCostSummary
+            costMode={summaryCostMode}
+            currentCost={currentCost}
+            isDirty={costConfigurationDirty}
+          />
+        ) : null}
         {error ? (
           <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
         ) : null}
@@ -242,6 +274,56 @@ export default function NativeRetailProductFormSheetFallback({
         />
       </View>
     </NativeSheet>
+  );
+}
+
+function CurrentCostSummary({
+  costMode,
+  currentCost,
+  isDirty,
+}: {
+  costMode: NativeRetailProductFormValues['costMode'];
+  currentCost: NativeRetailProductCurrentCost;
+  isDirty: boolean;
+}) {
+  const { theme } = useAppTheme();
+  const matchesCurrentMode = !isDirty && currentCost.mode === costMode;
+  const title = costMode === 'composition' ? 'Custo atual da composição' : 'Custo atual';
+  const status = matchesCurrentMode ? currentCost.status : 'unavailable';
+  const message = matchesCurrentMode
+    ? currentCost.message
+    : 'Salve as alterações para recalcular o custo atual.';
+  return (
+    <View style={{ gap: theme.spacing.xs }}>
+      <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+        {title}
+      </Text>
+      {status === 'loading' ? (
+        <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
+          Calculando…
+        </Text>
+      ) : status === 'available' && currentCost.cost !== undefined ? (
+        <>
+          <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+            {formatCurrency(currentCost.cost)}
+          </Text>
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Referência: {formatPtBrDate(currentCost.referenceDate)}
+          </Text>
+        </>
+      ) : (
+        <>
+          <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
+            Custo indisponível
+          </Text>
+          {message ? (
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              {message}
+            </Text>
+          ) : null}
+        </>
+      )}
+    </View>
   );
 }
 

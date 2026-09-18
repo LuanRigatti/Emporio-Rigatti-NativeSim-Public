@@ -17,6 +17,10 @@ describe('RetailOrderDetailScreen contract', () => {
       'Taxa de entrega',
       'Total cobrado',
       'Resumo financeiro',
+      'Custos e margem',
+      'Custo dos produtos',
+      'Custo total',
+      'Margem bruta',
       'A receber',
       'Nenhum pagamento registrado.',
     ]) {
@@ -29,6 +33,7 @@ describe('RetailOrderDetailScreen contract', () => {
 
   it('uses the central financial calculator and does not use the History summary service', () => {
     expect(detailSource).toContain('calculateRetailOrderFinancials');
+    expect(detailSource).toContain('calculateRetailOrderCostSummary');
     expect(detailSource).not.toContain('RetailOrderHistoryFinancialSummaryService');
     expect(detailSource).not.toContain('useDeliveries');
     expect(detailSource).not.toContain('FirestoreDeliveryDataSource');

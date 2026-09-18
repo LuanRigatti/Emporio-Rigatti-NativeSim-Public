@@ -33,15 +33,20 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 
-import { normalizeMoney } from '@/utils/data';
+import { formatCurrency, formatPtBrDate, normalizeMoney } from '@/utils/data';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type {
+  NativeRetailProductCurrentCost,
   NativeRetailProductFormSheetProps,
   NativeRetailProductFormValues,
 } from './NativeRetailProductFormSheet.types';
 import { roundedFont } from '../nativeTypography';
+import {
+  retailProductCostConfigurationKey,
+  retailProductFormInitializationKey,
+} from './retailProductFormState';
 
 type NativeTextState = NonNullable<Parameters<typeof TextField>[0]['text']>;
 
@@ -66,6 +71,7 @@ const COST_MODE_OPTIONS = [
 export default function NativeRetailProductFormSheetSwiftUI({
   categories,
   costItems = [],
+  currentCost,
   initialValues,
   mode = 'create',
   onOpenComposition,
@@ -81,6 +87,20 @@ export default function NativeRetailProductFormSheetSwiftUI({
   const [directCostItemIndex, setDirectCostItemIndex] = useState(0);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const initializationKey = retailProductFormInitializationKey(
+    initialValues,
+    categories,
+    costItems,
+  );
+  const [initializedKey, setInitializedKey] = useState<string>();
+  const costConfigurationInitialized =
+    initializedKey !== undefined && initializedKey === initializationKey;
+  const summaryCostMode = costConfigurationInitialized
+    ? values.costMode
+    : (initialValues?.costMode ?? values.costMode);
+  const costConfigurationDirty =
+    costConfigurationInitialized &&
+    retailProductCostConfigurationKey(initialValues) !== retailProductCostConfigurationKey(values);
   const productNameState = useNativeState('');
   const variantState = useNativeState('');
   const flavorState = useNativeState('');
@@ -90,7 +110,12 @@ export default function NativeRetailProductFormSheetSwiftUI({
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (visible) {
+    if (!visible) {
+      if (initializedKey !== undefined) setInitializedKey(undefined);
+      return;
+    }
+    if (initializedKey !== initializationKey) {
+      setInitializedKey(initializationKey);
       const next = {
         ...EMPTY_VALUES,
         ...initialValues,
@@ -109,7 +134,7 @@ export default function NativeRetailProductFormSheetSwiftUI({
       setDirectCostItemIndex(Math.max(0, nextDirectCostItemIndex));
       setError(undefined);
     }
-  }, [categories, costItems, initialValues, visible]);
+  }, [categories, costItems, initialValues, initializedKey, initializationKey, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => productNameState.set(values.productName), [productNameState, values.productName]);
@@ -364,6 +389,13 @@ export default function NativeRetailProductFormSheetSwiftUI({
                     Cadastre itens de custo em Custos antes de criar uma composição.
                   </Text>
                 ) : null}
+                {currentCost ? (
+                  <CurrentCostSummary
+                    costMode={summaryCostMode}
+                    currentCost={currentCost}
+                    isDirty={costConfigurationDirty}
+                  />
+                ) : null}
               </VStack>
               {error ? <Text modifiers={[foregroundColor('#FF3B30')]}>{error}</Text> : null}
               <HStack modifiers={[frame({ maxWidth: 1000 })]}>
@@ -386,5 +418,46 @@ export default function NativeRetailProductFormSheetSwiftUI({
         </Group>
       </BottomSheet>
     </Host>
+  );
+}
+
+function CurrentCostSummary({
+  costMode,
+  currentCost,
+  isDirty,
+}: {
+  costMode: NativeRetailProductFormValues['costMode'];
+  currentCost: NativeRetailProductCurrentCost;
+  isDirty: boolean;
+}) {
+  const matchesCurrentMode = !isDirty && currentCost.mode === costMode;
+  const title = costMode === 'composition' ? 'Custo atual da composição' : 'Custo atual';
+  const status = matchesCurrentMode ? currentCost.status : 'unavailable';
+  const message = matchesCurrentMode
+    ? currentCost.message
+    : 'Salve as alterações para recalcular o custo atual.';
+  return (
+    <VStack alignment="leading" spacing={4} modifiers={[padding({ vertical: 8 })]}>
+      <Text modifiers={[roundedFont({ textStyle: 'footnote' })]}>{title}</Text>
+      {status === 'loading' ? (
+        <Text modifiers={[roundedFont({ textStyle: 'body' })]}>Calculando…</Text>
+      ) : status === 'available' && currentCost.cost !== undefined ? (
+        <>
+          <Text modifiers={[roundedFont({ textStyle: 'body' })]}>
+            {formatCurrency(currentCost.cost)}
+          </Text>
+          <Text modifiers={[roundedFont({ textStyle: 'footnote' })]}>
+            Referência: {formatPtBrDate(currentCost.referenceDate)}
+          </Text>
+        </>
+      ) : (
+        <>
+          <Text modifiers={[roundedFont({ textStyle: 'body' })]}>Custo indisponível</Text>
+          {message ? (
+            <Text modifiers={[roundedFont({ textStyle: 'footnote' })]}>{message}</Text>
+          ) : null}
+        </>
+      )}
+    </VStack>
   );
 }

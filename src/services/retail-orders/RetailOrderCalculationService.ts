@@ -16,6 +16,17 @@ export type RetailOrderCalculationInput = {
   otherDirectCosts?: number;
 };
 
+export type RetailOrderCostSummaryInput = RetailOrderCalculationInput['order'] &
+  Pick<RetailOrder, 'totalCharged'>;
+
+export type RetailOrderCostSummary = {
+  deliveryCost: number;
+  grossMargin: number;
+  productCost: number;
+  totalCharged: number;
+  totalCost: number;
+};
+
 function financialStatusFor(totalCharged: number, paidAmount: number): RetailFinancialStatus {
   if (totalCharged === 0 || paidAmount >= totalCharged) return 'paid';
   if (paidAmount === 0) return 'unpaid';
@@ -108,5 +119,22 @@ export function calculateRetailOrderFinancials(
     subtotalProducts,
     taxasCartao,
     totalCharged,
+  };
+}
+
+export function calculateRetailOrderCostSummary(
+  order: RetailOrderCostSummaryInput,
+): RetailOrderCostSummary {
+  const financials = calculateRetailOrderFinancials({ order });
+  const totalCharged = roundRetailOrderMoney(order.totalCharged);
+  const productCost = financials.custoProdutos;
+  const deliveryCost = financials.custoEntregas;
+  const totalCost = roundRetailOrderMoney(productCost + deliveryCost);
+  return {
+    deliveryCost,
+    grossMargin: roundRetailOrderMoney(totalCharged - totalCost),
+    productCost,
+    totalCharged,
+    totalCost,
   };
 }

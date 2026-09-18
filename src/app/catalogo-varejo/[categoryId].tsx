@@ -23,6 +23,7 @@ import { useRetailCategories } from '@/hooks/useRetailCategories';
 import { useRetailCompositions } from '@/hooks/useRetailCompositions';
 import { useRetailCostItems } from '@/hooks/useRetailCostItems';
 import { useRetailProducts } from '@/hooks/useRetailProducts';
+import { useRetailProductCurrentCost } from '@/hooks/useRetailProductCurrentCost';
 import { useAppMode } from '@/providers';
 import { normalizeRetailQuantity } from '@/services/retail-costs';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
@@ -114,7 +115,9 @@ export default function RetailCategoryProductsRoute() {
     create,
     update,
   } = useRetailProducts({ categoryId });
-  const { items: costItems } = useRetailCostItems({ includeInactive: true });
+  const { items: costItems, loading: costItemsLoading } = useRetailCostItems({
+    includeInactive: true,
+  });
   const [formVisible, setFormVisible] = useState(false);
   const [productToEdit, setProductToEdit] = useState<RetailProduct | null>(null);
   const [productForCost, setProductForCost] = useState<RetailProduct | null>(null);
@@ -122,6 +125,10 @@ export default function RetailCategoryProductsRoute() {
   const [productToDisable, setProductToDisable] = useState<RetailProduct | null>(null);
   const [mutationError, setMutationError] = useState<string>();
   const [disabling, setDisabling] = useState(false);
+  const currentCost = useRetailProductCurrentCost(formVisible ? productToEdit : null, costItems, {
+    costItemsLoading,
+  });
+  const productInitialValues = useMemo(() => productFormValues(productToEdit), [productToEdit]);
   const { createVersion, versions: compositionVersions } = useRetailCompositions(
     productForComposition?.productId,
   );
@@ -493,7 +500,8 @@ export default function RetailCategoryProductsRoute() {
       <NativeRetailProductFormSheet
         categories={categoryOptions}
         costItems={costItemOptions}
-        initialValues={productFormValues(productToEdit)}
+        currentCost={currentCost}
+        initialValues={productInitialValues}
         mode={productToEdit ? 'edit' : 'create'}
         onSubmit={submitProduct}
         onVisibleChange={setFormVisible}

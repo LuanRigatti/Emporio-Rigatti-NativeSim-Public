@@ -18,6 +18,14 @@ export type NativeRetailProductFormValues = {
   directCostItemId: string;
 };
 
+export type NativeRetailProductCurrentCost = {
+  mode: RetailProductCostMode | '';
+  referenceDate: string;
+  status: 'loading' | 'available' | 'unavailable' | 'incomplete';
+  cost?: number;
+  message?: string;
+};
+
 export type NativeRetailProductFormSheetProps = {
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
@@ -25,6 +33,7 @@ export type NativeRetailProductFormSheetProps = {
   categories: readonly NativeRetailProductCategoryOption[];
   costItems?: readonly NativeRetailProductCostItemOption[];
   initialValues?: Partial<NativeRetailProductFormValues>;
+  currentCost?: NativeRetailProductCurrentCost;
   mode?: 'create' | 'edit';
   onOpenComposition?: () => void;
   title?: string;

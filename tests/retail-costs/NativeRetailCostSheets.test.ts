@@ -196,4 +196,80 @@ describe('retail cost native sheets', () => {
     });
     expect(mockOnVisibleChange).toHaveBeenCalledWith(false);
   });
+
+  it('keeps same-name cost item IDs distinguishable and saves only the remaining IDs', async () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailCompositionSheetFallback, {
+          costItems: [
+            { costItemId: 'valid-croassaint', label: 'Croassaint', unit: 'unidade' },
+            { costItemId: 'stale-croassaint', label: 'Croassaint', unit: 'unidade' },
+            { costItemId: 'drip', label: 'Drip', unit: 'unidade' },
+          ],
+          initialValues: {
+            components: [
+              { costItemId: 'valid-croassaint', key: 'valid', quantity: '1' },
+              { costItemId: 'stale-croassaint', key: 'stale', quantity: '1' },
+            ],
+            effectiveFrom: '2026-01-01',
+          },
+          onSubmit: mockCompositionSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    const dropdown = findNodes(renderer, 'native-dropdown')[0];
+    const duplicateLabels = dropdown?.props.items
+      .filter((item: { value: string }) => item.value !== 'drip')
+      .map((item: { label: string }) => item.label);
+    expect(new Set(duplicateLabels).size).toBe(2);
+    expect(duplicateLabels?.every((label: string) => label.includes('ID'))).toBe(true);
+
+    const removeButtons = findNodes(renderer, 'native-button').filter(
+      (button) => button.props.label === 'Remover',
+    );
+    act(() => removeButtons[1]?.props.onPress());
+    await act(async () => {
+      findNodes(renderer, 'native-button')
+        .find((button) => button.props.label === 'Salvar composição')
+        ?.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockCompositionSubmit).toHaveBeenCalledWith({
+      components: [{ costItemId: 'valid-croassaint', key: 'valid', quantity: '1' }],
+      effectiveFrom: '2026-01-01',
+    });
+  });
+
+  it('blocks selecting the same cost item ID in two component rows', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailCompositionSheetFallback, {
+          costItems: [
+            { costItemId: 'croassaint', label: 'Croassaint', unit: 'unidade' },
+            { costItemId: 'drip', label: 'Drip', unit: 'unidade' },
+          ],
+          initialValues: {
+            components: [
+              { costItemId: 'croassaint', key: 'first', quantity: '1' },
+              { costItemId: 'drip', key: 'second', quantity: '1' },
+            ],
+            effectiveFrom: '2026-01-01',
+          },
+          onSubmit: mockCompositionSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    act(() => findNodes(renderer, 'native-dropdown')[1]?.props.onValueChange('croassaint'));
+
+    expect(findNodes(renderer, 'native-dropdown')[1]?.props.selectedValue).toBe('drip');
+  });
 });

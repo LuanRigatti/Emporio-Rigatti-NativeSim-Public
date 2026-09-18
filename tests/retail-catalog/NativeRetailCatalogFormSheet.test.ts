@@ -52,6 +52,12 @@ function findNodes(renderer: ReactTestRenderer, type: string): ReactTestInstance
   return renderer.root.findAll((node) => String(node.type) === type);
 }
 
+function collectText(node: ReactTestInstance): string {
+  return node.children
+    .map((child) => (typeof child === 'string' ? child : collectText(child)))
+    .join('');
+}
+
 describe('retail catalog form sheets', () => {
   beforeEach(() => {
     mockCategorySubmit.mockClear();
@@ -170,6 +176,159 @@ describe('retail catalog form sheets', () => {
 
     expect(mockProductSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ costMode: 'direct', directCostItemId: 'cafe' }),
+    );
+  });
+
+  it('shows the resolved current cost and never invents zero when unavailable', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          currentCost: {
+            cost: 8,
+            mode: 'direct',
+            referenceDate: '2026-09-18',
+            status: 'available',
+          },
+          initialValues: { costMode: 'direct', directCostItemId: 'cafe' },
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    expect(collectText(renderer.root)).toContain('Custo atual');
+    expect(collectText(renderer.root).replace(/\u00a0/g, ' ')).toContain('R$ 8,00');
+    expect(collectText(renderer.root)).toContain('Referência:');
+    expect(collectText(renderer.root)).not.toContain(
+      'Salve as alterações para recalcular o custo atual.',
+    );
+
+    act(() => {
+      renderer.update(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          currentCost: {
+            message: 'Não existe custo histórico válido para essa data.',
+            mode: 'direct',
+            referenceDate: '2026-09-18',
+            status: 'unavailable',
+          },
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    expect(collectText(renderer.root)).toContain('Custo indisponível');
+    expect(collectText(renderer.root)).not.toContain('R$ 0,00');
+  });
+
+  it('does not mark a persisted composition dirty during initial hydration', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          currentCost: {
+            cost: 5.9,
+            mode: 'composition',
+            referenceDate: '2026-09-18',
+            status: 'available',
+          },
+          initialValues: { costMode: 'composition' },
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    const text = collectText(renderer.root).replace(/\u00a0/g, ' ');
+    expect(text).toContain('Custo atual da composição');
+    expect(text).toContain('R$ 5,90');
+    expect(text).not.toContain('Salve as alterações para recalcular o custo atual.');
+  });
+
+  it('normalizes an absent direct item without creating a false dirty state', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          currentCost: {
+            cost: 1,
+            mode: 'direct',
+            referenceDate: '2026-09-18',
+            status: 'available',
+          },
+          initialValues: {
+            costMode: 'direct',
+            directCostItemId: undefined as unknown as string,
+          },
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    const text = collectText(renderer.root).replace(/\u00a0/g, ' ');
+    expect(text).toContain('R$ 1,00');
+    expect(text).not.toContain('Salve as alterações para recalcular o custo atual.');
+  });
+
+  it('keeps the save warning only after a real cost configuration change', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          currentCost: {
+            cost: 1,
+            mode: 'direct',
+            referenceDate: '2026-09-18',
+            status: 'available',
+          },
+          initialValues: { costMode: 'direct', directCostItemId: 'cafe' },
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    act(() => {
+      findNodes(renderer, 'native-dropdown')
+        .find((node) => node.props.accessibilityLabel === 'Modo de custo')
+        ?.props.onValueChange('composition');
+    });
+    expect(collectText(renderer.root)).toContain(
+      'Salve as alterações para recalcular o custo atual.',
+    );
+
+    act(() => {
+      renderer.update(
+        createElement(NativeRetailProductFormSheetFallback, {
+          categories: [{ categoryId: 'cestas', label: 'Cestas' }],
+          currentCost: {
+            cost: 1,
+            mode: 'direct',
+            referenceDate: '2026-09-18',
+            status: 'available',
+          },
+          initialValues: { costMode: 'direct', directCostItemId: 'cafe' },
+          onSubmit: mockProductSubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+    expect(collectText(renderer.root)).toContain(
+      'Salve as alterações para recalcular o custo atual.',
     );
   });
 });

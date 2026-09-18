@@ -8,8 +8,15 @@ export type {
   RetailOrderValidationCode,
   RetailOrderWriteData,
 } from './RetailOrderBuilder';
-export { calculateRetailOrderFinancials } from './RetailOrderCalculationService';
-export type { RetailOrderCalculationInput } from './RetailOrderCalculationService';
+export {
+  calculateRetailOrderCostSummary,
+  calculateRetailOrderFinancials,
+} from './RetailOrderCalculationService';
+export type {
+  RetailOrderCalculationInput,
+  RetailOrderCostSummary,
+  RetailOrderCostSummaryInput,
+} from './RetailOrderCalculationService';
 export { RetailOrderCatalogCache, retailOrderCatalogCache } from './RetailOrderCatalogCache';
 export {
   RetailOrderDataSource,

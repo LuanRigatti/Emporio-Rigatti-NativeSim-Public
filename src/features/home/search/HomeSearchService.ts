@@ -35,7 +35,11 @@ import {
   appleIntelligenceSearchInterpreter,
   type HomeSearchSearchInterpreter,
 } from './AppleIntelligenceSearchInterpreter';
-import { homeSearchQueryParser, normalizeHomeSearchText } from './HomeSearchQueryParser';
+import {
+  homeSearchQueryParser,
+  normalizeHomeSearchEntityText,
+  normalizeHomeSearchText,
+} from './HomeSearchQueryParser';
 import {
   hasNaturalLanguageQuestionSignals,
   hasSemanticAnalysisSignals,
@@ -1959,6 +1963,84 @@ function clarificationForIncompleteAnalysis(original: string): HomeSearchParsedQ
   };
 }
 
+function mergeSemanticQuery(
+  deterministicQuery: HomeSearchParsedQuery,
+  semanticQuery: HomeSearchParsedQuery,
+): HomeSearchParsedQuery {
+  if (deterministicQuery.clientField && !semanticQuery.clientField) {
+    return {
+      ...deterministicQuery,
+      text: normalizeHomeSearchEntityText(semanticQuery.text || deterministicQuery.text),
+    };
+  }
+  if (semanticQuery.assistantStatus) return semanticQuery;
+
+  const text = semanticQuery.text
+    ? semanticQuery.clientField
+      ? normalizeHomeSearchEntityText(semanticQuery.text)
+      : semanticQuery.text
+    : semanticQuery.analysis
+      ? ''
+      : normalizeHomeSearchEntityText(deterministicQuery.text);
+
+  return {
+    ...semanticQuery,
+    text,
+    ...(semanticQuery.period || !deterministicQuery.period
+      ? {}
+      : { period: deterministicQuery.period }),
+    ...(semanticQuery.periodSpan || !deterministicQuery.periodSpan
+      ? {}
+      : { periodSpan: deterministicQuery.periodSpan }),
+    ...(semanticQuery.quantity !== undefined || deterministicQuery.quantity === undefined
+      ? {}
+      : { quantity: deterministicQuery.quantity }),
+    ...(semanticQuery.money !== undefined || deterministicQuery.money === undefined
+      ? {}
+      : { money: deterministicQuery.money }),
+    ...(semanticQuery.paymentStatus || !deterministicQuery.paymentStatus
+      ? {}
+      : { paymentStatus: deterministicQuery.paymentStatus }),
+    ...(semanticQuery.documentType || !deterministicQuery.documentType
+      ? {}
+      : { documentType: deterministicQuery.documentType }),
+    ...(semanticQuery.clientField || !deterministicQuery.clientField
+      ? {}
+      : { clientField: deterministicQuery.clientField }),
+    ...(semanticQuery.financialMetric || !deterministicQuery.financialMetric
+      ? {}
+      : { financialMetric: deterministicQuery.financialMetric }),
+    ...(semanticQuery.financialMetricAlias || !deterministicQuery.financialMetricAlias
+      ? {}
+      : { financialMetricAlias: deterministicQuery.financialMetricAlias }),
+    ...(semanticQuery.factoryMetric || !deterministicQuery.factoryMetric
+      ? {}
+      : { factoryMetric: deterministicQuery.factoryMetric }),
+    ...(semanticQuery.factoryStatus || !deterministicQuery.factoryStatus
+      ? {}
+      : { factoryStatus: deterministicQuery.factoryStatus }),
+    ...(semanticQuery.factoryPaymentDateUnsupported ||
+    !deterministicQuery.factoryPaymentDateUnsupported
+      ? {}
+      : { factoryPaymentDateUnsupported: true }),
+    ...(semanticQuery.routeMetric || !deterministicQuery.routeMetric
+      ? {}
+      : { routeMetric: deterministicQuery.routeMetric }),
+    ...(semanticQuery.carMetric || !deterministicQuery.carMetric
+      ? {}
+      : { carMetric: deterministicQuery.carMetric }),
+    ...(semanticQuery.periodSummary || !deterministicQuery.periodSummary
+      ? {}
+      : { periodSummary: deterministicQuery.periodSummary }),
+    ...(semanticQuery.analysis || !deterministicQuery.analysis
+      ? {}
+      : { analysis: deterministicQuery.analysis }),
+    detectedTypes: [
+      ...new Set([...deterministicQuery.detectedTypes, ...semanticQuery.detectedTypes]),
+    ],
+  };
+}
+
 export class HomeSearchService {
   private latestRequest = 0;
 
@@ -2015,9 +2097,15 @@ export class HomeSearchService {
       return this.searchParsedInternal(clarificationForIncompleteAnalysis(original), request);
     }
     if (!interpretedQuery && parserHasPotentialSemanticAnalysis(fallbackQuery)) {
+      if (fallbackQuery.clientField) {
+        return this.searchParsedInternal(fallbackQuery, request);
+      }
       return this.searchParsedInternal(clarificationForIncompleteAnalysis(original), request);
     }
-    return this.searchParsedInternal(interpretedQuery ?? fallbackQuery, request);
+    const query = interpretedQuery
+      ? mergeSemanticQuery(fallbackQuery, interpretedQuery)
+      : fallbackQuery;
+    return this.searchParsedInternal(query, request);
   }
 
   public async searchParsed(query: HomeSearchParsedQuery): Promise<HomeSearchResponse> {

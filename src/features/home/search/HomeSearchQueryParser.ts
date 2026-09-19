@@ -32,6 +32,73 @@ export function normalizeHomeSearchText(value: string): string {
     .replace(/\s+/g, ' ');
 }
 
+const SEARCH_ENTITY_LEADING_STOP_WORDS = new Set([
+  'a',
+  'as',
+  'atual',
+  'balde',
+  'baldes',
+  'custa',
+  'custar',
+  'custo',
+  'da',
+  'das',
+  'de',
+  'do',
+  'dos',
+  'em',
+  'me',
+  'na',
+  'nas',
+  'no',
+  'nos',
+  'o',
+  'os',
+  'paga',
+  'pagar',
+  'para',
+  'pela',
+  'pelo',
+  'preco',
+  'qual',
+  'quanto',
+  'quantas',
+  'quantos',
+  'quais',
+  'valor',
+]);
+
+const SEARCH_ENTITY_RELATION_WORDS = new Set([
+  'da',
+  'das',
+  'de',
+  'do',
+  'dos',
+  'para',
+  'pela',
+  'pelo',
+]);
+const SEARCH_ENTITY_ARTICLE_WORDS = new Set(['a', 'as', 'o', 'os']);
+const SEARCH_ENTITY_TRAILING_WORDS = new Set(['custa', 'custar', 'paga', 'pagar']);
+
+export function normalizeHomeSearchEntityText(value: string): string {
+  const tokens = normalizeHomeSearchText(value).split(' ').filter(Boolean);
+  let clientMarkerIndex = -1;
+  tokens.forEach((token, index) => {
+    if (token === 'cliente' || token === 'clientes') clientMarkerIndex = index;
+  });
+  if (clientMarkerIndex >= 0) return tokens.slice(clientMarkerIndex + 1).join(' ');
+
+  while (tokens.length && SEARCH_ENTITY_LEADING_STOP_WORDS.has(tokens[0])) tokens.shift();
+  while (tokens.length && SEARCH_ENTITY_RELATION_WORDS.has(tokens[0])) {
+    tokens.shift();
+    while (tokens.length && SEARCH_ENTITY_ARTICLE_WORDS.has(tokens[0])) tokens.shift();
+  }
+
+  const trailingWordIndex = tokens.findIndex((token) => SEARCH_ENTITY_TRAILING_WORDS.has(token));
+  return (trailingWordIndex > 0 ? tokens.slice(0, trailingWordIndex) : tokens).join(' ');
+}
+
 function validDateParts(day: number, month: number, year: number): boolean {
   const date = new Date(year, month - 1, day, 12);
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
@@ -380,6 +447,7 @@ export class HomeSearchQueryParser {
           ? ('usesInvoice' as const)
           : ('usesBoleto' as const)
         : undefined);
+    if (clientField) text = normalizeHomeSearchEntityText(text);
 
     const detectedTypes: HomeSearchDetectedType[] = [];
     if (text) detectedTypes.push('text');

@@ -238,6 +238,7 @@ const PERIOD_SPAN_DIRECTIONS: ReadonlySet<HomeSearchAnalysisPeriodSpanDirection>
   'next',
   'toDate',
 ]);
+const MIN_SEMANTIC_CONFIDENCE = 0.6;
 
 const ASSISTANT_INTENTS: ReadonlyMap<string, HomeSearchAssistantStatus> = new Map([
   ['clarification', 'clarification'],
@@ -413,14 +414,21 @@ function resolvePeriodSpan(
         : unit === 'year'
           ? new Date(reference.getFullYear(), 0, 1, 12)
           : reference;
-  const move = direction === 'previous' ? -count : direction === 'next' ? count : 0;
+  const isSinglePreviousSpan = direction === 'last' && count === 1;
+  const resolvedMove =
+    direction === 'previous' || isSinglePreviousSpan ? -count : direction === 'next' ? count : 0;
   const anchor = new Date(unitStart);
-  if (unit === 'day') anchor.setDate(anchor.getDate() + move);
-  if (unit === 'week') anchor.setDate(anchor.getDate() + move * 7);
-  if (unit === 'month') anchor.setMonth(anchor.getMonth() + move);
-  if (unit === 'year') anchor.setFullYear(anchor.getFullYear() + move);
+  if (unit === 'day') anchor.setDate(anchor.getDate() + resolvedMove);
+  if (unit === 'week') anchor.setDate(anchor.getDate() + resolvedMove * 7);
+  if (unit === 'month') anchor.setMonth(anchor.getMonth() + resolvedMove);
+  if (unit === 'year') anchor.setFullYear(anchor.getFullYear() + resolvedMove);
 
-  if (direction === 'current' || direction === 'previous' || direction === 'next') {
+  if (
+    direction === 'current' ||
+    direction === 'previous' ||
+    direction === 'next' ||
+    isSinglePreviousSpan
+  ) {
     if (count === 1) return spanUnitPeriod(anchor, unit);
     const end = new Date(anchor);
     if (unit === 'day') end.setDate(end.getDate() + count - 1);
@@ -686,6 +694,17 @@ export function toHomeSearchParsedQuery(
     logParserRejection('decode', { reason: 'payloadIsNotAnObjectOrValidJson' });
     return null;
   }
+  if (
+    !Number.isFinite(intent.confidence) ||
+    intent.confidence < MIN_SEMANTIC_CONFIDENCE ||
+    intent.confidence > 1
+  ) {
+    logParserRejection('confidence', {
+      reason: 'belowMinimum',
+      threshold: MIN_SEMANTIC_CONFIDENCE,
+    });
+    return null;
+  }
 
   const intentKind = intent.intent.toLowerCase();
   const inferredIntentKind = intentKind || (intent.financialMetric ? 'financialmetric' : '');
@@ -708,11 +727,8 @@ export function toHomeSearchParsedQuery(
     return null;
   }
 
-  let period = resolvePeriodFromReference(
-    original,
-    periodSpan ?? periodResult.period,
-    effectiveReferenceDate,
-  );
+  const resolvedPeriod = periodResult.period ?? periodSpan;
+  let period = resolvePeriodFromReference(original, resolvedPeriod, effectiveReferenceDate);
   const query: HomeSearchParsedQuery = {
     original,
     normalized: normalizeHomeSearchText(original),
@@ -931,6 +947,25 @@ export function toHomeSearchParsedQuery(
       logParserRejection('analysis', { reason: 'bucketPriceComparisonUnsupported' });
       return null;
     }
+  }
+
+  const hasConflictingClientFieldIntent = Boolean(
+    query.clientField &&
+    (query.financialMetric ||
+      query.factoryMetric ||
+      query.factoryStatus ||
+      query.routeMetric ||
+      query.carMetric ||
+      query.periodSummary ||
+      query.analysis ||
+      query.quantity !== undefined ||
+      query.money !== undefined ||
+      query.paymentStatus ||
+      query.documentType),
+  );
+  if (hasConflictingClientFieldIntent) {
+    logParserRejection('intent', { reason: 'conflictingClientFieldDomain' });
+    return null;
   }
 
   if (inferredIntentKind === 'financialmetric' && !query.financialMetric) {

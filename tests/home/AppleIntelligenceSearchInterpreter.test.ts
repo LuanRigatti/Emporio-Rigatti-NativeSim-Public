@@ -462,18 +462,138 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     expect(query).toMatchObject({ assistantStatus: status, detectedTypes: ['assistant'] });
   });
 
-  it('accepts a structurally valid intent even when model confidence is low', () => {
+  it('rejects a semantic intent below the confidence threshold', () => {
     const query = toHomeSearchParsedQuery('qual meu lucro em julho', {
       ...baseIntent,
       confidence: 0,
       month: 7,
     });
 
+    expect(query).toBeNull();
+  });
+
+  it('keeps the explicit calendar month when the model also emits a single last span', () => {
+    const query = toHomeSearchParsedQuery(
+      'qual foi o melhor dia de faturamento do mês passado?',
+      {
+        ...baseIntent,
+        confidence: 0.94,
+        intent: 'financialAnalysis',
+        financialMetric: 'revenue',
+        periodKind: 'month',
+        month: 8,
+        year: 2026,
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        operation: 'max',
+        groupBy: 'day',
+        periodSpanUnit: 'month',
+        periodSpanDirection: 'last',
+        periodSpanCount: 1,
+      },
+      new Date(2026, 8, 19, 12),
+    );
+
     expect(query).toMatchObject({
-      financialMetric: 'netProfit',
-      period: { kind: 'month', month: 7, year: 2026 },
+      analysis: { operation: 'max', groupBy: 'day' },
+      period: { kind: 'month', month: 8, year: 2026 },
     });
   });
+
+  it('resolves a single last calendar period across the January year boundary', () => {
+    const query = toHomeSearchParsedQuery(
+      'qual foi o melhor dia do último mês?',
+      {
+        ...baseIntent,
+        confidence: 0.94,
+        intent: 'financialAnalysis',
+        financialMetric: 'revenue',
+        periodKind: 'none',
+        month: -1,
+        year: -1,
+        operation: 'max',
+        groupBy: 'day',
+        periodSpanUnit: 'month',
+        periodSpanDirection: 'last',
+        periodSpanCount: 1,
+      },
+      new Date(2026, 0, 15, 12),
+    );
+
+    expect(query?.period).toEqual({ kind: 'month', month: 12, year: 2025 });
+  });
+
+  it.each([
+    'qual o valor do balde do cliente Luciano',
+    'quanto o Luciano paga no balde',
+    'preço atual do balde do cliente Luciano',
+    'quanto custa o balde para o Luciano',
+  ])('converges client price wording to one semantic plan: %s', (queryText) => {
+    const query = toHomeSearchParsedQuery(queryText, {
+      ...baseIntent,
+      confidence: 0.94,
+      intent: 'clientField',
+      text: '  Luciano  ',
+      periodKind: 'none',
+      month: -1,
+      year: -1,
+      financialMetric: '',
+      clientField: 'currentPrice',
+    });
+
+    expect(query).toMatchObject({ text: 'luciano', clientField: 'currentPrice' });
+    expect(query).not.toHaveProperty('financialMetric');
+  });
+
+  it('preserves internal prepositions when the model returns a multi-word client entity', () => {
+    const query = toHomeSearchParsedQuery('qual o valor do balde da Ana da Silva?', {
+      ...baseIntent,
+      confidence: 0.94,
+      intent: 'clientField',
+      text: 'Ana da Silva',
+      periodKind: 'none',
+      month: -1,
+      year: -1,
+      financialMetric: '',
+      clientField: 'currentPrice',
+    });
+
+    expect(query).toMatchObject({ text: 'ana da silva', clientField: 'currentPrice' });
+  });
+
+  it('rejects a client field payload mixed with a financial domain', () => {
+    const query = toHomeSearchParsedQuery('qual o valor do balde do Luciano?', {
+      ...baseIntent,
+      confidence: 0.94,
+      intent: 'clientField',
+      text: 'Luciano',
+      clientField: 'currentPrice',
+      financialMetric: 'revenue',
+    });
+
+    expect(query).toBeNull();
+  });
+
+  it.each(['faturamento do Luciano em agosto', 'EM AGOSTO QUANTO O LUCIANO FATUROU?'])(
+    'normalizes equivalent client-and-period wording: %s',
+    (queryText) => {
+      const query = toHomeSearchParsedQuery(queryText, {
+        ...baseIntent,
+        intent: 'financialMetric',
+        text: '  Luciano  ',
+        financialMetric: 'revenue',
+        periodKind: 'month',
+        month: 8,
+        year: 2026,
+      });
+
+      expect(query).toMatchObject({
+        text: 'luciano',
+        financialMetric: 'revenue',
+        period: { kind: 'month', month: 8, year: 2026 },
+      });
+    },
+  );
 
   it('converts a native object and a JSON string through the same bridge contract', () => {
     expect(toHomeSearchParsedQuery('lucro líquido agosto', baseIntent)).toMatchObject({
@@ -501,7 +621,7 @@ describe('Apple Intelligence Home Search intent conversion', () => {
       query: 'Qual meu lucro no mes passado?',
       payload: {
         ...baseIntent,
-        confidence: 0,
+        confidence: 0.94,
         month: 8,
         year: 2026,
       },
@@ -546,9 +666,7 @@ describe('Apple Intelligence Home Search intent conversion', () => {
         month: -1,
         year: -1,
       },
-      expected: {
-        period: { kind: 'date', date: '2026-09-01' },
-      },
+      expected: null,
     },
   ])('handles captured Foundation Models payload: $query', ({ query, payload, expected }) => {
     const parsed = toHomeSearchParsedQuery(query, payload);
@@ -565,7 +683,7 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     expect(
       toHomeSearchParsedQuery('Quanto faturei em agosto?', {
         ...baseIntent,
-        confidence: 0,
+        confidence: 0.94,
         financialMetric: 'revenue',
         month: 8,
         year: 2026,
@@ -578,7 +696,7 @@ describe('Apple Intelligence Home Search intent conversion', () => {
     expect(
       toHomeSearchParsedQuery('Quanto tenho em aberto?', {
         ...baseIntent,
-        confidence: 0.3,
+        confidence: 0.94,
         financialMetric: 'receivable',
         paymentStatus: 'open',
         periodKind: 'none',

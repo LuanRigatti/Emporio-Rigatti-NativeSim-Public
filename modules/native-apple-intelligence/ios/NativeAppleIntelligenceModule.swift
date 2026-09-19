@@ -8,13 +8,16 @@ import FoundationModels
 @available(iOS 26.0, *)
 @Generable(description: "Structured Portuguese search intent. Unused strings are empty; unused numbers are -1.")
 private struct NativeAppleSearchIntentPayload {
+  @Guide(description: "Confidence from 0 to 1. Use at least 0.6 only when the plan is structurally clear; use a lower value when the query is genuinely ambiguous.")
   let confidence: Double
 
   @Guide(.anyOf(["client", "delivery", "financialMetric", "financialAnalysis", "factoryMetric", "routeMetric", "carMetric", "periodSummary", "clientField", "search", "clarification", "unsupportedDomain", "unsupportedMetric"]))
   let intent: String
 
+  @Guide(description: "Only the entity needed by the plan, normally a client name such as Luciano. Never repeat the question or include filler words.")
   let text: String
 
+  @Guide(description: "Use date for one date, dayMonth for a date without a year, month for a calendar month, year for a calendar year, range for explicit bounds, and none when no period is requested.")
   @Guide(.anyOf(["none", "date", "dayMonth", "month", "year", "range"]))
   let periodKind: String
 
@@ -54,6 +57,7 @@ private struct NativeAppleSearchIntentPayload {
   @Guide(.anyOf(["", "bucketsSold", "deliveryCount", "revenue", "grossProfit", "netProfit", "received", "receivable", "bucketCost", "fuelCost", "otherCosts", "electricityCost", "averageDeliveryCost", "grossMargin", "netMargin", "salePerBucket", "profitPerBucket", "costPerBucket", "bucketPrice", "totalCost", "distanceKm", "factoryCost", "marginPercentage", "profitPerDelivery", "revenuePerDelivery", "costPerDelivery", "profitPerKm", "revenuePerKm", "costPerKm"]))
   let financialMetric: String
 
+  @Guide(description: "For a client-specific request, use currentPrice for valor/preço do balde, address for endereço, usesInvoice for nota fiscal, and usesBoleto for boleto. Keep financialMetric and analysis empty for a client-field request.")
   @Guide(.anyOf(["", "currentPrice", "address", "usesInvoice", "usesBoleto"]))
   let clientField: String
 
@@ -246,11 +250,14 @@ private extension NativeAppleIntelligenceModule {
     logger.info("session created")
     return LanguageModelSession(instructions: """
       Parse Brazilian Portuguese queries for Empório Rigatti's local business data. The output is an interpretation plan only; the app owns every number.
+      Return only the structured plan. Never answer the question, return a business value, or calculate anything.
+      Unused text fields are empty transport sentinels and unused numeric fields are -1; the JavaScript layer treats them as absent. The text field contains only the entity name, never the complete question.
       For scalar requests use financialMetric, factoryMetric, routeMetric, carMetric, or periodSummary. For analysis use intent=financialAnalysis, financialMetric, operation, and groupBy. metric is what is measured; groupBy is how records are grouped and is never the time period.
+      For client-field questions such as "qual o valor do balde do Luciano", "quanto o Luciano paga no balde", and "preço atual do balde do cliente Luciano", use intent=clientField, clientField=currentPrice, and text=Luciano. Equivalent wording must produce the same plan.
       Map revenue/faturamento/receita to revenue; lucro bruto/netProfit to grossProfit/netProfit; a receber/em aberto to receivable; recebido to received; baldes vendidos to bucketsSold; entregas to deliveryCount; custo dos baldes to bucketCost; combustível to fuelCost; luz to electricityCost; outros custos to otherCosts; custo total to totalCost; margem and per-delivery/per-bucket/per-km language to the matching derived metric; unit bucket price to bucketPrice; distance/km to distanceKm; factory purchase cost to factoryCost. Use only metrics backed by app data.
       Supported operations are max, min, sum, average, rank, topN, compare, percentageChange, ratio, trend, and report. Greatest/smallest language maps to max/min; rankings use rank/topN with order and limit. Use numeratorMetric and denominatorMetric for ratio and secondaryMetric for a second value in the same groups. The app performs all arithmetic and sorting.
       Supported groupBy values are day, week, month, year, client, route, and factory. Filters are paymentStatus, documentType, and factoryStatus; keep them separate from metric and period.
-      Resolve explicit and relative periods from the supplied reference date. For last/current/previous/next/toDate spans use periodSpanUnit, periodSpanDirection, and positive periodSpanCount; the app resolves calendar dates. For comparison use the comparison month/year fields or the four ISO date fields.
+      Resolve explicit and relative periods from the supplied reference date. "mês passado" and "último mês" mean the previous completed calendar month and should use periodKind=month with its actual month/year; "últimos N meses" is a trailing span using periodSpanDirection=last. The app resolves calendar dates and handles year rollover. For current/previous/next/toDate spans use periodSpanUnit, periodSpanDirection, and positive periodSpanCount. For comparison use the comparison month/year fields or the four ISO date fields.
       Use clarification for missing or conflicting plan fields, including ambiguous cost-benefit requests; unsupportedMetric for unavailable app data; unsupportedDomain for unrelated questions. Never turn an analytical request into a scalar metric. Keep confidence below 0.6 when ambiguous.
       """)
   }

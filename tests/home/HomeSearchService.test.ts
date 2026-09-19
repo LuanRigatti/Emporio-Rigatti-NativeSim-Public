@@ -424,6 +424,22 @@ describe('HomeSearchQueryParser', () => {
     expect(parser.parse('dados do dia 12/08', referenceDate).periodSummary).toBe(true);
   });
 
+  it('extracts only the client entity from natural client-price framing', () => {
+    expect(parser.parse('qual o valor do balde do cliente Luciano', referenceDate)).toMatchObject({
+      clientField: 'currentPrice',
+      text: 'luciano',
+    });
+  });
+
+  it('preserves internal prepositions in a client name', () => {
+    expect(
+      parser.parse('qual o valor do balde do cliente Ana da Silva', referenceDate),
+    ).toMatchObject({
+      clientField: 'currentPrice',
+      text: 'ana da silva',
+    });
+  });
+
   it.each([
     'pagamentos realizados em agosto',
     'pagamentos pagos em agosto',
@@ -1273,6 +1289,86 @@ describe('HomeSearchService', () => {
     expect(response.results[0]).toMatchObject({
       type: 'financialMetric',
       data: { analysis: { operation: 'max', groupBy: 'client', winner: { label: 'Luciano' } } },
+    });
+  });
+
+  it('keeps the previous month when executing a natural best-day question', async () => {
+    const queryText = 'qual foi o melhor dia de faturamento do mês passado?';
+    const semanticPlan = analysisQuery(
+      queryText,
+      { kind: 'month', month: 8, year: 2026 },
+      'revenue',
+      'max',
+      'day',
+    );
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue(semanticPlan),
+    };
+    const response = await new HomeSearchService(new FixedDataSource(), interpreter).search(
+      queryText,
+      new Date(2026, 8, 19, 12),
+    );
+
+    expect(response.results[0]).toMatchObject({
+      type: 'financialMetric',
+      data: {
+        period: { kind: 'month', month: 8, year: 2026 },
+        analysis: { winner: { key: '2026-08-17', value: 450 } },
+      },
+    });
+  });
+
+  it.each([
+    'qual o valor do balde do cliente Luciano',
+    'quanto o Luciano paga no balde',
+    'preço atual do balde do cliente Luciano',
+    'quanto custa o balde para o Luciano',
+  ])('executes equivalent natural client-price wording for %s', async (queryText) => {
+    const semanticPlan: HomeSearchParsedQuery = {
+      original: queryText,
+      normalized: queryText.toLocaleLowerCase('pt-BR'),
+      text: 'Luciano',
+      clientField: 'currentPrice',
+      detectedTypes: ['text', 'clientField'],
+    };
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue(semanticPlan),
+    };
+    const response = await new HomeSearchService(new FixedDataSource(), interpreter).search(
+      queryText,
+      new Date(2026, 8, 19, 12),
+    );
+
+    expect(response.results).toHaveLength(1);
+    expect(response.results[0]).toMatchObject({
+      type: 'client',
+      id: 'client:luciano',
+      data: { matchedField: { field: 'currentPrice', value: 49.8 } },
+    });
+  });
+
+  it('does not let an incomplete semantic payload erase a deterministic client field', async () => {
+    const queryText = 'qual o valor do balde do cliente Luciano';
+    const semanticPlan: HomeSearchParsedQuery = {
+      original: queryText,
+      normalized: queryText.toLocaleLowerCase('pt-BR'),
+      text: '',
+      financialMetric: 'revenue',
+      detectedTypes: ['financialMetric'],
+    };
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue(semanticPlan),
+    };
+    const response = await new HomeSearchService(new FixedDataSource(), interpreter).search(
+      queryText,
+      new Date(2026, 8, 19, 12),
+    );
+
+    expect(response.query).toMatchObject({ clientField: 'currentPrice', text: 'luciano' });
+    expect(response.results[0]).toMatchObject({
+      type: 'client',
+      id: 'client:luciano',
+      data: { matchedField: { field: 'currentPrice', value: 49.8 } },
     });
   });
 

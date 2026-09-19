@@ -28,6 +28,10 @@ const configuredScheme =
   isFinalVariant && selectedGoogleReversedClientId
     ? [appScheme, selectedGoogleReversedClientId]
     : appScheme;
+const finalGoogleUrlSchemes =
+  isFinalVariant && selectedGoogleReversedClientId
+    ? [appScheme, appBundleIdentifier, selectedGoogleReversedClientId]
+    : undefined;
 
 module.exports = {
   expo: {
@@ -49,6 +53,11 @@ module.exports = {
       supportsTablet: true,
       infoPlist: {
         LSApplicationQueriesSchemes: ['comgooglemaps'],
+        ...(finalGoogleUrlSchemes
+          ? {
+              CFBundleURLTypes: [{ CFBundleURLSchemes: finalGoogleUrlSchemes }],
+            }
+          : {}),
       },
     },
     android: {

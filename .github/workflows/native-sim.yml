@@ -426,25 +426,77 @@ jobs:
           path: build/native-sim-app
           key: native-sim-app-${{ runner.os }}-adhoc-signed-v1-${{ steps.fp.outputs.hash }}
 
-      - name: Inspect simulator app entitlements
+      - name: Sign and inspect simulator app entitlements
         if: inputs.mode == 'build'
+        env:
+          CACHE_HIT: ${{ steps.appcache.outputs.cache-hit }}
         run: |
           set -euo pipefail
           APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
           [ -n "$APP" ] || { echo "::error::no simulator app available for entitlement inspection"; exit 1; }
 
+          if [ "$CACHE_HIT" = "true" ]; then
+            # Re-embed the current JS before signing so the resource seal remains valid.
+            echo "Reused cached native build; refreshing the JS bundle before signing"
+            npx expo export:embed \
+              --platform ios \
+              --dev false \
+              --bundle-output "$APP/main.jsbundle" \
+              --assets-dest "$APP"
+          fi
+
+          INFO_PLIST="$APP/Info.plist"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null || true)
+          [[ "$BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || {
+            echo "::error::could not derive a safe CFBundleIdentifier from the simulator app"
+            exit 1
+          }
+
           DIAG_DIR="build/native-sim-startup-diagnostics"
           mkdir -p "$DIAG_DIR"
+          ENTITLEMENTS="${RUNNER_TEMP}/native-sim-keychain.entitlements.plist"
           RAW_ENTITLEMENTS="${RUNNER_TEMP}/native-sim-entitlements.plist"
+          NORMALIZED_ENTITLEMENTS="${RUNNER_TEMP}/native-sim-entitlements-normalized.plist"
           CODESIGN_STDERR="${RUNNER_TEMP}/native-sim-codesign.stderr"
-          trap 'rm -f "$RAW_ENTITLEMENTS" "$CODESIGN_STDERR"' EXIT
+          trap 'rm -f "$ENTITLEMENTS" "$RAW_ENTITLEMENTS" "$NORMALIZED_ENTITLEMENTS" "$CODESIGN_STDERR"' EXIT
+
+          # Simulator-only, app-local keychain namespace. No Team ID or
+          # provisioning profile is available or assumed in this workflow.
+          cat > "$ENTITLEMENTS" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>application-identifier</key>
+            <string>$BUNDLE_ID</string>
+            <key>keychain-access-groups</key>
+            <array>
+              <string>$BUNDLE_ID</string>
+            </array>
+          </dict>
+          </plist>
+          EOF
+
+          if ! codesign --force --sign - \
+            --entitlements "$ENTITLEMENTS" \
+            --timestamp=none \
+            --generate-entitlement-der \
+            "$APP" > /dev/null 2> "$CODESIGN_STDERR"; then
+            echo "::error::ad-hoc re-signing failed for the simulator app"
+            exit 1
+          fi
 
           if ! codesign -d --entitlements :- --xml "$APP" > "$RAW_ENTITLEMENTS" 2> "$CODESIGN_STDERR"; then
             echo "::error::codesign entitlement inspection failed for the simulator app"
             exit 1
           fi
 
-          sed -n 's:.*<key>\([^<]*\)</key>.*:\1:p' "$RAW_ENTITLEMENTS" | sort -u \
+          if ! plutil -convert xml1 -o "$NORMALIZED_ENTITLEMENTS" "$RAW_ENTITLEMENTS" > /dev/null 2>&1; then
+            echo "::error::codesign returned an unreadable entitlement plist"
+            exit 1
+          fi
+
+          sed -n 's:^[[:space:]]*<key>\([^<]*\)</key>.*:\1:p' "$NORMALIZED_ENTITLEMENTS" | sort -u \
             > "$DIAG_DIR/codesign-entitlement-names.txt"
           [ -s "$DIAG_DIR/codesign-entitlement-names.txt" ] || {
             echo "::error::codesign returned no entitlement names"
@@ -454,16 +506,18 @@ jobs:
           echo "Entitlement names present in $APP:"
           cat "$DIAG_DIR/codesign-entitlement-names.txt"
 
-          if grep -Eq '<key>(application-identifier|com.apple.application-identifier)</key>' "$RAW_ENTITLEMENTS"; then
+          if grep -Fxq 'application-identifier' "$DIAG_DIR/codesign-entitlement-names.txt"; then
             echo "application-identifier: present"
           else
-            echo "application-identifier: absent"
+            echo "::error::application-identifier entitlement missing"
+            exit 1
           fi
 
-          if grep -Fq '<key>keychain-access-groups</key>' "$RAW_ENTITLEMENTS"; then
+          if grep -Fxq 'keychain-access-groups' "$DIAG_DIR/codesign-entitlement-names.txt"; then
             echo "keychain-access-groups: present"
           else
-            echo "keychain-access-groups: absent"
+            echo "::error::keychain-access-groups entitlement missing"
+            exit 1
           fi
 
       - name: Export app archive
@@ -492,22 +546,10 @@ jobs:
         if: inputs.mode == 'build'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
-          CACHE_HIT: ${{ steps.appcache.outputs.cache-hit }}
         run: |
           set -euo pipefail
           APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
           [ -n "$APP" ] || { echo "No .app to install"; exit 1; }
-
-          if [ "$CACHE_HIT" = "true" ]; then
-            # The fingerprint ignores app JS, so a reused binary carries a stale
-            # bundle. Re-embed current JS rather than rebuilding natively.
-            echo "Reused cached native build; refreshing the JS bundle"
-            npx expo export:embed \
-              --platform ios \
-              --dev false \
-              --bundle-output "$APP/main.jsbundle" \
-              --assets-dest "$APP"
-          fi
 
           plist_value() {
             /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || printf '<missing>'

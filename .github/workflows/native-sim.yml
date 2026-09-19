@@ -485,6 +485,7 @@ jobs:
           set +e
           DIAG_DIR="build/native-sim-startup-diagnostics"
           mkdir -p "$DIAG_DIR"
+          [ -f startup-launch.log ] && cp startup-launch.log "$DIAG_DIR/startup-launch.log"
 
           APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
           if [ -z "$APP" ] || [ ! -f "$APP/Info.plist" ]; then
@@ -512,63 +513,97 @@ jobs:
             PROCESS_MATCH=$(grep -F "$BUNDLE_ID" "$DIAG_DIR/processes.txt" | head -20)
           fi
 
+          PROCESS_ALIVE=false
           if [ -n "$PROCESS_MATCH" ]; then
+            PROCESS_ALIVE=true
             echo "Startup process status: alive"
             echo "$PROCESS_MATCH"
-            exit 0
           fi
 
-          echo "::warning::Startup process exited before the 8-second check"
-          echo "Bundle ID: $BUNDLE_ID"
-          echo "Executable: $EXECUTABLE"
+          if [ "$PROCESS_ALIVE" = false ]; then
+            echo "::warning::Startup process exited before the 8-second check"
+            echo "Bundle ID: $BUNDLE_ID"
+            echo "Executable: $EXECUTABLE"
 
-          LOG_FILE="$DIAG_DIR/simulator-log-5m.txt"
-          ERROR_LOG="$DIAG_DIR/error-fault-log.txt"
-          xcrun simctl spawn "$UDID" log show --last 5m --style compact > "$LOG_FILE" 2>&1
-          xcrun simctl spawn "$UDID" log show --last 5m --style compact \
-            --predicate 'messageType == error OR messageType == fault' > "$ERROR_LOG" 2>&1
+            LOG_FILE="$DIAG_DIR/simulator-log-5m.txt"
+            ERROR_LOG="$DIAG_DIR/error-fault-log.txt"
+            xcrun simctl spawn "$UDID" log show --last 5m --style compact > "$LOG_FILE" 2>&1
+            xcrun simctl spawn "$UDID" log show --last 5m --style compact \
+              --predicate 'messageType == error OR messageType == fault' > "$ERROR_LOG" 2>&1
 
-          echo '::group::Unified log messages with level error/fault'
-          tail -n 400 "$ERROR_LOG"
-          echo '::endgroup::'
+            echo '::group::Unified log messages with level error/fault'
+            tail -n 400 "$ERROR_LOG"
+            echo '::endgroup::'
 
-          echo '::group::Filtered startup diagnostics'
-          grep -E -i \
-            'NSException|objc_exception|uncaught|fatal error|SIGABRT|EXC_CRASH|React Native|RCT|RCTFatal|Invariant Violation|Hermes|Metro|JavaScript|Firebase|GoogleService|Google Sign|GID|missing|not found|No such file|could not load|failed to load|NSBundle|resource|dyld|Library not loaded|Symbol not found|image not found|framework' \
-            "$LOG_FILE" | tail -n 800
-          echo '::endgroup::'
+            echo '::group::Filtered startup diagnostics'
+            grep -E -i \
+              'NSException|objc_exception|uncaught|fatal error|SIGABRT|EXC_CRASH|React Native|RCT|RCTFatal|Invariant Violation|Hermes|Metro|JavaScript|Firebase|GoogleService|Google Sign|GID|missing|not found|No such file|could not load|failed to load|NSBundle|resource|dyld|Library not loaded|Symbol not found|image not found|framework' \
+              "$LOG_FILE" | tail -n 800
+            echo '::endgroup::'
 
-          REPORT_ROOT="$HOME/Library/Logs/DiagnosticReports"
-          REPORT_INDEX="$DIAG_DIR/crash-reports.txt"
-          REPORT_LOG="$DIAG_DIR/crash-reports.log"
-          : > "$REPORT_INDEX"
-          : > "$REPORT_LOG"
-          if [ -d "$REPORT_ROOT" ]; then
-            find "$REPORT_ROOT" -type f -mmin -15 -print0 | while IFS= read -r -d '' REPORT; do
-              if { [ "$BUNDLE_ID" != '<missing>' ] && grep -Fq "$BUNDLE_ID" "$REPORT" 2>/dev/null; } \
-                 || { [ "$EXECUTABLE" != '<missing>' ] && grep -Fq "$EXECUTABLE" "$REPORT" 2>/dev/null; }; then
-                echo "$REPORT" >> "$REPORT_INDEX"
-                echo "===== $REPORT =====" >> "$REPORT_LOG"
-                cat "$REPORT" >> "$REPORT_LOG"
-              fi
-            done
+            REPORT_ROOT="$HOME/Library/Logs/DiagnosticReports"
+            REPORT_INDEX="$DIAG_DIR/crash-reports.txt"
+            REPORT_LOG="$DIAG_DIR/crash-reports.log"
+            : > "$REPORT_INDEX"
+            : > "$REPORT_LOG"
+            if [ -d "$REPORT_ROOT" ]; then
+              find "$REPORT_ROOT" -type f -mmin -15 -print0 | while IFS= read -r -d '' REPORT; do
+                if { [ "$BUNDLE_ID" != '<missing>' ] && grep -Fq "$BUNDLE_ID" "$REPORT" 2>/dev/null; } \
+                   || { [ "$EXECUTABLE" != '<missing>' ] && grep -Fq "$EXECUTABLE" "$REPORT" 2>/dev/null; }; then
+                  echo "$REPORT" >> "$REPORT_INDEX"
+                  echo "===== $REPORT =====" >> "$REPORT_LOG"
+                  cat "$REPORT" >> "$REPORT_LOG"
+                fi
+              done
+            fi
+
+            echo '::group::Recent simulator crash reports'
+            if [ -s "$REPORT_INDEX" ]; then
+              cat "$REPORT_LOG"
+            else
+              echo 'No matching recent host crash report found.'
+            fi
+            echo '::endgroup::'
+
+            echo '::group::Recent crash reports inside simulator data'
+            xcrun simctl spawn "$UDID" sh -c \
+              'find /var/mobile/Library/Logs/CrashReporter -type f -mmin -15 -print 2>/dev/null' \
+              || true
+            echo '::endgroup::'
           fi
 
-          echo '::group::Recent simulator crash reports'
-          if [ -s "$REPORT_INDEX" ]; then
-            cat "$REPORT_LOG"
-          else
-            echo 'No matching recent host crash report found.'
-          fi
+          echo '::group::Startup diagnostics file summary'
+          for FILE in "$DIAG_DIR"/*; do
+            [ -f "$FILE" ] || continue
+            SIZE=$(stat -f '%z bytes' "$FILE" 2>/dev/null || wc -c < "$FILE")
+            echo "$(basename "$FILE") — $SIZE"
+          done
           echo '::endgroup::'
 
-          echo '::group::Recent crash reports inside simulator data'
-          xcrun simctl spawn "$UDID" sh -c \
-            'find /var/mobile/Library/Logs/CrashReporter -type f -mmin -15 -print 2>/dev/null' \
-            || true
+          echo '::group::Relevant startup snippets from diagnostic files'
+          SUMMARY_PATTERN='NSException|objc_exception|uncaught|fatal error|SIGABRT|EXC_CRASH|React Native|RCT|RCTFatal|Invariant Violation|Hermes|Metro|JavaScript|Firebase|GoogleService|Google Sign|GID|missing|not found|No such file|could not load|failed to load|NSBundle|resource|dyld|Library not loaded|Symbol not found|image not found|framework|error|fault'
+          FOUND_SNIPPET=false
+          for FILE in "$DIAG_DIR"/*.txt "$DIAG_DIR"/*.log; do
+            [ -f "$FILE" ] || continue
+            SNIPPETS=$(grep -E -i "$SUMMARY_PATTERN" "$FILE" | tail -n 40)
+            if [ -n "$SNIPPETS" ]; then
+              FOUND_SNIPPET=true
+              echo "===== $(basename "$FILE") ====="
+              echo "$SNIPPETS"
+            fi
+          done
+          [ "$FOUND_SNIPPET" = true ] || echo 'No matching error/fault startup snippet found.'
           echo '::endgroup::'
 
           echo "Diagnostic files saved under $DIAG_DIR"
+
+      - name: Upload startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-sim-startup-diagnostics
+          path: build/native-sim-startup-diagnostics
+          if-no-files-found: warn
 
       - name: Install prebuilt app
         timeout-minutes: 15

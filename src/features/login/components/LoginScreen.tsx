@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { InlineError } from '@/components/feedback';
 import { GlassSurface } from '@/components/premium';
 import { AppLogo } from '@/components/branding/AppLogo';
 import { useSession } from '@/providers';
@@ -16,7 +17,7 @@ export type LoginScreenProps = {
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signInWithGoogleNative } = useSession();
+  const { error, signInWithGoogleNative } = useSession();
   const { theme } = useAppTheme();
   const [isLoading, setIsLoading] = useState(false);
   const isMounted = useRef(true);
@@ -93,6 +94,7 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               ) : null}
             </Pressable>
           </GlassSurface>
+          <InlineError message={error ?? undefined} />
         </View>
       </View>
     </View>

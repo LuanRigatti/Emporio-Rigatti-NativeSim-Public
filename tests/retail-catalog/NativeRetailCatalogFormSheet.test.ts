@@ -83,7 +83,7 @@ describe('retail catalog form sheets', () => {
       await Promise.resolve();
     });
 
-    expect(mockCategorySubmit).toHaveBeenCalledWith({ label: 'Cestas' });
+    expect(mockCategorySubmit).toHaveBeenCalledWith({ financeGroup: 'other', label: 'Cestas' });
     expect(mockOnVisibleChange).toHaveBeenCalledWith(false);
   });
 

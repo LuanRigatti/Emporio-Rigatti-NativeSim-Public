@@ -104,10 +104,18 @@ describe('RetailCategoryDataSource', () => {
     dataSource.setSessionUser('uid-retail', 1);
     await dataSource.load('uid-retail', 1);
 
-    await dataSource.create('uid-retail', { label: 'Salgados', sortOrder: 1 }, 1);
+    await dataSource.create(
+      'uid-retail',
+      { financeGroup: 'savories', label: 'Salgados', sortOrder: 1 },
+      1,
+    );
     expect(mockedSetDoc).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'category-generated-id' }),
-      expect.objectContaining({ label: 'Salgados', normalizedLabel: 'salgados' }),
+      expect.objectContaining({
+        financeGroup: 'savories',
+        label: 'Salgados',
+        normalizedLabel: 'salgados',
+      }),
     );
 
     await dataSource.update('uid-retail', 'category-generated-id', { label: 'Doces' }, 1);
@@ -121,6 +129,37 @@ describe('RetailCategoryDataSource', () => {
       2,
       expect.objectContaining({ id: 'category-generated-id' }),
       expect.objectContaining({ active: false }),
+    );
+  });
+
+  it('persists explicit finance groups and keeps legacy category fallback deterministic', async () => {
+    mockedGetDocs.mockResolvedValueOnce(
+      result([
+        record('legacy-baskets', { label: ' CESTAS ', normalizedLabel: 'cestas' }),
+        record('legacy-other', { label: 'Doces', normalizedLabel: 'doces' }),
+      ]),
+    );
+    const dataSource = new RetailCategoryDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+
+    await dataSource.load('uid-retail', 1);
+    const categories = dataSource.list({ includeInactive: true }, 'uid-retail', 1);
+    expect(
+      categories.find((category) => category.categoryId === 'legacy-baskets'),
+    ).not.toHaveProperty('financeGroup');
+    expect(
+      categories.find((category) => category.categoryId === 'legacy-other'),
+    ).not.toHaveProperty('financeGroup');
+
+    await dataSource.update('uid-retail', 'legacy-other', { financeGroup: 'savories' }, 1);
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'legacy-other' }),
+      expect.objectContaining({ financeGroup: 'savories' }),
+    );
+    expect(dataSource.list({ includeInactive: true }, 'uid-retail', 1)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ categoryId: 'legacy-other', financeGroup: 'savories' }),
+      ]),
     );
   });
 

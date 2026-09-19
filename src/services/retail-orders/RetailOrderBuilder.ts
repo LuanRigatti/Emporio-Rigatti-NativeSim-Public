@@ -11,6 +11,7 @@ import type {
   RetailProductCostResolution,
 } from '@/types/data';
 import { resolveRetailProductCost } from '@/services/retail-costs/RetailProductCostResolver';
+import { retailFinanceGroupForCategory } from '@/services/retail-catalog/retailFinanceGroup';
 import {
   normalizeRetailDate,
   normalizeRetailMoney,
@@ -86,7 +87,11 @@ function assertId(value: string, code: RetailOrderValidationCode, message: strin
 function snapshotForProduct(
   product: RetailProduct,
   context: RetailOrderCatalogContext,
-): { categoryIdSnapshot: string; categorySnapshot: string } {
+): {
+  categoryIdSnapshot: string;
+  categorySnapshot: string;
+  financeGroupSnapshot: RetailOrderLineItem['financeGroupSnapshot'];
+} {
   const category = context.categories?.find(
     (candidate) => candidate.categoryId === product.categoryId,
   );
@@ -98,7 +103,11 @@ function snapshotForProduct(
       `A categoria do produto ${product.productId} não possui snapshot válido.`,
     );
   }
-  return { categoryIdSnapshot: product.categoryId, categorySnapshot };
+  return {
+    categoryIdSnapshot: product.categoryId,
+    categorySnapshot,
+    financeGroupSnapshot: retailFinanceGroupForCategory(category ?? { label: categorySnapshot }),
+  };
 }
 
 function costBreakdownSnapshotFor(
@@ -165,7 +174,10 @@ function buildLineItem(
     'O preço de venda do produto',
   );
   const lineSubtotal = roundRetailOrderMoney(quantity * unitSalePriceSnapshot);
-  const { categoryIdSnapshot, categorySnapshot } = snapshotForProduct(product, context);
+  const { categoryIdSnapshot, categorySnapshot, financeGroupSnapshot } = snapshotForProduct(
+    product,
+    context,
+  );
   const resolution = resolveRetailProductCost({
     compositionVersions: context.compositionVersionsByProductId?.get(product.productId) ?? [],
     costEntriesByItemId: context.costEntriesByItemId,
@@ -181,6 +193,7 @@ function buildLineItem(
   return {
     categoryIdSnapshot,
     categorySnapshot,
+    financeGroupSnapshot,
     ...(optionalRetailOrderText(product.flavor)
       ? { flavorSnapshot: optionalRetailOrderText(product.flavor) }
       : {}),

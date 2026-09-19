@@ -126,6 +126,7 @@ describe('buildRetailOrderWriteData', () => {
       totalCharged: 40,
     });
     expect(result.lineItems[0]).toMatchObject({
+      financeGroupSnapshot: 'baskets',
       lineCostTotal: 8,
       productNameSnapshot: 'Cesta Café',
       unitCostSnapshot: 4,
@@ -188,6 +189,7 @@ describe('buildRetailOrderWriteData', () => {
     );
 
     expect(result.lineItems[0]).toMatchObject({ lineCostTotal: 22, unitCostSnapshot: 11 });
+    expect(result.lineItems[0]?.financeGroupSnapshot).toBe('baskets');
     expect(result.lineItems[0]?.compositionVersionSnapshot).toMatchObject({
       compositionVersionId: 'composition-v1',
       effectiveFrom: '2026-01-01',
@@ -321,6 +323,7 @@ describe('buildRetailOrderWriteData', () => {
     );
 
     expect(result.lineItems[1]).toMatchObject({
+      financeGroupSnapshot: 'baskets',
       lineCostTotal: 8,
       lineSubtotal: 30,
       productId: 'product-2',

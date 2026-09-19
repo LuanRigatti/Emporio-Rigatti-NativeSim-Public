@@ -6,6 +6,11 @@ export {
 } from './RetailCategoryDataSource';
 export type { RetailCategoryQuery, RetailCategoryRecord } from './RetailCategoryDataSource';
 export {
+  isRetailFinanceGroup,
+  legacyRetailFinanceGroupForLabel,
+  retailFinanceGroupForCategory,
+} from './retailFinanceGroup';
+export {
   RetailCategoryCatalogCache,
   retailCategoryCatalogCache,
 } from './RetailCategoryCatalogCache';

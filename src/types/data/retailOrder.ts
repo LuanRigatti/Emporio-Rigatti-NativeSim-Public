@@ -1,4 +1,5 @@
 import type { FirestoreTimestamp } from './retailClient';
+import type { RetailFinanceGroup } from './retailCategory';
 
 export type RetailOrderStatus = 'created' | 'completed' | 'cancelled';
 
@@ -34,6 +35,7 @@ export type RetailOrderLineItem = {
   productNameSnapshot: string;
   categoryIdSnapshot: string;
   categorySnapshot: string;
+  financeGroupSnapshot?: RetailFinanceGroup;
   variantSnapshot?: string;
   flavorSnapshot?: string;
   packageSizeSnapshot?: string;

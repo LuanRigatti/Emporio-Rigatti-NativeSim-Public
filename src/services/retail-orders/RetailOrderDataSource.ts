@@ -8,6 +8,7 @@ import type {
   RetailOrderQuery,
   RetailOrderStatus,
 } from '@/types/data';
+import { isRetailFinanceGroup } from '@/services/retail-catalog/retailFinanceGroup';
 import { assertFirestoreUid } from '@/services/database/firestorePaths';
 import {
   isStrictRetailIsoDate,
@@ -183,6 +184,9 @@ function lineItemFromDocument(value: unknown): RetailOrderLineItem | undefined {
   return {
     categoryIdSnapshot: value.categoryIdSnapshot,
     categorySnapshot: value.categorySnapshot,
+    ...(isRetailFinanceGroup(value.financeGroupSnapshot)
+      ? { financeGroupSnapshot: value.financeGroupSnapshot }
+      : {}),
     ...optionalFields,
     lineCostTotal: value.lineCostTotal,
     lineSubtotal: value.lineSubtotal,

@@ -1,13 +1,20 @@
-import type { RetailCategory, RetailCategoryDraft, RetailCategoryPatch } from '@/types/data';
+import type {
+  RetailCategory,
+  RetailCategoryDraft,
+  RetailCategoryPatch,
+  RetailFinanceGroup,
+} from '@/types/data';
 import { assertFirestoreUid } from '@/services/database/firestorePaths';
 import { normalizeClientKey } from '@/utils/data';
 
 import { retailCategoryCatalogCache } from './RetailCategoryCatalogCache';
+import { isRetailFinanceGroup, legacyRetailFinanceGroupForLabel } from './retailFinanceGroup';
 
 type RetailCategoryDocument = {
   categoryId?: string;
   label: string;
   normalizedLabel: string;
+  financeGroup?: RetailFinanceGroup;
   active: boolean;
   sortOrder?: number;
   createdAt?: unknown;
@@ -61,6 +68,7 @@ async function collectionFor(uid: string) {
 function normalizeDraft(input: RetailCategoryDraft): {
   label: string;
   normalizedLabel: string;
+  financeGroup: RetailFinanceGroup;
   active: boolean;
   sortOrder?: number;
 } {
@@ -72,6 +80,7 @@ function normalizeDraft(input: RetailCategoryDraft): {
   }
   return {
     active: input.active ?? true,
+    financeGroup: input.financeGroup ?? legacyRetailFinanceGroupForLabel(normalizedLabel),
     label,
     normalizedLabel,
     ...(input.sortOrder === undefined ? {} : { sortOrder: input.sortOrder }),
@@ -88,6 +97,7 @@ function documentToCategory(record: RetailCategoryRecord): RetailCategory | unde
     active: record.active,
     categoryId: record.id,
     createdAt: record.createdAt as RetailCategory['createdAt'],
+    ...(isRetailFinanceGroup(record.financeGroup) ? { financeGroup: record.financeGroup } : {}),
     label,
     normalizedLabel,
     ...(typeof record.sortOrder === 'number' && Number.isFinite(record.sortOrder)
@@ -341,7 +351,11 @@ export class RetailCategoryDataSource {
       }
       await this.create(
         request.userId,
-        { label: category.label, sortOrder: category.sortOrder },
+        {
+          financeGroup: legacyRetailFinanceGroupForLabel(category.normalizedLabel),
+          label: category.label,
+          sortOrder: category.sortOrder,
+        },
         request.sessionVersion,
       );
     }
@@ -373,6 +387,12 @@ export class RetailCategoryDataSource {
       firestorePatch.label = normalized.label;
       firestorePatch.normalizedLabel = normalized.normalizedLabel;
     }
+    if (patch.financeGroup !== undefined) {
+      if (!isRetailFinanceGroup(patch.financeGroup)) {
+        throw new Error('Grupo financeiro inválido.');
+      }
+      firestorePatch.financeGroup = patch.financeGroup;
+    }
     if (patch.sortOrder !== undefined) {
       if (patch.sortOrder !== null && (!Number.isFinite(patch.sortOrder) || patch.sortOrder < 0)) {
         throw new Error('A ordem da categoria deve ser zero ou maior.');
@@ -394,6 +414,7 @@ export class RetailCategoryDataSource {
       nextRecord.label = normalized.label;
       nextRecord.normalizedLabel = normalized.normalizedLabel;
     }
+    if (patch.financeGroup !== undefined) nextRecord.financeGroup = patch.financeGroup;
     if (patch.sortOrder !== undefined) {
       if (patch.sortOrder === null) delete nextRecord.sortOrder;
       else nextRecord.sortOrder = patch.sortOrder;

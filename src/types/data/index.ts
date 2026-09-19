@@ -25,7 +25,13 @@ export type {
   RetailClientPatch,
   RetailClientReferral,
 } from './retailClient';
-export type { RetailCategory, RetailCategoryDraft, RetailCategoryPatch } from './retailCategory';
+export type {
+  RetailCategory,
+  RetailCategoryDraft,
+  RetailCategoryPatch,
+  RetailFinanceGroup,
+} from './retailCategory';
+export { RETAIL_FINANCE_GROUP_OPTIONS } from './retailCategory';
 export type {
   RetailCompositionComponent,
   RetailCompositionVersion,

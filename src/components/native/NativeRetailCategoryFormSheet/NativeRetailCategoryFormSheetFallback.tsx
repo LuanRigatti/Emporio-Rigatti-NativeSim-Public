@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
 import { NativeButton } from '@/components/native/NativeButton';
+import NativeDropdown from '@/components/native/NativeDropdown';
 import { NativeSheet } from '@/components/native/NativeSheet';
 import { NativeTextField } from '@/components/native/NativeTextField';
 import { useAppTheme } from '@/theme';
+import { RETAIL_FINANCE_GROUP_OPTIONS } from '@/types/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type {
@@ -12,7 +14,7 @@ import type {
   NativeRetailCategoryFormValues,
 } from './NativeRetailCategoryFormSheet.types';
 
-const EMPTY_VALUES: NativeRetailCategoryFormValues = { label: '' };
+const EMPTY_VALUES: NativeRetailCategoryFormValues = { financeGroup: 'other', label: '' };
 
 export default function NativeRetailCategoryFormSheetFallback({
   initialValues,
@@ -63,9 +65,20 @@ export default function NativeRetailCategoryFormSheetFallback({
           accessibilityLabel="Nome da categoria"
           disabled={testModeEnabled}
           label="Nome"
-          onChangeText={(label) => setValues({ label })}
+          onChangeText={(label) => setValues((current) => ({ ...current, label }))}
           placeholder="Ex.: Cestas"
           value={values.label}
+        />
+        <NativeDropdown
+          accessibilityLabel="Grupo financeiro"
+          disabled={testModeEnabled}
+          items={RETAIL_FINANCE_GROUP_OPTIONS}
+          label="Grupo financeiro"
+          onValueChange={(financeGroup: NativeRetailCategoryFormValues['financeGroup']) =>
+            setValues((current) => ({ ...current, financeGroup }))
+          }
+          selectedValue={values.financeGroup}
+          variant="plain"
         />
         {error ? (
           <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>

@@ -12,7 +12,8 @@ import { useRetailCategories } from '@/hooks/useRetailCategories';
 import { useRetailProducts } from '@/hooks/useRetailProducts';
 import { useAppMode } from '@/providers';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import type { RetailCategory } from '@/types/data';
+import type { RetailCategory, RetailFinanceGroup } from '@/types/data';
+import { retailFinanceGroupForCategory } from '@/services/retail-catalog';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import SettingsIcon from '@/features/settings/components/SettingsIcon';
@@ -50,10 +51,16 @@ export default function RetailCatalogRoute() {
   }, []);
 
   const handleCategorySubmit = useCallback(
-    async (values: { label: string }) => {
+    async (values: { financeGroup: RetailFinanceGroup; label: string }) => {
       if (testModeEnabled) return;
-      if (categoryToEdit) await update(categoryToEdit.categoryId, { label: values.label });
-      else await create({ label: values.label });
+      if (categoryToEdit) {
+        await update(categoryToEdit.categoryId, {
+          financeGroup: values.financeGroup,
+          label: values.label,
+        });
+      } else {
+        await create({ financeGroup: values.financeGroup, label: values.label });
+      }
     },
     [categoryToEdit, create, testModeEnabled, update],
   );
@@ -252,7 +259,14 @@ export default function RetailCatalogRoute() {
         )}
       </PremiumScreen>
       <NativeRetailCategoryFormSheet
-        initialValues={categoryToEdit ? { label: categoryToEdit.label } : undefined}
+        initialValues={
+          categoryToEdit
+            ? {
+                financeGroup: retailFinanceGroupForCategory(categoryToEdit),
+                label: categoryToEdit.label,
+              }
+            : undefined
+        }
         mode={categoryToEdit ? 'edit' : 'create'}
         onSubmit={handleCategorySubmit}
         onVisibleChange={setFormVisible}

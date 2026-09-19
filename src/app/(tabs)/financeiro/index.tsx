@@ -4,20 +4,31 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeAnimatedNumber } from '@/components/native';
+import { NativeAnimatedNumber, NativeRetailFinanceCategorySelector } from '@/components/native';
+import { FinancialSeriesChart } from '@/components/Charts';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
 import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
+import { getHistoryMonthRange } from '@/features/history/utils/historyPeriodUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
+import { useRetailCategories } from '@/hooks/useRetailCategories';
+import { useRetailFinance } from '@/hooks/useRetailFinance';
+import { useAppMode } from '@/providers';
 import { expenseQueryForFinancialSelection } from '@/services/costs';
 import { financialCalculationService } from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
+import { retailFinanceViewForCategory, type RetailFinanceView } from '@/services/retail-finance';
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
-export default function PrototypeFinanceiro() {
+export default function FinanceiroRoute() {
+  const { mode } = useAppMode();
+  return mode === 'retail' ? <RetailFinanceScreen /> : <WholesaleFinanceScreen />;
+}
+
+function WholesaleFinanceScreen() {
   const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
   const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
@@ -330,6 +341,185 @@ export default function PrototypeFinanceiro() {
         style={{ backgroundColor: financeCardSurface }}
         title="POR BALDE"
       />
+    </PremiumScreen>
+  );
+}
+
+function RetailFinanceScreen() {
+  const { resolvedMode, theme } = useAppTheme();
+  const { month, year } = getCurrentHistoryPeriod();
+  const isFocused = useIsFocused();
+  const [selectedMonth, setSelectedMonth] = useState(month);
+  const [selectedYear, setSelectedYear] = useState(year);
+  const [view, setView] = useState<RetailFinanceView>('general');
+  const { categories } = useRetailCategories({ includeInactive: true });
+  const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`;
+  const period = useMemo(() => getHistoryMonthRange(selectedPeriod), [selectedPeriod]);
+  const { categoryOptions, error, loading, refreshing, reload, summary } = useRetailFinance(
+    period,
+    view,
+    { categories, enabled: isFocused },
+  );
+  const financeViews = useMemo(
+    () => [
+      { key: 'general' as const, label: 'Geral' },
+      ...categoryOptions.map((category) => ({
+        key: retailFinanceViewForCategory(category.categoryId),
+        label: category.label,
+      })),
+    ],
+    [categoryOptions],
+  );
+  const selectedViewLabel = financeViews.find((item) => item.key === view)?.label ?? 'Geral';
+  const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const toolbarItems = useMemo(
+    () =>
+      renderFinancePeriodToolbarItems({
+        composition: 'combined',
+        onMonthChange: setSelectedMonth,
+        onYearChange: setSelectedYear,
+        selectedMonth,
+        selectedYear,
+      }),
+    [selectedMonth, selectedYear],
+  );
+  const header = (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title="Finanças"
+      titleStyle={{
+        fontFamily: 'System',
+        fontSize: 36,
+        fontWeight: '700',
+        marginLeft: -(theme.spacing.xxs * 2),
+      }}
+    />
+  );
+
+  return (
+    <PremiumScreen
+      contentContainerStyle={[
+        styles.content,
+        { marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2 },
+      ]}
+      progressiveBlur
+      progressiveBlurHeight={
+        theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
+      }
+      progressiveBlurTopOffset={0}
+    >
+      <Stack.Toolbar placement="right">{toolbarItems}</Stack.Toolbar>
+      <View style={styles.header}>{header}</View>
+      <NativeRetailFinanceCategorySelector
+        accessibilityLabel="Visão financeira do Varejo"
+        items={financeViews}
+        onChange={(nextView) => setView(nextView as RetailFinanceView)}
+        selectedKey={view}
+      />
+      {loading && !summary ? (
+        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+          Carregando Finanças Varejo...
+        </Text>
+      ) : error && !summary ? (
+        <PremiumCard style={{ backgroundColor: financeCardSurface, padding: 20 }}>
+          <Text style={[theme.typography.body, { color: theme.colors.danger }]}>{error}</Text>
+          <Text
+            onPress={() => void reload()}
+            style={[theme.typography.footnote, { color: theme.colors.textPrimary, marginTop: 12 }]}
+          >
+            Tentar novamente
+          </Text>
+        </PremiumCard>
+      ) : summary ? (
+        <>
+          <PremiumCard
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: financeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+              },
+            ]}
+          >
+            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+              RECEBIDO
+            </Text>
+            <NativeAnimatedNumber
+              animationEnabled={!refreshing}
+              color={theme.colors.textPrimary}
+              text={formatCurrency(summary.revenueReceived)}
+              value={summary.revenueReceived}
+            />
+          </PremiumCard>
+          <PremiumCard
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: financeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+              },
+            ]}
+          >
+            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+              LUCRO DIRETO
+            </Text>
+            <NativeAnimatedNumber
+              animationEnabled={!refreshing}
+              color={theme.colors.textPrimary}
+              text={formatCurrency(summary.profit)}
+              value={summary.profit}
+            />
+          </PremiumCard>
+          <PremiumCard style={{ backgroundColor: financeCardSurface, padding: 16 }}>
+            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+              RECEITA POR PERÍODO
+            </Text>
+            <FinancialSeriesChart
+              accessibilityLabel="Série de receita recebida do Varejo"
+              color={theme.colors.primary}
+              points={summary.series}
+            />
+          </PremiumCard>
+          <SummaryCard
+            rows={[
+              {
+                label: 'Receita dos produtos',
+                value: formatCurrency(summary.productRevenueRecognized),
+              },
+              ...(view === 'general'
+                ? [
+                    {
+                      label: 'Taxa de entrega',
+                      value: formatCurrency(summary.deliveryFeeRecognized),
+                    },
+                  ]
+                : []),
+              { label: 'Custo dos produtos', value: formatCurrency(summary.productCostRecognized) },
+              ...(view === 'general'
+                ? [
+                    {
+                      label: 'Custo de entrega',
+                      value: formatCurrency(summary.deliveryCostRecognized),
+                    },
+                    { label: 'Taxas de pagamento', value: formatCurrency(summary.paymentFees) },
+                  ]
+                : []),
+              { label: 'Margem', value: `${summary.margin.toFixed(1)}%` },
+              { label: 'Pedidos', value: String(summary.orderCount) },
+              { label: 'Unidades', value: String(summary.unitsSold) },
+            ]}
+            style={{ backgroundColor: financeCardSurface }}
+            title={selectedViewLabel}
+          />
+          {error ? (
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              Dados exibidos do último cache válido. {error}
+            </Text>
+          ) : null}
+        </>
+      ) : null}
     </PremiumScreen>
   );
 }

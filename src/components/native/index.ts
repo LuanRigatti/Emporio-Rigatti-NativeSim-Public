@@ -45,6 +45,8 @@ export { default as NativeGlassBackButton } from './NativeGlassBackButton';
 export type { NativeGlassBackButtonProps } from './NativeGlassBackButton';
 export { default as NativeGlassIconButton } from './NativeGlassIconButton';
 export type { NativeGlassIconButtonProps } from './NativeGlassIconButton';
+export { default as NativeRetailFinanceCategorySelector } from './NativeRetailFinanceCategorySelector';
+export type { NativeRetailFinanceCategorySelectorProps } from './NativeRetailFinanceCategorySelector';
 export { default as NativeAvatarButton } from './NativeAvatarButton';
 export type { NativeAvatarButtonProps } from './NativeAvatarButton';
 export { default as NativeHomeToolbarActions } from './NativeHomeToolbarActions';

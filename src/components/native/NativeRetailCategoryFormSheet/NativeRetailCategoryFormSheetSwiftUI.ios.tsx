@@ -4,6 +4,7 @@ import {
   Group,
   HStack,
   Host,
+  Picker,
   Spacer,
   Text,
   TextField,
@@ -24,9 +25,12 @@ import {
   presentationBackgroundInteraction as setPresentationBackgroundInteraction,
   presentationDetents,
   presentationDragIndicator,
+  pickerStyle,
+  tag,
 } from '@expo/ui/swift-ui/modifiers';
 import { useEffect, useState } from 'react';
 
+import { RETAIL_FINANCE_GROUP_OPTIONS } from '@/types/data';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -47,7 +51,11 @@ export default function NativeRetailCategoryFormSheetSwiftUI({
   visible,
 }: NativeRetailCategoryFormSheetProps) {
   const { enabled: testModeEnabled } = useTestModePresentation();
-  const [values, setValues] = useState<NativeRetailCategoryFormValues>({ label: '' });
+  const [values, setValues] = useState<NativeRetailCategoryFormValues>({
+    financeGroup: 'other',
+    label: '',
+  });
+  const [financeGroupIndex, setFinanceGroupIndex] = useState(3);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const labelState = useNativeState('');
@@ -55,10 +63,17 @@ export default function NativeRetailCategoryFormSheetSwiftUI({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (visible) {
-      setValues({ label: initialValues?.label ?? '' });
+      const financeGroup = initialValues?.financeGroup ?? 'other';
+      setValues({ financeGroup, label: initialValues?.label ?? '' });
+      setFinanceGroupIndex(
+        Math.max(
+          0,
+          RETAIL_FINANCE_GROUP_OPTIONS.findIndex((option) => option.value === financeGroup),
+        ),
+      );
       setError(undefined);
     }
-  }, [initialValues?.label, visible]);
+  }, [initialValues?.financeGroup, initialValues?.label, visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => labelState.set(values.label), [labelState, values.label]);
@@ -119,10 +134,30 @@ export default function NativeRetailCategoryFormSheetSwiftUI({
                   ...(testModeEnabled ? [disabledModifier(true)] : []),
                   padding({ horizontal: 12, vertical: 10 }),
                 ]}
-                onTextChange={(label) => setValues({ label })}
+                onTextChange={(label) => setValues((current) => ({ ...current, label }))}
                 placeholder="Ex.: Cestas"
                 text={labelState as NativeTextState}
               />
+              <Picker
+                label="Grupo financeiro"
+                onSelectionChange={(selection) => {
+                  const index = Number(selection);
+                  const financeGroup = RETAIL_FINANCE_GROUP_OPTIONS[index]?.value ?? 'other';
+                  setFinanceGroupIndex(index);
+                  setValues((current) => ({ ...current, financeGroup }));
+                }}
+                selection={financeGroupIndex}
+                modifiers={[
+                  pickerStyle('menu'),
+                  ...(testModeEnabled ? [disabledModifier(true)] : []),
+                ]}
+              >
+                {RETAIL_FINANCE_GROUP_OPTIONS.map((option, index) => (
+                  <Text key={option.value} modifiers={[roundedFont({}), tag(index)]}>
+                    {option.label}
+                  </Text>
+                ))}
+              </Picker>
             </VStack>
             {error ? <Text modifiers={[foregroundColor('#FF3B30')]}>{error}</Text> : null}
             <HStack modifiers={[frame({ maxWidth: 1000 })]}>

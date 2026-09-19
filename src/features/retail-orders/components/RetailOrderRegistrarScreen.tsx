@@ -133,6 +133,7 @@ export function RetailOrderRegistrarLauncher() {
               <NativeButton
                 accessibilityLabel="Criar pedido Varejo"
                 controlSize="large"
+                color={theme.colors.contrastContent}
                 haptic="light"
                 label="Novo pedido"
                 onPress={openOrderPage}

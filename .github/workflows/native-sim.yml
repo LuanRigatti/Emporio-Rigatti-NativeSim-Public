@@ -183,7 +183,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/native-sim-app
-          key: native-sim-app-${{ runner.os }}-${{ steps.fp.outputs.hash }}
+          key: native-sim-app-${{ runner.os }}-adhoc-signed-v1-${{ steps.fp.outputs.hash }}
 
       - name: Boot simulator
         timeout-minutes: 10
@@ -404,7 +404,10 @@ jobs:
             -sdk iphonesimulator \
             -destination "id=$UDID" \
             -derivedDataPath build/ios \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=YES \
             -quiet \
             build
 
@@ -421,7 +424,47 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build/native-sim-app
-          key: native-sim-app-${{ runner.os }}-${{ steps.fp.outputs.hash }}
+          key: native-sim-app-${{ runner.os }}-adhoc-signed-v1-${{ steps.fp.outputs.hash }}
+
+      - name: Inspect simulator app entitlements
+        if: inputs.mode == 'build'
+        run: |
+          set -euo pipefail
+          APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
+          [ -n "$APP" ] || { echo "::error::no simulator app available for entitlement inspection"; exit 1; }
+
+          DIAG_DIR="build/native-sim-startup-diagnostics"
+          mkdir -p "$DIAG_DIR"
+          RAW_ENTITLEMENTS="${RUNNER_TEMP}/native-sim-entitlements.plist"
+          CODESIGN_STDERR="${RUNNER_TEMP}/native-sim-codesign.stderr"
+          trap 'rm -f "$RAW_ENTITLEMENTS" "$CODESIGN_STDERR"' EXIT
+
+          if ! codesign -d --entitlements :- --xml "$APP" > "$RAW_ENTITLEMENTS" 2> "$CODESIGN_STDERR"; then
+            echo "::error::codesign entitlement inspection failed for the simulator app"
+            exit 1
+          fi
+
+          sed -n 's:.*<key>\([^<]*\)</key>.*:\1:p' "$RAW_ENTITLEMENTS" | sort -u \
+            > "$DIAG_DIR/codesign-entitlement-names.txt"
+          [ -s "$DIAG_DIR/codesign-entitlement-names.txt" ] || {
+            echo "::error::codesign returned no entitlement names"
+            exit 1
+          }
+
+          echo "Entitlement names present in $APP:"
+          cat "$DIAG_DIR/codesign-entitlement-names.txt"
+
+          if grep -Eq '<key>(application-identifier|com.apple.application-identifier)</key>' "$RAW_ENTITLEMENTS"; then
+            echo "application-identifier: present"
+          else
+            echo "application-identifier: absent"
+          fi
+
+          if grep -Fq '<key>keychain-access-groups</key>' "$RAW_ENTITLEMENTS"; then
+            echo "keychain-access-groups: present"
+          else
+            echo "keychain-access-groups: absent"
+          fi
 
       - name: Export app archive
         if: inputs.mode == 'build' && inputs.export_app == 'true'

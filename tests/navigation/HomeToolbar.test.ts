@@ -190,4 +190,23 @@ describe('HomeToolbar', () => {
     expect(mockToolbarMounts).toBe(initialMounts);
     expect(mockToolbarUnmounts).toBe(initialUnmounts);
   });
+
+  it('can hide the Wholesale search action for the Retail Home', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(HomeToolbar, {
+          foregroundColor: '#000000',
+          imageUri: null,
+          name: 'Conta',
+          onProfilePress: jest.fn(),
+          showSearch: false,
+        }),
+      );
+    });
+
+    const actions = findNodes(renderer.root, 'native-home-toolbar-actions')[0];
+    expect(actions.props.showSearch).toBe(false);
+    expect(actions.props.onSearchPress).toBeUndefined();
+  });
 });

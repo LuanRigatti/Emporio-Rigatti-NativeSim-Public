@@ -6,5 +6,6 @@ export type NativeHomeToolbarActionsProps = {
   accessibilityHint?: string;
   searchAccessibilityLabel?: string;
   onProfilePress: () => void;
-  onSearchPress: () => void;
+  onSearchPress?: () => void;
+  showSearch?: boolean;
 };

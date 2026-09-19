@@ -32,16 +32,18 @@ export default function NativeHomeToolbarActionsSwiftUI({
   onProfilePress,
   onSearchPress,
   searchAccessibilityLabel = 'Abrir Pesquisa',
+  showSearch = true,
 }: NativeHomeToolbarActionsProps) {
+  const toolbarWidth = showSearch ? HOME_TOOLBAR_WIDTH : HOME_TOOLBAR_CONTROL_SIZE;
   return (
-    <Host style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_WIDTH }}>
+    <Host style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: toolbarWidth }}>
       <HStack
         alignment="center"
-        spacing={HOME_TOOLBAR_GAP}
+        spacing={showSearch ? HOME_TOOLBAR_GAP : 0}
         modifiers={[
-          padding({ leading: 0, trailing: HOME_TOOLBAR_HORIZONTAL_PADDING }),
+          padding({ leading: 0, trailing: showSearch ? HOME_TOOLBAR_HORIZONTAL_PADDING : 0 }),
           frame({
-            width: HOME_TOOLBAR_WIDTH,
+            width: toolbarWidth,
             height: HOME_TOOLBAR_CONTROL_SIZE,
             alignment: 'center',
           }),
@@ -83,35 +85,37 @@ export default function NativeHomeToolbarActionsSwiftUI({
             </RNHostView>
           </ZStack>
         </Button>
-        <Button
-          modifiers={[
-            padding({ all: 0 }),
-            buttonStyle('plain'),
-            controlSize('regular'),
-            frame({
-              width: HOME_TOOLBAR_CONTROL_SIZE,
-              height: HOME_TOOLBAR_CONTROL_SIZE,
-              alignment: 'center',
-            }),
-            contentShape(shapes.rectangle()),
-            accessibilityLabel(searchAccessibilityLabel),
-          ]}
-          onPress={onSearchPress}
-        >
-          <ZStack
-            alignment="center"
+        {showSearch ? (
+          <Button
             modifiers={[
-              frame({ width: HOME_TOOLBAR_CONTROL_SIZE, height: HOME_TOOLBAR_CONTROL_SIZE }),
+              padding({ all: 0 }),
+              buttonStyle('plain'),
+              controlSize('regular'),
+              frame({
+                width: HOME_TOOLBAR_CONTROL_SIZE,
+                height: HOME_TOOLBAR_CONTROL_SIZE,
+                alignment: 'center',
+              }),
               contentShape(shapes.rectangle()),
+              accessibilityLabel(searchAccessibilityLabel),
             ]}
+            onPress={onSearchPress}
           >
-            <Image
-              color={foregroundColor}
-              modifiers={[font({ size: 21, weight: 'semibold' })]}
-              systemName="magnifyingglass"
-            />
-          </ZStack>
-        </Button>
+            <ZStack
+              alignment="center"
+              modifiers={[
+                frame({ width: HOME_TOOLBAR_CONTROL_SIZE, height: HOME_TOOLBAR_CONTROL_SIZE }),
+                contentShape(shapes.rectangle()),
+              ]}
+            >
+              <Image
+                color={foregroundColor}
+                modifiers={[font({ size: 21, weight: 'semibold' })]}
+                systemName="magnifyingglass"
+              />
+            </ZStack>
+          </Button>
+        ) : null}
       </HStack>
     </Host>
   );

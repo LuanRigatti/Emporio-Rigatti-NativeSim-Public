@@ -10,7 +10,8 @@ type HomeToolbarProps = {
   imageUri?: string | null;
   name: string;
   onProfilePress: () => void;
-  onSearchPress: () => void;
+  onSearchPress?: () => void;
+  showSearch?: boolean;
 };
 
 export function HomeToolbar({
@@ -19,6 +20,7 @@ export function HomeToolbar({
   name,
   onProfilePress,
   onSearchPress,
+  showSearch = true,
 }: HomeToolbarProps) {
   const { mode, setMode } = useAppMode();
   const [modeSheetVisible, setModeSheetVisible] = useState(false);
@@ -43,6 +45,7 @@ export function HomeToolbar({
             name={name}
             onProfilePress={onProfilePress}
             onSearchPress={onSearchPress}
+            showSearch={showSearch}
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>

@@ -7,7 +7,7 @@ import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/prem
 import { NativeGlassHeader } from '@/components/layout';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { HomeToolbar } from '@/components/navigation/HomeToolbar';
-import { useAppSafeAreaInsets, useAuth } from '@/providers';
+import { useAppMode, useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
@@ -20,6 +20,7 @@ import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
+import { RetailHome } from '@/features/home/components/RetailHome';
 
 function PreviewIcon({
   color,
@@ -35,7 +36,7 @@ function PreviewIcon({
   return <Ionicons color={color} name={name} size={size ?? theme.sizes.iconMedium} />;
 }
 
-export default function Home() {
+function WholesaleHome() {
   const router = useRouter();
   const { user } = useAuth();
   const { resolvedMode, theme } = useAppTheme();
@@ -372,6 +373,12 @@ export default function Home() {
       />
     </View>
   );
+}
+
+export default function DashboardRoute() {
+  const { isReady, mode } = useAppMode();
+  if (!isReady) return null;
+  return mode === 'retail' ? <RetailHome /> : <WholesaleHome />;
 }
 
 const styles = StyleSheet.create({

@@ -23,8 +23,10 @@ export default function NativeHomeToolbarActionsFallback({
   onProfilePress,
   onSearchPress,
   searchAccessibilityLabel = 'Abrir Pesquisa',
+  showSearch = true,
 }: NativeHomeToolbarActionsProps) {
   const { theme } = useAppTheme();
+  const toolbarWidth = showSearch ? HOME_TOOLBAR_WIDTH : HOME_TOOLBAR_CONTROL_SIZE;
 
   return (
     <GlassSurface
@@ -35,6 +37,7 @@ export default function NativeHomeToolbarActionsFallback({
         {
           backgroundColor: 'transparent',
           borderRadius: theme.radius.pill,
+          width: toolbarWidth,
         },
       ]}
     >
@@ -56,18 +59,20 @@ export default function NativeHomeToolbarActionsFallback({
             size="medium"
           />
         </Pressable>
-        <Pressable
-          accessibilityLabel={searchAccessibilityLabel}
-          accessibilityRole="button"
-          onPress={onSearchPress}
-          style={({ pressed }) => [styles.action, { opacity: pressed ? 0.72 : 1 }]}
-        >
-          <Ionicons
-            color={foregroundColor ?? theme.colors.textPrimary}
-            name="search-outline"
-            size={19}
-          />
-        </Pressable>
+        {showSearch ? (
+          <Pressable
+            accessibilityLabel={searchAccessibilityLabel}
+            accessibilityRole="button"
+            onPress={onSearchPress}
+            style={({ pressed }) => [styles.action, { opacity: pressed ? 0.72 : 1 }]}
+          >
+            <Ionicons
+              color={foregroundColor ?? theme.colors.textPrimary}
+              name="search-outline"
+              size={19}
+            />
+          </Pressable>
+        ) : null}
       </View>
     </GlassSurface>
   );

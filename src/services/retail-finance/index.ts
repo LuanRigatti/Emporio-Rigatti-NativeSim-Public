@@ -1,4 +1,5 @@
 export {
+  RETAIL_FINANCE_GENERAL_VIEW,
   RetailFinanceAggregationService,
   buildRetailFinanceCategoryOptions,
   retailFinanceCategoryIdFromView,

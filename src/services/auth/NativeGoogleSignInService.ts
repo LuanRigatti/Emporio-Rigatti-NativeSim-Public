@@ -20,9 +20,9 @@ export async function signInWithNativeGoogle(): Promise<GoogleCredential> {
     );
   }
 
-  const { iosClientId, webClientId } = getGoogleClientIds();
+  const { webClientId } = getGoogleClientIds();
 
-  if (!iosClientId || !webClientId) {
+  if (!webClientId) {
     throw new AuthUserFacingError(
       'configuration',
       'Client IDs do Google não configurados para o login nativo.',
@@ -31,10 +31,9 @@ export async function signInWithNativeGoogle(): Promise<GoogleCredential> {
 
   const { GoogleSignin } = require('@react-native-google-signin/google-signin');
 
-  GoogleSignin.configure({
-    iosClientId,
-    webClientId,
-  });
+  // On iOS, the native module reads CLIENT_ID from the bundled
+  // GoogleService-Info.plist selected for the current native target.
+  GoogleSignin.configure({ webClientId });
 
   const response = await GoogleSignin.signIn();
 

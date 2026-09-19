@@ -69,13 +69,10 @@ describe('NativeGoogleSignInService', () => {
     });
 
     await expect(signInWithNativeGoogle()).resolves.toEqual({ idToken: 'google-id-token' });
-    expect(GoogleSignin.configure).toHaveBeenCalledWith({
-      iosClientId: 'ios-client-id',
-      webClientId: 'web-client-id',
-    });
+    expect(GoogleSignin.configure).toHaveBeenCalledWith({ webClientId: 'web-client-id' });
   });
 
-  it('passes the embedded Final client ID to Google Sign-In', async () => {
+  it('does not pass the Dev environment iOS client ID to Final Google Sign-In', async () => {
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = 'default-client-id';
     mockedConstants.expoConfig = {
       extra: {
@@ -104,10 +101,7 @@ describe('NativeGoogleSignInService', () => {
     await expect(signInWithNativeGoogle()).resolves.toEqual({
       idToken: 'final-google-id-token',
     });
-    expect(GoogleSignin.configure).toHaveBeenCalledWith({
-      iosClientId: finalClientId,
-      webClientId: 'web-client-id',
-    });
+    expect(GoogleSignin.configure).toHaveBeenCalledWith({ webClientId: 'web-client-id' });
   });
 
   it('maps native cancellation to the existing auth error contract', async () => {

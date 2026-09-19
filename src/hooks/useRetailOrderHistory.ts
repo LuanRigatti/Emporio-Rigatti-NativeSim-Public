@@ -81,10 +81,6 @@ export function useRetailOrderHistory() {
     [authStatus, sessionVersion, userId],
   );
 
-  useEffect(() => {
-    void Promise.resolve().then(() => load());
-  }, [load]);
-
   const orders = useMemo(
     () =>
       snapshot

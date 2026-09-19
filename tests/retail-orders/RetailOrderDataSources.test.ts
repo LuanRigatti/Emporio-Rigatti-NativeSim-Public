@@ -303,6 +303,38 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     await load;
   });
 
+  it('preserves cached history when server revalidation fails and allows a later retry', async () => {
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await retailOrderCatalogCache.write('uid-retail', [
+      { ...orderRecord(), id: 'order-1' } as RetailOrderRecord,
+    ]);
+    const serverError = new Error('Failed to get documents from server.');
+    mockedGetDocsFromServer.mockRejectedValueOnce(serverError);
+
+    await expect(dataSource.loadHistorical('uid-retail', 1)).rejects.toBe(serverError);
+
+    expect(dataSource.getSnapshot('uid-retail', 1)).toHaveLength(1);
+    expect(dataSource.getLoadState('uid-retail', 1)).toMatchObject({
+      error: serverError.message,
+      remoteComplete: false,
+      revalidating: false,
+      source: 'cache',
+    });
+
+    mockedGetDocsFromServer.mockResolvedValueOnce(queryResult([orderRecord('order-2')]));
+    await dataSource.loadHistorical('uid-retail', 1);
+
+    expect(dataSource.getLoadState('uid-retail', 1)).toMatchObject({
+      error: undefined,
+      remoteComplete: true,
+      revalidating: false,
+      source: 'remote',
+    });
+    expect(dataSource.getSnapshot('uid-retail', 1)).toHaveLength(1);
+    expect(dataSource.getSnapshot('uid-retail', 1)?.[0]?.orderId).toBe('order-2');
+  });
+
   it('updates allowed draft fields and applies lifecycle status locally', async () => {
     mockedGetDocs
       .mockResolvedValueOnce(queryResult([orderRecord()]))

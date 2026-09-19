@@ -33,6 +33,8 @@ type RetailHistoryViewMode = 'day' | 'week' | 'month';
 
 const RETAIL_HISTORY_VIEW_MODE_OPTIONS = ['Dia', 'Semana', 'Mês'] as const;
 const RETAIL_HISTORY_VIEW_MODES: readonly RetailHistoryViewMode[] = ['day', 'week', 'month'];
+const RETAIL_HISTORY_REFRESH_ERROR_MESSAGE =
+  'Não foi possível atualizar o histórico agora. Os pedidos já carregados continuam disponíveis.';
 
 export function RetailOrderHistoryScreen() {
   const insets = useAppSafeAreaInsets();
@@ -40,8 +42,7 @@ export function RetailOrderHistoryScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [viewMode, setViewMode] = useState<RetailHistoryViewMode>('day');
-  const { error, loading, orders, refreshing, reload, remoteComplete, refreshKey } =
-    useRetailOrderHistory();
+  const { error, loading, orders, reload, remoteComplete, refreshKey } = useRetailOrderHistory();
   const selectedYear = Number(selectedDate.slice(0, 4));
   const weekGroups = useMemo(() => createHistoryWeekGroups(selectedYear), [selectedYear]);
   const selectedRange = useMemo(
@@ -139,7 +140,6 @@ export function RetailOrderHistoryScreen() {
       onOrderPress={handleOpenOrder}
       onRetry={reload}
       orders={orders}
-      refreshing={refreshing}
       remoteComplete={remoteComplete}
       selectedRange={selectedRange}
       theme={theme}
@@ -220,7 +220,6 @@ function RetailHistoryContent({
   onRetry,
   onOrderPress,
   orders,
-  refreshing,
   remoteComplete,
   selectedRange,
   theme,
@@ -232,7 +231,6 @@ function RetailHistoryContent({
   onRetry: () => void;
   onOrderPress: (orderId: string) => void;
   orders: readonly RetailOrder[];
-  refreshing: boolean;
   remoteComplete: boolean;
   selectedRange: { startDate: string; endDate: string };
   theme: ReturnType<typeof useAppTheme>['theme'];
@@ -250,13 +248,13 @@ function RetailHistoryContent({
         />
       );
     }
-    return (
-      <GlassCard style={styles.stateCard}>
-        <Loading
-          label={loading || refreshing ? 'Carregando pedidos Varejo…' : 'Atualizando histórico…'}
-        />
-      </GlassCard>
-    );
+    if (loading) {
+      return (
+        <GlassCard style={styles.stateCard}>
+          <Loading label="Carregando pedidos Varejo…" />
+        </GlassCard>
+      );
+    }
   }
 
   if (!visibleOrders.length) {
@@ -307,7 +305,7 @@ function RetailHistoryContent({
     <View style={[styles.periodSections, { gap: theme.spacing.lg }]}>
       {error ? (
         <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
-          Atualização do Histórico Varejo indisponível: {error}
+          {RETAIL_HISTORY_REFRESH_ERROR_MESSAGE}
         </Text>
       ) : null}
       {content}

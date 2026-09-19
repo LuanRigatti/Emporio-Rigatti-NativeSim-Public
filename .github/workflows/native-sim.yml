@@ -412,6 +412,7 @@ jobs:
           retention-days: 1
 
       - name: Install and launch app
+        id: launch
         timeout-minutes: 15
         if: inputs.mode == 'build'
         env:
@@ -433,10 +434,141 @@ jobs:
               --assets-dest "$APP"
           fi
 
-          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist")
+          plist_value() {
+            /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || printf '<missing>'
+          }
+
+          INFO_PLIST="$APP/Info.plist"
+          BUNDLE_ID=$(plist_value "$INFO_PLIST" CFBundleIdentifier)
+          DISPLAY_NAME=$(plist_value "$INFO_PLIST" CFBundleDisplayName)
+          [ "$DISPLAY_NAME" = '<missing>' ] && DISPLAY_NAME=$(plist_value "$INFO_PLIST" CFBundleName)
+          EXECUTABLE=$(plist_value "$INFO_PLIST" CFBundleExecutable)
+          URL_TYPES=$(plist_value "$INFO_PLIST" CFBundleURLTypes)
+          GOOGLE_PLIST=$(find "$APP" -type f -name 'GoogleService-Info.plist' -print -quit)
+          CLIENT_ID='<missing>'
+          REVERSED_CLIENT_ID='<missing>'
+          GOOGLE_APP_ID='<missing>'
+          if [ -n "$GOOGLE_PLIST" ]; then
+            CLIENT_ID=$(plist_value "$GOOGLE_PLIST" CLIENT_ID)
+            REVERSED_CLIENT_ID=$(plist_value "$GOOGLE_PLIST" REVERSED_CLIENT_ID)
+            GOOGLE_APP_ID=$(plist_value "$GOOGLE_PLIST" GOOGLE_APP_ID)
+          fi
+
           xcrun simctl install "$UDID" "$APP"
-          xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          echo "::group::NativeSim startup bundle metadata (before launch)"
+          echo "CFBundleIdentifier=$BUNDLE_ID"
+          echo "CFBundleDisplayName=$DISPLAY_NAME"
+          printf 'CFBundleURLTypes:\n%s\n' "$URL_TYPES"
+          if [ -n "$GOOGLE_PLIST" ]; then
+            echo 'Google-Service-Info.plist present in .app: yes'
+          else
+            echo 'Google-Service-Info.plist present in .app: no'
+          fi
+          echo "CLIENT_ID=$CLIENT_ID"
+          echo "REVERSED_CLIENT_ID=$REVERSED_CLIENT_ID"
+          echo "GOOGLE_APP_ID=$GOOGLE_APP_ID"
+          echo '::endgroup::'
+
+          echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          echo "executable=$EXECUTABLE" >> "$GITHUB_OUTPUT"
+          xcrun simctl launch "$UDID" "$BUNDLE_ID" 2>&1 | tee startup-launch.log
           echo "Launched $BUNDLE_ID"
+
+      - name: Diagnose startup exit
+        if: always() && inputs.mode == 'build'
+        continue-on-error: true
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+          LAUNCH_BUNDLE_ID: ${{ steps.launch.outputs.bundle_id }}
+          LAUNCH_EXECUTABLE: ${{ steps.launch.outputs.executable }}
+        run: |
+          set +e
+          DIAG_DIR="build/native-sim-startup-diagnostics"
+          mkdir -p "$DIAG_DIR"
+
+          APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$APP" ] || [ ! -f "$APP/Info.plist" ]; then
+            echo '::warning::Startup diagnostics could not find the installed .app'
+            exit 0
+          fi
+
+          plist_value() {
+            /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || printf '<missing>'
+          }
+
+          BUNDLE_ID="${LAUNCH_BUNDLE_ID:-$(plist_value "$APP/Info.plist" CFBundleIdentifier)}"
+          EXECUTABLE="${LAUNCH_EXECUTABLE:-$(plist_value "$APP/Info.plist" CFBundleExecutable)}"
+          echo "Waiting 8 seconds after simctl launch before checking process state"
+          sleep 8
+
+          xcrun simctl spawn "$UDID" ps -axo pid,comm,args > "$DIAG_DIR/processes.txt" 2>&1
+          xcrun simctl spawn "$UDID" launchctl list > "$DIAG_DIR/launchctl-list.txt" 2>&1
+
+          PROCESS_MATCH=''
+          if [ "$EXECUTABLE" != '<missing>' ]; then
+            PROCESS_MATCH=$(grep -F "$EXECUTABLE" "$DIAG_DIR/processes.txt" | head -20)
+          fi
+          if [ -z "$PROCESS_MATCH" ] && [ "$BUNDLE_ID" != '<missing>' ]; then
+            PROCESS_MATCH=$(grep -F "$BUNDLE_ID" "$DIAG_DIR/processes.txt" | head -20)
+          fi
+
+          if [ -n "$PROCESS_MATCH" ]; then
+            echo "Startup process status: alive"
+            echo "$PROCESS_MATCH"
+            exit 0
+          fi
+
+          echo "::warning::Startup process exited before the 8-second check"
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "Executable: $EXECUTABLE"
+
+          LOG_FILE="$DIAG_DIR/simulator-log-5m.txt"
+          ERROR_LOG="$DIAG_DIR/error-fault-log.txt"
+          xcrun simctl spawn "$UDID" log show --last 5m --style compact > "$LOG_FILE" 2>&1
+          xcrun simctl spawn "$UDID" log show --last 5m --style compact \
+            --predicate 'messageType == error OR messageType == fault' > "$ERROR_LOG" 2>&1
+
+          echo '::group::Unified log messages with level error/fault'
+          tail -n 400 "$ERROR_LOG"
+          echo '::endgroup::'
+
+          echo '::group::Filtered startup diagnostics'
+          grep -E -i \
+            'NSException|objc_exception|uncaught|fatal error|SIGABRT|EXC_CRASH|React Native|RCT|RCTFatal|Invariant Violation|Hermes|Metro|JavaScript|Firebase|GoogleService|Google Sign|GID|missing|not found|No such file|could not load|failed to load|NSBundle|resource|dyld|Library not loaded|Symbol not found|image not found|framework' \
+            "$LOG_FILE" | tail -n 800
+          echo '::endgroup::'
+
+          REPORT_ROOT="$HOME/Library/Logs/DiagnosticReports"
+          REPORT_INDEX="$DIAG_DIR/crash-reports.txt"
+          REPORT_LOG="$DIAG_DIR/crash-reports.log"
+          : > "$REPORT_INDEX"
+          : > "$REPORT_LOG"
+          if [ -d "$REPORT_ROOT" ]; then
+            find "$REPORT_ROOT" -type f -mmin -15 -print0 | while IFS= read -r -d '' REPORT; do
+              if { [ "$BUNDLE_ID" != '<missing>' ] && grep -Fq "$BUNDLE_ID" "$REPORT" 2>/dev/null; } \
+                 || { [ "$EXECUTABLE" != '<missing>' ] && grep -Fq "$EXECUTABLE" "$REPORT" 2>/dev/null; }; then
+                echo "$REPORT" >> "$REPORT_INDEX"
+                echo "===== $REPORT =====" >> "$REPORT_LOG"
+                cat "$REPORT" >> "$REPORT_LOG"
+              fi
+            done
+          fi
+
+          echo '::group::Recent simulator crash reports'
+          if [ -s "$REPORT_INDEX" ]; then
+            cat "$REPORT_LOG"
+          else
+            echo 'No matching recent host crash report found.'
+          fi
+          echo '::endgroup::'
+
+          echo '::group::Recent crash reports inside simulator data'
+          xcrun simctl spawn "$UDID" sh -c \
+            'find /var/mobile/Library/Logs/CrashReporter -type f -mmin -15 -print 2>/dev/null' \
+            || true
+          echo '::endgroup::'
+
+          echo "Diagnostic files saved under $DIAG_DIR"
 
       - name: Install prebuilt app
         timeout-minutes: 15

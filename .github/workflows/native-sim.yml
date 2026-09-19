@@ -92,6 +92,13 @@ jobs:
     timeout-minutes: 360
     env:
       APP_VARIANT: final
+      EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+      EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+      EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      EXPO_PUBLIC_FIREBASE_DATABASE_URL: ${{ vars.EXPO_PUBLIC_FIREBASE_DATABASE_URL }}
+      EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+      EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
       GH_TOKEN: ${{ github.token }}
       STATUS_CONTEXT: native-sim/${{ inputs.session }}
       GATE_PORT: "3199"
@@ -104,6 +111,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Validate public Firebase configuration
+        if: inputs.mode == 'build'
+        run: |
+          set -euo pipefail
+          MISSING=0
+          for NAME in \
+            EXPO_PUBLIC_FIREBASE_API_KEY \
+            EXPO_PUBLIC_FIREBASE_APP_ID \
+            EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN \
+            EXPO_PUBLIC_FIREBASE_DATABASE_URL \
+            EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
+            EXPO_PUBLIC_FIREBASE_PROJECT_ID \
+            EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET; do
+            if [ -z "$(printenv "$NAME")" ]; then
+              echo "::error::Missing Repository Variable: $NAME"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            exit 1
+          fi
+          echo 'All required public Firebase variables are present.'
 
       - name: Cache npm + CocoaPods
         uses: actions/cache@v4

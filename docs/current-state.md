@@ -18,6 +18,26 @@ preservam o histórico técnico e as decisões acumuladas.
   podem permanecer no working tree e devem ser preservados em futuras
   operações seletivas.
 
+## Ambiente auxiliar NativeSim Public
+
+- Este checkout público usa a branch `main` somente para compilação e
+  validação no NativeSim; sua adaptação operacional não deve ser transportada
+  de volta para `ajustes-codex`.
+- O workflow `.github/workflows/native-sim.yml` preserva `APP_VARIANT=final` e
+  recebe, por Repository Variables do GitHub Actions, as sete configurações
+  públicas obrigatórias do Firebase: `EXPO_PUBLIC_FIREBASE_API_KEY`,
+  `EXPO_PUBLIC_FIREBASE_APP_ID`, `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`,
+  `EXPO_PUBLIC_FIREBASE_DATABASE_URL`,
+  `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`,
+  `EXPO_PUBLIC_FIREBASE_PROJECT_ID` e
+  `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`.
+- O workflow valida somente a presença dessas variáveis antes de fingerprint,
+  prebuild e build; valores não são gravados no repositório e uma variável
+  ausente é informada pelo nome.
+- O startup diagnostics é preservado e seus arquivos são publicados no
+  artifact `native-sim-startup-diagnostics` antes do período de retenção do
+  stream.
+
 ## Fechamento da sincronização nativa das toolbars das tabs — 2026-09-17
 
 Este bloco registra a correção do micro-delay entre o conteúdo e os controles

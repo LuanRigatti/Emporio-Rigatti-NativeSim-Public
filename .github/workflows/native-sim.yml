@@ -489,23 +489,62 @@ jobs:
         run: |
           set -euo pipefail
           rm -f metro.log metro.pid
-          echo 'Starting Metro for Expo Dev Client on http://127.0.0.1:8081'
+          echo 'Starting Metro for Expo Dev Client on http://localhost:8081'
           CI=1 nohup npx expo start --dev-client --localhost --port 8081 > metro.log 2>&1 &
           METRO_PID=$!
           echo "$METRO_PID" > metro.pid
           disown "$METRO_PID" 2>/dev/null || true
 
-          for _ in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8081/status 2>/dev/null | grep -q 'packager-status:running'; then
-              echo "Metro is available on the runner (pid=$METRO_PID)"
-              tail -20 metro.log || true
-              exit 0
+          report_metro_diagnostics() {
+            echo '::group::Metro readiness diagnostics'
+            if kill -0 "$METRO_PID" 2>/dev/null; then
+              echo "Metro process: alive (pid=$METRO_PID)"
+              ps -p "$METRO_PID" -o pid=,stat=,command= || true
+            else
+              echo "Metro process: not alive (pid=$METRO_PID)"
             fi
+            echo 'Listening sockets on TCP 8081:'
+            lsof -nP -iTCP:8081 -sTCP:LISTEN || true
+            for PROBE in \
+              'localhost|http://localhost:8081/status' \
+              'ipv4|http://127.0.0.1:8081/status' \
+              'ipv6|http://[::1]:8081/status'; do
+              IFS='|' read -r LABEL URL <<< "$PROBE"
+              if RESPONSE=$(curl --noproxy '*' --connect-timeout 1 --max-time 3 -sS "$URL" 2>&1); then
+                echo "Metro probe $LABEL ($URL): $RESPONSE"
+              else
+                CURL_STATUS=$?
+                echo "Metro probe $LABEL ($URL) failed (curl exit $CURL_STATUS): $RESPONSE"
+              fi
+            done
+            echo 'Last Metro log lines:'
+            tail -80 metro.log || true
+            echo '::endgroup::'
+          }
+
+          for _ in $(seq 1 60); do
+            if ! kill -0 "$METRO_PID" 2>/dev/null; then
+              echo '::error::Metro process exited before readiness was confirmed'
+              report_metro_diagnostics
+              exit 1
+            fi
+            for STATUS_URL in \
+              'http://localhost:8081/status' \
+              'http://127.0.0.1:8081/status' \
+              'http://[::1]:8081/status'; do
+              STATUS=$(curl --noproxy '*' --connect-timeout 1 --max-time 2 -fsS "$STATUS_URL" 2>/dev/null || true)
+              if printf '%s\n' "$STATUS" | grep -Fxq 'packager-status:running'; then
+                echo "Metro is available at $STATUS_URL (pid=$METRO_PID)"
+                echo "METRO_STATUS_URL=$STATUS_URL" >> "$GITHUB_ENV"
+                tail -20 metro.log || true
+                exit 0
+              fi
+            done
             sleep 2
           done
 
           echo '::error::Metro did not become available on port 8081'
-          tail -80 metro.log || true
+          report_metro_diagnostics
           exit 1
 
       - name: Install and launch app
@@ -906,11 +945,13 @@ jobs:
               echo "::error::serve-sim stopped responding"
               exit 1
             fi
-            if [ "$BUILD_CONFIGURATION" = "development" ] \
-               && ! curl -fsS "http://127.0.0.1:8081/status" 2>/dev/null \
-                  | grep -q 'packager-status:running'; then
-              echo "::error::Metro stopped responding during the Development Build session"
-              exit 1
+            if [ "$BUILD_CONFIGURATION" = "development" ]; then
+              METRO_STATUS_URL="${METRO_STATUS_URL:-http://localhost:8081/status}"
+              METRO_STATUS=$(curl --noproxy '*' --connect-timeout 1 --max-time 3 -fsS "$METRO_STATUS_URL" 2>/dev/null || true)
+              if ! printf '%s\n' "$METRO_STATUS" | grep -Fxq 'packager-status:running'; then
+                echo "::error::Metro stopped responding during the Development Build session at $METRO_STATUS_URL"
+                exit 1
+              fi
             fi
             # A dead agent proxy is not worth tearing down a working stream for,
             # but it should not fail silently either — the agent would just see

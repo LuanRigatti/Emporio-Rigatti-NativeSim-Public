@@ -209,13 +209,24 @@ jobs:
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
           echo "native fingerprint: $HASH"
 
+      - name: Select native app cache namespace
+        id: cache_namespace
+        if: inputs.mode == 'build' && inputs.cache == 'true'
+        run: |
+          set -euo pipefail
+          if [ '${{ inputs.configuration }}' = 'release' ]; then
+            echo "namespace=keychain-signed-v2-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo 'namespace=v1' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Restore cached app build
         id: appcache
         if: inputs.mode == 'build' && inputs.cache == 'true'
         uses: actions/cache/restore@v4
         with:
           path: build/native-sim-app
-          key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-v1-${{ steps.fp.outputs.hash }}
+          key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-${{ steps.cache_namespace.outputs.namespace }}-${{ steps.fp.outputs.hash }}
 
       - name: Boot simulator
         timeout-minutes: 10
@@ -426,6 +437,19 @@ jobs:
           esac
 
           echo "Building NativeSim $BUILD_CONFIGURATION configuration as Xcode $XCODE_CONFIGURATION"
+          SIGNING_SETTINGS=()
+          if [ "$BUILD_CONFIGURATION" = "release" ]; then
+            SIGNING_SETTINGS=(
+              CODE_SIGNING_ALLOWED=YES
+              CODE_SIGNING_REQUIRED=YES
+              CODE_SIGN_IDENTITY=-
+            )
+            echo "Release simulator signing: local ad-hoc identity (-)"
+          else
+            SIGNING_SETTINGS=(CODE_SIGNING_ALLOWED=NO)
+            echo "Development simulator signing: disabled"
+          fi
+
           # Dependencies are already installed above, so skip prebuild's own install pass.
           npx expo prebuild --platform ios --no-install
           npx pod-install ios
@@ -444,7 +468,7 @@ jobs:
             -sdk iphonesimulator \
             -destination "id=$UDID" \
             -derivedDataPath build/ios \
-            CODE_SIGNING_ALLOWED=NO \
+            "${SIGNING_SETTINGS[@]}" \
             -quiet \
             build
 
@@ -456,12 +480,64 @@ jobs:
           mkdir -p build/native-sim-app
           cp -R "$APP" build/native-sim-app/
 
+      - name: Inspect signed Release app
+        if: inputs.mode == 'build' && inputs.configuration == 'release'
+        run: |
+          set -euo pipefail
+          APP=$(find build/native-sim-app -maxdepth 1 -type d -name '*.app' -print -quit)
+          [ -n "$APP" ] || { echo "::error::no Release simulator app available for signing inspection"; exit 1; }
+
+          DIAG_DIR="build/native-sim-startup-diagnostics"
+          mkdir -p "$DIAG_DIR"
+          DETAILS="$DIAG_DIR/codesign-details.txt"
+          ENTITLEMENT_NAMES="$DIAG_DIR/codesign-entitlement-names.txt"
+          RAW_ENTITLEMENTS="${RUNNER_TEMP}/native-sim-entitlements.plist"
+          NORMALIZED_ENTITLEMENTS="${RUNNER_TEMP}/native-sim-entitlements-normalized.plist"
+          CODESIGN_STDERR="${RUNNER_TEMP}/native-sim-codesign.stderr"
+          trap 'rm -f "$RAW_ENTITLEMENTS" "$NORMALIZED_ENTITLEMENTS" "$CODESIGN_STDERR"' EXIT
+
+          if ! codesign --verify --deep --strict --verbose=4 "$APP" > "$DETAILS" 2>&1; then
+            echo "::error::Release simulator app signature verification failed"
+            cat "$DETAILS"
+            exit 1
+          fi
+
+          codesign -dv --verbose=4 "$APP" >> "$DETAILS" 2>&1
+          echo "Release simulator app signature details:"
+          cat "$DETAILS"
+
+          if ! codesign -d --entitlements :- --xml "$APP" > "$RAW_ENTITLEMENTS" 2> "$CODESIGN_STDERR"; then
+            echo "::error::codesign entitlement inspection failed"
+            cat "$CODESIGN_STDERR"
+            exit 1
+          fi
+
+          : > "$ENTITLEMENT_NAMES"
+          if [ -s "$RAW_ENTITLEMENTS" ] && \
+             plutil -convert xml1 -o "$NORMALIZED_ENTITLEMENTS" "$RAW_ENTITLEMENTS" > /dev/null 2>&1; then
+            sed -n 's:^[[:space:]]*<key>\([^<]*\)</key>.*:\1:p' "$NORMALIZED_ENTITLEMENTS" \
+              | sort -u > "$ENTITLEMENT_NAMES"
+          fi
+          if [ ! -s "$ENTITLEMENT_NAMES" ]; then
+            echo '(none)' > "$ENTITLEMENT_NAMES"
+          fi
+
+          echo "Effective entitlement names:"
+          cat "$ENTITLEMENT_NAMES"
+          for NAME in application-identifier com.apple.application-identifier keychain-access-groups; do
+            if grep -Fxq "$NAME" "$ENTITLEMENT_NAMES"; then
+              echo "$NAME: present"
+            else
+              echo "$NAME: absent"
+            fi
+          done
+
       - name: Save app build to cache
         if: inputs.mode == 'build' && inputs.cache == 'true' && steps.appcache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: build/native-sim-app
-          key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-v1-${{ steps.fp.outputs.hash }}
+          key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-${{ steps.cache_namespace.outputs.namespace }}-${{ steps.fp.outputs.hash }}
 
       - name: Export app archive
         if: inputs.mode == 'build' && inputs.export_app == 'true'
@@ -562,14 +638,10 @@ jobs:
 
           if [ "$CACHE_HIT" = "true" ]; then
             if [ "$BUILD_CONFIGURATION" = "release" ]; then
-              # The fingerprint ignores app JS, so a reused Release binary carries
-              # a stale bundle. Re-embed current JS rather than rebuilding natively.
-              echo "Reused cached Release build; refreshing the embedded JS bundle"
-              npx expo export:embed \
-                --platform ios \
-                --dev false \
-                --bundle-output "$APP/main.jsbundle" \
-                --assets-dest "$APP"
+              # Release cache entries are keyed by the workflow SHA and are
+              # inspected before this step. Do not rewrite a signed bundle:
+              # changing resources after codesign would invalidate its seal.
+              echo "Reused signed Release build for $GITHUB_SHA; preserving embedded JS and code signature"
             else
               echo "Reused cached Development Build; leaving JS unembedded for Metro"
             fi
@@ -633,6 +705,22 @@ jobs:
             xcrun simctl openurl "$UDID" "$DEV_CLIENT_URL" 2>&1 | tee -a startup-launch.log
           fi
           echo "Launched $BUNDLE_ID"
+
+      - name: Verify exported Release archive
+        if: inputs.mode == 'build' && inputs.configuration == 'release' && inputs.export_app == 'true'
+        run: |
+          set -euo pipefail
+          ARCHIVE=$(find build -maxdepth 1 -type f -name '*.app.tar.gz' -print -quit)
+          [ -n "$ARCHIVE" ] || { echo "::error::no exported Release archive available"; exit 1; }
+
+          VERIFY_DIR=$(mktemp -d)
+          trap 'rm -rf "$VERIFY_DIR"' EXIT
+          tar -xzf "$ARCHIVE" -C "$VERIFY_DIR"
+          EXPORTED_APP=$(find "$VERIFY_DIR" -maxdepth 2 -type d -name '*.app' -print -quit)
+          [ -n "$EXPORTED_APP" ] || { echo "::error::exported archive contains no .app"; exit 1; }
+
+          codesign --verify --deep --strict --verbose=4 "$EXPORTED_APP"
+          echo "Exported Release archive signature verified"
 
       - name: Diagnose startup exit
         if: always() && inputs.mode == 'build'

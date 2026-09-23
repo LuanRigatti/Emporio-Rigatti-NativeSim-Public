@@ -115,7 +115,7 @@ describe('RetailFinanceAggregationService', () => {
     expect(summary.orderCount).toBe(1);
   });
 
-  it('keeps category views free of delivery and card-fee allocations', () => {
+  it('allocates delivery cost and delivery fee by category while keeping card-fee allocations out', () => {
     const currentOrder = order([
       line('Cestas', {
         discountAllocatedSnapshot: 6,
@@ -139,15 +139,200 @@ describe('RetailFinanceAggregationService', () => {
     );
 
     expect(summary).toMatchObject({
-      deliveryCostRecognized: 0,
-      deliveryFeeRecognized: 0,
+      deliveryCostRecognized: 3,
+      deliveryFeeRecognized: 6,
       paymentFees: 0,
       productCostRecognized: 20,
       productRevenueRecognized: 54,
-      revenueReceived: 54,
+      revenueReceived: 60,
       unitsSold: 2,
     });
-    expect(summary.profit).toBe(34);
+    expect(summary.profit).toBe(37);
+
+    const baldes = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      paymentsMap([payment('payment-a', 40, { cardFee: 1 }), payment('payment-b', 60)]),
+      period,
+      retailFinanceViewForCategory('baldes'),
+    );
+
+    expect(baldes).toMatchObject({
+      deliveryCostRecognized: 2,
+      deliveryFeeRecognized: 4,
+      revenueReceived: 40,
+    });
+    expect(baldes.profit).toBe(26);
+    expect(summary.deliveryFeeRecognized + baldes.deliveryFeeRecognized).toBe(10);
+    expect(summary.deliveryCostRecognized + baldes.deliveryCostRecognized).toBe(5);
+  });
+
+  it('recognizes a category delivery fee without changing the canonical general summary', () => {
+    const currentOrder = order([line('Cestas', { lineCostTotal: 578.91, lineSubtotal: 804.63 })], {
+      deliveryCost: 0,
+      deliveryFee: 20,
+      discount: 0,
+      subtotalProducts: 804.63,
+      totalCharged: 824.63,
+    });
+    const payments = paymentsMap([payment('payment-1', 824.63)]);
+    const general = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      'general',
+    );
+    const cestas = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      retailFinanceViewForCategory('cestas'),
+    );
+
+    expect(general).toMatchObject({ revenueReceived: 824.63, profit: 245.72 });
+    expect(cestas).toMatchObject({
+      deliveryFeeRecognized: 20,
+      profit: 245.72,
+      productRevenueRecognized: 804.63,
+      revenueReceived: 824.63,
+    });
+  });
+
+  it('assigns all delivery cost to the only category, including free delivery', () => {
+    const currentOrder = order(
+      [
+        line('Cestas', {
+          lineCostTotal: 108.15,
+          lineSubtotal: 164.91,
+        }),
+      ],
+      {
+        deliveryCost: 10,
+        deliveryFee: 0,
+        discount: 0,
+        subtotalProducts: 164.91,
+        totalCharged: 164.91,
+      },
+    );
+    const summary = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      paymentsMap([payment('payment-1', 164.91)]),
+      period,
+      retailFinanceViewForCategory('cestas'),
+    );
+
+    expect(summary).toMatchObject({
+      deliveryCostRecognized: 10,
+      deliveryFeeRecognized: 0,
+      productCostRecognized: 108.15,
+      revenueReceived: 164.91,
+      profit: 46.76,
+    });
+  });
+
+  it('preserves deterministic cent allocation without loss or duplication', () => {
+    const currentOrder = order(
+      [
+        line('Cestas', { lineCostTotal: 0, lineSubtotal: 1 }),
+        line('Baldes', { lineCostTotal: 0, lineSubtotal: 1 }),
+      ],
+      {
+        deliveryCost: 0.01,
+        deliveryFee: 0,
+        discount: 0,
+        subtotalProducts: 2,
+        totalCharged: 2,
+      },
+    );
+    const payments = paymentsMap([payment('payment-1', 2)]);
+    const cestas = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      retailFinanceViewForCategory('cestas'),
+    );
+    const baldes = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      retailFinanceViewForCategory('baldes'),
+    );
+
+    expect(cestas.deliveryCostRecognized + baldes.deliveryCostRecognized).toBe(0.01);
+    expect(cestas.deliveryCostRecognized).toBe(0.01);
+    expect(baldes.deliveryCostRecognized).toBe(0);
+  });
+
+  it('preserves deterministic cent allocation for delivery fee', () => {
+    const currentOrder = order(
+      [
+        line('Cestas', { lineCostTotal: 0, lineSubtotal: 1 }),
+        line('Baldes', { lineCostTotal: 0, lineSubtotal: 1 }),
+      ],
+      {
+        deliveryCost: 0,
+        deliveryFee: 0.01,
+        discount: 0,
+        subtotalProducts: 2,
+        totalCharged: 2.01,
+      },
+    );
+    const payments = paymentsMap([payment('payment-1', 2.01)]);
+    const cestas = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      retailFinanceViewForCategory('cestas'),
+    );
+    const baldes = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      retailFinanceViewForCategory('baldes'),
+    );
+
+    expect(cestas.deliveryFeeRecognized + baldes.deliveryFeeRecognized).toBe(0.01);
+    expect(cestas.deliveryFeeRecognized).toBe(0.01);
+    expect(baldes.deliveryFeeRecognized).toBe(0);
+  });
+
+  it('recognizes category delivery cost and fee per posted payment and selected period', () => {
+    const currentOrder = order([line('Cestas', { lineCostTotal: 40, lineSubtotal: 100 })], {
+      deliveryCost: 10,
+      deliveryFee: 5,
+      discount: 0,
+      subtotalProducts: 100,
+      totalCharged: 105,
+    });
+    const payments = paymentsMap([
+      payment('payment-a', 40, { paidAt: '2026-09-18' }),
+      payment('payment-b', 60, { paidAt: '2026-10-01' }),
+    ]);
+
+    const september = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      period,
+      retailFinanceViewForCategory('cestas'),
+    );
+    const october = retailFinanceAggregationService.aggregate(
+      [currentOrder],
+      payments,
+      { endDate: '2026-10-31', startDate: '2026-10-01' },
+      retailFinanceViewForCategory('cestas'),
+    );
+
+    expect(september).toMatchObject({
+      deliveryCostRecognized: 3.81,
+      deliveryFeeRecognized: 1.9,
+      revenueReceived: 40,
+    });
+    expect(october).toMatchObject({
+      deliveryCostRecognized: 5.71,
+      deliveryFeeRecognized: 2.86,
+      revenueReceived: 60,
+    });
+    expect(september.deliveryCostRecognized + october.deliveryCostRecognized).toBe(9.52);
+    expect(september.deliveryFeeRecognized + october.deliveryFeeRecognized).toBe(4.76);
   });
 
   it('uses categoryIdSnapshot instead of financeGroup or label for category views', () => {

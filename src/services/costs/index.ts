@@ -43,8 +43,12 @@ export {
   type FirestoreDailyDocument,
   type FirestoreMonthlyDocument,
   type FirestoreDailyMonthlySnapshot,
+  type FirestoreDailyMonthlyLoadResult,
   type FirestoreCostChange,
   type FirestoreMutationOptions,
   type FirestoreReadOptions,
 } from './FirestoreDailyMonthlyDataSource';
-export { expenseQueryForFinancialSelection } from './financialExpenseQuery';
+export {
+  expenseQueryForFinancialSelection,
+  expenseQueryForWholesaleFinanceSelection,
+} from './financialExpenseQuery';

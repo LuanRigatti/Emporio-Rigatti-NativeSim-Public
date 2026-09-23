@@ -24,6 +24,7 @@ import {
 } from './RetailOrderBuilder';
 import { retailOrderCatalogCache } from './RetailOrderCatalogCache';
 import { retailPaymentDataSource, type RetailPaymentDataSource } from './RetailPaymentDataSource';
+import { retailOrderHistoryFinancialSummaryService } from './RetailOrderHistoryFinancialSummaryService';
 import {
   allocateDiscountCents,
   centsToMoney,
@@ -65,6 +66,7 @@ type FirestoreOps = Pick<
   | 'serverTimestamp'
   | 'setDoc'
   | 'updateDoc'
+  | 'writeBatch'
 > & {
   getDocsFromServer?: (typeof import('firebase/firestore'))['getDocsFromServer'];
 };
@@ -88,9 +90,22 @@ async function getFirestoreOps(): Promise<FirestoreOps> {
 async function collectionFor(uid: string) {
   assertFirestoreUid(uid);
   const { collection } = await getFirestoreOps();
-  const db =
-    firestoreDbOverride ?? (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+  const db = await getFirestoreDb();
   return collection(db as never, 'users', uid, 'retailOrders');
+}
+
+async function paymentCollectionFor(uid: string, orderId: string) {
+  assertFirestoreUid(uid);
+  assertId(orderId, 'pedido');
+  const { collection } = await getFirestoreOps();
+  const db = await getFirestoreDb();
+  return collection(db as never, 'users', uid, 'retailOrders', orderId, 'payments');
+}
+
+async function getFirestoreDb(): Promise<unknown> {
+  if (firestoreDbOverride) return firestoreDbOverride;
+  const { getFirebaseFirestore } = await import('@/services/firebase/firestore');
+  return getFirebaseFirestore();
 }
 
 function recordFromDocument(id: string, data: Record<string, unknown>): RetailOrderRecord {
@@ -305,7 +320,8 @@ export type RetailOrderStateErrorCode =
   | 'order_not_editable'
   | 'order_has_posted_payment'
   | 'invalid_order_patch'
-  | 'invalid_order_status';
+  | 'invalid_order_status'
+  | 'order_delete_batch_limit';
 
 export type RetailOrderLoadSource = 'none' | 'cache' | 'local' | 'remote';
 
@@ -352,6 +368,7 @@ export class RetailOrderDataSource {
   private loadState: RetailOrderLoadState = INITIAL_RETAIL_ORDER_LOAD_STATE;
   private readonly inFlightHydrations = new Map<string, Promise<boolean>>();
   private readonly inFlightLoads = new Map<string, Promise<void>>();
+  private readonly inFlightDeletes = new Map<string, Promise<void>>();
 
   public constructor(
     private readonly paymentReader: RetailPaymentDataSource = retailPaymentDataSource,
@@ -390,6 +407,7 @@ export class RetailOrderDataSource {
     this.activeUid = userId;
     this.records.clear();
     this.snapshot = null;
+    this.inFlightDeletes.clear();
     this.lastAppliedSource = null;
     this.loadState = INITIAL_RETAIL_ORDER_LOAD_STATE;
     this.publish();
@@ -633,6 +651,84 @@ export class RetailOrderDataSource {
     return this.snapshot?.find((order) => order.orderId === orderId);
   }
 
+  public async deleteOrder(
+    userId: string | undefined,
+    orderId: string,
+    sessionVersion?: number,
+  ): Promise<void> {
+    assertId(orderId, 'pedido');
+    const requestKey = `${userId ?? 'none'}:${sessionVersion ?? 'none'}:${orderId}`;
+    const existing = this.inFlightDeletes.get(requestKey);
+    if (existing) return existing;
+
+    const operation = this.deleteOrderInternal(userId, orderId, sessionVersion);
+    this.inFlightDeletes.set(requestKey, operation);
+    void operation.then(
+      () => {
+        if (this.inFlightDeletes.get(requestKey) === operation) {
+          this.inFlightDeletes.delete(requestKey);
+        }
+      },
+      () => {
+        if (this.inFlightDeletes.get(requestKey) === operation) {
+          this.inFlightDeletes.delete(requestKey);
+        }
+      },
+    );
+    return operation;
+  }
+
+  private async deleteOrderInternal(
+    userId: string | undefined,
+    orderId: string,
+    sessionVersion?: number,
+  ): Promise<void> {
+    const request = this.captureSessionRequest(userId, sessionVersion);
+    this.paymentReader.prepareOrderDeletion(orderId, request.userId, request.sessionVersion);
+    const { doc, getDocs, writeBatch } = await getFirestoreOps();
+    this.assertSessionRequestCurrent(request);
+    const orderCollection = await collectionFor(request.userId);
+    const paymentCollection = await paymentCollectionFor(request.userId, orderId);
+    const paymentSnapshot = (await getDocs(paymentCollection)) as QuerySnapshotLike;
+    this.assertSessionRequestCurrent(request);
+
+    if (paymentSnapshot.docs.length > 499) {
+      throw new RetailOrderStateError(
+        'order_delete_batch_limit',
+        'Não foi possível excluir este pedido porque ele possui pagamentos demais.',
+      );
+    }
+
+    const batch = writeBatch((await getFirestoreDb()) as never);
+    paymentSnapshot.docs.forEach((payment) => {
+      batch.delete(doc(paymentCollection, payment.id));
+    });
+    batch.delete(doc(orderCollection, orderId));
+    this.assertSessionRequestCurrent(request);
+    await batch.commit();
+    this.assertSessionRequestCurrent(request);
+
+    this.paymentReader.removeOrder(orderId, request.userId, request.sessionVersion);
+    retailOrderHistoryFinancialSummaryService.invalidateOrder(
+      orderId,
+      request.userId,
+      request.sessionVersion,
+    );
+    this.records.delete(orderId);
+    this.rebuildSnapshot();
+    this.lastAppliedSource = 'local';
+    this.loadState = {
+      ...this.loadState,
+      error: undefined,
+      revalidating: false,
+      source: 'local',
+    };
+    this.publish();
+    void retailOrderCatalogCache
+      .write(request.userId, [...this.records.values()])
+      .catch(() => undefined);
+  }
+
   public async create(
     userId: string | undefined,
     input: RetailOrderCreateInput,
@@ -682,11 +778,9 @@ export class RetailOrderDataSource {
         'Somente pedidos criados podem ser editados.',
       );
     }
-    const changesMonetary =
-      patch.discount !== undefined ||
-      patch.deliveryFee !== undefined ||
-      patch.deliveryCost !== undefined;
-    if (changesMonetary) await this.assertNoPostedPayments(orderId, request);
+    const changesCustomerFinancials =
+      patch.discount !== undefined || patch.deliveryFee !== undefined;
+    if (changesCustomerFinancials) await this.assertNoPostedPayments(orderId, request);
 
     const firestorePatch: Record<string, unknown> = {};
     if (patch.deliveryDate !== undefined) {

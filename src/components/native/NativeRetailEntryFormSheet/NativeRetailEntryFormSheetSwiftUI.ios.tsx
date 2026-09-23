@@ -49,11 +49,13 @@ export default function NativeRetailEntryFormSheetSwiftUI({
   itemUnit,
   onSubmit,
   onVisibleChange,
+  mode = 'create',
   title,
   visible,
 }: NativeRetailCostEntryFormSheetProps) {
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
+  const isEditing = mode === 'edit';
   const [values, setValues] = useState<NativeRetailCostEntryFormValues>(EMPTY_VALUES);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
@@ -90,13 +92,13 @@ export default function NativeRetailEntryFormSheetSwiftUI({
 
   const handleSubmit = async () => {
     if (testModeEnabled || submitting) return;
-    if (!values.purchasedQuantity.trim()) {
+    if (!isEditing && !values.purchasedQuantity.trim()) {
       setError('Informe a quantidade comprada.');
       return;
     }
     if (
-      !values.purchaseTotalCost.trim() ||
-      normalizeMoney(values.purchaseTotalCost) === undefined
+      !isEditing &&
+      (!values.purchaseTotalCost.trim() || normalizeMoney(values.purchaseTotalCost) === undefined)
     ) {
       setError('Informe o custo total da compra.');
       return;
@@ -141,7 +143,7 @@ export default function NativeRetailEntryFormSheetSwiftUI({
           background('systemGray6'),
           cornerRadius(12),
           keyboardType(inputKeyboardType),
-          ...(testModeEnabled || submitting ? [disabledModifier(true)] : []),
+          ...(testModeEnabled || submitting || isEditing ? [disabledModifier(true)] : []),
           padding({ horizontal: 12, vertical: 10 }),
         ]}
         onTextChange={onTextChange}
@@ -175,16 +177,16 @@ export default function NativeRetailEntryFormSheetSwiftUI({
               foregroundStyle(theme.colors.textPrimary),
             ]}
           >
-            {title ?? 'Nova entrada de custo'}
+            {title ?? (isEditing ? 'Editar vigência do custo' : 'Nova entrada de custo')}
           </Text>
           <HStack modifiers={[frame({ maxWidth: 1000 })]}>
-            <Text modifiers={[foregroundStyle(theme.colors.textPrimary)]}>Data efetiva</Text>
+            <Text modifiers={[foregroundStyle(theme.colors.textPrimary)]}>Vigente desde</Text>
             <Spacer />
             <DatePicker
               displayedComponents={['date']}
               onDateChange={(date) => update('effectiveDate', todayIso(date))}
               selection={dateValue}
-              title="Data efetiva"
+              title="Vigente desde"
             />
           </HStack>
           <Text
@@ -224,11 +226,13 @@ export default function NativeRetailEntryFormSheetSwiftUI({
           <HStack modifiers={[frame({ maxWidth: 1000 })]}>
             <Spacer />
             <Button
-              label="Adicionar entrada"
+              label={isEditing ? 'Salvar vigência' : 'Adicionar entrada'}
               modifiers={[
                 buttonStyle('glassProminent'),
                 ...(submitting || testModeEnabled ? [disabledModifier(true)] : []),
-                accessibilityLabel('Adicionar entrada de custo'),
+                accessibilityLabel(
+                  isEditing ? 'Salvar vigência do custo' : 'Adicionar entrada de custo',
+                ),
               ]}
               onPress={() => {
                 triggerNativeButtonHaptic('light');

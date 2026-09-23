@@ -26,8 +26,11 @@ export type NativeSheetBackgroundInteraction = 'automatic' | 'enabled' | 'disabl
 export type NativeSheetProps = {
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
+  onDismiss?: () => void;
   children: ReactNode;
   detents?: readonly NativeSheetDetent[];
+  glassSurface?: boolean;
+  glassTint?: string;
   presentationBackgroundInteraction?: NativeSheetBackgroundInteraction;
   presentationBackgroundColor?: string;
   title?: string;
@@ -110,6 +113,7 @@ export type NativeButtonProps = {
   horizontalPadding?: number;
   color?: string;
   disabled?: boolean;
+  gateDisabledAction?: boolean;
   accessibilityHint?: string;
   accessibilityValue?: string;
   content?: NativeButtonContent;

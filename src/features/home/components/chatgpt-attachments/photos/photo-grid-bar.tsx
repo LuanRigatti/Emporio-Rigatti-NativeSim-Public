@@ -8,7 +8,14 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { BOTTOM_BAR, COLORS, DURATION, EASE_FADE, SPRING } from '../constants';
+import {
+  ATTACHMENT_CONTROL_GLASS_TINT,
+  BOTTOM_BAR,
+  COLORS,
+  DURATION,
+  EASE_FADE,
+  SPRING,
+} from '../constants';
 import { Glass } from '../glass';
 import { SheetBar } from '../panel/sheet-bar';
 
@@ -60,6 +67,8 @@ function ConfirmPill({ count, active, fade, onPress }: ConfirmPillProps) {
           radius={BOTTOM_BAR.pillHeight / 2}
           active={active}
           duration={DURATION.crossfade / 1000}
+          tintColor={ATTACHMENT_CONTROL_GLASS_TINT}
+          fallbackTint={ATTACHMENT_CONTROL_GLASS_TINT}
           style={styles.pill}
         >
           <Animated.View
@@ -121,7 +130,7 @@ const styles = StyleSheet.create({
   pillTint: {
     borderRadius: BOTTOM_BAR.pillHeight / 2,
     borderCurve: 'continuous',
-    backgroundColor: COLORS.accentGlass,
+    backgroundColor: ATTACHMENT_CONTROL_GLASS_TINT,
   },
   pillSizer: {
     position: 'absolute',

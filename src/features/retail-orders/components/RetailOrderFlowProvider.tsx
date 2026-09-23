@@ -12,35 +12,25 @@ import {
 import { Keyboard } from 'react-native';
 
 import { useRetailOrderCatalog } from '@/hooks/useRetailOrderCatalog';
-import { useRetailOrderPayments } from '@/hooks/useRetailOrderPayments';
 import { useRetailOrders } from '@/hooks/useRetailOrders';
-import type {
-  RetailClient,
-  RetailOrderCreateInput,
-  RetailPaymentDraft,
-  RetailProduct,
-} from '@/types/data';
+import type { RetailClient, RetailOrderCreateInput, RetailProduct } from '@/types/data';
 import { formatPtBrDate, todayIso } from '@/utils/data';
 
 import {
-  buildRetailInitialPaymentDraft,
   buildRetailOrderCreateInput,
   buildRetailOrderWriteData,
-  calculateRetailInitialPaymentPreview,
   calculateRetailOrderDraftTotals,
-  RETAIL_PAYMENT_METHOD_OPTIONS,
   RetailOrderCostError,
 } from '@/services/retail-orders';
+import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import type {
-  RetailInitialPaymentPreview,
-  RetailInitialPaymentValues,
   RetailOrderCatalogContext,
   RetailOrderDraftLine,
   RetailOrderDraftTotals,
   RetailOrderDraftValues,
 } from '@/services/retail-orders';
 
-export type RetailOrderFlowStep = 'client' | 'details' | 'payment' | 'products' | 'summary';
+export type RetailOrderFlowStep = 'client' | 'details' | 'products' | 'summary';
 
 export type RetailOrderFlowContextValue = {
   activeClients: readonly RetailClient[];
@@ -55,11 +45,8 @@ export type RetailOrderFlowContextValue = {
   draftTotals: RetailOrderDraftTotals | null;
   draftTotalsError?: string;
   error?: string;
-  handleAddProduct: () => Promise<void>;
+  handleAddProduct: (productId?: string) => Promise<void>;
   handleClientChange: (clientId: string) => void;
-  paymentPreview: RetailInitialPaymentPreview | null;
-  paymentValues: RetailInitialPaymentValues;
-  pendingOrderId: string | null;
   prepareOrder: () => Promise<{
     orderCatalog: RetailOrderCatalogContext;
     orderInput: RetailOrderCreateInput;
@@ -70,11 +57,10 @@ export type RetailOrderFlowContextValue = {
   productOptions: readonly { label: string; value: string }[];
   removeLine: (productId: string) => void;
   selectedClient?: RetailClient;
-  selectedPaymentLabel: string;
   selectedProductId: string;
   selectedProductLabel: string;
   setSelectedProductId: (productId: string) => void;
-  submitOrder: (withPayment: boolean) => Promise<void>;
+  submitOrder: () => Promise<void>;
   submitting: boolean;
   successVisible: boolean;
   updateDraft: <K extends keyof RetailOrderDraftValues>(
@@ -82,10 +68,6 @@ export type RetailOrderFlowContextValue = {
     value: RetailOrderDraftValues[K],
   ) => void;
   updateLineQuantity: (productId: string, quantity: string) => void;
-  updatePayment: <K extends keyof RetailInitialPaymentValues>(
-    key: K,
-    value: RetailInitialPaymentValues[K],
-  ) => void;
   validateProducts: () => Promise<boolean>;
   validatingProductId: string | null;
 };
@@ -114,17 +96,6 @@ function formatInputMoney(value: number): string {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value);
-}
-
-function createInitialPaymentValues(): RetailInitialPaymentValues {
-  const isoDate = todayIso();
-  return {
-    amount: '',
-    cardFee: '',
-    method: 'Pix',
-    notes: '',
-    paidAt: isoDate,
-  };
 }
 
 function formatError(error: unknown, fallback: string): string {
@@ -179,11 +150,7 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const catalog = useRetailOrderCatalog();
   const { create } = useRetailOrders();
-  const { registerForOrder } = useRetailOrderPayments();
   const [draft, setDraft] = useState<RetailOrderDraftValues>(createInitialDraft);
-  const [paymentValues, setPaymentValues] = useState<RetailInitialPaymentValues>(
-    createInitialPaymentValues,
-  );
   const [selectedProductId, setSelectedProductId] = useState('');
   const [deliveryAddressEdited, setDeliveryAddressEdited] = useState(false);
   const [deliveryFeeEdited, setDeliveryFeeEdited] = useState(false);
@@ -192,13 +159,17 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
   const [productCostErrors, setProductCostErrors] = useState<Record<string, string>>({});
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [successVisible, setSuccessVisible] = useState(false);
   const validationGeneration = useRef(0);
   const submittingRef = useRef(false);
 
   const activeClients = catalog.clients.filter((client) => client.active);
   const activeProducts = catalog.products.filter((product) => product.active);
+  const activeProductIds = useMemo(
+    () => catalog.products.filter((product) => product.active).map((product) => product.productId),
+    [catalog.products],
+  );
+  const { prefetchForOrder } = catalog;
   const categoriesById = useMemo(
     () => new Map(catalog.categories.map((category) => [category.categoryId, category.label])),
     [catalog.categories],
@@ -210,7 +181,7 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
   );
   const productOptions = useMemo(
     () => [
-      { label: 'Selecione um produto', value: '' },
+      { label: 'Selecionar', value: '' },
       ...activeProducts.map((product) => {
         const details = [
           categoriesById.get(product.categoryId) ?? product.categoryName,
@@ -230,11 +201,7 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     [activeProducts, categoriesById],
   );
   const selectedProductLabel =
-    productOptions.find((option) => option.value === selectedProductId)?.label ??
-    'Adicionar produto';
-  const selectedPaymentLabel =
-    RETAIL_PAYMENT_METHOD_OPTIONS.find((option) => option.value === paymentValues.method)?.label ??
-    'Forma de pagamento';
+    productOptions.find((option) => option.value === selectedProductId)?.label ?? 'Selecionar';
   const draftTotalsResult = useMemo<{
     error?: string;
     totals: RetailOrderDraftTotals | null;
@@ -257,14 +224,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
   }, [activeProducts, draft.deliveryFee, draft.discount, draft.lineItems]);
   const draftTotals = draftTotalsResult.totals;
   const draftTotalsError = draftTotalsResult.error;
-  const paymentPreview = useMemo(() => {
-    if (!draftTotals) return null;
-    try {
-      return calculateRetailInitialPaymentPreview(paymentValues, draftTotals.totalCharged);
-    } catch {
-      return null;
-    }
-  }, [draftTotals, paymentValues]);
   const hasValidLineItems = useMemo(() => {
     try {
       calculateRetailOrderDraftTotals({
@@ -287,17 +246,14 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     !preparingOrder &&
     !submitting;
 
+  useEffect(() => {
+    if (!pathname.endsWith('/produtos') || !activeProductIds.length) return;
+    void prefetchForOrder(activeProductIds, draft.orderDate);
+  }, [activeProductIds, draft.orderDate, pathname, prefetchForOrder]);
+
   const updateDraft = useCallback(
     <K extends keyof RetailOrderDraftValues>(key: K, value: RetailOrderDraftValues[K]) => {
       setDraft((current) => ({ ...current, [key]: value }));
-      setError(undefined);
-    },
-    [],
-  );
-
-  const updatePayment = useCallback(
-    <K extends keyof RetailInitialPaymentValues>(key: K, value: RetailInitialPaymentValues[K]) => {
-      setPaymentValues((current) => ({ ...current, [key]: value }));
       setError(undefined);
     },
     [],
@@ -320,76 +276,84 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     [activeClients, deliveryAddressEdited, deliveryFeeEdited],
   );
 
-  const handleAddProduct = useCallback(async () => {
-    if (submitting || preparingOrder || validatingProductId) return;
-    if (!selectedProductId) {
-      setError('Selecione um produto para adicionar.');
-      return;
-    }
-    const product = productById.get(selectedProductId);
-    if (!product) {
-      setError('O produto selecionado não está mais disponível.');
-      return;
-    }
-    const existing = draft.lineItems.find((line) => line.productId === selectedProductId);
-    let nextLineItems: RetailOrderDraftLine[];
-    if (!existing) {
-      nextLineItems = [...draft.lineItems, { productId: selectedProductId, quantity: '1' }];
-    } else {
-      const nextQuantity = Number(existing.quantity.replace(',', '.'));
-      if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
-        setError(`A quantidade de ${product.productName} deve ser maior que zero.`);
+  const handleAddProduct = useCallback(
+    async (productId = selectedProductId) => {
+      if (submitting || preparingOrder || validatingProductId) return;
+      if (!productId) {
+        setError('Selecione um produto para adicionar.');
         return;
       }
-      nextLineItems = draft.lineItems.map((line) =>
-        line.productId === selectedProductId
-          ? { ...line, quantity: String(nextQuantity + 1) }
-          : { ...line },
-      );
-    }
-    setDraft((current) => ({ ...current, lineItems: nextLineItems }));
-    setSelectedProductId('');
-    setProductCostErrors((current) => {
-      const next = { ...current };
-      delete next[selectedProductId];
-      return next;
-    });
-    setError(undefined);
-    const generation = ++validationGeneration.current;
-    setValidatingProductId(selectedProductId);
-    let orderCatalog: RetailOrderCatalogContext | undefined;
-    try {
-      orderCatalog = await catalog.prepareForOrder([selectedProductId]);
-      const orderInput = buildRetailOrderCreateInput(
-        validationDraftForProduct(draft, selectedProductId),
-        selectedClient,
-        activeProducts,
-      );
-      buildRetailOrderWriteData('validation', orderInput, orderCatalog);
-    } catch (validationError) {
-      if (generation !== validationGeneration.current) return;
-      if (validationError instanceof RetailOrderCostError) {
-        setProductCostErrors((current) => ({
-          ...current,
-          [selectedProductId]: formatCostError(validationError, product, orderCatalog),
-        }));
-      } else {
-        setError(formatError(validationError, 'Não foi possível validar o custo do produto.'));
+      const product = productById.get(productId);
+      if (!product) {
+        setError('O produto selecionado não está mais disponível.');
+        return;
       }
-    } finally {
-      if (generation === validationGeneration.current) setValidatingProductId(null);
-    }
-  }, [
-    activeProducts,
-    catalog,
-    draft,
-    preparingOrder,
-    productById,
-    selectedClient,
-    selectedProductId,
-    submitting,
-    validatingProductId,
-  ]);
+      triggerNativeButtonHaptic('light');
+      setSelectedProductId(productId);
+      const existing = draft.lineItems.find((line) => line.productId === productId);
+      let nextLineItems: RetailOrderDraftLine[];
+      if (!existing) {
+        nextLineItems = [...draft.lineItems, { productId, quantity: '1' }];
+      } else {
+        const nextQuantity = Number(existing.quantity.replace(',', '.'));
+        if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
+          setError(`A quantidade de ${product.productName} deve ser maior que zero.`);
+          return;
+        }
+        nextLineItems = draft.lineItems.map((line) =>
+          line.productId === productId
+            ? { ...line, quantity: String(nextQuantity + 1) }
+            : { ...line },
+        );
+      }
+      setDraft((current) => ({ ...current, lineItems: nextLineItems }));
+      setSelectedProductId('');
+      setProductCostErrors((current) => {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      });
+      setError(undefined);
+      const generation = ++validationGeneration.current;
+      setValidatingProductId(productId);
+      let orderCatalog: RetailOrderCatalogContext | undefined;
+      try {
+        orderCatalog = await catalog.prepareForOrder([productId], {
+          referenceDate: draft.orderDate,
+          refresh: false,
+        });
+        const orderInput = buildRetailOrderCreateInput(
+          validationDraftForProduct(draft, productId),
+          selectedClient,
+          activeProducts,
+        );
+        buildRetailOrderWriteData('validation', orderInput, orderCatalog);
+      } catch (validationError) {
+        if (generation !== validationGeneration.current) return;
+        if (validationError instanceof RetailOrderCostError) {
+          setProductCostErrors((current) => ({
+            ...current,
+            [productId]: formatCostError(validationError, product, orderCatalog),
+          }));
+        } else {
+          setError(formatError(validationError, 'Não foi possível validar o custo do produto.'));
+        }
+      } finally {
+        if (generation === validationGeneration.current) setValidatingProductId(null);
+      }
+    },
+    [
+      activeProducts,
+      catalog,
+      draft,
+      preparingOrder,
+      productById,
+      selectedClient,
+      selectedProductId,
+      submitting,
+      validatingProductId,
+    ],
+  );
 
   const updateLineQuantity = useCallback((productId: string, quantity: string) => {
     setDraft((current) => ({
@@ -418,6 +382,7 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     const orderInput = buildRetailOrderCreateInput(draft, selectedClient, activeProducts);
     const orderCatalog = await catalog.prepareForOrder(
       orderInput.lineItems.map((lineItem) => lineItem.productId),
+      { referenceDate: draft.orderDate, refresh: true },
     );
     buildRetailOrderWriteData('validation', orderInput, orderCatalog);
     return { orderCatalog, orderInput };
@@ -436,7 +401,10 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     setError(undefined);
     try {
       const productIds = draft.lineItems.map((line) => line.productId);
-      const orderCatalog = await catalog.prepareForOrder(productIds);
+      const orderCatalog = await catalog.prepareForOrder(productIds, {
+        referenceDate: draft.orderDate,
+        refresh: true,
+      });
       const nextErrors: Record<string, string> = {};
       for (const productId of productIds) {
         try {
@@ -475,7 +443,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
   const resetFlow = useCallback(() => {
     validationGeneration.current += 1;
     setDraft(createInitialDraft());
-    setPaymentValues(createInitialPaymentValues());
     setSelectedProductId('');
     setDeliveryAddressEdited(false);
     setDeliveryFeeEdited(false);
@@ -483,7 +450,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     setPreparingOrder(false);
     setError(undefined);
     setProductCostErrors({});
-    setPendingOrderId(null);
   }, []);
 
   useEffect(() => {
@@ -492,62 +458,30 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     if (!isRetailOrderRoute) resetFlow();
   }, [pathname, resetFlow]);
 
-  const submitOrder = useCallback(
-    async (withPayment: boolean) => {
-      if (submitting || submittingRef.current) return;
-      let paymentDraft: RetailPaymentDraft | undefined;
-      try {
-        if (!draftTotals) throw new Error('Revise os produtos, desconto e entrega do pedido.');
-        paymentDraft = withPayment
-          ? buildRetailInitialPaymentDraft(paymentValues, draftTotals.totalCharged)
-          : undefined;
-        if (pendingOrderId && !paymentDraft) {
-          throw new Error('Informe o valor do pagamento inicial.');
-        }
-      } catch (validationError) {
-        setError(formatError(validationError, 'Revise os dados do pedido.'));
-        return;
-      }
+  const submitOrder = useCallback(async () => {
+    if (submitting || submittingRef.current) return;
+    try {
+      if (!draftTotals) throw new Error('Revise os produtos, desconto e entrega do pedido.');
+    } catch (validationError) {
+      setError(formatError(validationError, 'Revise os dados do pedido.'));
+      return;
+    }
 
-      setSubmitting(true);
-      submittingRef.current = true;
-      setError(undefined);
-      Keyboard.dismiss();
-      let orderWasCreated = false;
-      try {
-        let orderId = pendingOrderId;
-        if (!orderId) {
-          const preparedOrder = await prepareOrder();
-          orderId = await create(preparedOrder.orderInput, preparedOrder.orderCatalog);
-          orderWasCreated = true;
-          setPendingOrderId(orderId);
-        }
-        if (paymentDraft) await registerForOrder(orderId, paymentDraft);
-        setSuccessVisible(true);
-      } catch (submitError) {
-        setError(
-          orderWasCreated || pendingOrderId
-            ? `O pedido foi criado, mas o pagamento não foi registrado. ${formatError(
-                submitError,
-                'Tente novamente.',
-              )}`
-            : formatError(submitError, 'Não foi possível criar o pedido.'),
-        );
-      } finally {
-        submittingRef.current = false;
-        setSubmitting(false);
-      }
-    },
-    [
-      create,
-      draftTotals,
-      paymentValues,
-      pendingOrderId,
-      prepareOrder,
-      registerForOrder,
-      submitting,
-    ],
-  );
+    setSubmitting(true);
+    submittingRef.current = true;
+    setError(undefined);
+    Keyboard.dismiss();
+    try {
+      const preparedOrder = await prepareOrder();
+      await create(preparedOrder.orderInput, preparedOrder.orderCatalog);
+      setSuccessVisible(true);
+    } catch (submitError) {
+      setError(formatError(submitError, 'Não foi possível criar o pedido.'));
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }, [create, draftTotals, prepareOrder, submitting]);
 
   const dismissSuccess = useCallback(() => {
     setSuccessVisible(false);
@@ -571,9 +505,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       error,
       handleAddProduct,
       handleClientChange,
-      paymentPreview,
-      paymentValues,
-      pendingOrderId,
       prepareOrder,
       preparingOrder,
       productById,
@@ -581,7 +512,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       productOptions,
       removeLine,
       selectedClient,
-      selectedPaymentLabel,
       selectedProductId,
       selectedProductLabel,
       setSelectedProductId,
@@ -590,7 +520,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       successVisible,
       updateDraft,
       updateLineQuantity,
-      updatePayment,
       validateProducts,
       validatingProductId,
     }),
@@ -609,9 +538,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       error,
       handleAddProduct,
       handleClientChange,
-      paymentPreview,
-      paymentValues,
-      pendingOrderId,
       prepareOrder,
       preparingOrder,
       productById,
@@ -619,7 +545,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       productOptions,
       removeLine,
       selectedClient,
-      selectedPaymentLabel,
       selectedProductId,
       selectedProductLabel,
       submitOrder,
@@ -627,7 +552,6 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       successVisible,
       updateDraft,
       updateLineQuantity,
-      updatePayment,
       validateProducts,
       validatingProductId,
     ],

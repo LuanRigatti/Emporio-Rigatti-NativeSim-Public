@@ -803,6 +803,44 @@ describe('HomeSearchService', () => {
     expect(interpreter.interpret).not.toHaveBeenCalled();
   });
 
+  it('uses an attached date in the fast path while preserving an explicit query period', async () => {
+    const interpreter = { interpret: jest.fn() };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+    const referenceDate = new Date(2026, 8, 22, 12);
+
+    const attachedDateResponse = await service.search('faturamento', referenceDate, {
+      selectedDate: '2026-09-22',
+    });
+    const explicitPeriodResponse = await service.search('faturamento 20/09/2026', referenceDate, {
+      selectedDate: '2026-09-22',
+    });
+
+    expect(attachedDateResponse.query.period).toEqual({ kind: 'date', date: '2026-09-22' });
+    expect(explicitPeriodResponse.query.period).toEqual({ kind: 'date', date: '2026-09-20' });
+    expect(interpreter.interpret).not.toHaveBeenCalled();
+  });
+
+  it('forwards the same attached temporal context to semantic interpretation', async () => {
+    const queryText = 'Quanto eu faturei?';
+    const referenceDate = new Date(2026, 8, 22, 12);
+    const temporalContext = { selectedDate: '2026-09-22' };
+    const interpreter = {
+      interpret: jest.fn().mockResolvedValue({
+        detectedTypes: ['financialMetric'],
+        financialMetric: 'revenue',
+        normalized: queryText.toLowerCase(),
+        original: queryText,
+        text: '',
+      }),
+    };
+    const service = new HomeSearchService(new FixedDataSource(), interpreter);
+
+    const response = await service.search(queryText, referenceDate, temporalContext);
+
+    expect(interpreter.interpret).toHaveBeenCalledWith(queryText, referenceDate, temporalContext);
+    expect(response.query.period).toEqual({ kind: 'date', date: '2026-09-22' });
+  });
+
   it('uses Apple Intelligence only for natural-language semantic queries', async () => {
     const interpreter = {
       interpret: jest

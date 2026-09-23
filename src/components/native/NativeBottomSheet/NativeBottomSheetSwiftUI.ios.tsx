@@ -60,7 +60,10 @@ import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 import type { NativeBottomSheetProps } from './NativeBottomSheet.types';
-import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '../nativeSheetBackground';
+import {
+  NATIVE_SHEET_PRESENTATION_BACKGROUND,
+  NATIVE_SHEET_TRANSPARENT_BACKGROUND,
+} from '../nativeSheetBackground';
 import NativeAnimatedNumber from '../NativeAnimatedNumber/NativeAnimatedNumber';
 import RegistrarDeliveryPagerRN from './RegistrarDeliveryPagerRN';
 import NativeSheetFieldIcon from '../NativeSheetFieldIcon';
@@ -73,7 +76,6 @@ import {
   updateNativeDate,
 } from '../nativeDateToolbarUtils';
 
-const NATIVE_SHEET_TRANSPARENT_BACKGROUND = '#00000000';
 const REGISTRAR_LIST_COMPACT_DETENT = { fraction: 0.48 } as const;
 const REGISTRAR_LIST_EXPANDED_DETENT = { fraction: 0.78 } as const;
 const REGISTRAR_DETAIL_DETENT = { fraction: 0.48 } as const;

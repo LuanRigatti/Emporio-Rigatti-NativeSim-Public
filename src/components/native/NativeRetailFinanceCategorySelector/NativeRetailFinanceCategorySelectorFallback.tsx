@@ -7,9 +7,15 @@ import type { NativeRetailFinanceCategorySelectorProps } from './NativeRetailFin
 
 export default function NativeRetailFinanceCategorySelectorFallback({
   accessibilityLabel,
+  contentLeadingPadding,
+  contentTrailingPadding,
+  fillAvailableWidth,
   items,
+  itemHorizontalPadding,
+  itemSpacing,
   onChange,
   selectedKey,
+  selectedVisualScale,
   style,
 }: NativeRetailFinanceCategorySelectorProps) {
   const { theme } = useAppTheme();
@@ -20,7 +26,19 @@ export default function NativeRetailFinanceCategorySelectorFallback({
       style={[styles.surface, { borderRadius: theme.radius.pill }, style]}
     >
       <ScrollView
-        contentContainerStyle={[styles.content, { gap: theme.spacing.xs }]}
+        contentContainerStyle={[
+          styles.content,
+          {
+            flexGrow: fillAvailableWidth ? 1 : undefined,
+            gap: fillAvailableWidth ? 0 : (itemSpacing ?? theme.spacing.xs),
+            paddingLeft: fillAvailableWidth
+              ? (contentLeadingPadding ?? contentTrailingPadding ?? 4)
+              : undefined,
+            paddingRight: fillAvailableWidth
+              ? (contentTrailingPadding ?? 4)
+              : (contentTrailingPadding ?? 4),
+          },
+        ]}
         horizontal
         showsHorizontalScrollIndicator={false}
       >
@@ -37,9 +55,14 @@ export default function NativeRetailFinanceCategorySelectorFallback({
                 {
                   backgroundColor: selected ? theme.colors.surfaceElevated : 'transparent',
                   borderRadius: theme.radius.pill,
+                  flex: fillAvailableWidth ? 1 : undefined,
                   minHeight: theme.sizes.touchTargetMinimum,
                   opacity: pressed ? theme.opacities.pressed : 1,
-                  paddingHorizontal: theme.spacing.md,
+                  paddingHorizontal: itemHorizontalPadding ?? theme.spacing.md,
+                  transform:
+                    selected && selectedVisualScale !== undefined
+                      ? [{ scale: selectedVisualScale }]
+                      : undefined,
                 },
               ]}
             >

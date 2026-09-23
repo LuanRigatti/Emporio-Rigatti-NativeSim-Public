@@ -31,12 +31,13 @@ export {
   APP_DATA_MODE,
   addAppDelivery,
   loadAppData,
+  loadAppDataResult,
   removeAppDelivery,
   subscribeToAppData,
   toHistoryDelivery,
   toggleAppDelivery,
 } from './AppDataSource';
-export type { AppDataMode } from './AppDataSource';
+export type { AppDataLoadResult, AppDataMode } from './AppDataSource';
 export type { DeliveryRegistrationInput } from '@/services/deliveries/DeliveryDataSource';
 export type { DataErrorCode } from './DataError';
 export { DATA_NODES, assertFirebaseUid, userNodePath, userRootPath } from './paths';

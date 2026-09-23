@@ -266,26 +266,6 @@ function AppShell() {
                   </Stack.Screen.BackButton>
                 </Stack.Screen>
                 <Stack.Screen
-                  name="registrar-pedido-varejo/pagamento"
-                  options={{
-                    animation: 'default',
-                    gestureEnabled: true,
-                    headerBackButtonMenuEnabled: false,
-                    headerShadowVisible: false,
-                    headerShown: true,
-                    headerTitle: '',
-                    headerTransparent: true,
-                    unstable_nativeProps: {
-                      hidesBottomBarWhenPushed: true,
-                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
-                    },
-                  }}
-                >
-                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
-                    Voltar
-                  </Stack.Screen.BackButton>
-                </Stack.Screen>
-                <Stack.Screen
                   name="pedido-varejo/[orderId]"
                   options={{
                     animation: 'default',
@@ -550,6 +530,60 @@ function AppShell() {
                     headerTitle: '',
                     headerTransparent: true,
                     unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="catalogo-varejo/produto/novo"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="catalogo-varejo/produto/[productId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="catalogo-varejo/produto/[productId]/composicao"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
                       headerConfig: { experimental_userInterfaceStyle: resolvedMode },
                     },
                   }}

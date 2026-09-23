@@ -32,6 +32,18 @@ export type FinancialPeriodSelection =
   | { kind: 'all' }
   | { kind: 'range'; start: string; end: string };
 
+/**
+ * Period selection contract for the active Wholesale Finance route.
+ *
+ * Unlike the legacy FinancialPeriodSelection week variant, Wholesale weeks
+ * carry the exact range selected by the History screen.
+ */
+export type WholesaleFinanceSelection =
+  | { kind: 'month'; month: string }
+  | { kind: 'day'; date: string }
+  | { kind: 'week'; startDate: string; endDate: string }
+  | { kind: 'all' };
+
 export type FinancialChartGranularity = 'day' | 'week' | 'month' | 'year';
 
 export type FinancialMetric =

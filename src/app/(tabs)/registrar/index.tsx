@@ -12,7 +12,7 @@ import Animated, {
   useDerivedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { NativeGlassHeader } from '@/components/layout';
+import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
 import {
   NativeCardContextMenu,
   NativeDailyDataSheet,
@@ -106,7 +106,6 @@ export default function PrototypeRegistrar() {
 function RegistrarModeSelection() {
   const { resolvedMode, theme } = useAppTheme();
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
-  const registrarModeIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
   const router = useRouter();
 
   const handleOpenRegistrarEntrega = () => {
@@ -124,12 +123,7 @@ function RegistrarModeSelection() {
       includeTopSafeArea={false}
       largeTitle
       mode="transparent"
-      titleStyle={{
-        fontFamily: 'System',
-        fontSize: 36,
-        fontWeight: '700',
-        marginLeft: -(theme.spacing.xxs * 2),
-      }}
+      titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
       title="Registrar"
     />
   );
@@ -173,7 +167,7 @@ function RegistrarModeSelection() {
                 onPress={handleOpenRegistrarEntrega}
                 style={styles.modeOption}
               >
-                <View style={[styles.modeIcon, { backgroundColor: registrarModeIconSurface }]}>
+                <View style={[styles.modeIcon, { backgroundColor: theme.colors.background }]}>
                   <Ionicons color={theme.colors.textSecondary} name="cube-outline" size={21} />
                 </View>
                 <View style={styles.modeCopy}>
@@ -194,7 +188,7 @@ function RegistrarModeSelection() {
                 onPress={handleOpenRegistrarDados}
                 style={styles.modeOption}
               >
-                <View style={[styles.modeIcon, { backgroundColor: registrarModeIconSurface }]}>
+                <View style={[styles.modeIcon, { backgroundColor: theme.colors.background }]}>
                   <Ionicons color={theme.colors.textSecondary} name="calendar-outline" size={21} />
                 </View>
                 <View style={styles.modeCopy}>
@@ -300,12 +294,7 @@ export function RegistrarDailyDataScreen({
       largeTitle
       mode="transparent"
       title="Dados Diários"
-      titleStyle={{
-        fontFamily: 'System',
-        fontSize: 36,
-        fontWeight: '700',
-        marginLeft: -(theme.spacing.xxs * 2),
-      }}
+      titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
     />
   ) : null;
   const renderDailyDataContent = () => (
@@ -545,6 +534,23 @@ export function RegistrarDeliveryScreen({
       ).map(toHistoryDelivery),
     [currentDate, deliverySortMode, recentlyAddedDeliveryIds, sourceDeliveries],
   );
+  const totalBuckets = todayDeliveries.reduce(
+    (total, delivery) => total + delivery.quantidadeBaldes,
+    0,
+  );
+  const deliveryTotal =
+    todayDeliveries.length > 0 ? (
+      <Text
+        numberOfLines={1}
+        selectable
+        style={[
+          theme.typography.footnote,
+          { color: theme.colors.textSecondary, fontVariant: ['tabular-nums'] },
+        ]}
+      >
+        {maskQuantity(totalBuckets)}
+      </Text>
+    ) : undefined;
   const emptyDeliveryCardMinHeight = theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
   const deliveryRowHeight =
     theme.spacing.sm * 2 +
@@ -584,6 +590,7 @@ export function RegistrarDeliveryScreen({
       includeTopSafeArea
       mode="transparent"
       pointerEvents="box-none"
+      rightActions={showLargeTitle ? undefined : deliveryTotal}
       title={showLargeTitle ? '' : 'Entregas'}
     />
   );
@@ -592,13 +599,9 @@ export function RegistrarDeliveryScreen({
       includeTopSafeArea={false}
       largeTitle
       mode="transparent"
+      rightActions={deliveryTotal}
       title="Entregas"
-      titleStyle={{
-        fontFamily: 'System',
-        fontSize: 36,
-        fontWeight: '700',
-        marginLeft: -(theme.spacing.xxs * 2),
-      }}
+      titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
     />
   ) : null;
 

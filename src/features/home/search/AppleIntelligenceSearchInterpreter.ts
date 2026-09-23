@@ -23,6 +23,7 @@ import type {
   HomeSearchPaymentStatus,
   HomeSearchPeriod,
   HomeSearchRouteMetric,
+  HomeSearchTemporalContext,
 } from './HomeSearchTypes';
 import { validateHomeSearchAnalysis } from './HomeSearchSemanticValidator';
 
@@ -1012,13 +1013,31 @@ export function toHomeSearchParsedQuery(
 }
 
 export interface HomeSearchSearchInterpreter {
-  interpret(original: string, referenceDate: Date): Promise<HomeSearchParsedQuery | null>;
+  interpret(
+    original: string,
+    referenceDate: Date,
+    temporalContext?: HomeSearchTemporalContext,
+  ): Promise<HomeSearchParsedQuery | null>;
+}
+
+export function buildAppleIntelligenceSearchRequest(
+  original: string,
+  temporalContext?: HomeSearchTemporalContext,
+): string {
+  if (!temporalContext?.selectedDate) return original;
+
+  return [
+    `Pergunta digitada: ${original}`,
+    `Data anexada pelo usuário (YYYY-MM-DD): ${temporalContext.selectedDate}`,
+    'Use a data anexada como período quando a pergunta não especificar outro período. Preserve qualquer período explícito informado na pergunta.',
+  ].join('\n');
 }
 
 export class AppleIntelligenceSearchInterpreter implements HomeSearchSearchInterpreter {
   public async interpret(
     original: string,
     referenceDate: Date,
+    temporalContext?: HomeSearchTemporalContext,
   ): Promise<HomeSearchParsedQuery | null> {
     if (!nativeAppleIntelligence) {
       appleIntelligenceDevLog('fallback', { reason: 'nativeModuleUnavailable' });
@@ -1038,7 +1057,7 @@ export class AppleIntelligenceSearchInterpreter implements HomeSearchSearchInter
     const startedAt = Date.now();
     try {
       const rawIntent = await nativeAppleIntelligence.interpret(
-        original,
+        buildAppleIntelligenceSearchRequest(original, temporalContext),
         calendarDateISO(referenceDate),
       );
       const rawObject = typeof rawIntent === 'string' ? parseJSON(rawIntent) : rawIntent;

@@ -6,6 +6,7 @@ import { createElement, type ReactNode } from 'react';
 import RetailCategoryProductsRoute from '@/app/catalogo-varejo/[categoryId]';
 
 const mockUpdate = jest.fn<Promise<void>, [string, unknown]>().mockResolvedValue(undefined);
+const mockPush = jest.fn();
 const mockCreateVersion = jest
   .fn<Promise<string>, [unknown, unknown]>()
   .mockResolvedValue('new-version');
@@ -43,6 +44,7 @@ jest.mock('expo-router', () => {
   );
   return {
     Stack: { Toolbar },
+    useRouter: () => ({ push: mockPush }),
     useLocalSearchParams: () => ({ categoryId: 'category-1' }),
   };
 });
@@ -77,10 +79,6 @@ jest.mock('@/components/native', () => ({
   NativeRetailProductCostSheet: (props: Record<string, unknown>) => {
     const React = require('react') as typeof import('react');
     return React.createElement('product-cost-sheet', props);
-  },
-  NativeRetailProductFormSheet: (props: Record<string, unknown>) => {
-    const React = require('react') as typeof import('react');
-    return React.createElement('product-form-sheet', props);
   },
 }));
 
@@ -200,13 +198,14 @@ function collectText(node: ReactTestInstance): string {
 describe('retail category products cost configuration affordance', () => {
   beforeEach(() => {
     mockUpdate.mockClear();
+    mockPush.mockClear();
     mockCreateVersion.mockClear().mockResolvedValue('new-version');
     mockCostItems = [];
     mockCurrentProduct = { ...baseProduct };
     mockCompositionVersions = [];
   });
 
-  it('shows the missing-cost state and opens the existing configuration sheet', () => {
+  it('shows the missing-cost state and opens the product edit route', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(createElement(RetailCategoryProductsRoute));
@@ -219,15 +218,13 @@ describe('retail category products cost configuration affordance', () => {
 
     act(() => findNodes(renderer, 'text-button')[0]?.props.onPress());
 
-    expect(findNodes(renderer, 'product-cost-sheet')[0]?.props).toEqual(
-      expect.objectContaining({
-        initialValues: { costMode: '', directCostItemId: '' },
-        visible: true,
-      }),
-    );
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { productId: 'product-1' },
+      pathname: '/catalogo-varejo/produto/[productId]',
+    });
   });
 
-  it('uses the same visible action to reopen an existing direct-cost configuration', () => {
+  it('uses the same visible action to reopen an existing direct-cost configuration route', () => {
     mockCurrentProduct = {
       ...baseProduct,
       costMode: 'direct',
@@ -244,188 +241,58 @@ describe('retail category products cost configuration affordance', () => {
     );
     act(() => findNodes(renderer, 'text-button')[0]?.props.onPress());
 
-    expect(findNodes(renderer, 'product-cost-sheet')[0]?.props.initialValues).toEqual({
-      costMode: 'direct',
-      directCostItemId: 'cost-1',
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { productId: 'product-1' },
+      pathname: '/catalogo-varejo/produto/[productId]',
     });
   });
 
-  it('persists the selected cost mode when editing a product', async () => {
-    mockCostItems = [{ active: true, costItemId: 'cost-1', name: 'Café', unit: 'un' }];
-
+  it('pushes the product route from the product row', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(createElement(RetailCategoryProductsRoute));
     });
     act(() => findNodes(renderer, 'list-item')[0]?.props.onPress());
 
-    const form = findNodes(renderer, 'product-form-sheet')[0];
-    expect(form.props.currentCost).toEqual(
-      expect.objectContaining({ cost: 12.9, status: 'available' }),
-    );
-    await act(async () => {
-      await form.props.onSubmit({
-        categoryId: 'category-1',
-        costMode: 'direct',
-        directCostItemId: 'cost-1',
-        flavor: '',
-        packageSize: '',
-        productName: 'Cesta Teste',
-        skuCode: '',
-        standardSalePrice: '100',
-        variant: '',
-      });
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { productId: 'product-1' },
+      pathname: '/catalogo-varejo/produto/[productId]',
     });
-
-    expect(mockUpdate).toHaveBeenCalledWith(
-      'product-1',
-      expect.objectContaining({
-        compositionVersionId: null,
-        costMode: 'direct',
-        directCostItemId: 'cost-1',
-      }),
-    );
   });
 
-  it('persists a composition from exactly the selected component IDs', async () => {
-    mockCostItems = [
-      { active: true, costItemId: 'valid-croassaint', name: 'Croassaint', unit: 'un' },
-      { active: true, costItemId: 'drip', name: 'Drip', unit: 'un' },
-      { active: true, costItemId: 'stale-croassaint', name: 'Croassaint', unit: 'un' },
-    ];
-    mockCurrentProduct = {
-      ...baseProduct,
-      compositionVersionId: 'old-version',
-      costMode: 'composition',
-    };
-    mockCompositionVersions = [
-      {
-        active: true,
-        components: [
-          {
-            costItemId: 'valid-croassaint',
-            costItemNameSnapshot: 'Croassaint',
-            quantity: 1,
-            unit: 'un',
-          },
-          {
-            costItemId: 'stale-croassaint',
-            costItemNameSnapshot: 'Croassaint',
-            quantity: 1,
-            unit: 'un',
-          },
-        ],
-        compositionVersionId: 'old-version',
-        effectiveFrom: '2026-09-16',
-        productId: 'product-1',
-      },
-    ];
-
+  it('routes cost and composition context actions to the same product page', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(createElement(RetailCategoryProductsRoute));
     });
-    act(() => findNodes(renderer, 'list-item')[0]?.props.onPress());
-    act(() => findNodes(renderer, 'product-form-sheet')[0]?.props.onOpenComposition());
 
-    const compositionSheet = findNodes(renderer, 'composition-sheet')[0];
-    expect(compositionSheet?.props.initialValues.components).toEqual([
-      { costItemId: 'valid-croassaint', key: 'existing-component-0', quantity: '1' },
-      { costItemId: 'stale-croassaint', key: 'existing-component-1', quantity: '1' },
-    ]);
+    const actions = findNodes(renderer, 'context-menu')[0]?.props.actions as {
+      onPress: () => void;
+    }[];
+    act(() => actions[0]?.onPress());
+    act(() => actions[1]?.onPress());
 
-    await act(async () => {
-      await compositionSheet?.props.onSubmit({
-        components: [
-          { costItemId: 'valid-croassaint', key: 'existing-component-0', quantity: '1' },
-          { costItemId: 'drip', key: 'new-component', quantity: '2' },
-        ],
-        effectiveFrom: '2026-09-18',
-      });
+    expect(mockPush).toHaveBeenNthCalledWith(1, {
+      params: { productId: 'product-1' },
+      pathname: '/catalogo-varejo/produto/[productId]',
     });
-
-    expect(mockCreateVersion).toHaveBeenCalledWith(
-      {
-        components: [
-          {
-            costItemId: 'valid-croassaint',
-            costItemNameSnapshot: 'Croassaint',
-            quantity: 1,
-            unit: 'un',
-          },
-          { costItemId: 'drip', costItemNameSnapshot: 'Drip', quantity: 2, unit: 'un' },
-        ],
-        effectiveFrom: '2026-09-18',
-      },
-      expect.any(Map),
-    );
-    expect(mockUpdate).toHaveBeenCalledWith('product-1', {
-      compositionVersionId: 'new-version',
-      costMode: 'composition',
-      directCostItemId: null,
+    expect(mockPush).toHaveBeenNthCalledWith(2, {
+      params: { productId: 'product-1' },
+      pathname: '/catalogo-varejo/produto/[productId]',
     });
   });
 
-  it('keeps a persisted composition component when its cost item is absent from the catalog', async () => {
-    mockCostItems = [{ active: true, costItemId: 'drip', name: 'Drip', unit: 'un' }];
-    mockCurrentProduct = {
-      ...baseProduct,
-      compositionVersionId: 'old-version',
-      costMode: 'composition',
-    };
-    mockCompositionVersions = [
-      {
-        active: true,
-        components: [
-          {
-            costItemId: 'legacy-id',
-            costItemNameSnapshot: 'Componente antigo',
-            quantity: 1,
-            unit: 'un',
-          },
-        ],
-        compositionVersionId: 'old-version',
-        effectiveFrom: '2026-09-16',
-        productId: 'product-1',
-      },
-    ];
-
+  it('pushes the new product page with the current category', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(createElement(RetailCategoryProductsRoute));
     });
-    act(() => findNodes(renderer, 'list-item')[0]?.props.onPress());
-    act(() => findNodes(renderer, 'product-form-sheet')[0]?.props.onOpenComposition());
 
-    const compositionSheet = findNodes(renderer, 'composition-sheet')[0];
-    expect(compositionSheet?.props.costItems).toEqual([
-      { active: true, costItemId: 'drip', label: 'Drip', unit: 'un' },
-      { active: false, costItemId: 'legacy-id', label: 'Componente antigo', unit: 'un' },
-    ]);
-    expect(compositionSheet?.props.initialValues.components).toEqual([
-      { costItemId: 'legacy-id', key: 'existing-component-0', quantity: '1' },
-    ]);
+    act(() => findNodes(renderer, 'toolbar-button')[0]?.props.onPress());
 
-    await act(async () => {
-      await compositionSheet?.props.onSubmit({
-        components: [{ costItemId: 'legacy-id', key: 'existing-component-0', quantity: '1' }],
-        effectiveFrom: '2026-09-18',
-      });
+    expect(mockPush).toHaveBeenCalledWith({
+      params: { categoryId: 'category-1' },
+      pathname: '/catalogo-varejo/produto/novo',
     });
-
-    expect(mockCreateVersion).toHaveBeenCalledWith(
-      {
-        components: [
-          {
-            costItemId: 'legacy-id',
-            costItemNameSnapshot: 'Componente antigo',
-            quantity: 1,
-            unit: 'un',
-          },
-        ],
-        effectiveFrom: '2026-09-18',
-      },
-      expect.any(Map),
-    );
   });
 });

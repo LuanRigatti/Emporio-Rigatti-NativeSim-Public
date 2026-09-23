@@ -232,10 +232,21 @@ export class RetailFinanceDatasetService {
         scope.sessionVersion,
       );
       const signature = ordersSignature(orders);
-      if (signature === dataset.ordersSignature) return;
+      const orderIds = new Set(orders.map((order) => order.orderId));
+      const paymentsByOrderId = new Map(
+        [...dataset.paymentsByOrderId].filter(([orderId]) => orderIds.has(orderId)),
+      );
+      const orderWasRemoved = dataset.orders.some((order) => !orderIds.has(order.orderId));
+      const paymentsWerePruned = paymentsByOrderId.size !== dataset.paymentsByOrderId.size;
+      if (signature === dataset.ordersSignature && !paymentsWerePruned) return;
+      if (orderWasRemoved) {
+        scope.requestGeneration += 1;
+        scope.inFlight = undefined;
+      }
       scope.state = {
         ...scope.state,
-        dataset: { ...dataset, orders, ordersSignature: signature },
+        dataset: { ...dataset, orders, ordersSignature: signature, paymentsByOrderId },
+        ...(orderWasRemoved ? { loading: false, refreshing: false } : {}),
       };
       changed = true;
     });

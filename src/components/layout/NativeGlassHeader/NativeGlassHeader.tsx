@@ -1,9 +1,18 @@
-import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent, type TextStyle } from 'react-native';
 import { useAppTheme } from '@/theme';
 import { useAppSafeAreaInsets } from '@/providers';
 
 import NativeGlassHeaderBackground from './NativeGlassHeaderBackground';
 import type { NativeGlassHeaderProps } from './NativeGlassHeader.types';
+
+export function getNativeLargeTitleStyle(spacingXxs: number): TextStyle {
+  return {
+    fontFamily: 'System',
+    fontSize: 36,
+    fontWeight: '700',
+    marginLeft: -(spacingXxs * 2),
+  };
+}
 
 export function NativeGlassHeader({
   accessory,
@@ -54,17 +63,21 @@ export function NativeGlassHeader({
           {leftActions}
         </View>
         <View style={[styles.titleContainer, largeTitle ? styles.largeTitleContainer : undefined]}>
-          <Text
-            numberOfLines={1}
-            style={[
-              resolvedTitleStyle,
-              customTitleStyle,
-              { color: theme.colors.textPrimary },
-              largeTitle && styles.largeTitle,
-            ]}
-          >
-            {title}
-          </Text>
+          {typeof title === 'string' || typeof title === 'number' ? (
+            <Text
+              numberOfLines={1}
+              style={[
+                resolvedTitleStyle,
+                customTitleStyle,
+                { color: theme.colors.textPrimary },
+                largeTitle && styles.largeTitle,
+              ]}
+            >
+              {title}
+            </Text>
+          ) : (
+            title
+          )}
           {subtitle ? (
             <Text
               numberOfLines={1}

@@ -14,6 +14,7 @@ const HISTORY_DELIVERY_CARD_HEIGHT = 86;
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
   onToggleStatus: () => void;
+  onMarkDelivered?: () => void;
   onDelete?: () => void;
   contained?: boolean;
 };
@@ -26,6 +27,7 @@ export function DeliveryCard({
   contained = false,
   delivery,
   onDelete,
+  onMarkDelivered,
   onToggleStatus,
 }: DeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
@@ -38,7 +40,7 @@ export function DeliveryCard({
   const cardRadius = theme.radius.xl + theme.spacing.sm;
   const content = (
     <View style={styles.cardRow}>
-      <OpenPaymentClientIcon />
+      <OpenPaymentClientIcon backgroundColor={theme.colors.background} />
       <View style={styles.cardContent}>
         <View style={styles.cardHeaderRow}>
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
@@ -105,6 +107,17 @@ export function DeliveryCard({
     <View style={[styles.contextContainer, contextCardStyle]}>
       <NativeCardContextMenu
         actions={[
+          ...(delivery.status === 'pendente' && onMarkDelivered
+            ? [
+                {
+                  disabled: testModeEnabled,
+                  id: `complete-delivery-${delivery.id}`,
+                  onPress: onMarkDelivered,
+                  systemImage: 'checkmark.circle.fill' as const,
+                  title: 'Concluída',
+                },
+              ]
+            : []),
           {
             destructive: true,
             disabled: testModeEnabled,
@@ -117,9 +130,7 @@ export function DeliveryCard({
         matchContents={{ horizontal: true, vertical: false }}
         style={[styles.contextMenu, { borderRadius: cardRadius }]}
         preview={
-          <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>
-            {content}
-          </View>
+          <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>{content}</View>
         }
       >
         <View style={[styles.card, { backgroundColor: 'transparent' }]}>{content}</View>

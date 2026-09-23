@@ -3,9 +3,13 @@ import { StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '@/theme';
 
-export default function OpenPaymentClientIconFallback() {
+export default function OpenPaymentClientIconFallback({
+  backgroundColor,
+}: {
+  backgroundColor?: string;
+}) {
   const { resolvedMode, theme } = useAppTheme();
-  const surface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
+  const surface = backgroundColor ?? (resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7');
 
   return (
     <View style={[styles.container, { backgroundColor: surface }]}>

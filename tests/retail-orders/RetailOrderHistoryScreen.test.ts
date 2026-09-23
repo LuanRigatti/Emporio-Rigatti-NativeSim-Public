@@ -42,4 +42,26 @@ describe('RetailOrderHistoryScreen presentation contract', () => {
     expect(historyHookSource).not.toContain('void Promise.resolve().then(() => load());');
     expect(historySource).toContain('void reload();');
   });
+
+  it('exposes destructive order deletion through native menu and confirmation dialog', () => {
+    const cardSource = readFileSync(
+      resolve(process.cwd(), 'src/features/retail-orders/components/RetailOrderHistoryCard.tsx'),
+      'utf8',
+    );
+
+    expect(cardSource).toContain('NativeCardContextMenu');
+    expect(cardSource).toContain("title: 'Excluir'");
+    expect(cardSource).toContain("systemImage: 'trash'");
+    expect(historySource).toContain('<NativeDialog');
+    expect(historySource).toContain('title="Excluir pedido?"');
+    expect(historySource).toContain(
+      'Esta ação removerá o pedido e seus pagamentos e não poderá ser desfeita.',
+    );
+  });
+
+  it('keeps deletion presentation local and uses the hook mutation', () => {
+    expect(historySource).toContain('remove(orderId)');
+    expect(historySource).toContain('Não foi possível excluir o pedido agora. Tente novamente.');
+    expect(historyHookSource).toContain('retailOrderDataSource.deleteOrder');
+  });
 });

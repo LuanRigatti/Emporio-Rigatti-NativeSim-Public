@@ -89,6 +89,17 @@ describe('calculateRetailOrderFinancials', () => {
       resultadoEntregas: 0,
     });
   });
+
+  it('treats a newly created order without payments as unpaid', () => {
+    const summary = calculateRetailOrderFinancials({ order, payments: [] });
+
+    expect(summary).toMatchObject({
+      financialStatus: 'unpaid',
+      outstandingAmount: 220,
+      paidAmount: 0,
+      recebido: 0,
+    });
+  });
 });
 
 describe('calculateRetailOrderCostSummary', () => {

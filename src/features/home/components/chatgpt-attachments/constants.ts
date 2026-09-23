@@ -18,6 +18,9 @@ export const COLORS = {
   photoFill: '#141414',
 } as const;
 
+/** Dark translucent tint for compact interactive Glass controls in Home Search attachments. */
+export const ATTACHMENT_CONTROL_GLASS_TINT = 'rgba(0, 0, 0, 0.72)';
+
 export const COMPOSER = {
   radius: 24,
   rowHeight: 48,
@@ -36,6 +39,8 @@ export const COMPOSER = {
   plusSize: 24,
   plusSlide: 16,
   fieldSize: 17,
+  dateChipHeight: 32,
+  dateChipMaxWidth: 112,
 } as const;
 
 export const PLUS_CENTER_X = GUTTER + COMPOSER.rowPaddingLeft + COMPOSER.plusHit / 2;

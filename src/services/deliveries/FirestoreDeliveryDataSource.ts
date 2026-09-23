@@ -773,13 +773,29 @@ export class FirestoreDeliveryDataSource {
     const request = this.captureSessionRequest(uid);
     const current = await this.ensure(uid, deliveryId);
     this.assertSessionRequestCurrent(request);
+    await this.writeDelivered(request, current, !current.entregue);
+  }
+
+  public async setDelivered(uid: string, deliveryId: string, delivered: boolean): Promise<void> {
+    const request = this.captureSessionRequest(uid);
+    const current = await this.ensure(uid, deliveryId);
+    this.assertSessionRequestCurrent(request);
+    if (current.entregue === delivered) return;
+    await this.writeDelivered(request, current, delivered);
+  }
+
+  private async writeDelivered(
+    request: SessionRequest,
+    current: Delivery,
+    delivered: boolean,
+  ): Promise<void> {
     const { doc, serverTimestamp, updateDoc } = await getFirestoreOps();
-    await updateDoc(doc(await collectionFor(request.uid), deliveryId), {
-      delivered: !current.entregue,
+    await updateDoc(doc(await collectionFor(request.uid), current.id), {
+      delivered,
       updatedAt: serverTimestamp(),
     });
     this.assertSessionRequestCurrent(request);
-    this.records.set(deliveryId, { ...current, entregue: !current.entregue });
+    this.records.set(current.id, { ...current, entregue: delivered });
     this.publish();
     void this.persistDateCache(request, current.data);
     void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));

@@ -9,6 +9,7 @@ export type PremiumCardProps = {
   children: ReactNode;
   disablePressAnimation?: boolean;
   onPress?: AnimatedPressableProps['onPress'];
+  preservePressableIdentity?: boolean;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 };
@@ -17,6 +18,7 @@ export function PremiumCard({
   children,
   disablePressAnimation,
   onPress,
+  preservePressableIdentity = false,
   style,
   accessibilityLabel,
 }: PremiumCardProps) {
@@ -32,14 +34,15 @@ export function PremiumCard({
     resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
     style,
   ];
-  if (onPress) {
+  if (onPress || preservePressableIdentity) {
     return (
       <AnimatedPressable
-        disablePressAnimation={disablePressAnimation}
+        disablePressAnimation={disablePressAnimation || !onPress}
+        disabled={!onPress}
         onPress={onPress}
         style={cardStyle}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={onPress ? accessibilityLabel : undefined}
       >
         {children}
       </AnimatedPressable>

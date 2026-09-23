@@ -16,6 +16,7 @@ export type NativeDateToolbarProps = {
   placement?: 'left' | 'right';
   selectedDate: string;
   weekGroups?: readonly NativeDateToolbarWeekGroup[];
+  weekSelection?: { label: string; startDate: string };
 };
 
 type NativeDateToolbarWeekGroup = {
@@ -29,6 +30,7 @@ export function renderNativeDateToolbarItems({
   onWeekChange,
   selectedDate,
   weekGroups = [],
+  weekSelection,
 }: NativeDateToolbarProps): ReactNode[] {
   const date = parseIsoDate(selectedDate);
   const [year, month, day] = selectedDate.split('-').map(Number);
@@ -37,7 +39,8 @@ export function renderNativeDateToolbarItems({
   const dayItems = createNativeDayItems(year, month);
   const toolbarTitle =
     mode === 'day' ? 'Selecionar data' : mode === 'week' ? 'Selecionar semana' : 'Selecionar mês';
-  const selectedWeekStart = formatIsoDate(getWeekStart(date));
+  const selectedWeekStart =
+    mode === 'week' && weekSelection ? weekSelection.startDate : formatIsoDate(getWeekStart(date));
   const standardMenus = [
     <Stack.Toolbar.Menu icon="calendar" key="month" title="Mês">
       {monthItems.map((item) => (
@@ -80,7 +83,9 @@ export function renderNativeDateToolbarItems({
 
   return [
     <Stack.Toolbar.Menu accessibilityLabel={toolbarTitle} key="date" separateBackground={false}>
-      <Stack.Toolbar.Label>{formatToolbarLabel(date, mode)}</Stack.Toolbar.Label>
+      <Stack.Toolbar.Label>
+        {mode === 'week' && weekSelection ? weekSelection.label : formatToolbarLabel(date, mode)}
+      </Stack.Toolbar.Label>
       {mode === 'week'
         ? weekGroups.map((group) => (
             <Stack.Toolbar.Menu icon="calendar" key={group.label} title={group.label}>

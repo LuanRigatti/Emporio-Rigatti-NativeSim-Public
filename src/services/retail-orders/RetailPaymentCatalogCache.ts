@@ -54,6 +54,10 @@ export class RetailPaymentCatalogCache {
       JSON.stringify({ cacheVersion: CACHE_VERSION, records }),
     );
   }
+
+  public async remove(uid: string, orderId: string): Promise<void> {
+    await AsyncStorage.removeItem(this.getKey(uid, orderId));
+  }
 }
 
 export const retailPaymentCatalogCache = new RetailPaymentCatalogCache();

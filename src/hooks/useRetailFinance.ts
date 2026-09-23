@@ -49,7 +49,7 @@ export function useRetailFinance(
   }, [enabled, sessionVersion, userId]);
 
   const summary = useMemo(() => {
-    if (!enabled || !userId) return null;
+    if (!userId) return null;
     if (!datasetState.dataset) return summaryCache.get(summaryKey) ?? null;
     const next = retailFinanceAggregationService.aggregate(
       datasetState.dataset.orders,
@@ -59,7 +59,7 @@ export function useRetailFinance(
     );
     summaryCache.set(summaryKey, next);
     return next;
-  }, [datasetState.dataset, enabled, normalizedPeriod, summaryKey, userId, view]);
+  }, [datasetState.dataset, normalizedPeriod, summaryKey, userId, view]);
 
   const reload = useCallback(() => {
     if (!userId) return;

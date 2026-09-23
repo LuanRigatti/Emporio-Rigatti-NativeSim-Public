@@ -5,12 +5,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  HomeToolbar,
+  type HomeModeSelectorController,
+  useHomeModeSelector,
+} from '@/components/navigation/HomeToolbar';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import { HomeToolbar } from '@/components/navigation/HomeToolbar';
 import { useAppMode, useAppSafeAreaInsets, useAuth } from '@/providers';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
-import { TodayDeliveriesCard } from '@/features/home/components/TodayDeliveriesCard';
+import HomeModeTitle from '@/features/home/components/HomeModeTitle';
 import { useOpenPaymentClients } from '@/features/open-payments/hooks/useOpenPaymentClients';
 import { HomeProfileSheet } from '@/features/home/profile/HomeProfileSheet';
 import { countOpenDocuments } from '@/features/invoices';
@@ -18,7 +22,6 @@ import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
-import { toHistoryDelivery } from '@/services/data';
 import { todayIso } from '@/utils/data';
 import { RetailHome } from '@/features/home/components/RetailHome';
 
@@ -36,25 +39,16 @@ function PreviewIcon({
   return <Ionicons color={color} name={name} size={size ?? theme.sizes.iconMedium} />;
 }
 
-function WholesaleHome() {
+function WholesaleHome({ modeSelector }: { modeSelector: HomeModeSelectorController }) {
   const router = useRouter();
   const { user } = useAuth();
   const { resolvedMode, theme } = useAppTheme();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
-  const homeShortcutIconSurface = resolvedMode === 'dark' ? '#2C2C2E' : '#F2F2F7';
-  const {
-    currency: maskCurrency,
-    enabled: testModeEnabled,
-    text: maskText,
-  } = useTestModePresentation();
+  const { currency: maskCurrency, text: maskText } = useTestModePresentation();
   const insets = useAppSafeAreaInsets();
   const [currentDate, setCurrentDate] = useState(() => todayIso());
   const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
-  const {
-    deliveries: dailyDeliveries,
-    remove: removeDelivery,
-    toggleDelivered: toggleDelivery,
-  } = useDeliveries({ mode: 'today', date: currentDate });
+  const { deliveries: dailyDeliveries } = useDeliveries({ mode: 'today', date: currentDate });
   const { clients } = useClients();
   const { dataUnavailable: factoryDataUnavailable, purchases: factoryPurchases } =
     useFactoryPurchases();
@@ -70,16 +64,12 @@ function WholesaleHome() {
     mode: 'all',
   });
   const { clientCards: openPaymentClientCards, totalOpenAmount } = useOpenPaymentClients();
-  const historyDeliveries = useMemo(
-    () => dailyDeliveries.map(toHistoryDelivery),
-    [dailyDeliveries],
-  );
   useEffect(() => {
     const timer = setInterval(() => setCurrentDate(todayIso()), 60_000);
     return () => clearInterval(timer);
   }, []);
 
-  const todayDeliveries = useMemo(() => historyDeliveries, [historyDeliveries]);
+  const modeLabel = modeSelector.mode === 'retail' ? 'Varejo' : 'Atacado';
   const openDocumentsCount = useMemo(
     () => countOpenDocuments(invoiceDeliveries, clients),
     [invoiceDeliveries, clients],
@@ -88,23 +78,6 @@ function WholesaleHome() {
     () => factoryPurchaseCalculationService.summarize(factoryPurchases).openValue,
     [factoryPurchases],
   );
-  const handleTodayStatusToggle = useCallback(
-    (deliveryId: string) => {
-      if (testModeEnabled) return;
-      triggerLightImpactHaptic();
-      void toggleDelivery(deliveryId);
-    },
-    [testModeEnabled, toggleDelivery],
-  );
-
-  const handleTodayDeliveryDelete = useCallback(
-    (deliveryId: string) => {
-      if (testModeEnabled) return;
-      void removeDelivery(deliveryId);
-    },
-    [removeDelivery, testModeEnabled],
-  );
-
   const handleOpenSearch = useCallback(() => {
     triggerLightImpactHaptic();
     router.push('/pesquisa');
@@ -139,13 +112,13 @@ function WholesaleHome() {
       includeTopSafeArea={false}
       mode="transparent"
       largeTitle
-      title="Home"
-      titleStyle={{
-        fontFamily: 'System',
-        fontSize: 36,
-        fontWeight: '700',
-        marginLeft: -(theme.spacing.xxs * 2),
-      }}
+      title={
+        <HomeModeTitle
+          accessibilityLabel={`Alterar modo. Modo atual: ${modeLabel}`}
+          label={modeLabel}
+          onPress={modeSelector.open}
+        />
+      }
     />
   );
   return (
@@ -153,6 +126,7 @@ function WholesaleHome() {
       <HomeToolbar
         foregroundColor={theme.colors.textPrimary}
         imageUri={user?.photoUrl}
+        modeSelector={modeSelector}
         name={user?.displayName?.trim() || 'Conta'}
         onProfilePress={handleOpenProfile}
         onSearchPress={handleOpenSearch}
@@ -204,7 +178,7 @@ function WholesaleHome() {
                 style={styles.homeShortcutRow}
               >
                 <View
-                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                  style={[styles.homeShortcutIcon, { backgroundColor: theme.colors.background }]}
                 >
                   <PreviewIcon color={theme.colors.textSecondary} name="cube-outline" size={21} />
                 </View>
@@ -238,7 +212,7 @@ function WholesaleHome() {
                 style={styles.homeShortcutRow}
               >
                 <View
-                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                  style={[styles.homeShortcutIcon, { backgroundColor: theme.colors.background }]}
                 >
                   <PreviewIcon
                     color={
@@ -280,7 +254,7 @@ function WholesaleHome() {
                 style={styles.homeShortcutRow}
               >
                 <View
-                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                  style={[styles.homeShortcutIcon, { backgroundColor: theme.colors.background }]}
                 >
                   <PreviewIcon
                     color={
@@ -320,7 +294,7 @@ function WholesaleHome() {
                 style={styles.homeShortcutRow}
               >
                 <View
-                  style={[styles.homeShortcutIcon, { backgroundColor: homeShortcutIconSurface }]}
+                  style={[styles.homeShortcutIcon, { backgroundColor: theme.colors.background }]}
                 >
                   <PreviewIcon
                     color={theme.colors.textSecondary}
@@ -355,17 +329,6 @@ function WholesaleHome() {
             </View>
           </PremiumCard>
         </View>
-
-        {todayDeliveries.length > 0 ? (
-          <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
-            <TodayDeliveriesCard
-              cardSurfaceColor={homeCardSurface}
-              deliveries={todayDeliveries}
-              onDelete={handleTodayDeliveryDelete}
-              onToggleStatus={handleTodayStatusToggle}
-            />
-          </View>
-        ) : null}
       </PremiumScreen>
       <HomeProfileSheet
         onVisibleChange={setIsProfileSheetVisible}
@@ -377,8 +340,13 @@ function WholesaleHome() {
 
 export default function DashboardRoute() {
   const { isReady, mode } = useAppMode();
+  const modeSelector = useHomeModeSelector();
   if (!isReady) return null;
-  return mode === 'retail' ? <RetailHome /> : <WholesaleHome />;
+  return mode === 'retail' ? (
+    <RetailHome modeSelector={modeSelector} />
+  ) : (
+    <WholesaleHome modeSelector={modeSelector} />
+  );
 }
 
 const styles = StyleSheet.create({

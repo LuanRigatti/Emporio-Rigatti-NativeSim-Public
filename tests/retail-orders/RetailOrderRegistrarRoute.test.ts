@@ -10,7 +10,6 @@ import RetailOrderClientRoute from '@/app/registrar-pedido-varejo/index';
 import RetailOrderProductsRoute from '@/app/registrar-pedido-varejo/produtos';
 import RetailOrderDetailsRoute from '@/app/registrar-pedido-varejo/detalhes';
 import RetailOrderSummaryRoute from '@/app/registrar-pedido-varejo/resumo';
-import RetailOrderPaymentRoute from '@/app/registrar-pedido-varejo/pagamento';
 
 jest.mock('expo-router', () => {
   const React = require('react') as typeof import('react');
@@ -66,13 +65,12 @@ describe('RetailOrderRegistrarRoute', () => {
     );
   });
 
-  it('registers every retail wizard page with the prior transparent Root Stack header and stable back', () => {
+  it('registers the four retail wizard pages with the prior transparent Root Stack header and stable back', () => {
     const routes = [
       ['registrar-pedido-varejo/index', 'Cliente'],
       ['registrar-pedido-varejo/produtos', 'Produtos'],
-      ['registrar-pedido-varejo/detalhes', 'Detalhes do pedido'],
+      ['registrar-pedido-varejo/detalhes', 'Detalhes'],
       ['registrar-pedido-varejo/resumo', 'Resumo'],
-      ['registrar-pedido-varejo/pagamento', 'Pagamento inicial'],
     ] as const;
 
     for (const [route] of routes) {
@@ -85,7 +83,7 @@ describe('RetailOrderRegistrarRoute', () => {
     expect(rootLayoutSource).not.toContain("title: 'Produtos'");
     expect(rootLayoutSource).not.toContain("title: 'Detalhes do pedido'");
     expect(rootLayoutSource).not.toContain("title: 'Resumo'");
-    expect(rootLayoutSource).not.toContain("title: 'Pagamento inicial'");
+    expect(rootLayoutSource).not.toContain('registrar-pedido-varejo/pagamento');
     expect(rootLayoutSource).toContain('hidesBottomBarWhenPushed: true');
     expect(rootLayoutSource).toContain('<RetailOrderFlowProvider>');
     expect(rootLayoutSource).toContain('</RetailOrderFlowProvider>');
@@ -99,7 +97,12 @@ describe('RetailOrderRegistrarRoute', () => {
       'utf8',
     );
     expect(stepScreenSource).toContain('NativeGlassHeader');
+    expect(stepScreenSource).toContain('getNativeLargeTitleStyle');
     expect(stepScreenSource).toContain('const STEP_TITLES');
+    expect(stepScreenSource).toContain('title={null}');
+    expect(stepScreenSource).toContain('largeTitle');
+    expect(stepScreenSource).toContain("details: 'Detalhes'");
+    expect(stepScreenSource).not.toContain("payment: 'Pagamento'");
     expect(stepScreenSource).toContain('overlayHeader={header}');
     expect(stepScreenSource).toContain('progressiveBlur');
     expect(stepScreenSource).not.toContain('useHeaderHeight');
@@ -121,7 +124,6 @@ describe('RetailOrderRegistrarRoute', () => {
     [RetailOrderProductsRoute, 'products'],
     [RetailOrderDetailsRoute, 'details'],
     [RetailOrderSummaryRoute, 'summary'],
-    [RetailOrderPaymentRoute, 'payment'],
   ] as const)('%s renders only the shared retail step content', (Route, step) => {
     let renderer!: ReactTestRenderer;
     act(() => {

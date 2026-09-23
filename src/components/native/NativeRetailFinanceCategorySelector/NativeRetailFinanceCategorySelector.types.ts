@@ -7,8 +7,14 @@ export type NativeRetailFinanceCategorySelectorItem = {
 
 export type NativeRetailFinanceCategorySelectorProps = {
   accessibilityLabel?: string;
+  contentLeadingPadding?: number;
+  contentTrailingPadding?: number;
+  fillAvailableWidth?: boolean;
   items: readonly NativeRetailFinanceCategorySelectorItem[];
+  itemHorizontalPadding?: number;
+  itemSpacing?: number;
   onChange: (key: string) => void;
   selectedKey: string;
+  selectedVisualScale?: number;
   style?: StyleProp<ViewStyle>;
 };

@@ -9,7 +9,7 @@ export {
   SectionHeader,
   Spacer,
 } from './Layout';
-export { NativeGlassHeader } from './NativeGlassHeader';
+export { getNativeLargeTitleStyle, NativeGlassHeader } from './NativeGlassHeader';
 export type {
   AppHeaderProps,
   DividerProps,

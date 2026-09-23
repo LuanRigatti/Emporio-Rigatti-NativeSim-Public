@@ -11,7 +11,14 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { AttachmentIcon } from '../AttachmentIcon';
-import { BOTTOM_BAR, CAMERA, COLORS, DURATION, SPRING } from '../constants';
+import {
+  ATTACHMENT_CONTROL_GLASS_TINT,
+  BOTTOM_BAR,
+  CAMERA,
+  COLORS,
+  DURATION,
+  SPRING,
+} from '../constants';
 import { Glass } from '../glass';
 import { SheetBar } from '../panel/sheet-bar';
 
@@ -49,6 +56,8 @@ function Option({ index, label, icon, unfold, active, fade, onPress }: OptionPro
           radius={BOTTOM_BAR.controlSize / 2}
           active={active}
           duration={DURATION.crossfade / 1000}
+          tintColor={ATTACHMENT_CONTROL_GLASS_TINT}
+          fallbackTint={ATTACHMENT_CONTROL_GLASS_TINT}
           style={styles.round}
         >
           <Animated.View style={iconStyle}>
@@ -112,6 +121,8 @@ export function CameraBar({
             radius={CAMERA.shutterSize / 2}
             active={active}
             duration={DURATION.crossfade / 1000}
+            tintColor={ATTACHMENT_CONTROL_GLASS_TINT}
+            fallbackTint={ATTACHMENT_CONTROL_GLASS_TINT}
             style={styles.shutter}
           >
             <Animated.View style={[styles.shutterDisc, contentStyle]} />
@@ -148,6 +159,8 @@ export function CameraBar({
             radius={BOTTOM_BAR.controlSize / 2}
             active={active}
             duration={DURATION.crossfade / 1000}
+            tintColor={ATTACHMENT_CONTROL_GLASS_TINT}
+            fallbackTint={ATTACHMENT_CONTROL_GLASS_TINT}
             style={styles.round}
           >
             <Animated.View style={[styles.glyph, dotsStyle]}>

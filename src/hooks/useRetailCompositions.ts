@@ -59,6 +59,7 @@ export function useRetailCompositions(productId?: string) {
   const versions = productId
     ? retailCompositionDataSource.list(productId, userId, sessionVersion)
     : [];
+  const hasSnapshot = snapshot != null;
   const createVersion = useCallback(
     (
       input: RetailCompositionVersionDraft,
@@ -77,7 +78,7 @@ export function useRetailCompositions(productId?: string) {
   return {
     createVersion,
     error,
-    loading,
+    loading: loading && !hasSnapshot,
     refreshing,
     reload: () => load(true),
     snapshot,

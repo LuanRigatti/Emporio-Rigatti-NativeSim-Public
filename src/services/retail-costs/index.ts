@@ -2,11 +2,13 @@ export { resolveRetailProductCost } from './RetailProductCostResolver';
 export type { RetailProductCostResolverInput } from './RetailProductCostResolver';
 export {
   RetailCompositionDataSource,
+  getRetailCompositionComponentIdIssues,
   retailCompositionDataSource,
   setFirestoreRetailCompositionDataSourceOpsForTesting,
 } from './RetailCompositionDataSource';
 export type {
   RetailCompositionCostItem,
+  RetailCompositionComponentIdIssues,
   RetailCompositionVersionRecord,
 } from './RetailCompositionDataSource';
 export {

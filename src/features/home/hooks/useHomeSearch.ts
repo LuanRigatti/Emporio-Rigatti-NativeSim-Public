@@ -4,7 +4,7 @@ import { useAuth } from '@/providers';
 
 import { AppHomeSearchDataSource } from '../search/HomeSearchDataSource';
 import { HomeSearchService } from '../search/HomeSearchService';
-import type { HomeSearchResponse } from '../search/HomeSearchTypes';
+import type { HomeSearchResponse, HomeSearchTemporalContext } from '../search/HomeSearchTypes';
 
 export function useHomeSearch() {
   const { sessionVersion, user } = useAuth();
@@ -32,13 +32,18 @@ export function useHomeSearch() {
   }, [sessionKey]);
 
   const search = useCallback(
-    async (query: string): Promise<HomeSearchResponse | undefined> => {
+    async (
+      query: string,
+      temporalContext?: HomeSearchTemporalContext,
+    ): Promise<HomeSearchResponse | undefined> => {
       const version = ++requestVersion.current;
       if (!service) {
         return undefined;
       }
       setLoadingState({ sessionKey, value: true });
-      const nextResponse = await service.search(query);
+      const nextResponse = temporalContext
+        ? await service.search(query, new Date(), temporalContext)
+        : await service.search(query);
       if (version !== requestVersion.current || nextResponse.stale) {
         return nextResponse;
       }

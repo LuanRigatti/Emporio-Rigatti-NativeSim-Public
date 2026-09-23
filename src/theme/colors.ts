@@ -148,7 +148,7 @@ export const darkColors: ThemeColors = {
 
 export const GLASS_DARK_TINT_OPACITY = 0.85 as const;
 
-export const darkModeCardSurface = '#0A0C0E' as const;
+export const darkModeCardSurface = '#19191A' as const;
 export const registrarSheetDetailLightSurface = '#FFFFFF' as const;
 export const registrarSheetDetailDarkSurface = 'rgba(80, 80, 84, 0.40)' as const;
 

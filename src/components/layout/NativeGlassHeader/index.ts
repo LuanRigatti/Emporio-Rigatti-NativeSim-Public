@@ -1,4 +1,4 @@
-export { NativeGlassHeader } from './NativeGlassHeader';
+export { getNativeLargeTitleStyle, NativeGlassHeader } from './NativeGlassHeader';
 export type {
   NativeGlassHeaderBackgroundProps,
   NativeGlassHeaderMode,

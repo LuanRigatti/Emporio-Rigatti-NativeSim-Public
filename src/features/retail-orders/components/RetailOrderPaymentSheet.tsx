@@ -68,6 +68,9 @@ export function RetailOrderPaymentSheet({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const usesCardFee = CARD_PAYMENT_METHODS.includes(method);
+  const methodLabel =
+    RETAIL_PAYMENT_METHOD_OPTIONS.find((option) => option.value === method)?.label ??
+    'Método do pagamento';
 
   const handleMethodChange = (nextMethod: RetailPaymentMethod) => {
     setMethod(nextMethod);
@@ -168,7 +171,7 @@ export function RetailOrderPaymentSheet({
             accessibilityLabel="Método do pagamento"
             disabled={submitting}
             items={RETAIL_PAYMENT_METHOD_OPTIONS}
-            label="Método do pagamento"
+            label={methodLabel}
             onValueChange={(value) => handleMethodChange(value as RetailPaymentMethod)}
             selectedValue={method}
           />

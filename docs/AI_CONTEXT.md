@@ -47,6 +47,10 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - Utilizar expo-router/unstable-native-tabs.
 - Não migrar para React Navigation.
 - Preservar a arquitetura existente.
+- `AppModeProvider` é a fonte do modo atual (`wholesale`/Atacado ou
+  `retail`/Varejo). O modo influencia as entradas e telas de Home, Registrar,
+  Histórico, Catálogo e Finanças; os dados, serviços e regras dos dois domínios
+  devem permanecer isolados.
 
 ## Retail Orders
 
@@ -55,6 +59,46 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - O detalhe Retail usa a rota Root `/pedido-varejo/[orderId]` e recebe somente `orderId`. Deve priorizar snapshot/cache disponível, revalidar sem apagar o conteúdo visível e carregar pagamentos apenas do pedido atual; não deve acessar Delivery no ramo Retail.
 - `calculateRetailOrderFinancials` é a única fonte das fórmulas e dos status financeiros. Somente pagamentos `posted` entram nos totais; `voided` pode ser exibido para auditoria, mas não altera o valor pago. Pagamentos posteriores referenciam o mesmo `orderId`; pedidos cancelados bloqueiam novos pagamentos e pedidos completed podem recebê-los.
 - O resumo financeiro do Histórico Retail usa cache isolado por UID, `sessionVersion`, `orderId` e assinatura financeira, com prewarm local, cache-first/stale-while-revalidate e concorrência limitada, restrito aos pedidos visíveis. `updateForOrder()` atualiza somente o pedido afetado a partir do snapshot local completo, publica aos listeners e não faz leitura Firestore nem `clear` global; respostas obsoletas são descartadas.
+- Em pedidos com status `created`, `deliveryCost` pode ser alterado isoladamente mesmo com pagamentos `posted`, pois é custo interno e não altera o valor cobrado. `discount`, `deliveryFee` e alterações comerciais/lineItems continuam bloqueados quando há pagamento `posted`; um patch combinado com `deliveryCost` também é bloqueado. `completed` e `cancelled` permanecem somente leitura.
+
+## Retail Catalog
+
+- Novo produto, Editar produto e Composição usam páginas do Root Native Stack, com
+  push/pop, Back e swipe-back nativos. Não criar navigator aninhado para esse
+  fluxo.
+- Create e edit compartilham o formulário inline da página de produto. A
+  Composição usa cards inline para item, quantidade e remoção. O antigo
+  `NativeRetailProductFormSheet` não participa do runtime do Catálogo.
+- O Catálogo possui categorias e produtos Retail. Produtos podem usar custo
+  `direct` ou `composition`; composições são versionadas e resolvidas
+  historicamente pela data da venda.
+- Rotas devem receber identificadores simples, não objetos serializados. A
+  persistência de produto e composição continua centralizada nos data sources e
+  nas versões históricas existentes.
+
+## Retail Cost History and Finance
+
+- Entradas de custo têm `effectiveDate`, com padrão hoje para novas entradas.
+  Uma entrada existente pode ter somente sua data de vigência corrigida
+  retroativamente, preservando valor, quantidade, unidade, fornecedor e custo
+  unitário normalizado.
+- A resolução histórica seleciona o custo mais recente com
+  `effectiveDate <= referenceDate`. Nunca usar custo futuro ou fallback
+  silencioso para custo atual. Quantidade comprada só normaliza custo unitário;
+  não criar estoque, baixa por venda ou bloqueio por quantidade.
+- Versões de composição usam `effectiveFrom` e podem ser criadas com vigência
+  passada sem sobrescrever versões anteriores. Pedidos persistidos mantêm
+  `unitCostSnapshot`/`lineCostTotal` e não são recalculados por mudanças futuras
+  no catálogo, nos custos ou nas composições.
+- O Retail Finance distribui `deliveryCost` e `deliveryFee` reconhecidos nas
+  visões `Geral | Cestas | Salgados | Baldes`. O filtro de categoria usa o
+  snapshot histórico da categoria do pedido. Uma categoria recebe o total;
+  pedidos mistos usam receita líquida positiva reconhecida e rateio proporcional
+  determinístico em centavos. `deliveryCost` reduz lucro, `deliveryFee` aumenta
+  receita, somente a parcela reconhecida no período entra no rateio, `voided`
+  não entra e `paymentFee` por categoria permanece fora dessa distribuição. A
+  visão Geral e `calculateRetailOrderFinancials` continuam canônicas e
+  inalteradas.
 
 ## Persistência atual
 

@@ -33,10 +33,14 @@ describe('RetailOrderEditScreen contract', () => {
     expect(editSource).not.toContain('orderDate');
   });
 
-  it('keeps monetary fields disabled when a posted payment exists', () => {
+  it('keeps customer financial fields disabled but separates delivery cost', () => {
     expect(editSource).toContain("payment.status === 'posted'");
-    expect(editSource).toContain('Valores financeiros exigem anular os pagamentos registrados');
-    expect(editSource).toContain('financialDisabled');
+    expect(editSource).toContain(
+      'Desconto e taxa de entrega exigem anular os pagamentos registrados',
+    );
+    expect(editSource).toContain('customerFinancialFieldsDisabled');
+    expect(editSource).toContain('deliveryCostDisabled');
+    expect(editSource).toContain('disabled={deliveryCostDisabled}');
     expect(editSource).toContain('updateForOrder');
   });
 

@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Keyboard, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Loading } from '@/components/feedback';
-import { NativeGlassHeader } from '@/components/layout';
+import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
 import {
   NativeButton,
   NativeDatePicker,
@@ -13,6 +13,8 @@ import {
   type NativeTextFieldProps,
 } from '@/components/native';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
+import { ProgressiveBlur } from '@/components/ui/progressive-blur';
+import { ENABLE_PROGRESSIVE_BLUR } from '@/config/featureFlags';
 import { useAppSafeAreaInsets } from '@/providers';
 import { formatCurrency, parseIsoCalendarDate, todayIso } from '@/utils/data';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
@@ -22,21 +24,13 @@ import {
   type RetailOrderFlowStep,
   useRetailOrderFlow,
 } from './RetailOrderFlowProvider';
-
-const STEP_ORDER: readonly RetailOrderFlowStep[] = [
-  'client',
-  'products',
-  'details',
-  'summary',
-  'payment',
-];
+import { RetailOrderPrimaryButton } from './RetailOrderPrimaryButton';
 
 const STEP_TITLES: Record<RetailOrderFlowStep, string> = {
   client: 'Cliente',
   products: 'Produtos',
-  details: 'Detalhes do pedido',
+  details: 'Detalhes',
   summary: 'Resumo',
-  payment: 'Pagamento inicial',
 };
 
 export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
@@ -45,7 +39,18 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
   const router = useRouter();
   const flow = useRetailOrderFlow();
   const redirectPath = getSafeRedirectPath(flow, step);
-  const header = <NativeGlassHeader mode="transparent" title={STEP_TITLES[step]} />;
+  const header = <NativeGlassHeader mode="transparent" pointerEvents="none" title={null} />;
+  const pageTitle = (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title={STEP_TITLES[step]}
+      titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
+    />
+  );
+  const cardSpacing = theme.spacing.md * 2 - theme.spacing.xs / 2 - 4;
+  const detailsStickyActionHeight = 58 + insets.bottom + theme.spacing.md + theme.spacing.sm;
 
   useEffect(() => {
     if (!flow.catalogLoading && redirectPath) router.replace(redirectPath);
@@ -53,6 +58,8 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
 
   const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const isRedirecting = Boolean(redirectPath);
+  const showsDetailsStickyAction =
+    step === 'details' && !flow.catalogLoading && !isRedirecting && !flow.catalogError;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -60,15 +67,22 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
         contentContainerStyle={[
           styles.content,
           {
-            paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,
+            marginTop: theme.spacing.xxxl + theme.spacing.xl + 2,
+            paddingBottom:
+              theme.layout.tabBarHeight +
+              insets.bottom +
+              theme.spacing.xl +
+              (showsDetailsStickyAction ? detailsStickyActionHeight : 0),
           },
         ]}
         overlayHeader={header}
+        overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
         progressiveBlur
       >
+        <View style={styles.header}>{pageTitle}</View>
         {flow.catalogLoading || isRedirecting ? (
           <PremiumCard
-            style={[styles.card, { backgroundColor: cardSurface, marginTop: theme.spacing.md }]}
+            style={[styles.card, { backgroundColor: cardSurface, marginTop: cardSpacing }]}
           >
             <Loading
               label={isRedirecting ? 'Abrindo pedido Varejo...' : 'Carregando dados do Varejo...'}
@@ -76,17 +90,20 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
           </PremiumCard>
         ) : flow.catalogError ? (
           <PremiumCard
-            style={[styles.card, { backgroundColor: cardSurface, marginTop: theme.spacing.md }]}
+            style={[styles.card, { backgroundColor: cardSurface, marginTop: cardSpacing }]}
           >
             <Text style={[theme.typography.body, { color: theme.colors.danger }]}>
               {flow.catalogError}
             </Text>
           </PremiumCard>
         ) : (
-          <RetailOrderStepCard flow={flow} step={step} />
+          <RetailOrderStepCard cardMarginTop={cardSpacing} flow={flow} step={step} />
         )}
       </PremiumScreen>
-      {step === 'payment' ? (
+      {showsDetailsStickyAction ? (
+        <DetailsStickyAction flow={flow} height={detailsStickyActionHeight} />
+      ) : null}
+      {step === 'summary' ? (
         <NativeDialog
           actions={[{ id: 'ok', onPress: () => handleSuccess(flow, router), title: 'OK' }]}
           message="O pedido foi salvo com sucesso."
@@ -104,10 +121,7 @@ function getSafeRedirectPath(
   step: RetailOrderFlowStep,
 ): '/registrar-pedido-varejo' | '/registrar-pedido-varejo/produtos' | null {
   if (step !== 'client' && !flow.draft.clientId) return '/registrar-pedido-varejo';
-  if (
-    (step === 'details' || step === 'summary' || step === 'payment') &&
-    !flow.draft.lineItems.length
-  ) {
+  if ((step === 'details' || step === 'summary') && !flow.draft.lineItems.length) {
     return '/registrar-pedido-varejo/produtos';
   }
   return null;
@@ -120,13 +134,32 @@ function handleSuccess(flow: RetailOrderFlowContextValue, router: ReturnType<typ
 }
 
 function RetailOrderStepCard({
+  cardMarginTop,
   flow,
   step,
 }: {
+  cardMarginTop: number;
   flow: RetailOrderFlowContextValue;
   step: RetailOrderFlowStep;
 }) {
   const { resolvedMode, theme } = useAppTheme();
+  const error = flow.error ? (
+    <Text
+      accessibilityRole="alert"
+      style={[theme.typography.footnote, { color: theme.colors.danger }]}
+    >
+      {flow.error}
+    </Text>
+  ) : null;
+
+  if (step === 'details') {
+    return (
+      <View style={[styles.detailsContainer, { gap: theme.spacing.md, marginTop: cardMarginTop }]}>
+        {error}
+        <DetailsStep flow={flow} />
+      </View>
+    );
+  }
 
   return (
     <PremiumCard
@@ -136,29 +169,16 @@ function RetailOrderStepCard({
           backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
           borderRadius: theme.radius.xl + theme.spacing.md,
           gap: theme.spacing.md,
-          marginTop: theme.spacing.md,
+          marginTop: cardMarginTop,
           padding: theme.spacing.lg,
+          paddingTop: theme.spacing.md,
         },
       ]}
     >
-      <View style={styles.stepHeader}>
-        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          Etapa {STEP_ORDER.indexOf(step) + 1} de {STEP_ORDER.length}
-        </Text>
-      </View>
-      {flow.error ? (
-        <Text
-          accessibilityRole="alert"
-          style={[theme.typography.footnote, { color: theme.colors.danger }]}
-        >
-          {flow.error}
-        </Text>
-      ) : null}
+      {error}
       {step === 'client' ? <ClientStep flow={flow} /> : null}
       {step === 'products' ? <ProductsStep flow={flow} /> : null}
-      {step === 'details' ? <DetailsStep flow={flow} /> : null}
       {step === 'summary' ? <SummaryStep flow={flow} /> : null}
-      {step === 'payment' ? <PaymentStep flow={flow} /> : null}
     </PremiumCard>
   );
 }
@@ -167,6 +187,12 @@ function ClientStep({ flow }: { flow: RetailOrderFlowContextValue }) {
   const router = useRouter();
   const { theme } = useAppTheme();
   const hasClients = flow.activeClients.length > 0;
+  const continueDisabled = flow.submitting || !flow.selectedClient;
+  const continueAccessibilityHint = flow.submitting
+    ? 'Aguarde enquanto o pedido é processado.'
+    : !flow.selectedClient
+      ? 'Selecione um cliente para continuar.'
+      : undefined;
 
   if (!hasClients) {
     return (
@@ -187,38 +213,33 @@ function ClientStep({ flow }: { flow: RetailOrderFlowContextValue }) {
 
   return (
     <>
-      <NativeDropdown
-        accessibilityLabel="Cliente Varejo"
-        disabled={flow.submitting}
-        items={flow.activeClients.map((client) => ({
-          label: client.name,
-          value: client.clientId,
-        }))}
-        label={flow.selectedClient?.name ?? 'Cliente Varejo'}
-        onValueChange={flow.handleClientChange}
-        selectedValue={flow.draft.clientId}
-      />
-      {flow.selectedClient ? (
-        <View style={styles.selectedSummary}>
-          <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-            {flow.selectedClient.name}
-          </Text>
-          {flow.selectedClient.phone ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {flow.selectedClient.phone}
-            </Text>
-          ) : null}
-          {flow.selectedClient.address ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              {flow.selectedClient.address}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-      <NativeButton
-        controlSize="large"
-        disabled={flow.submitting || !flow.selectedClient}
-        haptic="light"
+      <View style={styles.clientSelectorRow}>
+        <Text
+          style={[
+            styles.clientSelectorLabel,
+            theme.typography.body,
+            { color: theme.colors.textPrimary, fontWeight: '600' },
+          ]}
+        >
+          Selecione o cliente
+        </Text>
+        <NativeDropdown
+          accessibilityLabel="Selecione o cliente"
+          disabled={flow.submitting}
+          items={flow.activeClients.map((client) => ({
+            label: client.name,
+            value: client.clientId,
+          }))}
+          label={flow.selectedClient?.name ?? 'Selecionar'}
+          onValueChange={flow.handleClientChange}
+          selectedValue={flow.draft.clientId}
+        />
+      </View>
+      <RetailOrderPrimaryButton
+        accessibilityHint={continueAccessibilityHint}
+        accessibilityValue={continueDisabled ? 'Indisponível' : undefined}
+        disabled={continueDisabled}
+        gateDisabledAction
         label="Continuar"
         onPress={() => {
           if (!flow.selectedClient) return;
@@ -226,7 +247,6 @@ function ClientStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           Keyboard.dismiss();
           router.push('/registrar-pedido-varejo/produtos');
         }}
-        variant="primary"
       />
     </>
   );
@@ -235,7 +255,6 @@ function ClientStep({ flow }: { flow: RetailOrderFlowContextValue }) {
 function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
   const { theme } = useAppTheme();
   const router = useRouter();
-  const selectedProduct = flow.productById.get(flow.selectedProductId);
 
   return (
     <>
@@ -244,33 +263,25 @@ function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           Cadastre um produto Varejo antes de criar um pedido.
         </Text>
       ) : (
-        <>
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+        <View style={styles.clientSelectorRow}>
+          <Text
+            style={[
+              styles.clientSelectorLabel,
+              theme.typography.body,
+              { color: theme.colors.textPrimary, fontWeight: '600' },
+            ]}
+          >
             Selecionar produto
           </Text>
           <NativeDropdown
-            accessibilityLabel="Produto Varejo"
+            accessibilityLabel="Selecionar produto"
             disabled={flow.submitting || Boolean(flow.validatingProductId)}
             items={flow.productOptions}
             label={flow.selectedProductLabel}
-            onValueChange={flow.setSelectedProductId}
+            onValueChange={flow.handleAddProduct}
             selectedValue={flow.selectedProductId}
           />
-          {selectedProduct ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              Selecionado: {selectedProduct.productName}. Adicione-o para incluir no pedido.
-            </Text>
-          ) : null}
-          <NativeButton
-            disabled={
-              flow.submitting || !flow.selectedProductId || Boolean(flow.validatingProductId)
-            }
-            haptic="light"
-            label={flow.validatingProductId ? 'Validando custo…' : 'Adicionar produto'}
-            onPress={() => void flow.handleAddProduct()}
-            variant="glass"
-          />
-        </>
+        </View>
       )}
 
       <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
@@ -332,9 +343,6 @@ function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
                       {costError}
                     </Text>
                   ) : null}
-                  {flow.validatingProductId === line.productId ? (
-                    <Loading label="Validando custo do produto…" tone="info" />
-                  ) : null}
                 </View>
                 <View style={styles.lineControls}>
                   <View style={styles.quantityField}>
@@ -369,29 +377,42 @@ function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           Nenhum produto adicionado.
         </Text>
       )}
-      <NativeButton
-        controlSize="large"
+      <RetailOrderPrimaryButton
+        accessibilityHint={
+          flow.canContinueProducts
+            ? undefined
+            : 'Adicione ao menos um produto válido para continuar.'
+        }
+        accessibilityValue={flow.canContinueProducts ? undefined : 'Indisponível'}
         disabled={!flow.canContinueProducts}
-        haptic="light"
+        gateDisabledAction
         label="Continuar"
         onPress={async () => {
           if (!(await flow.validateProducts())) return;
           Keyboard.dismiss();
           router.push('/registrar-pedido-varejo/detalhes');
         }}
-        variant="primary"
       />
     </>
   );
 }
 
 function DetailsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
-  const { theme } = useAppTheme();
-  const router = useRouter();
+  const { resolvedMode, theme } = useAppTheme();
+  const cardStyle = [
+    styles.detailsCard,
+    {
+      backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+      borderRadius: theme.radius.xl + theme.spacing.md,
+      gap: theme.spacing.md,
+      padding: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+    },
+  ];
 
   return (
     <>
-      <View style={styles.formSection}>
+      <PremiumCard style={cardStyle}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>Pedido</Text>
         <View style={styles.dateRow}>
           <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
@@ -417,8 +438,8 @@ function DetailsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
             value={parseIsoCalendarDate(flow.draft.deliveryDate) ?? new Date()}
           />
         </View>
-      </View>
-      <View style={styles.formSection}>
+      </PremiumCard>
+      <PremiumCard style={cardStyle}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
           Entrega
         </Text>
@@ -449,8 +470,8 @@ function DetailsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           placeholder="R$ 0,00"
           value={flow.draft.deliveryCost}
         />
-      </View>
-      <View style={styles.formSection}>
+      </PremiumCard>
+      <PremiumCard style={cardStyle}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
           Informações opcionais
         </Text>
@@ -479,8 +500,8 @@ function DetailsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           placeholder="Observações do pedido"
           value={flow.draft.notes}
         />
-      </View>
-      <View style={styles.formSection}>
+      </PremiumCard>
+      <PremiumCard style={cardStyle}>
         <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
           Valores
         </Text>
@@ -493,27 +514,65 @@ function DetailsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           placeholder="R$ 0,00"
           value={flow.draft.discount}
         />
-      </View>
+      </PremiumCard>
       {flow.preparingOrder ? <Loading label="Validando custos do pedido…" tone="info" /> : null}
-      <NativeButton
-        controlSize="large"
-        disabled={flow.submitting || flow.preparingOrder}
-        haptic="light"
-        label="Ver resumo"
-        onPress={async () => {
-          if (!(await flow.validateProducts())) return;
-          Keyboard.dismiss();
-          router.push('/registrar-pedido-varejo/resumo');
-        }}
-        variant="primary"
-      />
     </>
+  );
+}
+
+function DetailsStickyAction({
+  flow,
+  height,
+}: {
+  flow: RetailOrderFlowContextValue;
+  height: number;
+}) {
+  const { resolvedMode, theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
+  const router = useRouter();
+  const showProgressiveBlur = ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
+
+  return (
+    <View pointerEvents="box-none" style={[styles.detailsStickyAction, { height }]}>
+      {showProgressiveBlur ? (
+        <ProgressiveBlur
+          edge="bottom"
+          fadeStart={theme.spacing.sm}
+          height={height}
+          intensity={30}
+          layers={4}
+          style={{ bottom: 0 }}
+          tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterial'}
+        />
+      ) : null}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.detailsStickyActionContent,
+          { paddingBottom: insets.bottom + theme.spacing.sm },
+        ]}
+      >
+        <RetailOrderPrimaryButton
+          accessibilityHint={
+            flow.preparingOrder ? 'Aguarde enquanto os custos do pedido são validados.' : undefined
+          }
+          accessibilityValue={flow.preparingOrder ? 'Indisponível' : undefined}
+          disabled={flow.submitting || flow.preparingOrder}
+          gateDisabledAction
+          label="Ver resumo"
+          onPress={async () => {
+            if (!(await flow.validateProducts())) return;
+            Keyboard.dismiss();
+            router.push('/registrar-pedido-varejo/resumo');
+          }}
+        />
+      </View>
+    </View>
   );
 }
 
 function SummaryStep({ flow }: { flow: RetailOrderFlowContextValue }) {
   const { theme } = useAppTheme();
-  const router = useRouter();
   const totals = flow.draftTotals;
 
   return (
@@ -576,17 +635,12 @@ function SummaryStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           </>
         ) : null}
       </View>
-      <NativeButton
-        controlSize="large"
+      <RetailOrderPrimaryButton
         disabled={flow.submitting || !totals}
-        haptic="light"
-        label="Continuar para pagamento"
-        onPress={() => {
-          flow.clearError();
-          router.push('/registrar-pedido-varejo/pagamento');
-        }}
-        variant="primary"
+        label="Finalizar pedido"
+        onPress={() => void flow.submitOrder()}
       />
+      {flow.submitting ? <Loading label="Salvando pedido…" tone="info" /> : null}
     </>
   );
 }
@@ -617,110 +671,6 @@ function SummaryRow({
   );
 }
 
-function PaymentStep({ flow }: { flow: RetailOrderFlowContextValue }) {
-  const { theme } = useAppTheme();
-  const paymentPreview = flow.paymentPreview;
-
-  return (
-    <>
-      {flow.draftTotals && paymentPreview ? (
-        <View style={styles.paymentSummary}>
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-            Resumo financeiro
-          </Text>
-          <SummaryRow
-            label="Total do pedido"
-            value={formatCurrency(flow.draftTotals.totalCharged)}
-          />
-          <SummaryRow
-            label="Valor do pagamento inicial"
-            value={formatCurrency(paymentPreview.amount)}
-          />
-          <SummaryRow
-            label="A receber após este pagamento"
-            value={formatCurrency(paymentPreview.outstandingAmount)}
-          />
-        </View>
-      ) : null}
-      <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-        Pagamento
-      </Text>
-      <OrderTextField
-        accessibilityLabel="Valor do pagamento inicial"
-        disabled={flow.submitting}
-        keyboardType="decimal-pad"
-        label="Valor do pagamento inicial (opcional)"
-        onChangeText={(value) => flow.updatePayment('amount', value)}
-        placeholder="R$ 0,00"
-        value={flow.paymentValues.amount}
-      />
-      <NativeDropdown
-        accessibilityLabel="Forma do pagamento inicial"
-        disabled={flow.submitting}
-        items={[
-          { label: 'Pix', value: 'Pix' },
-          { label: 'Dinheiro', value: 'Dinheiro' },
-          { label: 'Crédito', value: 'Crédito' },
-          { label: 'Débito', value: 'Débito' },
-          { label: 'Outro', value: 'Outro' },
-        ]}
-        label={flow.selectedPaymentLabel}
-        onValueChange={(value) =>
-          flow.updatePayment(
-            'method',
-            value as RetailOrderFlowContextValue['paymentValues']['method'],
-          )
-        }
-        selectedValue={flow.paymentValues.method}
-      />
-      {flow.paymentValues.method === 'Crédito' || flow.paymentValues.method === 'Débito' ? (
-        <OrderTextField
-          accessibilityLabel="Taxa do cartão"
-          disabled={flow.submitting}
-          keyboardType="decimal-pad"
-          label="Taxa do cartão (opcional)"
-          onChangeText={(value) => flow.updatePayment('cardFee', value)}
-          placeholder="R$ 0,00"
-          value={flow.paymentValues.cardFee}
-        />
-      ) : null}
-      <View style={styles.dateRow}>
-        <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-          Data do pagamento
-        </Text>
-        <NativeDatePicker
-          accessibilityLabel="Data do pagamento inicial"
-          mode="date"
-          onChange={(date) => flow.updatePayment('paidAt', todayIso(date))}
-          style="compact"
-          value={parseIsoCalendarDate(flow.paymentValues.paidAt) ?? new Date()}
-        />
-      </View>
-      <OrderTextField
-        accessibilityLabel="Observações do pagamento inicial"
-        disabled={flow.submitting}
-        label="Observações do pagamento (opcional)"
-        onChangeText={(value) => flow.updatePayment('notes', value)}
-        placeholder="Observação"
-        value={flow.paymentValues.notes}
-      />
-      {!flow.successVisible ? (
-        <>
-          {flow.submitting ? <Loading label="Salvando pedido…" tone="info" /> : null}
-          <NativeButton
-            controlSize="large"
-            disabled={flow.submitting}
-            haptic="light"
-            label={flow.pendingOrderId ? 'Tentar registrar pagamento' : 'Confirmar pedido'}
-            onPress={() => void flow.submitOrder(true)}
-            variant="primary"
-          />
-        </>
-      ) : null}
-    </>
-  );
-}
-
 function OrderTextField({
   accessibilityLabel,
   label,
@@ -743,8 +693,20 @@ function OrderTextField({
 
 const styles = StyleSheet.create({
   card: { width: '100%' },
+  clientSelectorLabel: { flex: 1 },
+  clientSelectorRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
   content: { flexGrow: 1 },
+  detailsCard: { width: '100%' },
+  detailsContainer: { width: '100%' },
+  detailsStickyAction: { bottom: 0, left: 0, position: 'absolute', right: 0, zIndex: 3 },
+  detailsStickyActionContent: { bottom: 0, left: 0, position: 'absolute', right: 0 },
   dateRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  header: { minHeight: 44 },
   field: { gap: 4, width: '100%' },
   formSection: { gap: 8 },
   lineCard: { gap: 12, padding: 12 },
@@ -756,10 +718,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  paymentSummary: { gap: 8 },
   screen: { flex: 1 },
-  selectedSummary: { gap: 2, paddingVertical: 4 },
-  stepHeader: { gap: 4 },
   summaryBlock: { gap: 12 },
   summaryLine: {
     alignItems: 'flex-start',

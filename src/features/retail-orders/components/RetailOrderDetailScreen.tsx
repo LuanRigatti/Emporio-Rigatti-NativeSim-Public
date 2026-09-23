@@ -242,7 +242,12 @@ function OrderDetailsContent({
   return (
     <View style={[styles.sections, { gap: theme.spacing.xl }]}>
       <PremiumSection title="Pedido">
-        <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+        <PremiumCard
+          style={[
+            styles.card,
+            { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+          ]}
+        >
           <View style={styles.statusRow}>
             <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
               Status
@@ -259,7 +264,12 @@ function OrderDetailsContent({
 
       {order.status === 'created' ? (
         <PremiumSection title="Ações do pedido">
-          <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+          <PremiumCard
+            style={[
+              styles.card,
+              { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+            ]}
+          >
             <NativeButton
               accessibilityLabel="Editar pedido"
               disabled={statusMutationPending}
@@ -292,7 +302,12 @@ function OrderDetailsContent({
       ) : null}
 
       <PremiumSection title="Cliente">
-        <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+        <PremiumCard
+          style={[
+            styles.card,
+            { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+          ]}
+        >
           <DetailRow label="Nome" value={order.clientNameSnapshot} />
           <DetailRow label="Telefone" value={order.clientPhoneSnapshot ?? 'Não informado'} />
           <DetailRow
@@ -308,7 +323,10 @@ function OrderDetailsContent({
           {order.lineItems.map((lineItem) => (
             <PremiumCard
               key={`${lineItem.productId}-${lineItem.productNameSnapshot}`}
-              style={[styles.card, { gap: theme.spacing.sm }]}
+              style={[
+                styles.card,
+                { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+              ]}
             >
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
                 {lineItem.productNameSnapshot}
@@ -335,7 +353,12 @@ function OrderDetailsContent({
       </PremiumSection>
 
       <PremiumSection title="Valores">
-        <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+        <PremiumCard
+          style={[
+            styles.card,
+            { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+          ]}
+        >
           <DetailRow label="Subtotal dos produtos" value={formatCurrency(order.subtotalProducts)} />
           <DetailRow label="Desconto" value={formatCurrency(order.discount)} />
           <DetailRow label="Taxa de entrega" value={formatCurrency(order.deliveryFee)} />
@@ -369,7 +392,12 @@ function OrderDetailsContent({
 
       {order.occasion || order.recipient || order.notes ? (
         <PremiumSection title="Informações">
-          <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+          <PremiumCard
+            style={[
+              styles.card,
+              { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+            ]}
+          >
             {order.occasion ? <DetailRow label="Ocasião" value={order.occasion} /> : null}
             {order.recipient ? <DetailRow label="Presenteado" value={order.recipient} /> : null}
             {order.notes ? <DetailRow label="Observações" value={order.notes} /> : null}
@@ -389,14 +417,24 @@ function OrderCostSummaryContent({
 }) {
   if (!costState || 'error' in costState) {
     return (
-      <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+      <PremiumCard
+        style={[
+          styles.card,
+          { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+        ]}
+      >
         <InlineError message={costState?.error ?? 'Os custos históricos estão indisponíveis.'} />
       </PremiumCard>
     );
   }
   const { summary } = costState;
   return (
-    <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+    <PremiumCard
+      style={[
+        styles.card,
+        { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+      ]}
+    >
       <DetailRow label="Venda" value={formatCurrency(summary.totalCharged)} strong />
       <DetailRow label="Custo dos produtos" value={formatCurrency(summary.productCost)} />
       <DetailRow label="Custo de entrega" value={formatCurrency(summary.deliveryCost)} />
@@ -432,7 +470,12 @@ function PaymentsContent({
     );
   }
   return (
-    <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+    <PremiumCard
+      style={[
+        styles.card,
+        { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+      ]}
+    >
       {paymentState.payments.length ? (
         paymentState.payments.map((payment) => (
           <PaymentRow
@@ -474,7 +517,12 @@ function FinancialSummaryContent({
     financialState && 'summary' in financialState ? financialState.summary : undefined;
   if (summary) {
     return (
-      <PremiumCard style={[styles.card, { gap: theme.spacing.sm }]}>
+      <PremiumCard
+        style={[
+          styles.card,
+          { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+        ]}
+      >
         <DetailRow label="Total" value={formatCurrency(summary.totalCharged)} strong />
         <DetailRow label="Pago" value={formatCurrency(summary.paidAmount)} />
         <DetailRow label="A receber" value={formatCurrency(summary.outstandingAmount)} />

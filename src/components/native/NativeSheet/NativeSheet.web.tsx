@@ -6,16 +6,21 @@ import type { NativeSheetProps } from '@/types/native-ui';
 export default function NativeSheetWeb({
   accessibilityLabel,
   children,
+  onDismiss,
   onVisibleChange,
   title,
   visible,
 }: NativeSheetProps) {
   const { theme } = useAppTheme();
+  const handleClose = () => {
+    onVisibleChange(false);
+    onDismiss?.();
+  };
 
   return (
     <Modal
       accessibilityLabel={accessibilityLabel ?? title}
-      onRequestClose={() => onVisibleChange(false)}
+      onRequestClose={handleClose}
       transparent
       visible={visible}
     >
@@ -23,7 +28,7 @@ export default function NativeSheetWeb({
         <Pressable
           accessibilityLabel="Fechar painel"
           accessibilityRole="button"
-          onPress={() => onVisibleChange(false)}
+          onPress={handleClose}
           style={StyleSheet.absoluteFill}
         />
         <View

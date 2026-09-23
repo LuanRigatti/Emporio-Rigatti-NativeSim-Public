@@ -78,4 +78,40 @@ describe('FinancialPeriodSnapshotCache', () => {
     );
     expect(cache.getMemory('uid-1', '2026-08')).toBeNull();
   });
+
+  it('isolates all-time snapshots by uid and session version', async () => {
+    const cache = new FinancialPeriodSnapshotCache();
+
+    await cache.writeAllTime('uid-1', 4, snapshot);
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      '@pareact/financial-period-cache-v1:uid-1:session:4:coverage:all',
+      expect.any(String),
+    );
+    expect(cache.getAllTimeMemory('uid-1', 4)).toMatchObject({
+      coverage: 'all',
+      sessionVersion: 4,
+      uid: 'uid-1',
+    });
+    expect(cache.getAllTimeMemory('uid-1', 5)).toBeNull();
+    expect(cache.getAllTimeMemory('uid-2', 4)).toBeNull();
+  });
+
+  it('rejects an all-time entry with a different session identity', async () => {
+    const cache = new FinancialPeriodSnapshotCache();
+    const entry = {
+      cacheVersion: 1,
+      coverage: 'all',
+      uid: 'uid-1',
+      sessionVersion: 4,
+      snapshot,
+      remoteComplete: true,
+      routesCoverage: 'local-only',
+      cachedAt: 1,
+    };
+
+    jest.mocked(AsyncStorage.getItem).mockResolvedValue(JSON.stringify(entry));
+
+    expect(await cache.readAllTime('uid-1', 5)).toBeNull();
+  });
 });

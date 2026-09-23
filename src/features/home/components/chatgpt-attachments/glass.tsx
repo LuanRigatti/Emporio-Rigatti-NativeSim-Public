@@ -28,6 +28,7 @@ function shapeOf(radius: number): ViewStyle {
 
 export interface GlassProps extends Omit<ViewProps, 'style'> {
   fallbackTint?: string;
+  tintColor?: string;
   radius?: number;
   active?: boolean;
   interactive?: boolean;
@@ -40,6 +41,7 @@ export interface GlassProps extends Omit<ViewProps, 'style'> {
 /** The source demo's glass surface, kept as one native material per surface. */
 export function Glass({
   fallbackTint,
+  tintColor,
   radius = 0,
   active = true,
   interactive = true,
@@ -76,6 +78,7 @@ export function Glass({
       colorScheme={resolvedMode}
       glassEffectStyle={glassEffectStyle}
       isInteractive={interactive}
+      tintColor={tintColor}
       style={[shapeOf(radius), style]}
       {...rest}
     >

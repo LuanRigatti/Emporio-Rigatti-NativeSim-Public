@@ -1,103 +1,26 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { TextButton } from '@/components/buttons';
 import { ListItem } from '@/components/lists';
-import {
-  NativeCardContextMenu,
-  NativeRetailCompositionSheet,
-  NativeRetailProductCostSheet,
-  NativeRetailProductFormSheet,
-  type NativeRetailCompositionCostItemOption,
-  type NativeRetailCompositionFormValues,
-  type NativeRetailProductCostFormValues,
-  type NativeRetailProductCostItemOption,
-  type NativeRetailProductCategoryOption,
-  type NativeRetailProductFormValues,
-} from '@/components/native';
+import { NativeCardContextMenu } from '@/components/native';
 import { NativeGlassHeader } from '@/components/layout';
 import { ConfirmationDialog } from '@/components/overlays';
 import { EmptyState, ErrorState, Loading, PremiumCard, PremiumScreen } from '@/components/premium';
 import { useRetailCategories } from '@/hooks/useRetailCategories';
-import { useRetailCompositions } from '@/hooks/useRetailCompositions';
-import { useRetailCostItems } from '@/hooks/useRetailCostItems';
 import { useRetailProducts } from '@/hooks/useRetailProducts';
-import { useRetailProductCurrentCost } from '@/hooks/useRetailProductCurrentCost';
 import { useAppMode } from '@/providers';
-import { normalizeRetailQuantity, type RetailCompositionCostItem } from '@/services/retail-costs';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import type { RetailProduct } from '@/types/data';
-import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
+import { formatCurrency } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import SettingsIcon from '@/features/settings/components/SettingsIcon';
-
-function toProductDraft(
-  values: NativeRetailProductFormValues,
-  categories: readonly NativeRetailProductCategoryOption[],
-) {
-  const category = categories.find((candidate) => candidate.categoryId === values.categoryId);
-  const price = normalizeMoney(values.standardSalePrice);
-  if (!category) throw new Error('Selecione uma categoria.');
-  if (price === undefined || price < 0) throw new Error('O preço de venda deve ser zero ou maior.');
-  return {
-    categoryId: category.categoryId,
-    categoryName: category.label,
-    flavor: values.flavor,
-    packageSize: values.packageSize,
-    productName: values.productName,
-    skuCode: values.skuCode,
-    standardSalePrice: price,
-    variant: values.variant,
-  };
-}
-
-function productFormValues(product?: RetailProduct | null): Partial<NativeRetailProductFormValues> {
-  return product
-    ? {
-        categoryId: product.categoryId,
-        costMode: product.costMode ?? '',
-        directCostItemId: product.directCostItemId ?? '',
-        flavor: product.flavor ?? '',
-        packageSize: product.packageSize ?? '',
-        productName: product.productName,
-        skuCode: product.skuCode ?? '',
-        standardSalePrice: String(product.standardSalePrice),
-        variant: product.variant ?? '',
-      }
-    : {};
-}
-
-function productCostDraft(values: NativeRetailProductFormValues, product?: RetailProduct | null) {
-  if (values.costMode === 'direct') {
-    if (!values.directCostItemId) throw new Error('Selecione o item de custo direto.');
-    return { costMode: 'direct' as const, directCostItemId: values.directCostItemId };
-  }
-  if (values.costMode === 'composition') {
-    return {
-      costMode: 'composition' as const,
-      ...(product?.compositionVersionId
-        ? { compositionVersionId: product.compositionVersionId }
-        : {}),
-    };
-  }
-  return {};
-}
-
-function productCostFormValues(
-  product?: RetailProduct | null,
-): Partial<NativeRetailProductCostFormValues> {
-  return product
-    ? {
-        costMode: product.costMode ?? '',
-        directCostItemId: product.directCostItemId ?? '',
-      }
-    : {};
-}
 
 export default function RetailCategoryProductsRoute() {
   const { mode } = useAppMode();
   const { theme, resolvedMode } = useAppTheme();
+  const router = useRouter();
   const { enabled: testModeEnabled } = useTestModePresentation();
   const { categoryId } = useLocalSearchParams<{ categoryId?: string }>();
   const {
@@ -112,67 +35,29 @@ export default function RetailCategoryProductsRoute() {
     products,
     reload: reloadProducts,
     remove,
-    create,
-    update,
   } = useRetailProducts({ categoryId });
-  const { items: costItems, loading: costItemsLoading } = useRetailCostItems({
-    includeInactive: true,
-  });
-  const [formVisible, setFormVisible] = useState(false);
-  const [productToEdit, setProductToEdit] = useState<RetailProduct | null>(null);
-  const [productForCost, setProductForCost] = useState<RetailProduct | null>(null);
-  const [productForComposition, setProductForComposition] = useState<RetailProduct | null>(null);
   const [productToDisable, setProductToDisable] = useState<RetailProduct | null>(null);
   const [mutationError, setMutationError] = useState<string>();
   const [disabling, setDisabling] = useState(false);
-  const currentCost = useRetailProductCurrentCost(formVisible ? productToEdit : null, costItems, {
-    costItemsLoading,
-  });
-  const productInitialValues = useMemo(() => productFormValues(productToEdit), [productToEdit]);
-  const { createVersion, versions: compositionVersions } = useRetailCompositions(
-    productForComposition?.productId,
-  );
 
   const category = useMemo(
     () => allCategories.find((candidate) => candidate.categoryId === categoryId),
     [allCategories, categoryId],
   );
-  const categoryOptions = useMemo<readonly NativeRetailProductCategoryOption[]>(
-    () =>
-      allCategories
-        .filter((candidate) => candidate.active)
-        .map(({ categoryId: id, label }) => ({ categoryId: id, label })),
-    [allCategories],
-  );
-
   const openCreate = useCallback(() => {
-    setProductToEdit(null);
-    setFormVisible(true);
-  }, []);
-  const openEdit = useCallback((product: RetailProduct) => {
-    setMutationError(undefined);
-    setProductToEdit(product);
-    setFormVisible(true);
-  }, []);
-  const submitProduct = useCallback(
-    async (values: NativeRetailProductFormValues) => {
-      if (testModeEnabled) return;
-      const draft = toProductDraft(values, categoryOptions);
-      const costDraft = productCostDraft(values, productToEdit);
-      if (productToEdit) {
-        await update(productToEdit.productId, {
-          ...draft,
-          ...costDraft,
-          costMode: values.costMode || null,
-          directCostItemId: values.costMode === 'direct' ? values.directCostItemId || null : null,
-          compositionVersionId:
-            values.costMode === 'composition' ? (productToEdit.compositionVersionId ?? null) : null,
-        });
-      } else {
-        await create({ ...draft, ...costDraft });
-      }
+    router.push({
+      pathname: '/catalogo-varejo/produto/novo',
+      params: { categoryId },
+    });
+  }, [categoryId, router]);
+  const openEdit = useCallback(
+    (product: RetailProduct) => {
+      router.push({
+        pathname: '/catalogo-varejo/produto/[productId]',
+        params: { productId: product.productId },
+      });
     },
-    [categoryOptions, create, productToEdit, testModeEnabled, update],
+    [router],
   );
   const disableProduct = useCallback(async () => {
     if (!productToDisable || disabling || testModeEnabled) return;
@@ -191,143 +76,6 @@ export default function RetailCategoryProductsRoute() {
       setDisabling(false);
     }
   }, [disabling, productToDisable, remove, testModeEnabled]);
-
-  const costItemOptions = useMemo<readonly NativeRetailProductCostItemOption[]>(
-    () =>
-      costItems
-        .filter(
-          (item) =>
-            item.active ||
-            item.costItemId === productForCost?.directCostItemId ||
-            item.costItemId === productToEdit?.directCostItemId,
-        )
-        .map((item) => ({
-          costItemId: item.costItemId,
-          label: item.active ? item.name : `${item.name} (desativado)`,
-          unit: item.unit,
-        })),
-    [costItems, productForCost?.directCostItemId, productToEdit?.directCostItemId],
-  );
-  const selectedComposition = useMemo(
-    () =>
-      productForComposition
-        ? (compositionVersions.find(
-            (version) =>
-              version.compositionVersionId === productForComposition.compositionVersionId,
-          ) ?? compositionVersions[0])
-        : undefined,
-    [compositionVersions, productForComposition],
-  );
-  const compositionInitialValues = useMemo<Partial<NativeRetailCompositionFormValues>>(
-    () => ({
-      components:
-        selectedComposition?.components.map((component, index) => ({
-          key: `existing-component-${index}`,
-          costItemId: component.costItemId,
-          quantity: String(component.quantity),
-        })) ?? [],
-      effectiveFrom: todayIso(),
-    }),
-    [selectedComposition],
-  );
-  const compositionCostItemOptions = useMemo<
-    readonly NativeRetailCompositionCostItemOption[]
-  >(() => {
-    const optionsById = new Map<string, NativeRetailCompositionCostItemOption>();
-    costItems
-      .filter((item) => item.active)
-      .forEach((item) => {
-        optionsById.set(item.costItemId, {
-          active: true,
-          costItemId: item.costItemId,
-          label: item.name,
-          unit: item.unit,
-        });
-      });
-    selectedComposition?.components.forEach((component) => {
-      if (optionsById.has(component.costItemId)) return;
-      const item = costItems.find((candidate) => candidate.costItemId === component.costItemId);
-      optionsById.set(component.costItemId, {
-        active: false,
-        costItemId: component.costItemId,
-        label: item?.name ?? component.costItemNameSnapshot,
-        unit: item?.unit ?? component.unit,
-      });
-    });
-    return [...optionsById.values()];
-  }, [costItems, selectedComposition]);
-  const compositionCostItemsById = useMemo(() => {
-    const itemsById = new Map<string, RetailCompositionCostItem>(
-      costItems.map((item) => [item.costItemId, item] as const),
-    );
-    selectedComposition?.components.forEach((component) => {
-      if (itemsById.has(component.costItemId)) return;
-      itemsById.set(component.costItemId, {
-        costItemId: component.costItemId,
-        name: component.costItemNameSnapshot,
-        unit: component.unit,
-      });
-    });
-    return itemsById;
-  }, [costItems, selectedComposition]);
-
-  const submitProductCost = useCallback(
-    async (values: NativeRetailProductCostFormValues) => {
-      if (!productForCost || testModeEnabled) return;
-      if (values.costMode === 'direct') {
-        if (!values.directCostItemId) throw new Error('Selecione o item de custo direto.');
-        await update(productForCost.productId, {
-          compositionVersionId: null,
-          costMode: 'direct',
-          directCostItemId: values.directCostItemId,
-        });
-        return;
-      }
-      if (values.costMode === 'composition') {
-        if (!productForCost.compositionVersionId) {
-          throw new Error('Crie uma composição antes de selecionar esse modo de custo.');
-        }
-        await update(productForCost.productId, {
-          compositionVersionId: productForCost.compositionVersionId,
-          costMode: 'composition',
-          directCostItemId: null,
-        });
-        return;
-      }
-      await update(productForCost.productId, {
-        compositionVersionId: null,
-        costMode: null,
-        directCostItemId: null,
-      });
-    },
-    [productForCost, testModeEnabled, update],
-  );
-
-  const submitComposition = useCallback(
-    async (values: NativeRetailCompositionFormValues) => {
-      if (!productForComposition || testModeEnabled) return;
-      const components = values.components.map((component) => {
-        const item = compositionCostItemsById.get(component.costItemId);
-        if (!item) throw new Error('Um componente selecionado não foi encontrado.');
-        return {
-          costItemId: item.costItemId,
-          costItemNameSnapshot: item.name,
-          quantity: normalizeRetailQuantity(component.quantity, `A quantidade de ${item.name}`),
-          unit: item.unit,
-        };
-      });
-      const compositionVersionId = await createVersion(
-        { components, effectiveFrom: values.effectiveFrom },
-        compositionCostItemsById,
-      );
-      await update(productForComposition.productId, {
-        compositionVersionId,
-        costMode: 'composition',
-        directCostItemId: null,
-      });
-    },
-    [compositionCostItemsById, createVersion, productForComposition, testModeEnabled, update],
-  );
 
   const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const cardRadius = theme.radius.xl + theme.spacing.sm;
@@ -456,13 +204,13 @@ export default function RetailCategoryProductsRoute() {
                         actions={[
                           {
                             id: 'configure-product-cost',
-                            onPress: () => setProductForCost(product),
+                            onPress: () => openEdit(product),
                             systemImage: 'dollarsign.circle',
                             title: 'Configurar custo',
                           },
                           {
                             id: 'edit-product-composition',
-                            onPress: () => setProductForComposition(product),
+                            onPress: () => openEdit(product),
                             systemImage: 'square.stack.3d.up',
                             title: 'Editar composição',
                           },
@@ -504,7 +252,7 @@ export default function RetailCategoryProductsRoute() {
                         <TextButton
                           accessibilityLabel={`${costActionLabel} de ${product.productName}`}
                           label={costActionLabel}
-                          onPress={() => setProductForCost(product)}
+                          onPress={() => openEdit(product)}
                           size="small"
                         />
                       </View>
@@ -523,48 +271,6 @@ export default function RetailCategoryProductsRoute() {
           </View>
         )}
       </PremiumScreen>
-      <NativeRetailProductFormSheet
-        categories={categoryOptions}
-        costItems={costItemOptions}
-        currentCost={currentCost}
-        initialValues={productInitialValues}
-        mode={productToEdit ? 'edit' : 'create'}
-        onSubmit={submitProduct}
-        onVisibleChange={setFormVisible}
-        onOpenComposition={
-          productToEdit
-            ? () => {
-                setFormVisible(false);
-                setProductForComposition(productToEdit);
-              }
-            : undefined
-        }
-        visible={formVisible}
-      />
-      <NativeRetailProductCostSheet
-        costItems={costItemOptions}
-        initialValues={productCostFormValues(productForCost)}
-        onOpenComposition={() => {
-          if (productForCost) {
-            setProductForComposition(productForCost);
-            setProductForCost(null);
-          }
-        }}
-        onSubmit={submitProductCost}
-        onVisibleChange={(visible) => {
-          if (!visible) setProductForCost(null);
-        }}
-        visible={Boolean(productForCost)}
-      />
-      <NativeRetailCompositionSheet
-        costItems={compositionCostItemOptions}
-        initialValues={compositionInitialValues}
-        onSubmit={submitComposition}
-        onVisibleChange={(visible) => {
-          if (!visible) setProductForComposition(null);
-        }}
-        visible={Boolean(productForComposition)}
-      />
       <ConfirmationDialog
         confirmLabel="Desativar produto"
         destructive

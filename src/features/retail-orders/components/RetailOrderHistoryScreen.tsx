@@ -2,9 +2,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 
-import { EmptyState, ErrorState, Loading } from '@/components/feedback';
+import { EmptyState, ErrorState, InlineError, Loading } from '@/components/feedback';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeSegmentedControl, renderNativeDateToolbarItems } from '@/components/native';
+import {
+  NativeDialog,
+  NativeSegmentedControl,
+  renderNativeDateToolbarItems,
+} from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
@@ -35,6 +39,8 @@ const RETAIL_HISTORY_VIEW_MODE_OPTIONS = ['Dia', 'Semana', 'Mês'] as const;
 const RETAIL_HISTORY_VIEW_MODES: readonly RetailHistoryViewMode[] = ['day', 'week', 'month'];
 const RETAIL_HISTORY_REFRESH_ERROR_MESSAGE =
   'Não foi possível atualizar o histórico agora. Os pedidos já carregados continuam disponíveis.';
+const RETAIL_ORDER_DELETE_ERROR_MESSAGE =
+  'Não foi possível excluir o pedido agora. Tente novamente.';
 
 export function RetailOrderHistoryScreen() {
   const insets = useAppSafeAreaInsets();
@@ -42,7 +48,11 @@ export function RetailOrderHistoryScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [viewMode, setViewMode] = useState<RetailHistoryViewMode>('day');
-  const { error, loading, orders, reload, remoteComplete, refreshKey } = useRetailOrderHistory();
+  const { error, loading, orders, reload, remoteComplete, refreshKey, remove } =
+    useRetailOrderHistory();
+  const [deleteDialogOrderId, setDeleteDialogOrderId] = useState<string>();
+  const [deletingOrderId, setDeletingOrderId] = useState<string>();
+  const [deleteError, setDeleteError] = useState<string>();
   const selectedYear = Number(selectedDate.slice(0, 4));
   const weekGroups = useMemo(() => createHistoryWeekGroups(selectedYear), [selectedYear]);
   const selectedRange = useMemo(
@@ -86,6 +96,28 @@ export function RetailOrderHistoryScreen() {
     },
     [router],
   );
+  const handleRequestDelete = useCallback(
+    (orderId: string) => {
+      if (deletingOrderId || deleteDialogOrderId) return;
+      setDeleteError(undefined);
+      setDeleteDialogOrderId(orderId);
+    },
+    [deleteDialogOrderId, deletingOrderId],
+  );
+  const handleDeleteConfirmed = useCallback(() => {
+    const orderId = deleteDialogOrderId;
+    if (!orderId || deletingOrderId) return;
+    setDeleteDialogOrderId(undefined);
+    setDeletingOrderId(orderId);
+    setDeleteError(undefined);
+    void remove(orderId)
+      .catch(() => {
+        setDeleteError(RETAIL_ORDER_DELETE_ERROR_MESSAGE);
+      })
+      .finally(() => {
+        setDeletingOrderId(undefined);
+      });
+  }, [deleteDialogOrderId, deletingOrderId, remove]);
 
   const historyToolbarItems = useMemo(
     () =>
@@ -137,6 +169,7 @@ export function RetailOrderHistoryScreen() {
       error={error}
       financialStates={financialStates}
       loading={loading}
+      onOrderDelete={handleRequestDelete}
       onOrderPress={handleOpenOrder}
       onRetry={reload}
       orders={orders}
@@ -144,6 +177,9 @@ export function RetailOrderHistoryScreen() {
       selectedRange={selectedRange}
       theme={theme}
       viewMode={viewMode}
+      deletingOrderId={deletingOrderId}
+      deleteDialogOrderId={deleteDialogOrderId}
+      deleteError={deleteError}
     />
   );
   const dayContentChildren = (
@@ -209,6 +245,21 @@ export function RetailOrderHistoryScreen() {
       >
         <View style={styles.contentContainer}>{dayContent}</View>
       </PremiumScreen>
+      <NativeDialog
+        actions={[
+          {
+            destructive: true,
+            disabled: Boolean(deletingOrderId),
+            id: 'delete-retail-order',
+            onPress: handleDeleteConfirmed,
+            title: 'Excluir',
+          },
+        ]}
+        message="Esta ação removerá o pedido e seus pagamentos e não poderá ser desfeita."
+        onDismiss={() => setDeleteDialogOrderId(undefined)}
+        title="Excluir pedido?"
+        visible={deleteDialogOrderId !== undefined}
+      />
     </View>
   );
 }
@@ -217,6 +268,7 @@ function RetailHistoryContent({
   error,
   financialStates,
   loading,
+  onOrderDelete,
   onRetry,
   onOrderPress,
   orders,
@@ -224,10 +276,14 @@ function RetailHistoryContent({
   selectedRange,
   theme,
   viewMode,
+  deletingOrderId,
+  deleteDialogOrderId,
+  deleteError,
 }: {
   error?: string;
   financialStates: Record<string, RetailOrderHistoryFinancialViewState>;
   loading: boolean;
+  onOrderDelete: (orderId: string) => void;
   onRetry: () => void;
   onOrderPress: (orderId: string) => void;
   orders: readonly RetailOrder[];
@@ -235,6 +291,9 @@ function RetailHistoryContent({
   selectedRange: { startDate: string; endDate: string };
   theme: ReturnType<typeof useAppTheme>['theme'];
   viewMode: RetailHistoryViewMode;
+  deletingOrderId?: string;
+  deleteDialogOrderId?: string;
+  deleteError?: string;
 }) {
   const visibleOrders = filterRetailOrdersByOrderDate(orders, selectedRange);
   if (!visibleOrders.length && !remoteComplete) {
@@ -259,7 +318,7 @@ function RetailHistoryContent({
 
   if (!visibleOrders.length) {
     return (
-      <GlassCard style={styles.stateCard}>
+      <GlassCard style={[styles.stateCard, { borderRadius: theme.radius.xl + theme.spacing.md }]}>
         <EmptyState
           description="Não há pedidos Varejo neste período."
           title="Nenhum pedido encontrado"
@@ -274,6 +333,8 @@ function RetailHistoryContent({
         <RetailOrderHistoryCard
           financialState={financialStates[order.orderId]}
           key={order.orderId}
+          deleteDisabled={deletingOrderId !== undefined || deleteDialogOrderId !== undefined}
+          onDelete={() => onOrderDelete(order.orderId)}
           onPress={() => onOrderPress(order.orderId)}
           order={order}
         />
@@ -303,6 +364,8 @@ function RetailHistoryContent({
 
   return (
     <View style={[styles.periodSections, { gap: theme.spacing.lg }]}>
+      {deletingOrderId ? <Loading label="Excluindo pedido…" /> : null}
+      {deleteError ? <InlineError message={deleteError} /> : null}
       {error ? (
         <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
           {RETAIL_HISTORY_REFRESH_ERROR_MESSAGE}

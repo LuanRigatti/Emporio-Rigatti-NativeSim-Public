@@ -26,6 +26,34 @@ type RetailCompositionVersionDocument = {
 export type RetailCompositionVersionRecord = RetailCompositionVersionDocument & { id: string };
 export type RetailCompositionCostItem = Pick<RetailCostItem, 'costItemId' | 'name' | 'unit'>;
 
+export type RetailCompositionComponentIdIssues = {
+  duplicateIds: readonly string[];
+  emptyIndexes: readonly number[];
+};
+
+export function getRetailCompositionComponentIdIssues(
+  components: readonly Pick<RetailCompositionComponent, 'costItemId'>[],
+): RetailCompositionComponentIdIssues {
+  const counts = new Map<string, number>();
+  const emptyIndexes: number[] = [];
+
+  components.forEach((component, index) => {
+    const costItemId = component.costItemId.trim();
+    if (!costItemId) {
+      emptyIndexes.push(index);
+      return;
+    }
+    counts.set(costItemId, (counts.get(costItemId) ?? 0) + 1);
+  });
+
+  return {
+    duplicateIds: Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([costItemId]) => costItemId),
+    emptyIndexes,
+  };
+}
+
 type SessionRequest = {
   userId: string;
   generation: number;
@@ -90,6 +118,13 @@ function normalizeComponents(
   costItems: ReadonlyMap<string, RetailCompositionCostItem>,
 ): RetailCompositionComponent[] {
   if (!components.length) throw new Error('Adicione ao menos um componente à composição.');
+  const idIssues = getRetailCompositionComponentIdIssues(components);
+  if (idIssues.emptyIndexes.length) {
+    throw new Error('Selecione um item de custo para cada componente.');
+  }
+  if (idIssues.duplicateIds.length) {
+    throw new Error('Um item de custo não pode aparecer duas vezes.');
+  }
   const seen = new Set<string>();
   return components.map((component) => {
     const costItemId = component.costItemId.trim();
@@ -125,6 +160,8 @@ function documentToVersion(
   ) {
     return undefined;
   }
+  // Keep legacy rows readable so the editor can expose and repair invalid IDs.
+  // They are never treated as a valid selection and cannot be written again.
   const components = record.components;
   if (
     !components.every(

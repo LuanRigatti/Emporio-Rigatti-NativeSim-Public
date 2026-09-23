@@ -42,6 +42,29 @@ describe('useHomeSearch - session isolation', () => {
     mockLoad = jest.fn();
   });
 
+  it('passes the attached date into the structured search period', async () => {
+    mockLoad.mockResolvedValue(emptyDataSet());
+
+    let currentValue: ReturnType<typeof useHomeSearch> | undefined;
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        createElement(SearchHarness, { onValue: (value) => (currentValue = value) }),
+      );
+    });
+
+    await act(async () => {
+      await currentValue!.search('faturamento', { selectedDate: '2026-09-22' });
+    });
+
+    expect(mockLoad).toHaveBeenCalledWith(
+      expect.objectContaining({ period: { kind: 'date', date: '2026-09-22' } }),
+    );
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('discards a search response started before a same-uid session change', async () => {
     let resolveOldSearch: (data: HomeSearchDataSet) => void = () => undefined;
     const oldSearch = new Promise<HomeSearchDataSet>((resolve) => {

@@ -459,7 +459,8 @@ function EditForm({
   order: RetailOrder;
   theme: ReturnType<typeof useAppTheme>['theme'];
 }) {
-  const financialDisabled = pending || hasPostedPayments;
+  const customerFinancialFieldsDisabled = pending || hasPostedPayments;
+  const deliveryCostDisabled = pending || order.status !== 'created';
   return (
     <View style={[styles.sections, { gap: theme.spacing.xl }]}>
       <PremiumSection title="Produtos">
@@ -627,12 +628,12 @@ function EditForm({
         <PremiumCard style={[styles.card, { gap: theme.spacing.md }]}>
           {hasPostedPayments ? (
             <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              Valores financeiros exigem anular os pagamentos registrados antes da alteração.
+              Desconto e taxa de entrega exigem anular os pagamentos registrados antes da alteração.
             </Text>
           ) : null}
           <Field
             accessibilityLabel="Desconto"
-            disabled={financialDisabled}
+            disabled={customerFinancialFieldsDisabled}
             keyboardType="decimal-pad"
             label="Desconto (R$)"
             onChangeText={(value) => onChange('discount', value)}
@@ -641,7 +642,7 @@ function EditForm({
           />
           <Field
             accessibilityLabel="Taxa de entrega"
-            disabled={financialDisabled}
+            disabled={customerFinancialFieldsDisabled}
             keyboardType="decimal-pad"
             label="Taxa de entrega (R$)"
             onChangeText={(value) => onChange('deliveryFee', value)}
@@ -650,7 +651,7 @@ function EditForm({
           />
           <Field
             accessibilityLabel="Custo de entrega"
-            disabled={financialDisabled}
+            disabled={deliveryCostDisabled}
             keyboardType="decimal-pad"
             label="Custo de entrega (R$)"
             onChangeText={(value) => onChange('deliveryCost', value)}

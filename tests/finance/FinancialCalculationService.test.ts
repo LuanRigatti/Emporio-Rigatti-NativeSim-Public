@@ -188,6 +188,26 @@ describe('FinancialCalculationService', () => {
     expect(twoDeliveryDays.custoLuz).toBeCloseTo((100 / 14) * 2, 8);
   });
 
+  it('keeps range light allocation across the complete selected History interval', () => {
+    const result = service.calculateResumo({
+      deliveries: [
+        delivery({ id: 'range-light-start', data: '2026-07-08' }),
+        delivery({ id: 'range-light-end', data: '2026-07-14' }),
+      ],
+      dailyExpenses: {},
+      monthlyExpenses,
+      filters: {
+        dataFimSelecionada: '2026-07-14',
+        dataInicioSelecionada: '2026-07-08',
+        periodo: 'range',
+      },
+      fullLightInterval: true,
+      today,
+    });
+
+    expect(result.custoLuz).toBeCloseTo((100 / 14) * 3, 8);
+  });
+
   it('keeps delivery-derived financial values at zero in a month without deliveries', () => {
     const result = service.calculateResumo({
       deliveries: [delivery({ data: '2026-07-20', valor: 100, quantidade: 2 })],

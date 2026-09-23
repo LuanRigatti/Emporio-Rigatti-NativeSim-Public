@@ -2,6 +2,7 @@ import * as firestoreModule from 'firebase/firestore';
 
 import type { FirestoreTimestamp, RetailPayment } from '@/types/data';
 import {
+  calculateRetailOrderFinancials,
   RetailOrderDataSource,
   type RetailOrderCatalogContext,
   RetailPaymentCatalogCache,
@@ -15,11 +16,15 @@ import type { RetailOrderRecord } from '@/services/retail-orders/RetailOrderData
 import type { RetailPaymentRecord } from '@/services/retail-orders/RetailPaymentDataSource';
 
 let mockAsyncStorage: Map<string, string>;
+let mockBatch: { delete: jest.Mock; commit: jest.Mock };
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
     getItem: jest.fn(async (key: string) => mockAsyncStorage.get(key) ?? null),
+    removeItem: jest.fn(async (key: string) => {
+      mockAsyncStorage.delete(key);
+    }),
     setItem: jest.fn(async (key: string, value: string) => {
       mockAsyncStorage.set(key, value);
     }),
@@ -28,11 +33,31 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 jest.mock('firebase/firestore', () => ({
   __esModule: true,
-  collection: jest.fn((...args: unknown[]) => ({ path: args.join('/') })),
+  collection: jest.fn((...args: unknown[]) => ({
+    path: args
+      .map((argument) =>
+        typeof argument === 'object' && argument !== null && 'path' in argument
+          ? argument.path
+          : typeof argument === 'object' && argument !== null
+            ? ''
+            : argument,
+      )
+      .filter(Boolean)
+      .join('/'),
+  })),
   deleteField: jest.fn(() => ({ type: 'deleteField' })),
   doc: jest.fn((...args: unknown[]) => ({
     id: typeof args.at(-1) === 'string' ? args.at(-1) : 'generated-id',
-    path: args.join('/'),
+    path: args
+      .map((argument) =>
+        typeof argument === 'object' && argument !== null && 'path' in argument
+          ? argument.path
+          : typeof argument === 'object' && argument !== null
+            ? ''
+            : argument,
+      )
+      .filter(Boolean)
+      .join('/'),
   })),
   getDoc: jest.fn(),
   getDocs: jest.fn(),
@@ -40,6 +65,7 @@ jest.mock('firebase/firestore', () => ({
   serverTimestamp: jest.fn(() => ({ type: 'serverTimestamp' })),
   setDoc: jest.fn(async () => undefined),
   updateDoc: jest.fn(async () => undefined),
+  writeBatch: jest.fn(),
 }));
 
 const mockedCollection = jest.mocked(firestoreModule.collection);
@@ -48,6 +74,7 @@ const mockedGetDocs = jest.mocked(firestoreModule.getDocs);
 const mockedGetDocsFromServer = jest.mocked(firestoreModule.getDocsFromServer);
 const mockedSetDoc = jest.mocked(firestoreModule.setDoc);
 const mockedUpdateDoc = jest.mocked(firestoreModule.updateDoc);
+const mockedWriteBatch = jest.mocked(firestoreModule.writeBatch);
 
 const timestamp = { nanoseconds: 0, seconds: 1 } as FirestoreTimestamp;
 
@@ -214,6 +241,11 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
     mockedGetDocsFromServer.mockReset();
     mockedSetDoc.mockReset().mockResolvedValue(undefined);
     mockedUpdateDoc.mockReset().mockResolvedValue(undefined);
+    mockBatch = {
+      commit: jest.fn(async () => undefined),
+      delete: jest.fn(),
+    };
+    mockedWriteBatch.mockReset().mockReturnValue(mockBatch as never);
     mockAsyncStorage = new Map();
     setFirestoreRetailOrderDataSourceOpsForTesting(firestoreModule, {});
     setFirestoreRetailPaymentDataSourceOpsForTesting(firestoreModule, {});
@@ -398,6 +430,78 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
 
     expect(dataSource.getById('order-1', 'uid-retail', 1)?.notes).toBe('Entregar no portão');
     expect(mockedGetDocs).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows deliveryCost-only edits with partial and fully posted payments', async () => {
+    for (const [orderId, paidAmount, expectedStatus, expectedOutstanding] of [
+      ['order-partial', 10, 'partially_paid', 20],
+      ['order-paid', 30, 'paid', 0],
+    ] as const) {
+      mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord(orderId)]));
+      const paymentReader = {
+        list: jest.fn(() => [payment('posted', paidAmount, 'posted')]),
+        load: jest.fn(async () => undefined),
+      } as unknown as RetailPaymentDataSource;
+      const dataSource = new RetailOrderDataSource(paymentReader);
+      dataSource.setSessionUser('uid-retail', 1);
+      await dataSource.load('uid-retail', 1);
+
+      await expect(
+        dataSource.update('uid-retail', orderId, { deliveryCost: 12 }, 1),
+      ).resolves.toBeUndefined();
+
+      const updatedOrder = dataSource.getById(orderId, 'uid-retail', 1);
+      expect(updatedOrder).toMatchObject({ deliveryCost: 12, totalCharged: 30 });
+      const summary = calculateRetailOrderFinancials({
+        order: updatedOrder!,
+        payments: paymentReader.list(orderId, 'uid-retail', 1),
+      });
+      expect(summary).toMatchObject({
+        custoEntregas: 12,
+        financialStatus: expectedStatus,
+        outstandingAmount: expectedOutstanding,
+        paidAmount: paidAmount,
+        totalCharged: 30,
+      });
+      expect(mockedUpdateDoc).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: orderId }),
+        expect.objectContaining({ deliveryCost: 12 }),
+      );
+      expect(mockedUpdateDoc.mock.lastCall?.[1]).not.toHaveProperty('totalCharged');
+    }
+  });
+
+  it('keeps posted-payment protection for combined customer financial patches', async () => {
+    mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord()]));
+    const paymentReader = {
+      list: jest.fn(() => [payment('posted', 10, 'posted')]),
+      load: jest.fn(async () => undefined),
+    } as unknown as RetailPaymentDataSource;
+    const dataSource = new RetailOrderDataSource(paymentReader);
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(
+      dataSource.update('uid-retail', 'order-1', { deliveryCost: 12, discount: 1 }, 1),
+    ).rejects.toMatchObject({ code: 'order_has_posted_payment' });
+    await expect(
+      dataSource.update('uid-retail', 'order-1', { deliveryCost: 12, deliveryFee: 21 }, 1),
+    ).rejects.toMatchObject({ code: 'order_has_posted_payment' });
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('keeps deliveryCost read-only for completed and cancelled orders', async () => {
+    for (const status of ['completed', 'cancelled'] as const) {
+      const orderId = `order-${status}`;
+      mockedGetDocs.mockResolvedValueOnce(queryResult([orderRecord(orderId, { status })]));
+      const dataSource = new RetailOrderDataSource();
+      dataSource.setSessionUser('uid-retail', 1);
+      await dataSource.load('uid-retail', 1);
+
+      await expect(
+        dataSource.update('uid-retail', orderId, { deliveryCost: 12 }, 1),
+      ).rejects.toMatchObject({ code: 'order_not_editable' });
+    }
   });
 
   it('allows monetary edits when the order has only voided payments', async () => {
@@ -884,6 +988,124 @@ describe('RetailOrderDataSource and RetailPaymentDataSource', () => {
 
     expect(dataSource.getSnapshot('order-1', 'uid-same', 1)).toBeNull();
     expect(dataSource.getSnapshot('order-1', 'uid-same', 2)).toBeNull();
+  });
+
+  it.each(['created', 'completed', 'cancelled'] as const)(
+    'deletes a %s order and its payments in one batch using canonical document paths',
+    async (status) => {
+      mockedGetDocs
+        .mockResolvedValueOnce(queryResult([orderRecord('order-1', { status })]))
+        .mockResolvedValueOnce(queryResult([paymentRecord('payment-1')]));
+      const dataSource = new RetailOrderDataSource();
+      dataSource.setSessionUser('uid-retail', 1);
+      await dataSource.load('uid-retail', 1);
+
+      await expect(dataSource.deleteOrder('uid-retail', 'order-1', 1)).resolves.toBeUndefined();
+
+      expect(mockedWriteBatch).toHaveBeenCalledWith({});
+      expect(mockBatch.delete).toHaveBeenCalledTimes(2);
+      expect(mockBatch.delete.mock.calls.map(([reference]) => reference.path)).toEqual([
+        'users/uid-retail/retailOrders/order-1/payments/payment-1',
+        'users/uid-retail/retailOrders/order-1',
+      ]);
+      expect(mockBatch.commit).toHaveBeenCalledTimes(1);
+      expect(dataSource.getById('order-1', 'uid-retail', 1)).toBeUndefined();
+    },
+  );
+
+  it('deletes an order without payment documents in the same batch', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce(queryResult([orderRecord()]))
+      .mockResolvedValueOnce(queryResult([]));
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await dataSource.deleteOrder('uid-retail', 'order-1', 1);
+
+    expect(mockBatch.delete).toHaveBeenCalledTimes(1);
+    expect(mockBatch.delete).toHaveBeenCalledWith({
+      id: 'order-1',
+      path: 'users/uid-retail/retailOrders/order-1',
+    });
+  });
+
+  it('rejects a batch larger than Firestore limits before issuing any write', async () => {
+    const payments = Array.from({ length: 500 }, (_, index) =>
+      paymentRecord(`payment-${index + 1}`),
+    );
+    mockedGetDocs
+      .mockResolvedValueOnce(queryResult([orderRecord()]))
+      .mockResolvedValueOnce(queryResult(payments));
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(dataSource.deleteOrder('uid-retail', 'order-1', 1)).rejects.toMatchObject({
+      code: 'order_delete_batch_limit',
+    });
+    expect(mockedWriteBatch).not.toHaveBeenCalled();
+    expect(mockBatch.commit).not.toHaveBeenCalled();
+    expect(dataSource.getById('order-1', 'uid-retail', 1)).toEqual(
+      expect.objectContaining({ orderId: 'order-1' }),
+    );
+  });
+
+  it('keeps the order available when the deletion commit fails', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce(queryResult([orderRecord()]))
+      .mockResolvedValueOnce(queryResult([paymentRecord()]));
+    mockBatch.commit.mockRejectedValueOnce(new Error('offline'));
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    await expect(dataSource.deleteOrder('uid-retail', 'order-1', 1)).rejects.toThrow('offline');
+    expect(dataSource.getById('order-1', 'uid-retail', 1)).toEqual(
+      expect.objectContaining({ orderId: 'order-1' }),
+    );
+  });
+
+  it('coalesces duplicate deletion requests for the same order', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce(queryResult([orderRecord()]))
+      .mockResolvedValueOnce(queryResult([paymentRecord()]));
+    let resolveCommit!: () => void;
+    mockBatch.commit.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveCommit = resolve;
+      }),
+    );
+    const dataSource = new RetailOrderDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('uid-retail', 1);
+
+    const first = dataSource.deleteOrder('uid-retail', 'order-1', 1);
+    const second = dataSource.deleteOrder('uid-retail', 'order-1', 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(mockedGetDocs).toHaveBeenCalledTimes(2);
+    expect(mockedWriteBatch).toHaveBeenCalledTimes(1);
+
+    resolveCommit();
+    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+  });
+
+  it('discards a payment load when deletion invalidates that order', async () => {
+    let resolveLoad!: (value: Awaited<ReturnType<typeof firestoreModule.getDocs>>) => void;
+    const pending = new Promise<Awaited<ReturnType<typeof firestoreModule.getDocs>>>((resolve) => {
+      resolveLoad = resolve;
+    });
+    mockedGetDocs.mockReturnValueOnce(pending);
+    const dataSource = new RetailPaymentDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    const load = dataSource.load('order-1', 'uid-retail', 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    dataSource.prepareOrderDeletion('order-1', 'uid-retail', 1);
+    resolveLoad(queryResult([paymentRecord()]));
+    await load;
+
+    expect(dataSource.getSnapshot('order-1', 'uid-retail', 1)).toBeNull();
   });
 });
 

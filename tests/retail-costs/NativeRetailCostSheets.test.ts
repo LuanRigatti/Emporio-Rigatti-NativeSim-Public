@@ -60,7 +60,13 @@ jest.mock('@/theme', () => ({
 }));
 jest.mock('@/utils/data', () => ({
   parseIsoCalendarDate: jest.fn(() => new Date(2026, 0, 1)),
-  todayIso: jest.fn(() => '2026-01-01'),
+  todayIso: jest.fn((date?: Date) =>
+    date
+      ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+          date.getDate(),
+        ).padStart(2, '0')}`
+      : '2026-01-01',
+  ),
 }));
 jest.mock('@/utils/presentation/testModeValues', () => ({
   useTestModePresentation: () => ({ enabled: false }),
@@ -135,6 +141,46 @@ describe('retail cost native sheets', () => {
       purchaseTotalCost: '40',
       purchasedQuantity: '2',
       supplier: '',
+    });
+  });
+
+  it('edits only the effective date of an existing historical entry', async () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(NativeRetailEntryFormSheetFallback, {
+          initialValues: {
+            effectiveDate: '2026-01-20',
+            purchaseTotalCost: '40',
+            purchasedQuantity: '2',
+            supplier: 'Fornecedor',
+          },
+          itemUnit: 'kg',
+          mode: 'edit',
+          onSubmit: mockEntrySubmit,
+          onVisibleChange: mockOnVisibleChange,
+          visible: true,
+        }),
+      );
+    });
+
+    const datePicker = findNodes(renderer, 'native-date-picker')[0];
+    const fields = findNodes(renderer, 'native-text-field');
+    expect(fields.every((field) => field.props.disabled === true)).toBe(true);
+    expect(findNodes(renderer, 'native-button')[0]?.props.label).toBe('Salvar vigência');
+    expect(findNodes(renderer, 'native-sheet')[0]?.props.title).toBe('Editar vigência do custo');
+
+    act(() => datePicker?.props.onChange(new Date(2026, 0, 10)));
+    await act(async () => {
+      findNodes(renderer, 'native-button')[0]?.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockEntrySubmit).toHaveBeenCalledWith({
+      effectiveDate: '2026-01-10',
+      purchaseTotalCost: '40',
+      purchasedQuantity: '2',
+      supplier: 'Fornecedor',
     });
   });
 

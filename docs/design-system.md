@@ -42,7 +42,10 @@ O import público preferencial é `@/components`. Os sub-barrels oficiais `@/com
 - Componentes utilizam `useAppTheme()` e nunca definem cores, fontes, espaçamentos, radius ou sombras de produto localmente.
 - A lógica de negócio pertence a features, hooks, services e repositories.
 - Os componentes podem conter apenas comportamento visual, acessibilidade, interação de apresentação e estados de UI.
-- `PaymentMethodSelector` é a única seleção de pagamento visual e aceita somente `Dinheiro` e `Pix`.
+- `PaymentMethodSelector` é o seletor visual específico para quitação e aceita
+  somente `Dinheiro` e `Pix`. Isso não define os métodos do pagamento de
+  `RetailOrder`, que usa seu próprio fluxo e suporta `Pix`, `Dinheiro`,
+  `Crédito`, `Débito` e `Outro`.
 - Valores ocultos continuam ocupando espaço por meio dos tokens de layout; ocultação não altera dados.
 - Componentes RN podem usar os providers de ícones atuais (`@expo/vector-icons` ou `theme.icons`). Controles nativos iOS devem preferir SF Symbols quando apropriado. Emojis e caracteres Unicode não são ícones de navegação.
 
@@ -131,7 +134,7 @@ Usar `AppText` para textos novos, permitir font scaling e escolher a menor varia
 | `FilterBar`             | `filters`: `{ key, label, active? }[]`, `onPress?`, `onRemove?`, `style?`                                                                                                   | filtros ativos/removíveis                   | Usar para representar filtros já definidos. Não ordenar ou buscar dados.               |
 | `SegmentedControl<T>`   | `options`: `{ value, label }[]`, `value`, `onChange`, `disabled?`, `style?`                                                                                                 | selecionado, não selecionado, disabled      | Usar para poucas opções mutuamente exclusivas. Não usar para listas longas.            |
 | `ClientSelector`        | `label?`, `value?`, `placeholder?`, `onPress?`, `onClear?`, `helperText?`, `error?`, `required?`, `disabled?`, `style?`, acessibilidade                                     | vazio, selecionado, erro, disabled          | Usar para abrir uma seleção de cliente. Não carregar clientes diretamente.             |
-| `PaymentMethodSelector` | `value?`, `onChange`, `label?`, `helperText?`, `error?`, `required?`, `disabled?`, `style?`, acessibilidade                                                                 | Dinheiro/Pix, selecionado, erro, disabled   | Usar exclusivamente para quitação. Não selecionar Pix automaticamente.                 |
+| `PaymentMethodSelector` | `value?`, `onChange`, `label?`, `helperText?`, `error?`, `required?`, `disabled?`, `style?`, acessibilidade                                                                 | Dinheiro/Pix, selecionado, erro, disabled   | Usar exclusivamente para quitação. Não selecionar Pix automaticamente. Não usar como contrato dos métodos de `RetailOrder`. |
 | `StatusSelector`        | `value?`, `options?`, `onChange`, `label?`, `helperText?`, `error?`, `required?`, `disabled?`, `style?`                                                                     | seis status públicos, selecionado, disabled | Usar quando o fluxo permitir editar status. Não inventar novos status sem decisão.     |
 | `SwitchField`           | `label?`, `helperText?`, `value`, `onValueChange`, `disabled?`, `style?`, acessibilidade                                                                                    | on/off, disabled                            | Usar para preferência binária. Não usar para ação destrutiva.                          |
 | `FormField`             | props de campo (`label?`, `helperText?`, `error?`, `required?`, `disabled?`), `children`, `style?`                                                                          | erro/helper/required                        | Usar para agrupar controles que não possuem seu próprio label. Não duplicar mensagens. |

@@ -2,9 +2,12 @@ import * as firestoreModule from 'firebase/firestore';
 
 import {
   RetailCompositionDataSource,
+  RetailCostEntryCatalogCache,
   RetailCostEntryDataSource,
+  retailCostEntryCatalogCache,
   RetailCostItemDataSource,
   RetailCostItemCatalogCache,
+  getRetailCompositionComponentIdIssues,
   setFirestoreRetailCompositionDataSourceOpsForTesting,
   setFirestoreRetailCostEntryDataSourceOpsForTesting,
   setFirestoreRetailCostItemDataSourceOpsForTesting,
@@ -85,6 +88,54 @@ describe('retail cost data sources', () => {
     setFirestoreRetailCompositionDataSourceOpsForTesting(undefined);
   });
 
+  it('detects empty, whitespace-only, and duplicate composition item ids', () => {
+    expect(
+      getRetailCompositionComponentIdIssues([
+        { costItemId: ' ' },
+        { costItemId: 'coffee' },
+        { costItemId: ' coffee ' },
+      ]),
+    ).toEqual({ duplicateIds: ['coffee'], emptyIndexes: [0] });
+  });
+
+  it('keeps legacy empty ids readable but rejects them when writing a new version', async () => {
+    mockedGetDocs.mockResolvedValueOnce(
+      result([
+        {
+          active: true,
+          components: [
+            { costItemId: '', costItemNameSnapshot: 'Café antigo', quantity: 1, unit: 'kg' },
+          ],
+          effectiveFrom: '2026-01-01',
+          id: 'legacy-composition',
+          productId: 'product-1',
+        },
+      ]),
+    );
+    const dataSource = new RetailCompositionDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('product-1', 'uid-retail', 1);
+
+    expect(dataSource.list('product-1', 'uid-retail', 1)[0]?.components[0]).toMatchObject({
+      costItemId: '',
+      costItemNameSnapshot: 'Café antigo',
+    });
+    await expect(
+      dataSource.createVersion(
+        'uid-retail',
+        'product-1',
+        {
+          components: [
+            { costItemId: ' ', costItemNameSnapshot: 'Café antigo', quantity: 1, unit: 'kg' },
+          ],
+          effectiveFrom: '2026-01-01',
+        },
+        new Map([['coffee', { costItemId: 'coffee', name: 'Café', unit: 'kg' }]]),
+        1,
+      ),
+    ).rejects.toThrow('Selecione um item de custo');
+  });
+
   it('creates, updates, and soft-deactivates items in the retail namespace', async () => {
     mockedGetDocs.mockResolvedValueOnce(result());
     const dataSource = new RetailCostItemDataSource();
@@ -139,6 +190,8 @@ describe('retail cost data sources', () => {
     const dataSource = new RetailCostEntryDataSource();
     dataSource.setSessionUser('uid-retail', 1);
     await dataSource.load('coffee', 'uid-retail', 1);
+    const listener = jest.fn();
+    dataSource.subscribe(listener);
 
     await dataSource.create(
       'uid-retail',
@@ -174,6 +227,108 @@ describe('retail cost data sources', () => {
     expect(dataSource.list('coffee', 'uid-retail', 1)[0]).toMatchObject({
       normalizedUnitCost: 2.5,
     });
+    expect(listener).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    await expect(retailCostEntryCatalogCache.read('uid-retail', 'coffee')).resolves.toEqual([
+      expect.objectContaining({ id: 'generated-id', normalizedUnitCost: 2.5 }),
+    ]);
+  });
+
+  it('updates only an existing entry effective date and preserves its normalized cost data', async () => {
+    mockedGetDocs.mockResolvedValueOnce(
+      result([
+        {
+          createdAt: { nanoseconds: 0, seconds: 1 },
+          effectiveDate: '2026-09-20',
+          entryId: 'entry-1',
+          id: 'entry-1',
+          normalizedUnitCost: 2.5,
+          purchaseTotalCost: 10,
+          purchasedQuantity: 4,
+          supplier: 'Fornecedor',
+          unit: 'unidade',
+        },
+      ]),
+    );
+    const dataSource = new RetailCostEntryDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    await dataSource.load('coffee', 'uid-retail', 1);
+    const listener = jest.fn();
+    dataSource.subscribe(listener);
+
+    await dataSource.updateEffectiveDate('uid-retail', 'coffee', 'entry-1', '2026-09-10', 1);
+
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(expect.objectContaining({ id: 'entry-1' }), {
+      effectiveDate: '2026-09-10',
+    });
+    expect(dataSource.list('coffee', 'uid-retail', 1)[0]).toMatchObject({
+      effectiveDate: '2026-09-10',
+      entryId: 'entry-1',
+      normalizedUnitCost: 2.5,
+      purchaseTotalCost: 10,
+      purchasedQuantity: 4,
+      supplier: 'Fornecedor',
+      unit: 'unidade',
+    });
+    expect(mockedSetDoc).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    await expect(retailCostEntryCatalogCache.read('uid-retail', 'coffee')).resolves.toEqual([
+      expect.objectContaining({
+        effectiveDate: '2026-09-10',
+        id: 'entry-1',
+        normalizedUnitCost: 2.5,
+      }),
+    ]);
+  });
+
+  it('publishes cached cost entries before its remote refresh resolves', async () => {
+    const cache = new RetailCostEntryCatalogCache();
+    await cache.write('uid-retail', 'coffee', [
+      {
+        effectiveDate: '2026-09-20',
+        entryId: 'cached-entry',
+        id: 'cached-entry',
+        normalizedUnitCost: 2.5,
+        purchaseTotalCost: 10,
+        purchasedQuantity: 4,
+        unit: 'unidade',
+      },
+    ]);
+    let resolveRemote: (value: Awaited<ReturnType<typeof firestoreModule.getDocs>>) => void = () =>
+      undefined;
+    mockedGetDocs.mockReturnValueOnce(
+      new Promise<Awaited<ReturnType<typeof firestoreModule.getDocs>>>((resolve) => {
+        resolveRemote = resolve;
+      }),
+    );
+    const dataSource = new RetailCostEntryDataSource();
+    dataSource.setSessionUser('uid-retail', 1);
+    const load = dataSource.load('coffee', 'uid-retail', 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(dataSource.list('coffee', 'uid-retail', 1)).toEqual([
+      expect.objectContaining({ entryId: 'cached-entry', normalizedUnitCost: 2.5 }),
+    ]);
+
+    resolveRemote(
+      result([
+        {
+          effectiveDate: '2026-09-21',
+          entryId: 'remote-entry',
+          id: 'remote-entry',
+          normalizedUnitCost: 3,
+          purchaseTotalCost: 12,
+          purchasedQuantity: 4,
+          unit: 'unidade',
+        },
+      ]),
+    );
+    await load;
+
+    expect(dataSource.list('coffee', 'uid-retail', 1)).toEqual([
+      expect.objectContaining({ entryId: 'remote-entry', normalizedUnitCost: 3 }),
+    ]);
   });
 
   it('rejects invalid quantities, negative costs, and unit mismatches', async () => {

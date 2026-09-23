@@ -18,6 +18,12 @@ import type { UserDataSnapshot } from './UserDataSnapshot';
 export type AppDataMode = 'firebase' | 'mock';
 export type { DeliveryRegistrationInput };
 
+export type AppDataLoadResult = {
+  snapshot: UserDataSnapshot;
+  source: 'cache' | 'network' | 'local';
+  isStale: boolean;
+};
+
 export const APP_DATA_MODE: AppDataMode = ENABLE_FIREBASE_APP_DATA ? 'firebase' : 'mock';
 
 function parseCost(value: string): number {
@@ -87,12 +93,24 @@ function normalizeSnapshot(snapshot: UserDataSnapshot): UserDataSnapshot {
 }
 
 export async function loadAppData(uid?: string): Promise<UserDataSnapshot> {
+  return (await loadAppDataResult(uid)).snapshot;
+}
+
+export async function loadAppDataResult(uid?: string): Promise<AppDataLoadResult> {
   if (APP_DATA_MODE === 'firebase') {
     if (!uid) throw new Error('SessÃ£o nÃ£o disponÃ­vel para carregar os dados.');
-    return normalizeSnapshot((await userDataService.loadWithCacheFallback(uid)).snapshot);
+    const result = await userDataService.loadWithCacheFallback(uid);
+    return {
+      ...result,
+      snapshot: normalizeSnapshot(result.snapshot),
+    };
   }
 
-  return loadMockData(uid ?? COST_SETTINGS_DEFAULT_SCOPE);
+  return {
+    isStale: false,
+    snapshot: await loadMockData(uid ?? COST_SETTINGS_DEFAULT_SCOPE),
+    source: 'local',
+  };
 }
 
 export function subscribeToAppData(listener: () => void): () => void {

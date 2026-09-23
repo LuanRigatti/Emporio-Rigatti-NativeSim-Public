@@ -149,6 +149,7 @@ export class RetailPaymentDataSource {
   private sessionGeneration = 0;
   private boundSessionVersion: number | undefined;
   private loadEpoch = 0;
+  private readonly orderEpochs = new Map<string, number>();
   private readonly inFlightHydrations = new Map<string, Promise<boolean>>();
   private readonly inFlightLoads = new Map<string, Promise<void>>();
   private readonly inFlightVoids = new Map<string, Promise<void>>();
@@ -182,6 +183,7 @@ export class RetailPaymentDataSource {
     this.activeUid = userId;
     this.recordsByOrderId.clear();
     this.snapshotsByOrderId.clear();
+    this.orderEpochs.clear();
     this.inFlightVoids.clear();
     this.publish();
   }
@@ -194,7 +196,8 @@ export class RetailPaymentDataSource {
     assertId(orderId, 'pedido');
     const generation = this.beginSessionRequest(userId, sessionVersion);
     if (generation === null) return false;
-    const key = this.orderRequestKey(userId, generation, orderId);
+    const orderEpoch = this.getOrderEpoch(orderId);
+    const key = `${this.orderRequestKey(userId, generation, orderId)}:${this.loadEpoch}:${orderEpoch}`;
     const existing = this.inFlightHydrations.get(key);
     if (existing) return existing;
     const epoch = this.loadEpoch;
@@ -204,6 +207,7 @@ export class RetailPaymentDataSource {
       generation,
       sessionVersion,
       epoch,
+      orderEpoch,
     );
     this.inFlightHydrations.set(key, hydration);
     void hydration.then(
@@ -223,11 +227,13 @@ export class RetailPaymentDataSource {
     generation: number,
     sessionVersion: number | undefined,
     epoch: number,
+    orderEpoch: number,
   ): Promise<boolean> {
     const cachedRecords = await retailPaymentCatalogCache.read(userId, orderId);
     if (
       !this.isSessionRequestCurrent(userId, generation, sessionVersion) ||
       this.loadEpoch !== epoch ||
+      this.getOrderEpoch(orderId) !== orderEpoch ||
       this.snapshotsByOrderId.has(orderId)
     ) {
       return false;
@@ -245,10 +251,18 @@ export class RetailPaymentDataSource {
     const generation = this.beginSessionRequest(userId, sessionVersion);
     if (generation === null) return;
     const epoch = this.loadEpoch;
-    const key = `${this.orderRequestKey(userId, generation, orderId)}:${epoch}`;
+    const orderEpoch = this.getOrderEpoch(orderId);
+    const key = `${this.orderRequestKey(userId, generation, orderId)}:${epoch}:${orderEpoch}`;
     const existing = this.inFlightLoads.get(key);
     if (existing) return existing;
-    const load = this.loadFromFirestore(orderId, userId, generation, sessionVersion, epoch);
+    const load = this.loadFromFirestore(
+      orderId,
+      userId,
+      generation,
+      sessionVersion,
+      epoch,
+      orderEpoch,
+    );
     this.inFlightLoads.set(key, load);
     void load.then(
       () => {
@@ -267,11 +281,13 @@ export class RetailPaymentDataSource {
     generation: number,
     sessionVersion: number | undefined,
     epoch: number,
+    orderEpoch: number,
   ): Promise<void> {
     await this.hydrateFromCache(orderId, userId, sessionVersion);
     if (
       !this.isSessionRequestCurrent(userId, generation, sessionVersion) ||
-      this.loadEpoch !== epoch
+      this.loadEpoch !== epoch ||
+      this.getOrderEpoch(orderId) !== orderEpoch
     ) {
       return;
     }
@@ -280,7 +296,8 @@ export class RetailPaymentDataSource {
       const result = await getDocs(await collectionFor(userId, orderId));
       if (
         !this.isSessionRequestCurrent(userId, generation, sessionVersion) ||
-        this.loadEpoch !== epoch
+        this.loadEpoch !== epoch ||
+        this.getOrderEpoch(orderId) !== orderEpoch
       ) {
         return;
       }
@@ -307,7 +324,8 @@ export class RetailPaymentDataSource {
     } catch (error) {
       if (
         !this.isSessionRequestCurrent(userId, generation, sessionVersion) ||
-        this.loadEpoch !== epoch
+        this.loadEpoch !== epoch ||
+        this.getOrderEpoch(orderId) !== orderEpoch
       ) {
         return;
       }
@@ -318,6 +336,24 @@ export class RetailPaymentDataSource {
   public list(orderId: string, userId?: string, sessionVersion?: number): RetailPayment[] {
     if (!this.isSessionVisible(userId, sessionVersion)) return [];
     return sortPayments(this.snapshotsByOrderId.get(orderId) ?? []);
+  }
+
+  public prepareOrderDeletion(orderId: string, userId?: string, sessionVersion?: number): void {
+    assertId(orderId, 'pedido');
+    if (!this.isSessionVisible(userId, sessionVersion)) return;
+    this.bumpOrderEpoch(orderId);
+  }
+
+  public removeOrder(orderId: string, userId?: string, sessionVersion?: number): void {
+    assertId(orderId, 'pedido');
+    if (!this.isSessionVisible(userId, sessionVersion)) return;
+    this.bumpOrderEpoch(orderId);
+    this.recordsByOrderId.delete(orderId);
+    this.snapshotsByOrderId.delete(orderId);
+    if (userId) {
+      void retailPaymentCatalogCache.remove(userId, orderId).catch(() => undefined);
+    }
+    this.publish();
   }
 
   public async register(
@@ -558,6 +594,14 @@ export class RetailPaymentDataSource {
 
   private orderRequestKey(userId: string, generation: number, orderId: string): string {
     return `${userId}:${generation}:${orderId}`;
+  }
+
+  private getOrderEpoch(orderId: string): number {
+    return this.orderEpochs.get(orderId) ?? 0;
+  }
+
+  private bumpOrderEpoch(orderId: string): void {
+    this.orderEpochs.set(orderId, this.getOrderEpoch(orderId) + 1);
   }
 
   private publish(): void {

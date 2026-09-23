@@ -26,11 +26,13 @@ export default function NativeRetailEntryFormSheetFallback({
   itemUnit,
   onSubmit,
   onVisibleChange,
+  mode = 'create',
   title,
   visible,
 }: NativeRetailCostEntryFormSheetProps) {
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
+  const isEditing = mode === 'edit';
   const [values, setValues] = useState<NativeRetailCostEntryFormValues>(EMPTY_VALUES);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
@@ -50,11 +52,11 @@ export default function NativeRetailEntryFormSheetFallback({
 
   const submit = async () => {
     if (testModeEnabled || submitting) return;
-    if (!values.purchasedQuantity.trim()) {
+    if (!isEditing && !values.purchasedQuantity.trim()) {
       setError('Informe a quantidade comprada.');
       return;
     }
-    if (!values.purchaseTotalCost.trim()) {
+    if (!isEditing && !values.purchaseTotalCost.trim()) {
       setError('Informe o custo total da compra.');
       return;
     }
@@ -75,16 +77,16 @@ export default function NativeRetailEntryFormSheetFallback({
   return (
     <NativeSheet
       onVisibleChange={onVisibleChange}
-      title={title ?? 'Nova entrada de custo'}
+      title={title ?? (isEditing ? 'Editar vigência do custo' : 'Nova entrada de custo')}
       visible={visible}
     >
       <View style={[styles.content, { gap: theme.spacing.md }]}>
         <View style={styles.dateRow}>
           <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-            Data efetiva
+            Vigente desde
           </Text>
           <NativeDatePicker
-            accessibilityLabel="Data efetiva do custo"
+            accessibilityLabel="Vigente desde do custo"
             mode="date"
             onChange={(date) => update('effectiveDate', todayIso(date))}
             style="compact"
@@ -96,7 +98,7 @@ export default function NativeRetailEntryFormSheetFallback({
         </Text>
         <NativeTextField
           accessibilityLabel="Quantidade comprada"
-          disabled={testModeEnabled || submitting}
+          disabled={testModeEnabled || submitting || isEditing}
           keyboardType="decimal-pad"
           label={`Quantidade comprada (${itemUnit})`}
           onChangeText={(value) => update('purchasedQuantity', value)}
@@ -105,7 +107,7 @@ export default function NativeRetailEntryFormSheetFallback({
         />
         <NativeTextField
           accessibilityLabel="Custo total da compra"
-          disabled={testModeEnabled || submitting}
+          disabled={testModeEnabled || submitting || isEditing}
           keyboardType="decimal-pad"
           label="Custo total da compra"
           onChangeText={(value) => update('purchaseTotalCost', value)}
@@ -114,7 +116,7 @@ export default function NativeRetailEntryFormSheetFallback({
         />
         <NativeTextField
           accessibilityLabel="Fornecedor da entrada de custo"
-          disabled={testModeEnabled || submitting}
+          disabled={testModeEnabled || submitting || isEditing}
           label="Fornecedor (opcional)"
           onChangeText={(value) => update('supplier', value)}
           placeholder="Opcional"
@@ -127,7 +129,7 @@ export default function NativeRetailEntryFormSheetFallback({
           controlSize="large"
           disabled={testModeEnabled || submitting}
           haptic="light"
-          label="Adicionar entrada"
+          label={isEditing ? 'Salvar vigência' : 'Adicionar entrada'}
           onPress={() => void submit()}
           variant="primary"
         />

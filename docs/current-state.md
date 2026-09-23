@@ -9,14 +9,71 @@ preservam o histórico técnico e as decisões acumuladas.
 ## Git
 
 - Branch atual: `ajustes-codex`.
-- O checkpoint funcional da sincronização das toolbars das tabs é
-  `2b303fe44d1803e7462974bb9ffbc1787a8ca641`
-  (`fix(ios): synchronize tab toolbar and preserve native morph`).
-- O fechamento documental desta correção pode estar em commit posterior na
-  mesma branch; o checkpoint funcional acima continua sendo a referência da
-  implementação. Arquivos locais deliberadamente excluídos de checkpoints
-  podem permanecer no working tree e devem ser preservados em futuras
-  operações seletivas.
+- HEAD local e `origin/ajustes-codex` estão em
+  `0dff9c693e8e82f7be2c3d83443931410adbfd80`
+  (`feat(retail): support historical costs and category delivery allocation`).
+- O checkpoint publicado não contém alterações locais de código. Esta revisão
+  documental pode deixar somente os documentos listados modificados até ser
+  publicada; operações futuras devem continuar seletivas.
+
+## Checkpoint operacional publicado — 2026-09-21
+
+Este bloco resume o estado funcional confirmado nos commits publicados mais
+recentes. O código/Git atual continua sendo a fonte da verdade em caso de
+divergência com seções históricas deste documento.
+
+### Custos e composição Retail
+
+- Novas entradas de custo usam `effectiveDate` com padrão igual a hoje. Uma
+  entrada existente pode ter somente sua vigência corrigida, preservando
+  quantidade, valor, unidade, custo unitário normalizado e fornecedor.
+- O resolver histórico escolhe o último custo com
+  `effectiveDate <= referenceDate`; não usa custo futuro nem fallback
+  silencioso para custo atual. Quantidade comprada serve somente para
+  normalizar custo e não representa estoque.
+- Versões de composição expõem `Vigente desde` por `effectiveFrom`. Uma nova
+  versão pode valer desde data passada sem sobrescrever versões históricas; o
+  resolver continua escolhendo a versão válida na data da venda.
+- Pedidos já persistidos preservam seus snapshots e não são recalculados por
+  alterações posteriores em custos ou composições.
+
+### Finanças Retail
+
+- As visões por categoria distribuem `deliveryCost` e `deliveryFee` reconhecidos
+  por receita líquida positiva reconhecida dos produtos. Uma categoria recebe
+  100%; pedidos mistos usam rateio proporcional com alocação determinística em
+  centavos.
+- O seletor Retail apresenta `Geral | Cestas | Salgados | Baldes`. Cada filtro
+  de categoria usa o snapshot histórico da categoria do pedido.
+- Pagamentos parciais, `posted`, `paidAt`, `voided` e filtros de período
+  preservam as regras existentes. `deliveryCost` reduz o lucro da categoria;
+  `deliveryFee` soma receita; somente a parcela reconhecida no período entra no
+  rateio; `voided` não entra e `paymentFee` por categoria permanece inalterado.
+- Categoria única recebe 100% de `deliveryCost` e `deliveryFee`; pedidos mistos
+  usam rateio proporcional e a visão Geral permanece integralmente agregada.
+- A visão Geral e `calculateRetailOrderFinancials` não foram alterados.
+
+### Catálogo, Home e pedidos Retail
+
+- Novo produto, Editar produto e Composição do Catálogo Varejo são páginas do
+  Root Native Stack. Create e edit permanecem em formulários inline, Composição
+  permanece em cards inline e `NativeRetailProductFormSheet` não participa do
+  fluxo de runtime.
+- A Home é contextual ao `AppMode`: `wholesale` exibe a experiência Atacado e
+  `retail` exibe a experiência Varejo, com título dinâmico `Atacado`/`Varejo`
+  e o seletor existente. A rota `/pesquisa` inicia sem sugestões visíveis e
+  usa o botão nativo da própria rota para alternar o conteúdo de ajuda existente.
+- O método de pagamento selecionado aparece no trigger do fluxo Retail. Em
+  pedidos `created`, `deliveryCost` pode ser alterado isoladamente mesmo com
+  pagamento `posted`; `discount`, `deliveryFee` e alterações comerciais
+  continuam protegidos, e `completed`/`cancelled` permanecem somente leitura.
+
+### Validação e publicação
+
+- TypeScript, ESLint direcionado, Prettier direcionado, 35 suítes/235 testes e
+  `git diff --check` passaram antes da publicação.
+- `AGENTS.md`, código nativo, configuração, dependências, schema e regras do
+  Firestore permaneceram inalterados.
 
 ## Fechamento da sincronização nativa das toolbars das tabs — 2026-09-17
 
@@ -256,11 +313,13 @@ abaixo é a referência operacional após a publicação deste commit.
   `theme.layout.screenHorizontalPadding` (`16 pt`) em cada lado, com largura
   centralizada. O botão de pesquisa navega para `/pesquisa` sem abrir teclado ou
   campo editável na Home.
-- O header da Home mantém avatar e lupa juntos em uma única pílula no canto
-  superior direito, pertencente ao `Stack.Toolbar` compartilhado do Stack raiz
-  `(tabs)`, sincronizado nativamente antes da troca de tab. Os dois controles
-  continuam com hitboxes nativas independentes, haptics, Profile Sheet e
-  navegação para `/pesquisa`.
+- O header da Home mantém o avatar no slot esquerdo do `Stack.Toolbar`
+  compartilhado do Stack raiz `(tabs)`, sincronizado nativamente antes da troca
+  de tab. No Wholesale/Atacado, a ação Search ocupa o slot direito; no
+  Retail/Varejo, o slot direito não possui Search. O título grande
+  `Atacado`/`Varejo` é a entrada atual do seletor de AppMode. O avatar mantém
+  hit area, haptic, Profile Sheet e comportamento nativos; Search navega para
+  `/pesquisa` quando disponível.
 - No caminho iOS com `@expo/ui`, a cápsula visível usa o shared background
   nativo do `Stack.Toolbar`, como o seletor de período de Finanças. A Home não
   usa `hidesSharedBackground`, tint, background manual ou `glassEffect` custom
@@ -661,7 +720,7 @@ salvo quando a tarefa pedir uma auditoria histórica explícita.
 ## Identidade do aplicativo
 
 - Branch de trabalho: `ajustes-codex`.
-- Commit base do snapshot: `7c6c85f` (`feat: refine history and finance flows`).
+- Commit base do snapshot: `0dff9c6` (`feat(retail): support historical costs and category delivery allocation`).
 - Expo SDK 57 e Development Build iOS.
 - Nome exibido configurado: `Empório Rigatti`.
 - `slug`: `PAReact`.
@@ -700,6 +759,11 @@ Finanças, Estoque, gráficos ou outros dados derivados.
 - Documentos (Notas fiscais e boletos independentes) e elegibilidade por cliente;
 - Compras da fábrica e pagamentos parciais;
 - Dados diários/mensais e Finanças (com sincronização de prontidão e cache de rotas);
+- Registrar Pedido Varejo no Root Native Stack;
+- Histórico Retail separado de Delivery, com detalhe de pedido e pagamentos posteriores/parciais;
+- Catálogo Varejo com categorias, produtos, custo direto e custo por composição;
+- Custos Retail com histórico de vigência e resolução por data;
+- Finanças Retail com filtros `Geral`, `Cestas`, `Salgados` e `Baldes`;
 - Estoque derivado de compras menos entregas;
 - FactorySettings, CarSettings e CompanyProfile;
 - Home Search (busca universal, resumos de rotas, preview de mapas e suporte a múltiplas rotas sem ghosting);

@@ -6,6 +6,7 @@ import {
 } from '@/services/deliveries/FirestoreDeliveryDataSource';
 import { firestoreDeliveryCacheService } from '@/services/deliveries/FirestoreDeliveryCacheService';
 import { firestoreHistoricalDeliveryCache } from '@/services/deliveries/FirestoreHistoricalDeliveryCache';
+import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import type { Delivery } from '@/types/data';
 
 const mockAsyncStorage = new Map<string, string>();
@@ -46,7 +47,9 @@ jest.mock('firebase/firestore', () => ({
 }));
 
 const mockedGetDocs = jest.mocked(firestoreModule.getDocs);
+const mockedGetDoc = jest.mocked(firestoreModule.getDoc);
 const mockedSetDoc = jest.mocked(firestoreModule.setDoc);
+const mockedUpdateDoc = jest.mocked(firestoreModule.updateDoc);
 
 describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
   beforeAll(() => {
@@ -892,5 +895,57 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
 
     expect(mockedSetDoc).toHaveBeenCalledTimes(1);
     expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
+  });
+
+  it('sets delivered idempotently, patches only delivery completion metadata, and publishes the snapshot', async () => {
+    const invalidateFinancialMonth = jest.spyOn(financialPeriodSnapshotCache, 'invalidate');
+    const dataSource = new FirestoreDeliveryDataSource();
+    const listener = jest.fn();
+    dataSource.subscribe(listener);
+    await firestoreHistoricalDeliveryCache.write('uid-test', [
+      {
+        cliente: 'André',
+        data: '2026-09-21',
+        entregue: false,
+        id: 'delivery-pending',
+        metodoPagamento: 'Dinheiro',
+        quantidade: 3,
+        status: 'Não Pago',
+        valor: 120,
+      },
+    ]);
+    await dataSource.hydrateFromCache('uid-test', '2026-09-21');
+
+    const revisionBeforeSet = dataSource.getRevision();
+    await dataSource.setDelivered('uid-test', 'delivery-pending', true);
+
+    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockedUpdateDoc.mock.calls[0]?.[1]).toEqual({
+      delivered: true,
+      updatedAt: { type: 'serverTimestamp' },
+    });
+    expect(dataSource.getRevision()).toBe(revisionBeforeSet + 1);
+    expect(listener).toHaveBeenCalled();
+    expect(mockedGetDoc).not.toHaveBeenCalled();
+    expect(invalidateFinancialMonth).toHaveBeenCalledWith('uid-test', '2026-09');
+    expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toMatchObject([
+      {
+        data: '2026-09-21',
+        entregue: true,
+        id: 'delivery-pending',
+        metodoPagamento: 'Dinheiro',
+        quantidade: 3,
+        status: 'Não Pago',
+        valor: 120,
+      },
+    ]);
+
+    const revisionAfterSet = dataSource.getRevision();
+    await dataSource.setDelivered('uid-test', 'delivery-pending', true);
+
+    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(dataSource.getRevision()).toBe(revisionAfterSet);
+    expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
+    invalidateFinancialMonth.mockRestore();
   });
 });

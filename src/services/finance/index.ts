@@ -17,15 +17,22 @@ export {
 } from './FactoryReceiptQueryService';
 export {
   financialFiltersForSelection,
+  formatWholesaleFinancePeriodLabel,
   formatFinancialPeriodLabel,
   formatFinancialSeriesLabel,
   selectionFromReportPeriod,
   todayIso,
+  wholesaleFinanceFiltersForSelection,
+  wholesaleFinanceSelectionToFinancialSelection,
 } from './FinancialPeriodService';
 export { financialSeriesService, FinancialSeriesService } from './FinancialSeriesService';
 export {
   financialPeriodSnapshotCache,
   FinancialPeriodSnapshotCache,
+} from './FinancialPeriodSnapshotCache';
+export type {
+  FinancialAllTimeSnapshotCacheEntry,
+  FinancialPeriodSnapshotCacheEntry,
 } from './FinancialPeriodSnapshotCache';
 export {
   financialDailyDetailService,

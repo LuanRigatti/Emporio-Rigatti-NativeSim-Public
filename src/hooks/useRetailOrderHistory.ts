@@ -89,12 +89,19 @@ export function useRetailOrderHistory() {
     [sessionVersion, snapshot, userId],
   );
   const reload = useCallback(() => load(true), [load]);
+  const remove = useCallback(
+    async (orderId: string) => {
+      await retailOrderDataSource.deleteOrder(userId, orderId, sessionVersion);
+    },
+    [sessionVersion, userId],
+  );
 
   return {
     cacheAvailable: loadState.source === 'cache' || loadState.source === 'local',
     error: loadState.error,
     loading: Boolean(userId) && !snapshot && !loadState.error && !loadState.remoteComplete,
     orders,
+    remove,
     refreshing: loadState.revalidating && Boolean(snapshot),
     reload,
     remoteComplete: loadState.remoteComplete,

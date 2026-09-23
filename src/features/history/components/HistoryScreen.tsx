@@ -19,10 +19,10 @@ import { EmptyState } from './EmptyState';
 import { HistoryCompactDeliveryCard } from './HistoryCompactDeliveryCard';
 import type { HistoryFilter } from './FilterChips';
 import {
-  createHistoryWeekGroups,
+  createWholesaleHistoryWeekGroups,
   formatHistoryDayHeading,
   getHistoryMonthRange,
-  getHistoryWeekRange,
+  getWholesaleHistoryWeekRange,
   groupHistoryDeliveriesByDate,
   type HistoryDateRange,
 } from '../utils/historyPeriodUtils';
@@ -57,11 +57,15 @@ export function HistoryScreen() {
     reload: refresh,
     remove: removeDelivery,
     deliveries,
+    setDelivered,
     toggleDelivered: toggleDelivery,
   } = useDeliveries({ mode: 'all' }, { scope: 'historical' });
   const allDeliveries = useMemo(() => deliveries.map(toHistoryDelivery), [deliveries]);
-  const selectedYear = Number(selectedDate.slice(0, 4));
-  const weekGroups = useMemo(() => createHistoryWeekGroups(selectedYear), [selectedYear]);
+  const selectedWeek = useMemo(() => getWholesaleHistoryWeekRange(selectedDate), [selectedDate]);
+  const weekGroups = useMemo(
+    () => createWholesaleHistoryWeekGroups(selectedWeek.weekYear),
+    [selectedWeek.weekYear],
+  );
   const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>('Todos');
   const [overlayHeaderHeight, setOverlayHeaderHeight] = useState(
     () => insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm,
@@ -84,6 +88,15 @@ export function HistoryScreen() {
       void toggleDelivery(deliveryId);
     },
     [testModeEnabled, toggleDelivery],
+  );
+
+  const handleMarkDelivered = useCallback(
+    (deliveryId: string) => {
+      if (testModeEnabled) return;
+      triggerSelectionHaptic();
+      void setDelivered(deliveryId, true);
+    },
+    [setDelivered, testModeEnabled],
   );
 
   const handleDeleteDelivery = useCallback(
@@ -129,6 +142,7 @@ export function HistoryScreen() {
                     contained
                     delivery={delivery}
                     onDelete={() => handleDeleteDelivery(delivery.id)}
+                    onMarkDelivered={() => handleMarkDelivered(delivery.id)}
                     onToggleStatus={() => handleToggleStatus(delivery.id)}
                   />
                 </Animated.View>
@@ -154,6 +168,7 @@ export function HistoryScreen() {
     [
       allDeliveries,
       handleDeleteDelivery,
+      handleMarkDelivered,
       handleToggleStatus,
       reduceMotionEnabled,
       selectedFilter,
@@ -224,6 +239,7 @@ export function HistoryScreen() {
                           <HistoryCompactDeliveryCard
                             delivery={first}
                             onDelete={() => handleDeleteDelivery(first.id)}
+                            onMarkDelivered={() => handleMarkDelivered(first.id)}
                           />
                         ) : null}
                       </View>
@@ -232,6 +248,7 @@ export function HistoryScreen() {
                           <HistoryCompactDeliveryCard
                             delivery={second}
                             onDelete={() => handleDeleteDelivery(second.id)}
+                            onMarkDelivered={() => handleMarkDelivered(second.id)}
                           />
                         ) : null}
                       </View>
@@ -240,6 +257,7 @@ export function HistoryScreen() {
                           <HistoryCompactDeliveryCard
                             delivery={third}
                             onDelete={() => handleDeleteDelivery(third.id)}
+                            onMarkDelivered={() => handleMarkDelivered(third.id)}
                           />
                         ) : null}
                       </View>
@@ -252,15 +270,22 @@ export function HistoryScreen() {
         </View>
       );
     },
-    [allDeliveries, handleDeleteDelivery, reduceMotionEnabled, selectedFilter, theme],
+    [
+      allDeliveries,
+      handleDeleteDelivery,
+      handleMarkDelivered,
+      reduceMotionEnabled,
+      selectedFilter,
+      theme,
+    ],
   );
 
   const renderCurrentModeContent = useCallback(() => {
     if (viewMode === 'day') return renderDayContent(selectedDate);
     return renderGroupedContent(
-      viewMode === 'week' ? getHistoryWeekRange(selectedDate) : getHistoryMonthRange(selectedDate),
+      viewMode === 'week' ? selectedWeek : getHistoryMonthRange(selectedDate),
     );
-  }, [renderDayContent, renderGroupedContent, selectedDate, viewMode]);
+  }, [renderDayContent, renderGroupedContent, selectedDate, selectedWeek, viewMode]);
 
   const handleSelectWeek = useCallback((weekStart: string) => {
     setSelectedDate(weekStart);
@@ -281,8 +306,9 @@ export function HistoryScreen() {
         placement: 'right',
         selectedDate,
         weekGroups,
+        weekSelection: selectedWeek,
       }),
-    [handleSelectDate, handleSelectWeek, selectedDate, viewMode, weekGroups],
+    [handleSelectDate, handleSelectWeek, selectedDate, selectedWeek, viewMode, weekGroups],
   );
 
   const filterHeader = (

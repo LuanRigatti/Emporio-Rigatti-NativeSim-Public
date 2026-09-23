@@ -1,4 +1,6 @@
-import type { FinancialPeriodSelection } from '@/types/data';
+import type { FinancialPeriodSelection, WholesaleFinanceSelection } from '@/types/data';
+
+import { wholesaleFinanceSelectionToFinancialSelection } from '@/services/finance/FinancialPeriodService';
 
 import type { DailyMonthlyQuery } from './FirestoreDailyMonthlyDataSource';
 
@@ -23,6 +25,16 @@ export function expenseQueryForFinancialSelection(
   const end =
     selection.month === todayIso(today).slice(0, 7) ? todayIso(today) : endOfMonth(selection.month);
   return { startDate: `${previous}-01`, endDate: end };
+}
+
+export function expenseQueryForWholesaleFinanceSelection(
+  selection: WholesaleFinanceSelection,
+  today = new Date(),
+): DailyMonthlyQuery {
+  return expenseQueryForFinancialSelection(
+    wholesaleFinanceSelectionToFinancialSelection(selection),
+    today,
+  );
 }
 
 function todayIso(value: Date): string {

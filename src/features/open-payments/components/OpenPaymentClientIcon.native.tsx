@@ -2,10 +2,14 @@ import { StyleSheet, View } from 'react-native';
 
 import OpenPaymentClientIconFallback from './OpenPaymentClientIconFallback';
 
-export default function OpenPaymentClientIconNative() {
+export default function OpenPaymentClientIconNative({
+  backgroundColor,
+}: {
+  backgroundColor?: string;
+}) {
   return (
     <View style={styles.frame}>
-      <OpenPaymentClientIconFallback />
+      <OpenPaymentClientIconFallback backgroundColor={backgroundColor} />
     </View>
   );
 }

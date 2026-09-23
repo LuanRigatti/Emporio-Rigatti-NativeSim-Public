@@ -5,16 +5,16 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { HomeToolbar } from '@/components/navigation/HomeToolbar';
+import { HomeToolbar, type HomeModeSelectorController } from '@/components/navigation/HomeToolbar';
 import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
 import { HomeProfileSheet } from '@/features/home/profile/HomeProfileSheet';
 import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import HomeModeTitle from './HomeModeTitle';
 
 import { useRetailHomeMetrics } from '@/hooks/useRetailHomeMetrics';
-import { RetailTodayOrdersCard } from './RetailTodayOrdersCard';
 
 type RetailMetricRowProps = {
   accessibilityLabel?: string;
@@ -87,7 +87,7 @@ function metricValue(
   return error ? 'Indisponível' : '—';
 }
 
-export function RetailHome() {
+export function RetailHome({ modeSelector }: { modeSelector: HomeModeSelectorController }) {
   const router = useRouter();
   const { user } = useAuth();
   const { resolvedMode, theme } = useAppTheme();
@@ -96,19 +96,12 @@ export function RetailHome() {
   const metrics = useRetailHomeMetrics();
   const [isProfileSheetVisible, setIsProfileSheetVisible] = useState(false);
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const modeLabel = modeSelector.mode === 'retail' ? 'Varejo' : 'Atacado';
 
   const handleOpenRegistrar = useCallback(() => {
     triggerLightImpactHaptic();
     router.push('/registrar-pedido-varejo');
   }, [router]);
-
-  const handleOpenOrder = useCallback(
-    (orderId: string) => {
-      triggerLightImpactHaptic();
-      router.push({ pathname: '/pedido-varejo/[orderId]', params: { orderId } });
-    },
-    [router],
-  );
 
   const handleOpenProfile = useCallback(() => {
     setIsProfileSheetVisible(true);
@@ -119,13 +112,13 @@ export function RetailHome() {
       includeTopSafeArea={false}
       mode="transparent"
       largeTitle
-      title="Home"
-      titleStyle={{
-        fontFamily: 'System',
-        fontSize: 36,
-        fontWeight: '700',
-        marginLeft: -(theme.spacing.xxs * 2),
-      }}
+      title={
+        <HomeModeTitle
+          accessibilityLabel={`Alterar modo. Modo atual: ${modeLabel}`}
+          label={modeLabel}
+          onPress={modeSelector.open}
+        />
+      }
     />
   );
 
@@ -137,6 +130,7 @@ export function RetailHome() {
       <HomeToolbar
         foregroundColor={theme.colors.textPrimary}
         imageUri={user?.photoUrl}
+        modeSelector={modeSelector}
         name={user?.displayName?.trim() || 'Conta'}
         onProfilePress={handleOpenProfile}
         showSearch={false}
@@ -220,16 +214,6 @@ export function RetailHome() {
                 Toque para tentar novamente.
               </Text>
             </PremiumCard>
-          </View>
-        ) : null}
-
-        {metrics.todayOrders.length > 0 ? (
-          <View style={{ paddingHorizontal: theme.layout.screenHorizontalPadding }}>
-            <RetailTodayOrdersCard
-              cardSurfaceColor={homeCardSurface}
-              onOrderPress={handleOpenOrder}
-              orders={metrics.todayOrders}
-            />
           </View>
         ) : null}
       </PremiumScreen>

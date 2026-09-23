@@ -204,6 +204,18 @@ export function useDeliveries(
     [firestoreEnabled, mutate, refreshFirestoreState, user],
   );
 
+  const setDelivered = useCallback(
+    async (deliveryId: string, delivered: boolean) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.setDelivered(user.id, deliveryId, delivered);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.setDelivered(deliveryId, delivered));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
+
   const updateInvoiceStatus = useCallback(
     async (deliveryId: string, status: InvoiceStatus) => {
       if (firestoreEnabled && user) {
@@ -269,6 +281,7 @@ export function useDeliveries(
     update,
     remove,
     toggleDelivered,
+    setDelivered,
     updateInvoiceStatus,
     updateBoletoStatus,
     settle,

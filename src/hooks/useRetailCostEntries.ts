@@ -63,14 +63,26 @@ export function useRetailCostEntries(costItemId?: string) {
       retailCostEntryDataSource.create(userId, costItemId ?? '', itemUnit, input, sessionVersion),
     [costItemId, sessionVersion, userId],
   );
+  const updateEffectiveDate = useCallback(
+    (entryId: string, effectiveDate: string) =>
+      retailCostEntryDataSource.updateEffectiveDate(
+        userId,
+        costItemId ?? '',
+        entryId,
+        effectiveDate,
+        sessionVersion,
+      ),
+    [costItemId, sessionVersion, userId],
+  );
 
   return {
     create,
     entries,
-    error,
-    loading,
+    error: snapshot === null ? error : undefined,
+    loading: loading && snapshot === null,
     refreshing,
     reload: () => load(true),
     snapshot,
+    updateEffectiveDate,
   };
 }

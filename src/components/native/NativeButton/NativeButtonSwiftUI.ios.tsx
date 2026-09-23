@@ -4,6 +4,7 @@ import {
   accessibilityValue,
   background,
   buttonStyle,
+  contentShape,
   controlSize as controlSizeModifier,
   cornerRadius,
   disabled as disabledModifier,
@@ -11,6 +12,7 @@ import {
   foregroundColor,
   padding,
   foregroundStyle,
+  shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { SFSymbol } from 'sf-symbols-typescript';
@@ -36,12 +38,25 @@ export default function NativeButtonSwiftUI({
   minWidth,
   minHeight,
   onPress,
+  gateDisabledAction,
   systemImage,
   variant,
 }: NativeButtonProps) {
   const isFilledVariant = variant === 'filled' || variant === 'surface';
+  const usesFixedFilledFrame =
+    variant === 'filled' && minWidth !== undefined && minHeight !== undefined;
   const contentWidth =
     minWidth !== undefined ? Math.max(0, minWidth - (horizontalPadding ?? 0) * 2) : undefined;
+  const verticalPadding =
+    controlSize === 'mini'
+      ? 6
+      : controlSize === 'small'
+        ? 8
+        : controlSize === 'large'
+          ? 16
+          : controlSize === 'extraLarge'
+            ? 20
+            : 12;
   const buttonContent =
     content?.type === 'stacked' ? (
       <VStack alignment="center" modifiers={[frame({ width: minWidth, height: minHeight })]}>
@@ -73,13 +88,32 @@ export default function NativeButtonSwiftUI({
         ) : null}
       </VStack>
     ) : isFilledVariant ? (
-      <HStack
-        modifiers={contentWidth !== undefined ? [frame({ width: contentWidth })] : undefined}
-        spacing={6}
-      >
-        <Image color={color ?? '#000000'} size={18} systemName={systemImage as SFSymbol} />
-        <Text modifiers={[roundedFont({}), foregroundColor(color ?? '#000000')]}>{label}</Text>
-      </HStack>
+      usesFixedFilledFrame ? (
+        <Text
+          modifiers={[
+            roundedFont({ size: 17, weight: 'semibold' }),
+            foregroundStyle(color ?? '#000000'),
+            padding({
+              horizontal: horizontalPadding ?? 16,
+              vertical: verticalPadding,
+            }),
+            frame({ width: minWidth, height: minHeight, alignment: 'center' }),
+            background(backgroundColor ?? (variant === 'filled' ? '#000000' : '#FFFFFF')),
+            cornerRadius(999),
+            contentShape(shapes.capsule()),
+          ]}
+        >
+          {label}
+        </Text>
+      ) : (
+        <HStack
+          modifiers={contentWidth !== undefined ? [frame({ width: contentWidth })] : undefined}
+          spacing={6}
+        >
+          <Image color={color ?? '#000000'} size={18} systemName={systemImage as SFSymbol} />
+          <Text modifiers={[roundedFont({}), foregroundColor(color ?? '#000000')]}>{label}</Text>
+        </HStack>
+      )
     ) : (
       <HStack modifiers={contentWidth !== undefined ? [frame({ width: contentWidth })] : undefined}>
         <Label
@@ -89,21 +123,12 @@ export default function NativeButtonSwiftUI({
         />
       </HStack>
     );
-  const verticalPadding =
-    controlSize === 'mini'
-      ? 6
-      : controlSize === 'small'
-        ? 8
-        : controlSize === 'large'
-          ? 16
-          : controlSize === 'extraLarge'
-            ? 20
-            : 12;
 
   return (
     <Host matchContents>
       <Button
         onPress={() => {
+          if (disabled && gateDisabledAction) return;
           triggerNativeButtonHaptic(haptic);
           onPress();
         }}
@@ -114,8 +139,8 @@ export default function NativeButtonSwiftUI({
           ),
           ...(glassTint ? [tint(glassTint)] : []),
           controlSizeModifier(controlSize ?? 'regular'),
-          ...(disabled ? [disabledModifier(true)] : []),
-          ...(isFilledVariant
+          ...(disabled && !gateDisabledAction ? [disabledModifier(true)] : []),
+          ...(isFilledVariant && !usesFixedFilledFrame
             ? [
                 foregroundStyle(color ?? '#000000'),
                 padding({

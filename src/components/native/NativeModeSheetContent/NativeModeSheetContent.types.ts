@@ -9,15 +9,12 @@ export const NATIVE_MODE_OPTIONS = [
   {
     mode: 'wholesale',
     title: 'Atacado',
-    description: 'Operação atual de baldes/atacado',
   },
   {
     mode: 'retail',
     title: 'Varejo',
-    description: 'Cestas, salgados e vendas particulares',
   },
 ] as const satisfies readonly {
   mode: AppMode;
   title: string;
-  description: string;
 }[];

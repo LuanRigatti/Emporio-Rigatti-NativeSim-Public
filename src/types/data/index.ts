@@ -116,6 +116,7 @@ export type {
   FinancialReportPeriod,
   FinancialSeriesPoint,
   FinancialSummary,
+  WholesaleFinanceSelection,
 } from './finance';
 export type { Filters, PeriodFilter } from './filters';
 export type { StockSnapshot, StockSnapshotMap } from './stock';

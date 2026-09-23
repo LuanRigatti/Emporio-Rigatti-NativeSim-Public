@@ -8,6 +8,8 @@ import { useRetailOrderCatalog } from '@/hooks/useRetailOrderCatalog';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 
+import { RetailOrderPrimaryButton } from './RetailOrderPrimaryButton';
+
 type RetailOrderRegistrarGuideKind = 'clients' | 'products';
 
 function RetailOrderRegistrarGuide({ kind }: { kind: RetailOrderRegistrarGuideKind }) {
@@ -119,25 +121,15 @@ export function RetailOrderRegistrarLauncher() {
                 {
                   backgroundColor: cardSurface,
                   borderRadius: theme.radius.xl + theme.spacing.md,
-                  gap: theme.spacing.md,
-                  padding: theme.spacing.lg,
+                  paddingHorizontal: theme.spacing.lg,
+                  paddingVertical: theme.spacing.md,
                 },
               ]}
             >
-              <Text style={[theme.typography.title3, { color: theme.colors.textPrimary }]}>
-                Novo pedido Varejo
-              </Text>
-              <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
-                Selecione cliente, produtos e condições da venda.
-              </Text>
-              <NativeButton
+              <RetailOrderPrimaryButton
                 accessibilityLabel="Criar pedido Varejo"
-                controlSize="large"
-                color={theme.colors.contrastContent}
-                haptic="light"
                 label="Novo pedido"
                 onPress={openOrderPage}
-                variant="primary"
               />
             </PremiumCard>
           )}

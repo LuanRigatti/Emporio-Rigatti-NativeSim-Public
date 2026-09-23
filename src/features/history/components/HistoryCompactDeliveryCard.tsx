@@ -9,11 +9,13 @@ import type { HistoryDelivery } from '../data/historyMocks';
 export type HistoryCompactDeliveryCardProps = {
   delivery: HistoryDelivery;
   onDelete: () => void;
+  onMarkDelivered?: () => void;
 };
 
 export function HistoryCompactDeliveryCard({
   delivery,
   onDelete,
+  onMarkDelivered,
 }: HistoryCompactDeliveryCardProps) {
   const { resolvedMode, theme } = useAppTheme();
   const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surfaceMuted);
@@ -77,6 +79,17 @@ export function HistoryCompactDeliveryCard({
       >
         <NativeCardContextMenu
           actions={[
+            ...(delivery.status === 'pendente' && onMarkDelivered
+              ? [
+                  {
+                    disabled: testModeEnabled,
+                    id: `complete-history-delivery-${delivery.id}`,
+                    onPress: onMarkDelivered,
+                    systemImage: 'checkmark.circle.fill' as const,
+                    title: 'Concluída',
+                  },
+                ]
+              : []),
             {
               destructive: true,
               disabled: testModeEnabled,

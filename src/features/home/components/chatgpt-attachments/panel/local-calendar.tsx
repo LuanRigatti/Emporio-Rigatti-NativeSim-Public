@@ -5,6 +5,7 @@ import { useAppTheme } from '@/theme';
 
 import { AttachmentIcon } from '../AttachmentIcon';
 import { BOTTOM_BAR } from '../constants';
+import { localDateKey } from '../local-date';
 
 const MONTH_NAMES = [
   'Janeiro',
@@ -23,23 +24,22 @@ const MONTH_NAMES = [
 
 const WEEKDAY_NAMES = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'] as const;
 
-function dateKey(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
 function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-export function LocalCalendar() {
+interface LocalCalendarProps {
+  selectedDate: string;
+  onSelectedDateChange: (date: string) => void;
+}
+
+export function LocalCalendar({ selectedDate, onSelectedDateChange }: LocalCalendarProps) {
   const { theme } = useAppTheme();
   const today = useMemo(() => new Date(), []);
-  const [visibleMonth, setVisibleMonth] = useState(
-    () => new Date(today.getFullYear(), today.getMonth(), 1),
-  );
-  const [selectedDate, setSelectedDate] = useState(() => dateKey(today));
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const [year, month] = selectedDate.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+  });
 
   const year = visibleMonth.getFullYear();
   const month = visibleMonth.getMonth();
@@ -53,7 +53,7 @@ export function LocalCalendar() {
   const rows = Array.from({ length: cellCount / 7 }, (_, rowIndex) =>
     cells.slice(rowIndex * 7, rowIndex * 7 + 7),
   );
-  const todayKey = dateKey(today);
+  const todayKey = localDateKey(today);
   const title = `${MONTH_NAMES[month]} ${year}`;
 
   const changeMonth = (delta: number) => {
@@ -123,7 +123,7 @@ export function LocalCalendar() {
               }
 
               const dayDate = new Date(year, month, day);
-              const currentKey = dateKey(dayDate);
+              const currentKey = localDateKey(dayDate);
               const isSelected = currentKey === selectedDate;
               const isToday = currentKey === todayKey;
 
@@ -133,7 +133,7 @@ export function LocalCalendar() {
                     accessibilityLabel={`${day} de ${MONTH_NAMES[month]} de ${year}`}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isSelected }}
-                    onPress={() => setSelectedDate(currentKey)}
+                    onPress={() => onSelectedDateChange(currentKey)}
                     style={styles.dayButton}
                   >
                     <View

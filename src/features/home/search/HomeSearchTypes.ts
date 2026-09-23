@@ -37,6 +37,10 @@ export type HomeSearchPeriod =
   | { kind: 'year'; year: number }
   | { kind: 'range'; startDate: string; endDate: string; label?: string };
 
+export type HomeSearchTemporalContext = {
+  selectedDate: string;
+};
+
 export type HomeSearchPaymentStatus = 'paid' | 'open';
 export type HomeSearchDocumentType = 'invoice' | 'boleto';
 export type HomeSearchFinancialMetric =

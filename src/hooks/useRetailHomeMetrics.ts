@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { useAuth } from '@/providers';
-import { retailOrderDataSource } from '@/services/retail-orders';
 import { RETAIL_FINANCE_GENERAL_VIEW } from '@/services/retail-finance';
 import { retailFinanceDatasetService } from '@/services/retail-finance/RetailFinanceDatasetService';
 import { calculateRetailHomeReceivable } from '@/services/retail-finance/RetailHomeMetricsService';
@@ -36,15 +35,6 @@ export function useRetailHomeMetrics() {
     return calculateRetailHomeReceivable(datasetState.dataset);
   }, [datasetState.dataset]);
 
-  const todayOrders = useMemo(() => {
-    if (!datasetState.dataset || !userId) return [];
-    return retailOrderDataSource.list(
-      { deliveryDateFrom: currentDate, deliveryDateTo: currentDate },
-      userId,
-      sessionVersion,
-    );
-  }, [currentDate, datasetState.dataset, sessionVersion, userId]);
-
   return useMemo(
     () => ({
       error: finance.error ?? datasetState.error,
@@ -53,13 +43,10 @@ export function useRetailHomeMetrics() {
       receivable,
       refreshing: finance.refreshing || Boolean(datasetState.dataset && datasetState.refreshing),
       reload: finance.reload,
-      todayDate: currentDate,
-      todayOrders,
       todayProfit: finance.summary?.profit ?? null,
       todayRevenue: finance.summary?.revenueReceived ?? null,
     }),
     [
-      currentDate,
       datasetState.dataset,
       datasetState.error,
       datasetState.refreshing,
@@ -69,7 +56,6 @@ export function useRetailHomeMetrics() {
       finance.refreshing,
       finance.summary,
       receivable,
-      todayOrders,
       userId,
     ],
   );

@@ -1,0 +1,8 @@
+{
+  "name": "native-thinking-orb",
+  "version": "0.1.0",
+  "description": "Native SwiftUI Thinking Orbs view for Expo.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

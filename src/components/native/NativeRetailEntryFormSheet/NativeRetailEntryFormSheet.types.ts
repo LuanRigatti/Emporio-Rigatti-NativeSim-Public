@@ -11,5 +11,6 @@ export type NativeRetailCostEntryFormSheetProps = {
   onVisibleChange: (visible: boolean) => void;
   onSubmit: (values: NativeRetailCostEntryFormValues) => Promise<void>;
   initialValues?: Partial<NativeRetailCostEntryFormValues>;
+  mode?: 'create' | 'edit';
   title?: string;
 };

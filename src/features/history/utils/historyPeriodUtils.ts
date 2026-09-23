@@ -21,6 +21,11 @@ export type HistoryDateRange = {
   endDate: string;
 };
 
+export type WholesaleHistoryWeekRange = HistoryDateRange & {
+  label: string;
+  weekYear: number;
+};
+
 export type HistoryDeliveryDayGroup = {
   date: string;
   deliveries: readonly HistoryDelivery[];
@@ -63,6 +68,27 @@ export function getHistoryWeekRange(value: string): HistoryDateRange {
       Math.min(startDay + 6, daysInMonth),
     ).padStart(2, '0')}`,
     startDate: start,
+  };
+}
+
+export function getWholesaleHistoryWeekRange(value: string): WholesaleHistoryWeekRange {
+  const date = parseHistoryDate(value);
+  const daysSinceMonday = (date.getDay() + 6) % 7;
+  const start = new Date(date);
+  start.setDate(start.getDate() - daysSinceMonday);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const thursday = new Date(start);
+  thursday.setDate(thursday.getDate() + 3);
+  const range = {
+    endDate: formatHistoryDate(end),
+    startDate: formatHistoryDate(start),
+  };
+
+  return {
+    ...range,
+    label: formatHistoryWeekLabel(range),
+    weekYear: thursday.getFullYear(),
   };
 }
 
@@ -127,6 +153,31 @@ export function createHistoryWeekGroups(year: number): readonly HistoryWeekGroup
 
     return { items, label };
   });
+}
+
+export function createWholesaleHistoryWeekGroups(year: number): readonly HistoryWeekGroup[] {
+  const januaryFourth = parseHistoryDate(`${year}-01-04`);
+  const firstMonday = new Date(januaryFourth);
+  firstMonday.setDate(januaryFourth.getDate() - ((januaryFourth.getDay() + 6) % 7));
+  const groups = new Map<number, HistoryWeekItem[]>();
+
+  for (let start = firstMonday; ; start.setDate(start.getDate() + 7)) {
+    const startDate = formatHistoryDate(start);
+    const range = getWholesaleHistoryWeekRange(startDate);
+    if (range.weekYear !== year) break;
+
+    const thursday = new Date(start);
+    thursday.setDate(thursday.getDate() + 3);
+    const month = thursday.getMonth();
+    const items = groups.get(month) ?? [];
+    items.push({ label: range.label, value: range.startDate });
+    groups.set(month, items);
+  }
+
+  return [...groups.entries()].map(([month, items]) => ({
+    items,
+    label: HISTORY_MONTH_NAMES[month],
+  }));
 }
 
 export function groupHistoryDeliveriesByDate(

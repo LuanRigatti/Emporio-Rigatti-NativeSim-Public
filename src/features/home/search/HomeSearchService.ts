@@ -72,6 +72,7 @@ import type {
   HomeSearchRouteSummaryResult,
   HomeSearchResponse,
   HomeSearchResult,
+  HomeSearchTemporalContext,
 } from './HomeSearchTypes';
 
 const EMPTY_COUNTS: HomeSearchDomainCounts = {
@@ -2049,9 +2050,13 @@ export class HomeSearchService {
     private readonly interpreter: HomeSearchSearchInterpreter | null = appleIntelligenceSearchInterpreter,
   ) {}
 
-  public async search(original: string, referenceDate = new Date()): Promise<HomeSearchResponse> {
+  public async search(
+    original: string,
+    referenceDate = new Date(),
+    temporalContext?: HomeSearchTemporalContext,
+  ): Promise<HomeSearchResponse> {
     const request = ++this.latestRequest;
-    const fallbackQuery = homeSearchQueryParser.parse(original, referenceDate);
+    const fallbackQuery = homeSearchQueryParser.parse(original, referenceDate, temporalContext);
     if (!fallbackQuery.normalized) {
       homeSearchDevLog('parser-success');
       return this.searchParsedInternal(fallbackQuery, request);
@@ -2074,7 +2079,10 @@ export class HomeSearchService {
     homeSearchDevLog('semantic-start');
     let interpretedQuery: HomeSearchParsedQuery | null = null;
     try {
-      interpretedQuery = (await this.interpreter.interpret(original, referenceDate)) ?? null;
+      interpretedQuery =
+        (await (temporalContext
+          ? this.interpreter.interpret(original, referenceDate, temporalContext)
+          : this.interpreter.interpret(original, referenceDate))) ?? null;
     } catch {
       interpretedQuery = null;
     }

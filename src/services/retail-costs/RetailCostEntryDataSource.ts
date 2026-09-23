@@ -32,7 +32,7 @@ type SessionRequest = {
 
 type FirestoreOps = Pick<
   typeof import('firebase/firestore'),
-  'collection' | 'doc' | 'getDocs' | 'serverTimestamp' | 'setDoc'
+  'collection' | 'doc' | 'getDocs' | 'serverTimestamp' | 'setDoc' | 'updateDoc'
 >;
 
 let firestoreOpsOverride: FirestoreOps | undefined;
@@ -362,6 +362,39 @@ export class RetailCostEntryDataSource {
       ...currentRecords.filter((record) => record.id !== reference.id),
       localRecord,
     ];
+    this.recordsByItemId.set(costItemId, nextRecords);
+    this.snapshotsByItemId.set(costItemId, sortEntries(snapshotForRecords(nextRecords)));
+    this.publish();
+    void retailCostEntryCatalogCache
+      .write(request.userId, costItemId, nextRecords)
+      .catch(() => undefined);
+  }
+
+  public async updateEffectiveDate(
+    userId: string | undefined,
+    costItemId: string,
+    entryId: string,
+    effectiveDate: string,
+    sessionVersion?: number,
+  ): Promise<void> {
+    const request = this.captureSessionRequest(userId, sessionVersion);
+    assertId(costItemId);
+    assertId(entryId);
+    const normalizedEffectiveDate = normalizeRetailDate(effectiveDate);
+    const currentRecords = this.recordsByItemId.get(costItemId) ?? [];
+    const currentRecord = currentRecords.find((record) => record.id === entryId);
+    if (!currentRecord) throw new Error('Entrada de custo não encontrada.');
+
+    const { doc, updateDoc } = await getFirestoreOps();
+    this.assertSessionRequestCurrent(request);
+    await updateDoc(doc(await collectionFor(request.userId, costItemId), entryId), {
+      effectiveDate: normalizedEffectiveDate,
+    });
+    this.assertSessionRequestCurrent(request);
+
+    const nextRecords = currentRecords.map((record) =>
+      record.id === entryId ? { ...record, effectiveDate: normalizedEffectiveDate } : record,
+    );
     this.recordsByItemId.set(costItemId, nextRecords);
     this.snapshotsByItemId.set(costItemId, sortEntries(snapshotForRecords(nextRecords)));
     this.publish();

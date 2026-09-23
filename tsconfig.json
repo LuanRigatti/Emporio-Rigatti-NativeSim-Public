@@ -8,7 +8,8 @@
     "paths": {
       "@/*": ["src/*"],
       "native-card-context-menu": ["modules/native-card-context-menu/src"],
-      "native-search-field": ["modules/native-search-field/src"]
+      "native-search-field": ["modules/native-search-field/src"],
+      "native-thinking-orb": ["modules/native-thinking-orb/src"]
     }
   },
   "exclude": ["dist"]

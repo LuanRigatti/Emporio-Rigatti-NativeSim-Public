@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import {
@@ -15,12 +15,23 @@ import { useRetailCostItems } from '@/hooks/useRetailCostItems';
 import { useAppMode } from '@/providers';
 import { normalizeRetailMoney, normalizeRetailQuantity } from '@/services/retail-costs';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import type { RetailCostItem } from '@/types/data';
+import type { RetailCostEntry, RetailCostItem } from '@/types/data';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
 function itemFormValues(item?: RetailCostItem): Partial<NativeRetailCostItemFormValues> {
   return item ? { name: item.name, supplier: item.supplier ?? '', unit: item.unit } : {};
+}
+
+function entryFormValues(entry?: RetailCostEntry): Partial<NativeRetailCostEntryFormValues> {
+  return entry
+    ? {
+        effectiveDate: entry.effectiveDate,
+        purchaseTotalCost: String(entry.purchaseTotalCost),
+        purchasedQuantity: String(entry.purchasedQuantity),
+        supplier: entry.supplier ?? '',
+      }
+    : {};
 }
 
 export default function RetailCostItemDetailsRoute() {
@@ -41,17 +52,27 @@ export default function RetailCostItemDetailsRoute() {
     error: entriesError,
     loading: entriesLoading,
     reload: reloadEntries,
+    updateEffectiveDate,
   } = useRetailCostEntries(costItemId);
   const [entryFormVisible, setEntryFormVisible] = useState(false);
+  const [entryToEdit, setEntryToEdit] = useState<RetailCostEntry | null>(null);
   const [itemFormVisible, setItemFormVisible] = useState(false);
   const item = useMemo(
     () => items.find((candidate) => candidate.costItemId === costItemId),
     [costItemId, items],
   );
+  const entryInitialValues = useMemo(
+    () => entryFormValues(entryToEdit ?? undefined),
+    [entryToEdit],
+  );
 
   const handleEntrySubmit = useCallback(
     async (values: NativeRetailCostEntryFormValues) => {
       if (!item || testModeEnabled) return;
+      if (entryToEdit) {
+        await updateEffectiveDate(entryToEdit.entryId, values.effectiveDate);
+        return;
+      }
       const purchasedQuantity = normalizeRetailQuantity(
         values.purchasedQuantity,
         'A quantidade comprada',
@@ -67,8 +88,13 @@ export default function RetailCostItemDetailsRoute() {
         supplier: values.supplier,
       });
     },
-    [create, item, testModeEnabled],
+    [create, entryToEdit, item, testModeEnabled, updateEffectiveDate],
   );
+
+  const handleEntryVisibleChange = useCallback((visible: boolean) => {
+    setEntryFormVisible(visible);
+    if (!visible) setEntryToEdit(null);
+  }, []);
 
   const handleItemSubmit = useCallback(
     async (values: NativeRetailCostItemFormValues) => {
@@ -97,7 +123,10 @@ export default function RetailCostItemDetailsRoute() {
           <Stack.Toolbar.Button
             accessibilityLabel="Adicionar entrada de custo"
             icon="plus"
-            onPress={() => setEntryFormVisible(true)}
+            onPress={() => {
+              setEntryToEdit(null);
+              setEntryFormVisible(true);
+            }}
           />
         </Stack.Toolbar>
       ) : null}
@@ -144,10 +173,19 @@ export default function RetailCostItemDetailsRoute() {
             >
               {entries.length ? (
                 entries.map((entry) => (
-                  <View key={entry.entryId} style={styles.entry}>
+                  <Pressable
+                    accessibilityLabel={`Editar vigência do custo em ${formatPtBrDate(entry.effectiveDate)}`}
+                    accessibilityRole="button"
+                    key={entry.entryId}
+                    onPress={() => {
+                      setEntryToEdit(entry);
+                      setEntryFormVisible(true);
+                    }}
+                    style={({ pressed }) => [styles.entry, pressed && styles.entryPressed]}
+                  >
                     <View style={styles.entryHeading}>
                       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
-                        {formatPtBrDate(entry.effectiveDate)}
+                        Vigente desde {formatPtBrDate(entry.effectiveDate)}
                       </Text>
                       <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
                         {formatCurrency(entry.purchaseTotalCost)}
@@ -164,7 +202,7 @@ export default function RetailCostItemDetailsRoute() {
                     {entry.supplier ? (
                       <DetailRow label="Fornecedor" value={entry.supplier} />
                     ) : null}
-                  </View>
+                  </Pressable>
                 ))
               ) : (
                 <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
@@ -186,9 +224,12 @@ export default function RetailCostItemDetailsRoute() {
       ) : null}
       {item ? (
         <NativeRetailCostEntryFormSheet
+          initialValues={entryInitialValues}
           itemUnit={item.unit}
+          mode={entryToEdit ? 'edit' : 'create'}
           onSubmit={handleEntrySubmit}
-          onVisibleChange={setEntryFormVisible}
+          onVisibleChange={handleEntryVisibleChange}
+          title={entryToEdit ? 'Editar vigência do custo' : 'Nova entrada de custo'}
           visible={entryFormVisible}
         />
       ) : null}
@@ -213,5 +254,6 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1 },
   detailRow: { gap: 4 },
   entry: { gap: 6, paddingVertical: 8 },
+  entryPressed: { opacity: 0.72 },
   entryHeading: { flexDirection: 'row', justifyContent: 'space-between' },
 });

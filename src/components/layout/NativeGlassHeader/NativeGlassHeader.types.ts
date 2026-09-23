@@ -4,7 +4,7 @@ import type { StyleProp, TextStyle, ViewProps, ViewStyle } from 'react-native';
 export type NativeGlassHeaderMode = 'transparent' | 'translucent' | 'floating';
 
 export type NativeGlassHeaderProps = {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   largeTitle?: boolean;
   leftActions?: ReactNode;

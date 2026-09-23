@@ -99,6 +99,18 @@ describe('RetailOrderPaymentSheet', () => {
     expect(parseIsoCalendarDate(formatDate(datePicker.props.value))).toBeDefined();
   });
 
+  it('shows the selected payment method in the dropdown trigger', () => {
+    const { renderer } = renderSheet(jest.fn().mockResolvedValue('payment-1'));
+    const dropdown = findNodes(renderer, 'native-dropdown')[0];
+
+    expect(dropdown?.props.label).toBe('Pix');
+    for (const method of ['Dinheiro', 'Crédito', 'Débito', 'Outro', 'Pix']) {
+      act(() => dropdown?.props.onValueChange(method));
+      expect(findNodes(renderer, 'native-dropdown')[0]?.props.label).toBe(method);
+      expect(findNodes(renderer, 'native-dropdown')[0]?.props.selectedValue).toBe(method);
+    }
+  });
+
   it('registers a partial posted payment with notes and card fee when applicable', async () => {
     const onRegister = jest.fn().mockResolvedValue('payment-1');
     const { onVisibleChange, renderer } = renderSheet(onRegister);

@@ -16,6 +16,7 @@ export default function NativeDropdownSwiftUI<T extends string | number>({
 }: NativeDropdownProps<T>) {
   const selectedItem = items.find((item) => item.value === selectedValue) ?? items[0];
   const displayValue = triggerLabel?.trim() || selectedItem?.label?.trim() || String(selectedValue);
+
   return (
     <Host matchContents>
       {disabled ? (

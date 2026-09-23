@@ -36,6 +36,12 @@ export type FirestoreDailyMonthlySnapshot = {
   gastosMensais: MonthlyExpenses;
 };
 
+export type FirestoreDailyMonthlyLoadResult = {
+  snapshot: FirestoreDailyMonthlySnapshot;
+  source: 'cache' | 'network';
+  remoteComplete: boolean;
+};
+
 export type FirestoreCostChange = {
   period: CostPeriod;
   key: string;
@@ -292,42 +298,60 @@ export class FirestoreDailyMonthlyDataSource {
     query: DailyMonthlyQuery,
     options?: FirestoreReadOptions,
   ): Promise<FirestoreDailyMonthlySnapshot> {
+    const result = await this.loadWithMetadata(uid, query, options);
+    return result.snapshot;
+  }
+
+  public async loadWithMetadata(
+    uid: string,
+    query: DailyMonthlyQuery,
+    options?: FirestoreReadOptions,
+  ): Promise<FirestoreDailyMonthlyLoadResult> {
     const canRun = () => !options?.canRun || options.canRun();
-    if (!canRun()) return emptySnapshot();
+    if (!canRun()) return emptyLoadResult();
 
     const { doc, getDoc, getDocs, query: buildQuery, where } = firestoreModule();
-    if (!canRun()) return emptySnapshot();
+    if (!canRun()) return emptyLoadResult();
     const dailyCollection = dailyCollectionFor(uid);
     const monthlyCollection = monthlyCollectionFor(uid);
-    if (!canRun()) return emptySnapshot();
+    if (!canRun()) return emptyLoadResult();
     const dailyForUser = query.loadAll ? new Map<string, DailyExpense>() : this.dailyFor(uid);
     const monthlyForUser = query.loadAll ? new Map<string, MonthlyExpense>() : this.monthlyFor(uid);
+    let fromCache = false;
+    const markRead = <T extends { metadata?: { fromCache?: boolean } }>(result: T): T => {
+      fromCache = fromCache || result.metadata?.fromCache === true;
+      return result;
+    };
     const dailyRange = normalizedDailyRange(query);
     const dailyDocuments = query.loadAll
-      ? (await getDocs(dailyCollection)).docs
+      ? markRead(await getDocs(dailyCollection)).docs
       : query.date
-        ? [await getDoc(doc(dailyCollection, normalizeDate(query.date)))]
+        ? [markRead(await getDoc(doc(dailyCollection, normalizeDate(query.date))))]
         : query.month
           ? (
-              await getDocs(
-                buildQuery(
-                  dailyCollection,
-                  where('data', '>=', `${normalizeMonth(query.month)}-01`),
-                  where('data', '<=', `${normalizeMonth(query.month)}-31`),
+              await markRead(
+                await getDocs(
+                  buildQuery(
+                    dailyCollection,
+                    where('data', '>=', `${normalizeMonth(query.month)}-01`),
+                    where('data', '<=', `${normalizeMonth(query.month)}-31`),
+                  ),
                 ),
               )
             ).docs
           : (
-              await getDocs(
-                buildQuery(
-                  dailyCollection,
-                  ...(dailyRange[0] ? [where('data', '>=', dailyRange[0])] : []),
-                  ...(dailyRange[1] ? [where('data', '<=', dailyRange[1])] : []),
+              await markRead(
+                await getDocs(
+                  buildQuery(
+                    dailyCollection,
+                    ...(dailyRange[0] ? [where('data', '>=', dailyRange[0])] : []),
+                    ...(dailyRange[1] ? [where('data', '<=', dailyRange[1])] : []),
+                  ),
                 ),
               )
             ).docs;
 
-    if (!canRun()) return emptySnapshot();
+    if (!canRun()) return emptyLoadResult();
     dailyDocuments.forEach((item) => {
       if (!item.exists()) return;
       const mapped = dailyDocumentToExpense(item.id, item.data() as FirestoreDailyDocument);
@@ -336,20 +360,22 @@ export class FirestoreDailyMonthlyDataSource {
 
     const months = requestedMonths(query);
     const monthlyDocuments = query.loadAll
-      ? (await getDocs(monthlyCollection)).docs
+      ? markRead(await getDocs(monthlyCollection)).docs
       : months.length === 1
-        ? [await getDoc(doc(monthlyCollection, months[0]))]
+        ? [markRead(await getDoc(doc(monthlyCollection, months[0])))]
         : (
-            await getDocs(
-              buildQuery(
-                monthlyCollection,
-                ...(months.length > 0 ? [where('month', '>=', months[0])] : []),
-                ...(months.length > 0 ? [where('month', '<=', months[months.length - 1])] : []),
+            await markRead(
+              await getDocs(
+                buildQuery(
+                  monthlyCollection,
+                  ...(months.length > 0 ? [where('month', '>=', months[0])] : []),
+                  ...(months.length > 0 ? [where('month', '<=', months[months.length - 1])] : []),
+                ),
               ),
             )
           ).docs;
 
-    if (!canRun()) return emptySnapshot();
+    if (!canRun()) return emptyLoadResult();
     monthlyDocuments.forEach((item) => {
       if (!item.exists()) return;
       monthlyForUser.set(
@@ -363,9 +389,14 @@ export class FirestoreDailyMonthlyDataSource {
       this.monthly.set(uid, monthlyForUser);
     }
 
-    return {
+    const snapshot = {
       gastosDiarios: selectDaily(dailyForUser, query),
       gastosMensais: selectMonthly(monthlyForUser, query),
+    };
+    return {
+      remoteComplete: !fromCache,
+      snapshot,
+      source: fromCache ? 'cache' : 'network',
     };
   }
 
@@ -695,6 +726,10 @@ function requestedMonths(query: DailyMonthlyQuery): string[] {
 
 function emptySnapshot(): FirestoreDailyMonthlySnapshot {
   return { gastosDiarios: {}, gastosMensais: {} };
+}
+
+function emptyLoadResult(): FirestoreDailyMonthlyLoadResult {
+  return { remoteComplete: false, snapshot: emptySnapshot(), source: 'cache' };
 }
 
 function normalizedDailyRange(query: DailyMonthlyQuery): [string | undefined, string | undefined] {

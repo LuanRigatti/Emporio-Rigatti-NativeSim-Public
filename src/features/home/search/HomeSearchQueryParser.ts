@@ -4,6 +4,7 @@ import type {
   HomeSearchParsedQuery,
   HomeSearchPaymentStatus,
   HomeSearchPeriod,
+  HomeSearchTemporalContext,
 } from './HomeSearchTypes';
 import { matchHomeSearchBusinessIntent } from './HomeSearchBusinessIntents';
 import { matchHomeSearchFinancialMetric } from './HomeSearchFinancialMetrics';
@@ -106,6 +107,17 @@ function validDateParts(day: number, month: number, year: number): boolean {
 
 function isoDate(day: number, month: number, year: number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function parseAttachedDate(value?: string): HomeSearchPeriod | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+  if (!match) return undefined;
+
+  const [, yearValue, monthValue, dayValue] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  return validDateParts(day, month, year) ? { kind: 'date', date: match[0] } : undefined;
 }
 
 function addDays(date: Date, days: number): Date {
@@ -385,7 +397,11 @@ function removeMatched(value: string, matched?: string): string {
 }
 
 export class HomeSearchQueryParser {
-  public parse(original: string, referenceDate = new Date()): HomeSearchParsedQuery {
+  public parse(
+    original: string,
+    referenceDate = new Date(),
+    temporalContext?: HomeSearchTemporalContext,
+  ): HomeSearchParsedQuery {
     const normalized = normalizeHomeSearchText(original);
     if (!normalized) {
       return { original, normalized, text: '', detectedTypes: [] };
@@ -399,22 +415,26 @@ export class HomeSearchQueryParser {
       businessResult?.alias,
     );
     const parsedPeriod = parsePeriod(normalized, referenceDate.getFullYear(), referenceDate);
+    const selectedDatePeriod = parseAttachedDate(temporalContext?.selectedDate);
     const defaultsToCurrentMonth = Boolean(
       financialResult ||
       businessResult?.routeMetric ||
       businessResult?.periodSummary ||
       (businessResult?.factoryMetric && !businessResult.factoryStatus),
     );
-    const periodResult =
-      defaultsToCurrentMonth && !parsedPeriod.period
-        ? {
-            period: {
-              kind: 'month' as const,
-              month: referenceDate.getMonth() + 1,
-              year: referenceDate.getFullYear(),
-            },
-          }
-        : parsedPeriod;
+    const periodResult: { period?: HomeSearchPeriod; matched?: string } = parsedPeriod.period
+      ? parsedPeriod
+      : selectedDatePeriod
+        ? { period: selectedDatePeriod }
+        : defaultsToCurrentMonth
+          ? {
+              period: {
+                kind: 'month' as const,
+                month: referenceDate.getMonth() + 1,
+                year: referenceDate.getFullYear(),
+              },
+            }
+          : parsedPeriod;
     const statusResult = parsePaymentStatus(normalizedWithoutIntent);
     const documentResult = parseDocument(normalizedWithoutIntent);
     const quantityMatch = /\b(\d+(?:[.,]\d+)?)\s*baldes?\b/.exec(normalizedWithoutIntent);

@@ -164,6 +164,45 @@ describe('Retail order history data', () => {
     expect(paymentReader.load).toHaveBeenCalledTimes(2);
   });
 
+  it('invalidates only the deleted order summary cache', async () => {
+    const paymentReader = {
+      list: jest.fn(() => [payment('posted', 30)]),
+      load: jest.fn(async () => undefined),
+    };
+    const service = new RetailOrderHistoryFinancialSummaryService(paymentReader);
+    const deleted = order('order-deleted');
+    const retained = order('order-retained');
+
+    await service.loadForOrder(deleted, 'uid-retail', 1);
+    await service.loadForOrder(retained, 'uid-retail', 1);
+    service.invalidateOrder('order-deleted', 'uid-retail', 1);
+
+    expect(service.getCachedSummary(deleted, 'uid-retail', 1)).toBeUndefined();
+    expect(service.getCachedSummary(retained, 'uid-retail', 1)).toBeDefined();
+  });
+
+  it('does not republish a deleted order from an in-flight summary load', async () => {
+    let resolveLoad!: () => void;
+    const paymentReader = {
+      list: jest.fn(() => [payment('posted', 30)]),
+      load: jest.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveLoad = resolve;
+          }),
+      ),
+    };
+    const service = new RetailOrderHistoryFinancialSummaryService(paymentReader);
+    const deleted = order('order-deleted-in-flight');
+    const result = service.loadForOrder(deleted, 'uid-retail', 1);
+
+    service.invalidateOrder(deleted.orderId, 'uid-retail', 1);
+    resolveLoad();
+
+    await expect(result).rejects.toThrow('Resumo financeiro obsoleto.');
+    expect(service.getCachedSummary(deleted, 'uid-retail', 1)).toBeUndefined();
+  });
+
   it('updates only the target summary from the complete current payment snapshot', async () => {
     const snapshots: Record<string, RetailPayment[]> = {
       'order-target': [],

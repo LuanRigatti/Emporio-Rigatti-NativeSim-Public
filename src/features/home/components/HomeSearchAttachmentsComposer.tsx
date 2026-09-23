@@ -4,14 +4,18 @@ import type { CameraType, FlashMode } from 'expo-camera';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { OverKeyboardView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
+import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import { CameraBar } from './chatgpt-attachments/camera/camera-bar';
 import { CameraSheet, type CameraSheetHandle } from './chatgpt-attachments/camera/camera-sheet';
 import { AttachmentFlight } from './chatgpt-attachments/composer/attachment-flight';
 import { Composer } from './chatgpt-attachments/composer/composer';
 import {
+  ATTACHMENT_CONTROL_GLASS_TINT,
+  BOTTOM_BAR,
+  COLORS,
   DURATION,
   GRID,
   GUTTER,
@@ -27,6 +31,10 @@ import { SheetBar } from './chatgpt-attachments/panel/sheet-bar';
 import { useAttachmentFlights } from './chatgpt-attachments/use-attachment-flights';
 import { useAttachmentPanel } from './chatgpt-attachments/use-attachment-panel';
 import { useSheetGeometry } from './chatgpt-attachments/use-sheet-geometry';
+import { Glass } from './chatgpt-attachments/glass';
+import { localDateKey } from './chatgpt-attachments/local-date';
+
+const CALENDAR_CONFIRM_BUTTON_WIDTH = 120;
 
 export interface HomeSearchAttachmentsComposerProps {
   value: string;
@@ -35,7 +43,7 @@ export interface HomeSearchAttachmentsComposerProps {
   blurRequestKey: number;
   onChangeText: (value: string) => void;
   onFocusChange: (focused: boolean) => void;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: string, selectedDate?: string) => boolean;
 }
 
 export default function HomeSearchAttachmentsComposer({
@@ -58,6 +66,20 @@ export default function HomeSearchAttachmentsComposer({
   const [flash, setFlash] = useState<FlashMode>('off');
   const capturing = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [dateAttachmentState, setDateAttachmentState] = useState<{
+    blurRequestKey: number;
+    date: string;
+  } | null>(null);
+  const [calendarDateState, setCalendarDateState] = useState(() => ({
+    blurRequestKey,
+    date: localDateKey(new Date()),
+  }));
+  const selectedDate =
+    dateAttachmentState?.blurRequestKey === blurRequestKey ? dateAttachmentState.date : null;
+  const calendarSelectedDate =
+    calendarDateState.blurRequestKey === blurRequestKey
+      ? calendarDateState.date
+      : localDateKey(new Date());
   const clearSelection = useCallback(() => setSelected([]), []);
   const panel = useAttachmentPanel({ onLeaveSheet: clearSelection });
   const {
@@ -74,6 +96,35 @@ export default function HomeSearchAttachmentsComposer({
     resetPanel: panel.resetAfterLeave,
     onSettled: clearSelection,
   });
+
+  const resetDateAttachment = useCallback(() => {
+    setDateAttachmentState(null);
+    setCalendarDateState({ blurRequestKey, date: localDateKey(new Date()) });
+  }, [blurRequestKey]);
+
+  const handleSubmit = useCallback(
+    (text: string) => {
+      const submitted = onSubmit(text, selectedDate ?? undefined);
+      if (submitted) resetDateAttachment();
+      return submitted;
+    },
+    [onSubmit, resetDateAttachment, selectedDate],
+  );
+
+  const confirmCalendarDate = useCallback(() => {
+    setDateAttachmentState({ blurRequestKey, date: calendarSelectedDate });
+    panel.dismiss();
+  }, [blurRequestKey, calendarSelectedDate, panel]);
+
+  const handleCalendarConfirmPress = useCallback(() => {
+    triggerNativeButtonHaptic('selection');
+    confirmCalendarDate();
+  }, [confirmCalendarDate]);
+
+  const updateCalendarSelectedDate = useCallback(
+    (date: string) => setCalendarDateState({ blurRequestKey, date }),
+    [blurRequestKey],
+  );
 
   const togglePhoto = useCallback((photo: LibraryPhoto) => {
     Haptics.selectionAsync();
@@ -190,7 +241,11 @@ export default function HomeSearchAttachmentsComposer({
         onTogglePhoto={togglePhoto}
       />
     ) : panel.mode === 'date' ? (
-      <LocalCalendar />
+      <LocalCalendar
+        key={calendarSelectedDate}
+        selectedDate={calendarSelectedDate}
+        onSelectedDateChange={updateCalendarSelectedDate}
+      />
     ) : null;
 
   const flipCamera = useCallback(() => {
@@ -202,6 +257,10 @@ export default function HomeSearchAttachmentsComposer({
     Haptics.selectionAsync();
     setFlash((previous) => (previous === 'off' ? 'on' : 'off'));
   }, []);
+
+  const isDateSheetActive = panel.sheet === 'date' && panel.mode === 'date' && !panel.closing;
+  const isCameraSheetActive = panel.sheet === 'camera' && panel.mode === 'camera' && !panel.closing;
+  const isPhotoSheetActive = panel.sheet === 'photos' && panel.mode === 'photos' && !panel.closing;
 
   return (
     <View pointerEvents="box-none" style={styles.root}>
@@ -218,7 +277,9 @@ export default function HomeSearchAttachmentsComposer({
           blurRequestKey={blurRequestKey}
           onChangeText={onChangeText}
           onFocusChange={onFocusChange}
-          onSubmit={onSubmit}
+          onSubmit={handleSubmit}
+          dateAttachment={selectedDate ?? undefined}
+          onRemoveDateAttachment={resetDateAttachment}
           onPlusPress={panel.onPlusPress}
           onRemove={removeAttachment}
         />
@@ -249,7 +310,7 @@ export default function HomeSearchAttachmentsComposer({
               grid={grid}
             />
 
-            {panel.sheet === 'camera' ? (
+            {isCameraSheetActive ? (
               <CameraBar
                 width={gridWidth}
                 active={panel.mode === 'camera' && !isFlying}
@@ -260,16 +321,45 @@ export default function HomeSearchAttachmentsComposer({
                 onFlip={flipCamera}
                 onToggleFlash={toggleFlash}
               />
-            ) : panel.sheet === 'date' ? (
+            ) : null}
+
+            {isDateSheetActive ? (
               <SheetBar
                 width={gridWidth}
                 active={panel.mode === 'date' && !isFlying}
                 fade={panel.gridOpacity}
                 onBack={panel.backToMenu}
               >
-                <View />
+                <View
+                  pointerEvents="box-none"
+                  style={styles.calendarConfirmSlot}
+                  testID="calendar-confirm-slot"
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Selecionar"
+                    onPress={handleCalendarConfirmPress}
+                    testID="calendar-confirm-action"
+                  >
+                    <Glass
+                      testID="calendar-confirm-glass"
+                      radius={BOTTOM_BAR.controlSize / 2}
+                      active={panel.mode === 'date' && !isFlying}
+                      duration={DURATION.crossfade / 1000}
+                      tintColor={ATTACHMENT_CONTROL_GLASS_TINT}
+                      fallbackTint={ATTACHMENT_CONTROL_GLASS_TINT}
+                      style={styles.calendarConfirmGlass}
+                    >
+                      <Text numberOfLines={1} style={styles.calendarConfirmLabel}>
+                        Selecionar
+                      </Text>
+                    </Glass>
+                  </Pressable>
+                </View>
               </SheetBar>
-            ) : (
+            ) : null}
+
+            {isPhotoSheetActive ? (
               <PhotoGridBar
                 width={gridWidth}
                 selected={selected}
@@ -278,7 +368,7 @@ export default function HomeSearchAttachmentsComposer({
                 onBack={panel.backToMenu}
                 onConfirm={confirmSelection}
               />
-            )}
+            ) : null}
 
             <AttachmentFlight
               flights={flights}
@@ -307,5 +397,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  calendarConfirmSlot: {
+    alignItems: 'flex-end',
+    flex: 1,
+    height: '100%',
+    justifyContent: 'center',
+  },
+  calendarConfirmGlass: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: CALENDAR_CONFIRM_BUTTON_WIDTH,
+    height: BOTTOM_BAR.controlSize,
+  },
+  calendarConfirmLabel: {
+    color: COLORS.text,
+    fontSize: BOTTOM_BAR.pillLabelSize,
+    fontWeight: '600',
   },
 });

@@ -39,7 +39,9 @@ type PostedPayment = RetailPayment & { orderId: string };
 
 type PaymentAllocation = {
   deliveryCost: number;
+  deliveryCostByCategoryId: ReadonlyMap<string, number>;
   deliveryFee: number;
+  deliveryFeeByCategoryId: ReadonlyMap<string, number>;
   payment: PostedPayment;
   paymentFee: number;
   productCostByCategoryId: ReadonlyMap<string, number>;
@@ -166,6 +168,23 @@ function lineTotals(order: RetailOrder): {
   return { costByCategoryId, revenueByCategoryId, unitsByCategoryId };
 }
 
+function allocateByCategory(
+  amount: number,
+  productRevenueByCategoryId: ReadonlyMap<string, number>,
+): ReadonlyMap<string, number> {
+  const revenueEntries = [...productRevenueByCategoryId].filter(([, value]) => value > 0);
+  const revenueDenominator = revenueEntries.reduce((sum, [, value]) => sum + value, 0);
+  const allocations = allocateCents(
+    amount,
+    revenueEntries.map(([, value]) => value),
+    revenueDenominator,
+  );
+
+  return new Map(
+    revenueEntries.map(([categoryId], index) => [categoryId, allocations[index] ?? 0]),
+  );
+}
+
 function buildAllocations(
   order: RetailOrder,
   payments: readonly RetailPayment[],
@@ -208,9 +227,13 @@ function buildAllocations(
     for (const [categoryId] of costByCategoryId) {
       productCostByCategoryId.set(categoryId, costAllocations.get(categoryId)?.[index] ?? 0);
     }
+    const deliveryCost = deliveryCostAllocations[index] ?? 0;
+    const deliveryFee = deliveryFeeAllocations[index] ?? 0;
     return {
-      deliveryCost: deliveryCostAllocations[index] ?? 0,
-      deliveryFee: deliveryFeeAllocations[index] ?? 0,
+      deliveryCost,
+      deliveryCostByCategoryId: allocateByCategory(deliveryCost, productRevenueByCategoryId),
+      deliveryFee,
+      deliveryFeeByCategoryId: allocateByCategory(deliveryFee, productRevenueByCategoryId),
       payment,
       paymentFee: cents(payment.cardFee ?? 0),
       productCostByCategoryId,
@@ -243,14 +266,20 @@ export class RetailFinanceAggregationService {
       const { unitsByCategoryId } = lineTotals(order);
       for (const allocation of allocations) {
         if (!inPeriod(allocation.payment.paidAt, period)) continue;
-        const selectedRevenue = categoryId
+        const selectedProductRevenue = categoryId
           ? (allocation.productRevenueByCategoryId.get(categoryId) ?? 0)
+          : 0;
+        const selectedDeliveryFee = categoryId
+          ? (allocation.deliveryFeeByCategoryId.get(categoryId) ?? 0)
+          : 0;
+        const selectedRevenue = categoryId
+          ? selectedProductRevenue + selectedDeliveryFee
           : cents(allocation.payment.amount);
         if (selectedRevenue <= 0) continue;
         orderIds.add(order.orderId);
         revenueReceived += selectedRevenue;
         productRevenueRecognized += categoryId
-          ? (allocation.productRevenueByCategoryId.get(categoryId) ?? 0)
+          ? selectedProductRevenue
           : [...allocation.productRevenueByCategoryId.values()].reduce(
               (sum, value) => sum + value,
               0,
@@ -258,7 +287,10 @@ export class RetailFinanceAggregationService {
         productCostRecognized += categoryId
           ? (allocation.productCostByCategoryId.get(categoryId) ?? 0)
           : [...allocation.productCostByCategoryId.values()].reduce((sum, value) => sum + value, 0);
-        if (!categoryId) {
+        if (categoryId) {
+          deliveryFeeRecognized += selectedDeliveryFee;
+          deliveryCostRecognized += allocation.deliveryCostByCategoryId.get(categoryId) ?? 0;
+        } else {
           deliveryFeeRecognized += allocation.deliveryFee;
           deliveryCostRecognized += allocation.deliveryCost;
           paymentFees += allocation.paymentFee;

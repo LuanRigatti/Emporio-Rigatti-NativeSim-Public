@@ -25,6 +25,7 @@ type CachedSummary = {
 
 export class RetailOrderHistoryFinancialSummaryService {
   private readonly cache = new Map<string, CachedSummary>();
+  private readonly orderEpochs = new Map<string, number>();
   private readonly listeners = new Set<() => void>();
 
   public constructor(
@@ -48,6 +49,19 @@ export class RetailOrderHistoryFinancialSummaryService {
     }
   }
 
+  public invalidateOrder(orderId: string, userId: string, sessionVersion?: number): void {
+    const epochKey = this.orderEpochKey(orderId, userId, sessionVersion);
+    this.orderEpochs.set(epochKey, (this.orderEpochs.get(epochKey) ?? 0) + 1);
+    const prefix = `${this.sessionPrefix(userId, sessionVersion)}${orderId}:`;
+    let changed = false;
+    for (const key of this.cache.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      this.cache.delete(key);
+      changed = true;
+    }
+    if (changed) this.listeners.forEach((listener) => listener());
+  }
+
   public getCachedSummary(
     order: RetailOrder,
     userId: string,
@@ -66,6 +80,7 @@ export class RetailOrderHistoryFinancialSummaryService {
     options: RetailOrderHistoryFinancialLoadOptions = {},
   ): Promise<RetailOrderFinancialSummary> {
     const key = this.cacheKey(order, userId, sessionVersion);
+    const orderEpoch = this.getOrderEpoch(order.orderId, userId, sessionVersion);
     const cached = this.cache.get(key);
     const summaryMemory =
       cached?.signature === getRetailOrderHistoryFinancialSignature(order) ? 'hit' : 'miss';
@@ -82,6 +97,7 @@ export class RetailOrderHistoryFinancialSummaryService {
         sessionVersion,
       );
       if (cacheHydrated) {
+        this.assertOrderCurrent(order.orderId, userId, sessionVersion, orderEpoch);
         const cachedPayments = this.paymentReader.list(order.orderId, userId, sessionVersion);
         const cachedSummary = calculateRetailOrderFinancials({
           order,
@@ -92,6 +108,7 @@ export class RetailOrderHistoryFinancialSummaryService {
     }
 
     await this.paymentReader.load(order.orderId, userId, sessionVersion);
+    this.assertOrderCurrent(order.orderId, userId, sessionVersion, orderEpoch);
     const remotePaymentSnapshot = this.paymentReader.list(order.orderId, userId, sessionVersion);
     const summary = calculateRetailOrderFinancials({
       order,
@@ -110,6 +127,7 @@ export class RetailOrderHistoryFinancialSummaryService {
     userId: string,
     sessionVersion?: number,
   ): RetailOrderFinancialSummary | undefined {
+    if (!this.isOrderCurrent(order.orderId, userId, sessionVersion)) return undefined;
     const currentPayments = this.paymentReader.getSnapshot?.(order.orderId, userId, sessionVersion);
     if (this.paymentReader.getSnapshot && currentPayments === null) return undefined;
 
@@ -152,6 +170,7 @@ export class RetailOrderHistoryFinancialSummaryService {
         }
 
         let hydrated = false;
+        const orderEpoch = this.getOrderEpoch(order.orderId, userId, sessionVersion);
         try {
           hydrated = await hydrateFromCache(order.orderId, userId, sessionVersion);
         } catch {
@@ -159,6 +178,10 @@ export class RetailOrderHistoryFinancialSummaryService {
         }
 
         if (!hydrated) {
+          continue;
+        }
+
+        if (!this.isOrderCurrent(order.orderId, userId, sessionVersion, orderEpoch)) {
           continue;
         }
 
@@ -212,6 +235,34 @@ export class RetailOrderHistoryFinancialSummaryService {
 
   private sessionPrefix(userId: string, sessionVersion?: number): string {
     return `${userId}:${sessionVersion ?? 'none'}:`;
+  }
+
+  private orderEpochKey(orderId: string, userId: string, sessionVersion?: number): string {
+    return `${this.sessionPrefix(userId, sessionVersion)}${orderId}`;
+  }
+
+  private getOrderEpoch(orderId: string, userId: string, sessionVersion?: number): number {
+    return this.orderEpochs.get(this.orderEpochKey(orderId, userId, sessionVersion)) ?? 0;
+  }
+
+  private isOrderCurrent(
+    orderId: string,
+    userId: string,
+    sessionVersion?: number,
+    expectedEpoch = this.getOrderEpoch(orderId, userId, sessionVersion),
+  ): boolean {
+    return this.getOrderEpoch(orderId, userId, sessionVersion) === expectedEpoch;
+  }
+
+  private assertOrderCurrent(
+    orderId: string,
+    userId: string,
+    sessionVersion: number | undefined,
+    expectedEpoch: number,
+  ): void {
+    if (!this.isOrderCurrent(orderId, userId, sessionVersion, expectedEpoch)) {
+      throw new Error('Resumo financeiro obsoleto.');
+    }
   }
 }
 

@@ -2,7 +2,9 @@ import type {
   FinancialCalculationFilters,
   FinancialPeriodSelection,
   FinancialReportPeriod,
+  WholesaleFinanceSelection,
 } from '@/types/data';
+import { formatHistoryWeekLabel } from '@/features/history/utils/historyPeriodUtils';
 import {
   formatPtBrCompactMonthYear,
   formatPtBrDate,
@@ -45,6 +47,37 @@ export function financialFiltersForSelection(
     };
   }
   return { periodo: 'todos' };
+}
+
+export function wholesaleFinanceSelectionToFinancialSelection(
+  selection: WholesaleFinanceSelection,
+): FinancialPeriodSelection {
+  if (selection.kind === 'week') {
+    return {
+      kind: 'range',
+      start: selection.startDate,
+      end: selection.endDate,
+    };
+  }
+
+  return selection;
+}
+
+export function wholesaleFinanceFiltersForSelection(
+  selection: WholesaleFinanceSelection,
+): FinancialCalculationFilters {
+  return financialFiltersForSelection(wholesaleFinanceSelectionToFinancialSelection(selection));
+}
+
+export function formatWholesaleFinancePeriodLabel(selection: WholesaleFinanceSelection): string {
+  if (selection.kind === 'week') {
+    return formatHistoryWeekLabel({
+      endDate: selection.endDate,
+      startDate: selection.startDate,
+    });
+  }
+
+  return formatFinancialPeriodLabel(wholesaleFinanceSelectionToFinancialSelection(selection));
 }
 
 export function formatFinancialPeriodLabel(selection: FinancialPeriodSelection): string {

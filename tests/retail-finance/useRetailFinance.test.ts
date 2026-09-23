@@ -50,6 +50,8 @@ const { useRetailFinance } =
 
 describe('useRetailFinance', () => {
   beforeEach(() => {
+    mockAuth.sessionVersion += 1;
+    mockAuth.user.id = `uid-retail-${mockAuth.sessionVersion}`;
     mockAggregate.mockClear();
     mockOrderDataSource.getSnapshot.mockClear();
     mockOrderDataSource.hydrateFromCache.mockClear();
@@ -88,6 +90,60 @@ describe('useRetailFinance', () => {
     });
 
     expect(mockOrderDataSource.loadHistorical).toHaveBeenCalledTimes(1);
+    await act(async () => renderer.unmount());
+  });
+
+  it('derives from a warmed dataset while disabled without starting another load', async () => {
+    let current: ReturnType<typeof useRetailFinance> | undefined;
+    function Harness({ enabled }: { enabled: boolean }) {
+      current = useRetailFinance({ endDate: '2026-09-30', startDate: '2026-09-01' }, 'general', {
+        enabled,
+      });
+      return null;
+    }
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(createElement(Harness, { enabled: true }));
+      await new Promise((resolve) => setImmediate(resolve));
+    });
+
+    const hydrateCalls = mockOrderDataSource.hydrateFromCache.mock.calls.length;
+    expect(current?.summary).not.toBeNull();
+
+    act(() => renderer.update(createElement(Harness, { enabled: false })));
+
+    expect(current?.summary).not.toBeNull();
+    expect(current?.loading).toBe(false);
+    expect(mockOrderDataSource.hydrateFromCache).toHaveBeenCalledTimes(hydrateCalls);
+    await act(async () => renderer.unmount());
+  });
+
+  it('does not load without focus when no dataset exists, then loads after focus is enabled', async () => {
+    let current: ReturnType<typeof useRetailFinance> | undefined;
+    function Harness({ enabled }: { enabled: boolean }) {
+      current = useRetailFinance({ endDate: '2026-09-30', startDate: '2026-09-01' }, 'general', {
+        enabled,
+      });
+      return null;
+    }
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(Harness, { enabled: false }));
+    });
+
+    expect(current?.summary).toBeNull();
+    expect(current?.loading).toBe(false);
+    expect(mockOrderDataSource.hydrateFromCache).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.update(createElement(Harness, { enabled: true }));
+      await new Promise((resolve) => setImmediate(resolve));
+    });
+
+    expect(mockOrderDataSource.hydrateFromCache).toHaveBeenCalledTimes(1);
+    expect(current?.summary).not.toBeNull();
     await act(async () => renderer.unmount());
   });
 });

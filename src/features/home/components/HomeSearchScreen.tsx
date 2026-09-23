@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { InteractionManager, Keyboard, ScrollView, StyleSheet, View } from 'react-native';
-import { useFocusEffect, useNavigation } from 'expo-router';
+import { Stack, useFocusEffect, useNavigation } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { PremiumScreen } from '@/components/premium';
 import { getCardSurfaceColor, spacing, useAppTheme } from '@/theme';
 import { prewarmAppleIntelligence } from '../search/AppleIntelligenceSearchInterpreter';
+import type { HomeSearchTemporalContext } from '../search/HomeSearchTypes';
+import HomeSearchConversation from './HomeSearchConversation';
+import {
+  homeSearchConversationReducer,
+  type HomeSearchConversationTurn,
+} from './HomeSearchConversationState';
 import HomeSearchResultsContent from './HomeSearchResultsContent';
 import HomeSearchHelpContent from '../help/HomeSearchHelpContent';
 import HomeSearchAttachmentsComposer from './HomeSearchAttachmentsComposer';
@@ -24,18 +30,26 @@ type NativeStackTransitionNavigation = {
 export default function HomeSearchScreen() {
   const navigation = useNavigation();
   const { resolvedMode, theme } = useAppTheme();
-  const { response, loading, search } = useHomeSearch();
+  const { search } = useHomeSearch();
   const [query, setQuery] = useState('');
-  const [submittedQuery, setSubmittedQuery] = useState('');
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [conversationTurns, dispatchConversation] = useReducer(
+    homeSearchConversationReducer,
+    [] as HomeSearchConversationTurn[],
+  );
   const [focusRequestKey, setFocusRequestKey] = useState(0);
   const [blurRequestKey, setBlurRequestKey] = useState(0);
   const focusRequestedRef = useRef(false);
   const screenFocusedRef = useRef(false);
+  const nextTurnIdRef = useRef(0);
+  const scrollToEndRequestedRef = useRef(false);
+  const conversationScrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(
     useCallback(() => {
       screenFocusedRef.current = true;
       focusRequestedRef.current = false;
+      setSuggestionsVisible(false);
 
       return () => {
         screenFocusedRef.current = false;
@@ -84,20 +98,59 @@ export default function HomeSearchScreen() {
   }, [navigation]);
 
   const handleSubmit = useCallback(
-    (value: string) => {
+    (value: string, selectedDate?: string): boolean => {
       const nextQuery = value.trim();
-      if (!nextQuery) return;
+      if (!nextQuery) return false;
 
-      setSubmittedQuery(nextQuery);
-      Keyboard.dismiss();
-      void search(nextQuery);
+      const turnId = `search-${nextTurnIdRef.current + 1}`;
+      nextTurnIdRef.current += 1;
+      scrollToEndRequestedRef.current = true;
+      dispatchConversation({
+        type: 'submit',
+        id: turnId,
+        query: nextQuery,
+        ...(selectedDate !== undefined ? { selectedDate } : {}),
+      });
+      setQuery('');
+
+      const temporalContext: HomeSearchTemporalContext | undefined = selectedDate
+        ? { selectedDate }
+        : undefined;
+      const searchRequest = temporalContext
+        ? search(nextQuery, temporalContext)
+        : search(nextQuery);
+      void searchRequest
+        .then((nextResponse) => {
+          scrollToEndRequestedRef.current = true;
+
+          if (!nextResponse || nextResponse.stale) {
+            dispatchConversation({
+              type: 'fail',
+              id: turnId,
+              message: 'A pesquisa foi interrompida. Tente novamente.',
+            });
+            return;
+          }
+
+          dispatchConversation({ type: 'resolve', id: turnId, response: nextResponse });
+        })
+        .catch(() => {
+          scrollToEndRequestedRef.current = true;
+          dispatchConversation({
+            type: 'fail',
+            id: turnId,
+            message: 'Não foi possível concluir esta pesquisa agora.',
+          });
+        });
+
+      return true;
     },
     [search],
   );
 
   const handleChangeText = useCallback((value: string) => {
     setQuery(value);
-    if (!value.trim()) setSubmittedQuery('');
+    if (value.trim()) setSuggestionsVisible(false);
   }, []);
 
   const handleSelectSuggestion = useCallback(
@@ -125,71 +178,93 @@ export default function HomeSearchScreen() {
       }}
     />
   );
-  const showSuggestions = query.trim().length === 0;
-  const visibleResponse = submittedQuery === query.trim() && !loading ? response : null;
+  const showSuggestions =
+    suggestionsVisible && conversationTurns.length === 0 && query.trim().length === 0;
+
+  const handleConversationContentSizeChange = useCallback(() => {
+    if (!scrollToEndRequestedRef.current) return;
+
+    scrollToEndRequestedRef.current = false;
+    conversationScrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
 
   return (
-    <PremiumScreen
-      contentContainerStyle={{
-        paddingBottom: 0,
-        paddingHorizontal: 0,
-      }}
-      overlayHeader={header}
-      overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
-      overlayHeaderSpacing={0}
-      progressiveBlur
-      scrollable={false}
-    >
-      <View style={styles.searchBody}>
-        <ScrollView
-          automaticallyAdjustKeyboardInsets
-          contentContainerStyle={styles.searchScrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={styles.resultsScroll}
-        >
-          <View
-            style={[
-              styles.pageTitleBlock,
-              {
-                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-                paddingHorizontal: theme.layout.screenHorizontalPadding,
-              },
-            ]}
-          >
-            {pageTitle}
-          </View>
-          {showSuggestions ? (
-            <HomeSearchScreenNativeHost mode="content">
-              <HomeSearchHelpContent
-                cardBackground={getCardSurfaceColor(resolvedMode, theme.colors.surface)}
-                onSelectQuery={handleSelectSuggestion}
-              />
-            </HomeSearchScreenNativeHost>
-          ) : (
-            <HomeSearchScreenNativeHost mode="content">
-              <HomeSearchResultsContent
-                isLarge
-                loading={loading}
-                response={visibleResponse}
-                scrollable={false}
-              />
-            </HomeSearchScreenNativeHost>
-          )}
-        </ScrollView>
-        <HomeSearchAttachmentsComposer
-          blurRequestKey={blurRequestKey}
-          focusRequestKey={focusRequestKey}
-          onChangeText={handleChangeText}
-          onFocusChange={(focused) => {
-            if (focused) void prewarmAppleIntelligence();
-          }}
-          onSubmit={handleSubmit}
-          placeholder="Busque clientes, entregas e filtros"
-          value={query}
+    <>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityLabel={
+            showSuggestions ? 'Ocultar sugestões de pesquisa' : 'Mostrar sugestões de pesquisa'
+          }
+          icon="questionmark.circle"
+          onPress={() => setSuggestionsVisible((visible) => !visible)}
         />
-      </View>
-    </PremiumScreen>
+      </Stack.Toolbar>
+      <PremiumScreen
+        contentContainerStyle={{
+          paddingBottom: 0,
+          paddingHorizontal: 0,
+        }}
+        overlayHeader={header}
+        overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
+        overlayHeaderSpacing={0}
+        progressiveBlur
+        scrollable={false}
+      >
+        <View style={styles.searchBody}>
+          <ScrollView
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={styles.searchScrollContent}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={handleConversationContentSizeChange}
+            ref={conversationScrollRef}
+            showsVerticalScrollIndicator={false}
+            style={styles.resultsScroll}
+          >
+            <View
+              style={[
+                styles.pageTitleBlock,
+                {
+                  marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+                  paddingHorizontal: theme.layout.screenHorizontalPadding,
+                },
+              ]}
+            >
+              {pageTitle}
+            </View>
+            {showSuggestions ? (
+              <HomeSearchScreenNativeHost mode="content">
+                <HomeSearchHelpContent
+                  cardBackground={getCardSurfaceColor(resolvedMode, theme.colors.surface)}
+                  onSelectQuery={handleSelectSuggestion}
+                />
+              </HomeSearchScreenNativeHost>
+            ) : conversationTurns.length > 0 ? (
+              <HomeSearchConversation turns={conversationTurns} />
+            ) : (
+              <HomeSearchScreenNativeHost mode="content">
+                <HomeSearchResultsContent
+                  isLarge
+                  loading={false}
+                  response={null}
+                  scrollable={false}
+                />
+              </HomeSearchScreenNativeHost>
+            )}
+          </ScrollView>
+          <HomeSearchAttachmentsComposer
+            blurRequestKey={blurRequestKey}
+            focusRequestKey={focusRequestKey}
+            onChangeText={handleChangeText}
+            onFocusChange={(focused) => {
+              if (focused) void prewarmAppleIntelligence();
+            }}
+            onSubmit={handleSubmit}
+            placeholder="Busque clientes, entregas e filtros"
+            value={query}
+          />
+        </View>
+      </PremiumScreen>
+    </>
   );
 }
 

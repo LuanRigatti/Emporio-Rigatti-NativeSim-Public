@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ReactNode } from 'react';
 
@@ -19,7 +21,17 @@ const mockUseOpenPaymentClients = jest.fn(() => ({ clientCards: [], totalOpenAmo
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/layout', () => ({ NativeGlassHeader: () => null }));
-jest.mock('@/components/navigation/HomeToolbar', () => ({ HomeToolbar: () => null }));
+jest.mock('@/components/navigation/HomeToolbar', () => ({
+  HomeToolbar: () => null,
+  useHomeModeSelector: () => ({
+    mode: mockAppMode.mode,
+    visible: false,
+    open: jest.fn(),
+    onVisibleChange: jest.fn(),
+    onDismiss: jest.fn(),
+    onSelect: jest.fn(),
+  }),
+}));
 jest.mock('@/components/premium', () => ({
   AnimatedPressable: ({ children }: { children?: ReactNode }) => children,
   PremiumCard: ({ children }: { children?: ReactNode }) => {
@@ -37,9 +49,6 @@ jest.mock('@/features/home/components/RetailHome', () => ({
     return React.createElement('retail-home');
   },
 }));
-jest.mock('@/features/home/components/TodayDeliveriesCard', () => ({
-  TodayDeliveriesCard: () => null,
-}));
 jest.mock('@/features/home/profile/HomeProfileSheet', () => ({ HomeProfileSheet: () => null }));
 jest.mock('@/features/open-payments/hooks/useOpenPaymentClients', () => ({
   useOpenPaymentClients: mockUseOpenPaymentClients,
@@ -52,7 +61,6 @@ jest.mock('@/providers', () => ({
   useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
   useAuth: () => ({ user: { displayName: 'Conta', id: 'uid' } }),
 }));
-jest.mock('@/services/data', () => ({ toHistoryDelivery: jest.fn() }));
 jest.mock('@/services/factory-purchases', () => ({
   factoryPurchaseCalculationService: { summarize: () => ({ openValue: 0 }) },
 }));
@@ -130,6 +138,35 @@ describe('Dashboard AppMode routing', () => {
     expect(mockUseFactoryPurchases).toHaveBeenCalledTimes(1);
     expect(mockUseOpenPaymentClients).toHaveBeenCalledTimes(1);
     act(() => renderer.unmount());
+  });
+
+  it('keeps the wholesale delivery count while removing recent-record presentation from both homes', () => {
+    const dashboardSource = readFileSync(
+      resolve(process.cwd(), 'src/app/(tabs)/dashboard/index.tsx'),
+      'utf8',
+    );
+    const retailHomeSource = readFileSync(
+      resolve(process.cwd(), 'src/features/home/components/RetailHome.tsx'),
+      'utf8',
+    );
+    const retailMetricsSource = readFileSync(
+      resolve(process.cwd(), 'src/hooks/useRetailHomeMetrics.ts'),
+      'utf8',
+    );
+
+    expect(dashboardSource).toContain('dailyDeliveries.length} hoje');
+    expect(dashboardSource).not.toContain('TodayDeliveriesCard');
+    expect(dashboardSource).not.toContain('homeShortcutIconSurface');
+    expect(dashboardSource).toContain('backgroundColor: theme.colors.background');
+    expect(retailHomeSource).not.toContain('RetailTodayOrdersCard');
+    expect(retailMetricsSource).not.toContain('todayOrders');
+    expect(retailMetricsSource).not.toContain('retailOrderDataSource.list');
+    expect(
+      existsSync(resolve(process.cwd(), 'src/features/home/components/TodayDeliveriesCard.tsx')),
+    ).toBe(false);
+    expect(
+      existsSync(resolve(process.cwd(), 'src/features/home/components/RetailTodayOrdersCard.tsx')),
+    ).toBe(false);
   });
 
   it('renders no domain composition before the stored mode is ready', () => {

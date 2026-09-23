@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Badge } from '@/components/feedback';
+import { NativeCardContextMenu } from '@/components/native';
 import { PremiumCard, type AnimatedPressableProps } from '@/components/premium';
 import type { RetailOrder, RetailOrderFinancialSummary } from '@/types/data';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
@@ -12,10 +13,14 @@ type RetailOrderHistoryCardProps = {
   order: RetailOrder;
   financialState?: RetailOrderHistoryFinancialViewState;
   onPress?: AnimatedPressableProps['onPress'];
+  onDelete?: () => void;
+  deleteDisabled?: boolean;
 };
 
 export function RetailOrderHistoryCard({
   onPress,
+  onDelete,
+  deleteDisabled = false,
   order,
   financialState,
 }: RetailOrderHistoryCardProps) {
@@ -30,11 +35,14 @@ export function RetailOrderHistoryCard({
     .map((lineItem) => `${lineItem.quantity}× ${lineItem.productNameSnapshot}`)
     .join(' · ');
 
-  return (
+  const card = (
     <PremiumCard
       accessibilityLabel={`Abrir detalhes do pedido de ${order.clientNameSnapshot} em ${formatPtBrDate(order.orderDate)}`}
       onPress={onPress}
-      style={[styles.card, { gap: theme.spacing.sm }]}
+      style={[
+        styles.card,
+        { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
+      ]}
     >
       <View style={[styles.header, { gap: theme.spacing.xs }]}>
         <View style={styles.clientCopy}>
@@ -91,6 +99,29 @@ export function RetailOrderHistoryCard({
         </Text>
       ) : null}
     </PremiumCard>
+  );
+
+  if (!onDelete) return card;
+
+  return (
+    <View style={[styles.contextContainer, { borderRadius: theme.radius.xl + theme.spacing.md }]}>
+      <NativeCardContextMenu
+        actions={[
+          {
+            destructive: true,
+            disabled: deleteDisabled,
+            id: 'delete-retail-order',
+            onPress: onDelete,
+            systemImage: 'trash',
+            title: 'Excluir',
+          },
+        ]}
+        preview={card}
+        style={{ borderRadius: theme.radius.xl + theme.spacing.md, width: '100%' }}
+      >
+        <View style={styles.contextContent}>{card}</View>
+      </NativeCardContextMenu>
+    </View>
   );
 }
 
@@ -151,6 +182,8 @@ function financialStatusTone(summary: RetailOrderFinancialSummary): 'success' | 
 const styles = StyleSheet.create({
   card: { width: '100%' },
   clientCopy: { flex: 1 },
+  contextContainer: { width: '100%' },
+  contextContent: { width: '100%' },
   financials: { width: '100%' },
   header: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
   row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

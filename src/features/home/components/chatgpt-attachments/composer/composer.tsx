@@ -23,6 +23,7 @@ import { useAppTheme } from '@/theme';
 import { AttachmentIcon } from '../AttachmentIcon';
 import { COLORS, COMPOSER, COMPOSER_STRIP_HEIGHT, DURATION, GUTTER } from '../constants';
 import { Glass } from '../glass';
+import { formatLocalDateAttachment, formatLocalDateAttachmentCompact } from '../local-date';
 import type { LibraryPhoto } from '../photos/use-photo-library';
 
 interface ThumbnailProps {
@@ -78,12 +79,14 @@ export interface ComposerProps {
   pendingIds: string[];
   value: string;
   placeholder?: string;
+  dateAttachment?: string;
   focusRequestKey?: number;
   blurRequestKey?: number;
   autoFocus?: boolean;
   onChangeText: (value: string) => void;
   onFocusChange?: (focused: boolean) => void;
   onSubmit?: (value: string) => void;
+  onRemoveDateAttachment?: () => void;
   onPlusPress: () => void;
   onRemove: (id: string) => void;
 }
@@ -97,12 +100,14 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     pendingIds,
     value,
     placeholder = 'Pesquisar',
+    dateAttachment,
     focusRequestKey = 0,
     blurRequestKey = 0,
     autoFocus = false,
     onChangeText,
     onFocusChange,
     onSubmit,
+    onRemoveDateAttachment,
     onPlusPress,
     onRemove,
   },
@@ -199,6 +204,14 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           </Animated.View>
         </Pressable>
 
+        {dateAttachment ? (
+          <DateAttachmentChip
+            date={dateAttachment}
+            foreground={foreground}
+            onRemove={onRemoveDateAttachment}
+          />
+        ) : null}
+
         <TextInput
           ref={ref}
           value={value}
@@ -210,6 +223,7 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           placeholderTextColor={placeholderColor}
           keyboardAppearance={resolvedMode === 'dark' ? 'dark' : 'light'}
           returnKeyType="search"
+          submitBehavior="submit"
           multiline={false}
           style={[styles.field, { color: foreground }]}
         />
@@ -226,6 +240,52 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     </Glass>
   );
 });
+
+function DateAttachmentChip({
+  date,
+  foreground,
+  onRemove,
+}: {
+  date: string;
+  foreground: string;
+  onRemove?: () => void;
+}) {
+  const { theme } = useAppTheme();
+  const label = formatLocalDateAttachmentCompact(date);
+  const accessibilityDate = formatLocalDateAttachment(date);
+
+  return (
+    <Glass
+      interactive={false}
+      radius={COMPOSER.dateChipHeight / 2}
+      style={styles.dateChip}
+      variant="regular"
+    >
+      <View style={styles.dateChipContent}>
+        <Text
+          accessibilityLabel={accessibilityDate}
+          numberOfLines={1}
+          style={[
+            theme.typography.footnote,
+            styles.dateChipLabel,
+            { color: foreground, fontSize: theme.typography.footnote.fontSize + 1 },
+          ]}
+        >
+          {label}
+        </Text>
+        <Pressable
+          accessibilityLabel={`Remover data ${accessibilityDate}`}
+          accessibilityRole="button"
+          hitSlop={6}
+          onPress={onRemove}
+          style={styles.dateChipRemove}
+        >
+          <AttachmentIcon name="close" size={12} color={foreground} />
+        </Pressable>
+      </View>
+    </Glass>
+  );
+}
 
 const styles = StyleSheet.create({
   root: { marginHorizontal: GUTTER },
@@ -278,6 +338,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   plusGlyph: { fontWeight: '600' },
+  dateChip: {
+    maxWidth: COMPOSER.dateChipMaxWidth,
+    height: COMPOSER.dateChipHeight,
+    borderRadius: COMPOSER.dateChipHeight / 2,
+    borderCurve: 'continuous',
+    flexShrink: 0,
+  },
+  dateChipContent: {
+    height: COMPOSER.dateChipHeight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 9,
+    paddingRight: 5,
+    gap: 3,
+  },
+  dateChipLabel: {
+    flexShrink: 1,
+    fontWeight: '600',
+  },
+  dateChipRemove: {
+    width: 20,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   field: {
     flex: 1,
     minWidth: 0,

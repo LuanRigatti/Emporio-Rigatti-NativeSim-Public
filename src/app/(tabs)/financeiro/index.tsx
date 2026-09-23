@@ -3,39 +3,72 @@ import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Loading } from '@/components/feedback';
 import { NativeGlassHeader } from '@/components/layout';
-import { NativeAnimatedNumber, NativeRetailFinanceCategorySelector } from '@/components/native';
+import {
+  NativeAnimatedNumber,
+  NativeRetailFinanceCategorySelector,
+  renderNativeDateToolbarItems,
+} from '@/components/native';
 import { FinancialSeriesChart } from '@/components/Charts';
 import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
 import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
-import { getHistoryMonthRange } from '@/features/history/utils/historyPeriodUtils';
+import {
+  createHistoryWeekGroups,
+  getHistoryMonthRange,
+  getHistoryWeekRange,
+} from '@/features/history/utils/historyPeriodUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
 import { useRetailCategories } from '@/hooks/useRetailCategories';
 import { useRetailFinance } from '@/hooks/useRetailFinance';
 import { useAppMode } from '@/providers';
-import { expenseQueryForFinancialSelection } from '@/services/costs';
-import { financialCalculationService } from '@/services/finance';
+import { expenseQueryForWholesaleFinanceSelection } from '@/services/costs';
+import {
+  financialCalculationService,
+  formatWholesaleFinancePeriodLabel,
+  wholesaleFinanceFiltersForSelection,
+} from '@/services/finance';
 import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
 import { retailFinanceViewForCategory, type RetailFinanceView } from '@/services/retail-finance';
+import type { WholesaleFinanceSelection } from '@/types/data';
 import type { RouteTrackingSession } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import { todayIso } from '@/utils/data';
 
 export default function FinanceiroRoute() {
   const { mode } = useAppMode();
   return mode === 'retail' ? <RetailFinanceScreen /> : <WholesaleFinanceScreen />;
 }
 
+const WHOLESALE_FINANCE_PERIOD_ITEMS = [
+  { key: 'month', label: 'Mês' },
+  { key: 'day', label: 'Dia' },
+  { key: 'week', label: 'Semana' },
+  { key: 'all', label: 'Total' },
+] as const;
+
+type WholesaleFinancePeriodKind = WholesaleFinanceSelection['kind'];
+
 function WholesaleFinanceScreen() {
   const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
   const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const isFocused = useIsFocused();
-  const [selectedMonth, setSelectedMonth] = useState(() => getCurrentHistoryPeriod().month);
-  const [selectedYear, setSelectedYear] = useState(() => getCurrentHistoryPeriod().year);
+  const initialHistoryPeriod = getCurrentHistoryPeriod();
+  const [selectedMonth, setSelectedMonth] = useState(initialHistoryPeriod.month);
+  const [selectedYear, setSelectedYear] = useState(initialHistoryPeriod.year);
+  const [periodKind, setPeriodKind] = useState<WholesaleFinancePeriodKind>('month');
+  const [selectedDay, setSelectedDay] = useState(() => todayIso());
+  const [selectedWeek, setSelectedWeek] = useState(() => getHistoryWeekRange(todayIso()));
+  const [displayedSelection, setDisplayedSelection] = useState<WholesaleFinanceSelection>(() => ({
+    kind: 'month',
+    month: `${initialHistoryPeriod.year}-${String(initialHistoryPeriod.month).padStart(2, '0')}`,
+  }));
   const [displayedHeroValues, setDisplayedHeroValues] = useState<{
+    scopeKey?: string;
     faturamento: number | null;
     lucroLiquido: number | null;
   }>({ faturamento: null, lucroLiquido: null });
@@ -45,12 +78,40 @@ function WholesaleFinanceScreen() {
   );
   const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-  const { comparisonSnapshot, snapshot, snapshotScopeKey } = useFinancialData(
-    expenseQueryForFinancialSelection({ kind: 'month', month: selectedPeriod }),
-    { displayMonth: selectedPeriod, enabled: isFocused },
+  const wholesaleSelection = useMemo<WholesaleFinanceSelection>(() => {
+    if (periodKind === 'day') return { date: selectedDay, kind: 'day' };
+    if (periodKind === 'week') {
+      return {
+        endDate: selectedWeek.endDate,
+        kind: 'week',
+        startDate: selectedWeek.startDate,
+      };
+    }
+    if (periodKind === 'all') return { kind: 'all' };
+    return { kind: 'month', month: selectedPeriod };
+  }, [periodKind, selectedDay, selectedPeriod, selectedWeek]);
+  const financialQuery = useMemo(
+    () => expenseQueryForWholesaleFinanceSelection(wholesaleSelection),
+    [wholesaleSelection],
   );
-  const displayedPeriod = isMonthlyPeriod(snapshotScopeKey) ? snapshotScopeKey : selectedPeriod;
-  const { month: displayedMonth, year: displayedYear } = parsePeriodKey(displayedPeriod);
+  const requestedScopeKey =
+    wholesaleSelection.kind === 'month'
+      ? selectedPeriod
+      : wholesaleSelection.kind === 'all'
+        ? 'all'
+        : JSON.stringify(financialQuery);
+  const {
+    comparisonSnapshot,
+    error,
+    loading,
+    remoteComplete,
+    routesCoverage,
+    snapshot,
+    snapshotScopeKey,
+  } = useFinancialData(financialQuery, {
+    displayMonth: wholesaleSelection.kind === 'month' ? selectedPeriod : undefined,
+    enabled: isFocused,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -80,73 +141,120 @@ function WholesaleFinanceScreen() {
     () => (routesLoaded ? summarizeRouteKilometersByDate(routeSessions) : {}),
     [routesLoaded, routeSessions],
   );
+  const hasStableSnapshot = snapshot !== null && snapshotScopeKey === requestedScopeKey;
+  /* eslint-disable react-hooks/set-state-in-effect -- this state stores only the last stable visible scope. */
+  useEffect(() => {
+    if (!hasStableSnapshot) return;
+    setDisplayedSelection((current) =>
+      current === wholesaleSelection ? current : wholesaleSelection,
+    );
+  }, [hasStableSnapshot, wholesaleSelection]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  const summarySelection = hasStableSnapshot ? wholesaleSelection : displayedSelection;
+  const hasVisibleSnapshot = hasStableSnapshot || displayedHeroValues.scopeKey !== undefined;
+  const activeSnapshot = hasVisibleSnapshot ? snapshot : null;
+  const activeComparisonSnapshot = hasVisibleSnapshot ? comparisonSnapshot : null;
   const fuelExpenses = useMemo(
     () => ({
-      ...(comparisonSnapshot?.gastosDiarios ?? {}),
-      ...(snapshot?.gastosDiarios ?? {}),
+      ...(activeComparisonSnapshot?.gastosDiarios ?? {}),
+      ...(activeSnapshot?.gastosDiarios ?? {}),
     }),
-    [comparisonSnapshot?.gastosDiarios, snapshot?.gastosDiarios],
+    [activeComparisonSnapshot?.gastosDiarios, activeSnapshot?.gastosDiarios],
   );
   const { fuelCostByDate, isReady: fuelCostsReady } = useFinancialFuelCosts(
     fuelExpenses,
     routeSessions,
   );
 
-  const hasStableSnapshot = snapshot !== null && snapshotScopeKey === displayedPeriod;
-  const isNetProfitReady = hasStableSnapshot && routesLoaded && fuelCostsReady;
+  const summaryFilters = useMemo(
+    () => wholesaleFinanceFiltersForSelection(summarySelection),
+    [summarySelection],
+  );
+  const isNetProfitReady =
+    activeSnapshot !== null &&
+    routesLoaded &&
+    fuelCostsReady &&
+    (routesCoverage === 'local-only' || remoteComplete);
 
   const summary = useMemo(
     () =>
-      snapshot
+      activeSnapshot
         ? financialCalculationService.calculateResumo({
-            deliveries: snapshot.entregas,
-            dailyExpenses: snapshot.gastosDiarios,
-            filters: { mesSelecionado: displayedPeriod, periodo: 'mes' },
-            monthlyExpenses: snapshot.gastosMensais,
+            deliveries: activeSnapshot.entregas,
+            dailyExpenses: activeSnapshot.gastosDiarios,
+            filters: summaryFilters,
+            fullLightInterval: summarySelection.kind === 'week',
+            monthlyExpenses: activeSnapshot.gastosMensais,
             automaticKilometersByDate,
             fuelCostByDate,
           })
         : undefined,
-    [automaticKilometersByDate, displayedPeriod, fuelCostByDate, snapshot],
+    [activeSnapshot, automaticKilometersByDate, fuelCostByDate, summaryFilters, summarySelection],
   );
   const comparison = useMemo(
     () =>
-      snapshot && comparisonSnapshot
+      summarySelection.kind === 'month' && activeSnapshot && activeComparisonSnapshot
         ? financialCalculationService.compareCalendarMonths({
-            deliveries: comparisonSnapshot.entregas,
-            dailyExpenses: comparisonSnapshot.gastosDiarios,
-            filters: { mesSelecionado: displayedPeriod, periodo: 'mes' },
-            monthlyExpenses: comparisonSnapshot.gastosMensais,
+            deliveries: activeComparisonSnapshot.entregas,
+            dailyExpenses: activeComparisonSnapshot.gastosDiarios,
+            filters: summaryFilters,
+            monthlyExpenses: activeSnapshot.gastosMensais,
             automaticKilometersByDate,
             fuelCostByDate,
           })
         : undefined,
-    [automaticKilometersByDate, comparisonSnapshot, displayedPeriod, fuelCostByDate, snapshot],
+    [
+      activeComparisonSnapshot,
+      activeSnapshot,
+      automaticKilometersByDate,
+      fuelCostByDate,
+      summaryFilters,
+      summarySelection.kind,
+    ],
   );
   const currentFaturamentoValue = summary?.faturamento ?? null;
   const currentLucroLiquidoValue = isNetProfitReady && summary ? summary.lucroLiquido : null;
-  const faturamentoReady = hasStableSnapshot && currentFaturamentoValue !== null;
+  const faturamentoReady = summary !== undefined && currentFaturamentoValue !== null;
   const lucroLiquidoReady = isNetProfitReady && currentLucroLiquidoValue !== null;
+  const keepingPreviousSummary = !hasStableSnapshot && displayedHeroValues.scopeKey !== undefined;
   const displayedFaturamentoValue = faturamentoReady
     ? currentFaturamentoValue
-    : displayedHeroValues.faturamento;
+    : keepingPreviousSummary
+      ? displayedHeroValues.faturamento
+      : null;
   const displayedLucroLiquidoValue = lucroLiquidoReady
     ? currentLucroLiquidoValue
-    : displayedHeroValues.lucroLiquido;
+    : keepingPreviousSummary
+      ? displayedHeroValues.lucroLiquido
+      : null;
 
   /* eslint-disable react-hooks/set-state-in-effect -- stores only stable data, never animation frames. */
   useEffect(() => {
-    if (!faturamentoReady && !lucroLiquidoReady) return;
+    if (!hasStableSnapshot || (!faturamentoReady && !lucroLiquidoReady)) return;
     setDisplayedHeroValues((current) => {
+      const base =
+        current.scopeKey === requestedScopeKey
+          ? current
+          : { faturamento: null, lucroLiquido: null, scopeKey: requestedScopeKey };
       const next = {
-        faturamento: faturamentoReady ? currentFaturamentoValue : current.faturamento,
-        lucroLiquido: lucroLiquidoReady ? currentLucroLiquidoValue : current.lucroLiquido,
+        faturamento: faturamentoReady ? currentFaturamentoValue : base.faturamento,
+        lucroLiquido: lucroLiquidoReady ? currentLucroLiquidoValue : base.lucroLiquido,
+        scopeKey: requestedScopeKey,
       };
-      return next.faturamento === current.faturamento && next.lucroLiquido === current.lucroLiquido
+      return next.faturamento === current.faturamento &&
+        next.lucroLiquido === current.lucroLiquido &&
+        next.scopeKey === current.scopeKey
         ? current
         : next;
     });
-  }, [currentFaturamentoValue, currentLucroLiquidoValue, faturamentoReady, lucroLiquidoReady]);
+  }, [
+    currentFaturamentoValue,
+    currentLucroLiquidoValue,
+    faturamentoReady,
+    hasStableSnapshot,
+    lucroLiquidoReady,
+    requestedScopeKey,
+  ]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const header = (
@@ -163,33 +271,83 @@ function WholesaleFinanceScreen() {
       title="Finanças"
     />
   );
+  const canOpenMonthlyDetails = hasStableSnapshot && wholesaleSelection.kind === 'month';
   const handleOpenFaturamento = () => {
+    if (!canOpenMonthlyDetails) return;
     triggerLightImpactHaptic();
     router.push({
       pathname: '/faturamento-mensal',
-      params: { period: displayedPeriod },
+      params: { period: selectedPeriod },
     });
   };
 
   const handleOpenLucroLiquido = () => {
+    if (!canOpenMonthlyDetails) return;
     triggerLightImpactHaptic();
     router.push({
       pathname: '/lucro-liquido-mensal',
-      params: { period: displayedPeriod },
+      params: { period: selectedPeriod },
     });
   };
 
-  const financeToolbarItems = useMemo(
-    () =>
-      renderFinancePeriodToolbarItems({
+  const handleSelectWeek = useCallback((weekStart: string) => {
+    setSelectedWeek(getHistoryWeekRange(weekStart));
+  }, []);
+  const weekGroups = useMemo(
+    () => createHistoryWeekGroups(Number(selectedWeek.startDate.slice(0, 4))),
+    [selectedWeek.startDate],
+  );
+  const financeToolbarItems = useMemo(() => {
+    if (wholesaleSelection.kind === 'month') {
+      return renderFinancePeriodToolbarItems({
         composition: 'combined',
         onMonthChange: setSelectedMonth,
         onYearChange: setSelectedYear,
-        selectedMonth: displayedMonth,
-        selectedYear: displayedYear,
-      }),
-    [displayedMonth, displayedYear],
-  );
+        selectedMonth,
+        selectedYear,
+      });
+    }
+
+    if (wholesaleSelection.kind === 'day') {
+      return renderNativeDateToolbarItems({
+        mode: 'day',
+        onDateChange: setSelectedDay,
+        placement: 'right',
+        selectedDate: selectedDay,
+      });
+    }
+
+    if (wholesaleSelection.kind === 'week') {
+      return renderNativeDateToolbarItems({
+        mode: 'week',
+        onDateChange: handleSelectWeek,
+        onWeekChange: handleSelectWeek,
+        placement: 'right',
+        selectedDate: selectedWeek.startDate,
+        weekGroups,
+      });
+    }
+
+    return [
+      <Stack.Toolbar.Button
+        accessibilityLabel="Período financeiro"
+        key="all"
+        separateBackground={false}
+      >
+        <Stack.Toolbar.Label>
+          {formatWholesaleFinancePeriodLabel(wholesaleSelection)}
+        </Stack.Toolbar.Label>
+      </Stack.Toolbar.Button>,
+    ];
+  }, [
+    handleSelectWeek,
+    selectedDay,
+    selectedMonth,
+    selectedWeek.startDate,
+    selectedYear,
+    weekGroups,
+    wholesaleSelection,
+  ]);
 
   return (
     <PremiumScreen
@@ -207,140 +365,184 @@ function WholesaleFinanceScreen() {
     >
       <Stack.Toolbar placement="right">{financeToolbarItems}</Stack.Toolbar>
       <View style={styles.header}>{header}</View>
-      <PremiumCard
-        accessibilityLabel="Abrir detalhes do faturamento"
-        onPress={handleOpenFaturamento}
-        style={[
-          styles.heroCard,
-          {
-            backgroundColor: financeCardSurface,
-            borderRadius: theme.radius.xl + theme.spacing.sm,
-          },
-        ]}
-      >
-        <View style={styles.heroHeader}>
-          <View style={styles.heroTitle}>
-            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              FATURAMENTO
-            </Text>
-            <Ionicons
-              color={theme.colors.textSecondary}
-              name="chevron-forward-outline"
-              size={theme.sizes.iconSmall}
-            />
-          </View>
-          <FinancialTrendIndicator
-            comparison={comparison?.faturamento}
-            visible={comparison !== undefined}
-          />
-        </View>
-        <NativeAnimatedNumber
-          animationEnabled={faturamentoReady}
-          color={theme.colors.textPrimary}
-          text={displayedFaturamentoValue !== null ? formatCurrency(displayedFaturamentoValue) : ''}
-          value={displayedFaturamentoValue}
-        />
-      </PremiumCard>
-      <PremiumCard
-        accessibilityLabel="Abrir detalhes do lucro líquido"
-        onPress={handleOpenLucroLiquido}
-        style={[
-          styles.heroCard,
-          {
-            backgroundColor: financeCardSurface,
-            borderRadius: theme.radius.xl + theme.spacing.sm,
-          },
-        ]}
-      >
-        <View style={styles.heroHeader}>
-          <View style={styles.heroTitle}>
-            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              LUCRO LÍQUIDO
-            </Text>
-            <Ionicons
-              color={theme.colors.textSecondary}
-              name="chevron-forward-outline"
-              size={theme.sizes.iconSmall}
-            />
-          </View>
-          <FinancialTrendIndicator
-            comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
-            visible={isNetProfitReady && comparison !== undefined}
-          />
-        </View>
-        <NativeAnimatedNumber
-          animationEnabled={lucroLiquidoReady}
-          color={theme.colors.textPrimary}
-          text={
-            displayedLucroLiquidoValue !== null ? formatCurrency(displayedLucroLiquidoValue) : ''
+      <NativeRetailFinanceCategorySelector
+        accessibilityLabel="Período financeiro do Atacado"
+        fillAvailableWidth
+        items={WHOLESALE_FINANCE_PERIOD_ITEMS}
+        onChange={(nextKind) => {
+          if (WHOLESALE_FINANCE_PERIOD_ITEMS.some((item) => item.key === nextKind)) {
+            setPeriodKind(nextKind as WholesaleFinancePeriodKind);
           }
-          value={displayedLucroLiquidoValue}
-        />
-      </PremiumCard>
-      <SummaryCard
-        rows={[
-          { label: 'Baldes vendidos', value: summary ? String(summary.quantidadeBaldes) : '' },
-          { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
-          { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
-          { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
-        ]}
-        style={{ backgroundColor: financeCardSurface }}
-        title="OPERAÇÃO"
+        }}
+        selectedKey={periodKind}
+        selectedVisualScale={1.06}
       />
-      <SummaryCard
-        rows={[
-          {
-            label: 'Custo dos baldes',
-            value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
-          },
-          {
-            label: 'Custo combustível',
-            value: isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
-          },
-          { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
-          { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
-          {
-            label: 'Custo médio de entrega',
-            value:
-              isNetProfitReady && summary
-                ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
-                : '',
-          },
-        ]}
-        style={{ backgroundColor: financeCardSurface }}
-        title="CUSTOS"
-      />
-      <SummaryCard
-        rows={[
-          { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
-          { label: 'A receber', value: summary ? formatCurrency(summary.valoresPendentes) : '' },
-          { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
-          {
-            label: 'Margem líquida',
-            value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
-          },
-        ]}
-        style={{ backgroundColor: financeCardSurface }}
-        title="RECEBIDO/MARGENS"
-      />
-      <SummaryCard
-        rows={[
-          {
-            label: 'Venda p/ balde',
-            value: summary ? formatCurrency(summary.precoMedioBalde) : '',
-          },
-          {
-            label: 'Lucro p/ balde',
-            value: isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
-          },
-          {
-            label: 'Custo p/ balde',
-            value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
-          },
-        ]}
-        style={{ backgroundColor: financeCardSurface }}
-        title="POR BALDE"
-      />
+      {summary ? (
+        <>
+          <PremiumCard
+            accessibilityLabel={canOpenMonthlyDetails ? 'Abrir detalhes do faturamento' : undefined}
+            onPress={canOpenMonthlyDetails ? handleOpenFaturamento : undefined}
+            preservePressableIdentity
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: financeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+              },
+            ]}
+          >
+            <View style={styles.heroHeader}>
+              <View style={styles.heroTitle}>
+                <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                  FATURAMENTO
+                </Text>
+                {canOpenMonthlyDetails ? (
+                  <Ionicons
+                    color={theme.colors.textSecondary}
+                    name="chevron-forward-outline"
+                    size={theme.sizes.iconSmall}
+                  />
+                ) : null}
+              </View>
+              <FinancialTrendIndicator
+                comparison={comparison?.faturamento}
+                visible={comparison !== undefined}
+              />
+            </View>
+            <NativeAnimatedNumber
+              animationEnabled={faturamentoReady}
+              color={theme.colors.textPrimary}
+              text={
+                displayedFaturamentoValue !== null ? formatCurrency(displayedFaturamentoValue) : ''
+              }
+              value={displayedFaturamentoValue}
+            />
+          </PremiumCard>
+          <PremiumCard
+            accessibilityLabel={
+              canOpenMonthlyDetails ? 'Abrir detalhes do lucro líquido' : undefined
+            }
+            onPress={canOpenMonthlyDetails ? handleOpenLucroLiquido : undefined}
+            preservePressableIdentity
+            style={[
+              styles.heroCard,
+              {
+                backgroundColor: financeCardSurface,
+                borderRadius: theme.radius.xl + theme.spacing.sm,
+              },
+            ]}
+          >
+            <View style={styles.heroHeader}>
+              <View style={styles.heroTitle}>
+                <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                  LUCRO LÍQUIDO
+                </Text>
+                {canOpenMonthlyDetails ? (
+                  <Ionicons
+                    color={theme.colors.textSecondary}
+                    name="chevron-forward-outline"
+                    size={theme.sizes.iconSmall}
+                  />
+                ) : null}
+              </View>
+              <FinancialTrendIndicator
+                comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
+                visible={isNetProfitReady && comparison !== undefined}
+              />
+            </View>
+            <NativeAnimatedNumber
+              animationEnabled={lucroLiquidoReady}
+              color={theme.colors.textPrimary}
+              text={
+                displayedLucroLiquidoValue !== null
+                  ? formatCurrency(displayedLucroLiquidoValue)
+                  : ''
+              }
+              value={displayedLucroLiquidoValue}
+            />
+          </PremiumCard>
+          <SummaryCard
+            rows={[
+              { label: 'Baldes vendidos', value: summary ? String(summary.quantidadeBaldes) : '' },
+              { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
+              { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+              {
+                label: 'A receber',
+                value: summary ? formatCurrency(summary.valoresPendentes) : '',
+              },
+            ]}
+            style={{ backgroundColor: financeCardSurface }}
+            title="OPERAÇÃO"
+          />
+          <SummaryCard
+            rows={[
+              {
+                label: 'Custo dos baldes',
+                value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
+              },
+              {
+                label: 'Custo combustível',
+                value: isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
+              },
+              { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
+              { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
+              {
+                label: 'Custo médio de entrega',
+                value:
+                  isNetProfitReady && summary
+                    ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
+                    : '',
+              },
+            ]}
+            style={{ backgroundColor: financeCardSurface }}
+            title="CUSTOS"
+          />
+          <SummaryCard
+            rows={[
+              { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+              {
+                label: 'A receber',
+                value: summary ? formatCurrency(summary.valoresPendentes) : '',
+              },
+              { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
+              {
+                label: 'Margem líquida',
+                value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
+              },
+            ]}
+            style={{ backgroundColor: financeCardSurface }}
+            title="RECEBIDO/MARGENS"
+          />
+          <SummaryCard
+            rows={[
+              {
+                label: 'Venda p/ balde',
+                value: summary ? formatCurrency(summary.precoMedioBalde) : '',
+              },
+              {
+                label: 'Lucro p/ balde',
+                value:
+                  isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
+              },
+              {
+                label: 'Custo p/ balde',
+                value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
+              },
+            ]}
+            style={{ backgroundColor: financeCardSurface }}
+            title="POR BALDE"
+          />
+          {error ? (
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              Dados exibidos do último cache válido. {error}
+            </Text>
+          ) : null}
+        </>
+      ) : loading ? (
+        <Loading label="Carregando Finanças Atacado..." />
+      ) : error ? (
+        <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
+      ) : null}
     </PremiumScreen>
   );
 }
@@ -355,11 +557,11 @@ function RetailFinanceScreen() {
   const { categories } = useRetailCategories({ includeInactive: true });
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`;
   const period = useMemo(() => getHistoryMonthRange(selectedPeriod), [selectedPeriod]);
-  const { categoryOptions, error, loading, refreshing, reload, summary } = useRetailFinance(
-    period,
-    view,
-    { categories, enabled: isFocused },
-  );
+  const { categoryOptions, error, refreshing, reload, summary } = useRetailFinance(period, view, {
+    categories,
+    enabled: isFocused,
+  });
+  const showRetailFinanceInitialization = !summary && !error;
   const financeViews = useMemo(
     () => [
       { key: 'general' as const, label: 'Geral' },
@@ -414,11 +616,14 @@ function RetailFinanceScreen() {
       <View style={styles.header}>{header}</View>
       <NativeRetailFinanceCategorySelector
         accessibilityLabel="Visão financeira do Varejo"
+        contentTrailingPadding={0}
+        itemHorizontalPadding={theme.spacing.xs / 2}
+        itemSpacing={theme.spacing.xxs / 4}
         items={financeViews}
         onChange={(nextView) => setView(nextView as RetailFinanceView)}
         selectedKey={view}
       />
-      {loading && !summary ? (
+      {showRetailFinanceInitialization ? (
         <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
           Carregando Finanças Varejo...
         </Text>
@@ -472,7 +677,13 @@ function RetailFinanceScreen() {
               value={summary.profit}
             />
           </PremiumCard>
-          <PremiumCard style={{ backgroundColor: financeCardSurface, padding: 16 }}>
+          <PremiumCard
+            style={{
+              backgroundColor: financeCardSurface,
+              borderRadius: theme.radius.xl + theme.spacing.md,
+              padding: 16,
+            }}
+          >
             <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
               RECEITA POR PERÍODO
             </Text>
@@ -530,15 +741,6 @@ function formatCurrency(value: number): string {
     minimumFractionDigits: 2,
     style: 'currency',
   }).format(value);
-}
-
-function isMonthlyPeriod(value: string | undefined): value is string {
-  return value !== undefined && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
-}
-
-function parsePeriodKey(value: string): { month: number; year: number } {
-  const [year, month] = value.split('-').map(Number);
-  return { month, year };
 }
 
 const styles = StyleSheet.create({

@@ -2,10 +2,12 @@ import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import {
   createHistoryWeekGroups,
   createHistoryWeekItems,
+  createWholesaleHistoryWeekGroups,
   formatHistoryDayHeading,
   formatHistoryWeekLabel,
   getHistoryMonthRange,
   getHistoryWeekRange,
+  getWholesaleHistoryWeekRange,
   groupHistoryDeliveriesByDate,
 } from '@/features/history/utils/historyPeriodUtils';
 
@@ -41,6 +43,29 @@ describe('history period utilities', () => {
     expect(getHistoryWeekRange('2024-02-29')).toEqual({
       startDate: '2024-02-29',
       endDate: '2024-02-29',
+    });
+  });
+
+  it('keeps every History week boundary month-local', () => {
+    const cases = [
+      ['2026-09-01', '2026-09-01', '2026-09-07'],
+      ['2026-09-07', '2026-09-01', '2026-09-07'],
+      ['2026-09-08', '2026-09-08', '2026-09-14'],
+      ['2026-09-14', '2026-09-08', '2026-09-14'],
+      ['2026-09-15', '2026-09-15', '2026-09-21'],
+      ['2026-09-21', '2026-09-15', '2026-09-21'],
+      ['2026-09-22', '2026-09-22', '2026-09-28'],
+      ['2026-09-28', '2026-09-22', '2026-09-28'],
+      ['2026-09-29', '2026-09-29', '2026-09-30'],
+      ['2026-09-30', '2026-09-29', '2026-09-30'],
+      ['2026-10-31', '2026-10-29', '2026-10-31'],
+      ['2026-12-31', '2026-12-29', '2026-12-31'],
+      ['2027-01-01', '2027-01-01', '2027-01-07'],
+      ['2024-02-29', '2024-02-29', '2024-02-29'],
+    ] as const;
+
+    cases.forEach(([value, startDate, endDate]) => {
+      expect(getHistoryWeekRange(value)).toEqual({ endDate, startDate });
     });
   });
 
@@ -96,6 +121,77 @@ describe('history period utilities', () => {
 
     expect(groups.map((group) => group.date)).toEqual(['2026-09-02', '2026-09-04']);
     expect(groups[1]?.deliveries.map((item) => item.cliente)).toEqual(['Bruno', 'Elias']);
+  });
+
+  it('uses Monday through Sunday for Wholesale calendar weeks and labels the same range', () => {
+    const range = getWholesaleHistoryWeekRange('2026-09-22');
+
+    expect(range).toMatchObject({
+      endDate: '2026-09-27',
+      label: '21–27 Set',
+      startDate: '2026-09-21',
+    });
+  });
+
+  it('includes Monday and Sunday but excludes the following Monday from the selected week', () => {
+    const groups = groupHistoryDeliveriesByDate(
+      [
+        delivery('monday', '2026-09-21', 'Segunda'),
+        delivery('sunday', '2026-09-27', 'Domingo'),
+        delivery('next-monday', '2026-09-28', 'Segunda seguinte'),
+      ],
+      getWholesaleHistoryWeekRange('2026-09-22'),
+    );
+
+    expect(groups.map((group) => group.date)).toEqual(['2026-09-21', '2026-09-27']);
+  });
+
+  it('keeps calendar weeks continuous across month and year boundaries', () => {
+    expect(getWholesaleHistoryWeekRange('2026-05-01')).toMatchObject({
+      endDate: '2026-05-03',
+      startDate: '2026-04-27',
+    });
+    expect(getWholesaleHistoryWeekRange('2027-01-01')).toMatchObject({
+      endDate: '2027-01-03',
+      startDate: '2026-12-28',
+      weekYear: 2026,
+    });
+    expect(getWholesaleHistoryWeekRange('2027-01-04')).toMatchObject({
+      endDate: '2027-01-10',
+      startDate: '2027-01-04',
+      weekYear: 2027,
+    });
+  });
+
+  it('creates one canonical option per Monday without gaps and leaves shared ranges unchanged', () => {
+    const groups = createWholesaleHistoryWeekGroups(2026);
+    const items = groups.flatMap((group) => group.items);
+    const startDates = items.map((item) => item.value);
+
+    expect(new Set(startDates).size).toBe(startDates.length);
+    expect(items.find((item) => item.value === '2026-09-21')).toEqual({
+      label: '21–27 Set',
+      value: '2026-09-21',
+    });
+    expect(
+      startDates.every((value, index) => {
+        if (index === 0) return true;
+        const previousMonday = new Date(`${startDates[index - 1]}T12:00:00`);
+        previousMonday.setDate(previousMonday.getDate() + 7);
+        return (
+          value ===
+          [
+            previousMonday.getFullYear(),
+            String(previousMonday.getMonth() + 1).padStart(2, '0'),
+            String(previousMonday.getDate()).padStart(2, '0'),
+          ].join('-')
+        );
+      }),
+    ).toBe(true);
+    expect(getHistoryWeekRange('2026-09-22')).toEqual({
+      endDate: '2026-09-28',
+      startDate: '2026-09-22',
+    });
   });
 
   it('formats the weekday and day used by period section headers', () => {

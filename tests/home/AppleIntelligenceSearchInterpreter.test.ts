@@ -1,6 +1,7 @@
 import { HomeSearchService } from '@/features/home/search/HomeSearchService';
 import { maskCurrency } from '@/utils/presentation/testModeValues';
 import {
+  buildAppleIntelligenceSearchRequest,
   toHomeSearchParsedQuery,
   type HomeSearchSearchInterpreter,
   type NativeAppleIntelligenceSearchIntent,
@@ -54,6 +55,21 @@ const baseIntent: NativeAppleIntelligenceSearchIntent = {
 };
 
 describe('Apple Intelligence Home Search intent conversion', () => {
+  it('sends an attached date as internal context without changing the visible question', () => {
+    expect(
+      buildAppleIntelligenceSearchRequest('Quanto eu faturei?', {
+        selectedDate: '2026-09-22',
+      }),
+    ).toBe(
+      [
+        'Pergunta digitada: Quanto eu faturei?',
+        'Data anexada pelo usuário (YYYY-MM-DD): 2026-09-22',
+        'Use a data anexada como período quando a pergunta não especificar outro período. Preserve qualquer período explícito informado na pergunta.',
+      ].join('\n'),
+    );
+    expect(buildAppleIntelligenceSearchRequest('Quanto eu faturei?')).toBe('Quanto eu faturei?');
+  });
+
   it('converts a valid structured intent without calculating any value', () => {
     const query = toHomeSearchParsedQuery('quanto eu lucrei em agosto?', baseIntent);
 

@@ -4,7 +4,7 @@
 # @expo/serve-sim. The tunnel URL is published as a commit status, which is the
 # only GitHub surface readable *while* the job is still running.
 name: native-sim
-run-name: native-sim ${{ inputs.session }} · ${{ inputs.mode }} · ${{ inputs.minutes }}m
+run-name: native-sim ${{ inputs.session }} · ${{ inputs.mode }} · ${{ inputs.configuration }} · ${{ inputs.minutes }}m
 
 on:
   workflow_dispatch:
@@ -24,6 +24,14 @@ on:
       mode:
         description: build (compile from source), app (install a prebuilt .app), or go (Expo Go)
         default: build
+      configuration:
+        description: Native build configuration (release embeds JS; development uses Expo Dev Client + Metro)
+        type: choice
+        options:
+          - release
+          - development
+        default: release
+        required: true
       app_url:
         description: URL of a prebuilt simulator .app archive (mode:app)
         default: ""
@@ -136,6 +144,31 @@ jobs:
           fi
           echo 'All required public Firebase variables are present.'
 
+      - name: Report NativeSim build configuration
+        if: inputs.mode == 'build'
+        run: |
+          set -euo pipefail
+          case '${{ inputs.configuration }}' in
+            development)
+              echo 'NativeSim build configuration: DEVELOPMENT'
+              echo 'Xcode configuration: Debug'
+              echo 'Metro: enabled'
+              echo 'Expo Dev Client: enabled'
+              echo 'Embedded JS: no (Metro supplies the bundle)'
+              ;;
+            release)
+              echo 'NativeSim build configuration: RELEASE'
+              echo 'Xcode configuration: Release'
+              echo 'Metro: disabled'
+              echo 'Expo Dev Client: disabled for this workflow path'
+              echo 'Embedded JS: yes'
+              ;;
+            *)
+              echo "::error::Unsupported NativeSim build configuration: ${{ inputs.configuration }}"
+              exit 1
+              ;;
+          esac
+
       - name: Cache npm + CocoaPods
         uses: actions/cache@v4
         with:
@@ -182,7 +215,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: build/native-sim-app
-          key: native-sim-app-${{ runner.os }}-dev-v1-${{ steps.fp.outputs.hash }}
+          key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-v1-${{ steps.fp.outputs.hash }}
 
       - name: Boot simulator
         timeout-minutes: 10
@@ -383,8 +416,16 @@ jobs:
         if: inputs.mode == 'build' && steps.appcache.outputs.cache-hit != 'true'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
+          BUILD_CONFIGURATION: ${{ inputs.configuration }}
         run: |
           set -euo pipefail
+          case "$BUILD_CONFIGURATION" in
+            development) XCODE_CONFIGURATION=Debug ;;
+            release) XCODE_CONFIGURATION=Release ;;
+            *) echo "Unsupported NativeSim build configuration: $BUILD_CONFIGURATION"; exit 1 ;;
+          esac
+
+          echo "Building NativeSim $BUILD_CONFIGURATION configuration as Xcode $XCODE_CONFIGURATION"
           # Dependencies are already installed above, so skip prebuild's own install pass.
           npx expo prebuild --platform ios --no-install
           npx pod-install ios
@@ -399,7 +440,7 @@ jobs:
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration Release \
+            -configuration "$XCODE_CONFIGURATION" \
             -sdk iphonesimulator \
             -destination "id=$UDID" \
             -derivedDataPath build/ios \
@@ -407,7 +448,7 @@ jobs:
             -quiet \
             build
 
-          APP=$(find build/ios/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          APP=$(find "build/ios/Build/Products/${XCODE_CONFIGURATION}-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)
           [ -n "$APP" ] || { echo "No .app produced"; exit 1; }
 
           # Park the bundle where the cache (and the install step) expect it.
@@ -420,7 +461,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build/native-sim-app
-          key: native-sim-app-${{ runner.os }}-dev-v1-${{ steps.fp.outputs.hash }}
+          key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-v1-${{ steps.fp.outputs.hash }}
 
       - name: Export app archive
         if: inputs.mode == 'build' && inputs.export_app == 'true'
@@ -442,6 +483,31 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Start Metro for Development Build
+        timeout-minutes: 10
+        if: inputs.mode == 'build' && inputs.configuration == 'development'
+        run: |
+          set -euo pipefail
+          rm -f metro.log metro.pid
+          echo 'Starting Metro for Expo Dev Client on http://127.0.0.1:8081'
+          CI=1 nohup npx expo start --dev-client --localhost --port 8081 > metro.log 2>&1 &
+          METRO_PID=$!
+          echo "$METRO_PID" > metro.pid
+          disown "$METRO_PID" 2>/dev/null || true
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8081/status 2>/dev/null | grep -q 'packager-status:running'; then
+              echo "Metro is available on the runner (pid=$METRO_PID)"
+              tail -20 metro.log || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo '::error::Metro did not become available on port 8081'
+          tail -80 metro.log || true
+          exit 1
+
       - name: Install and launch app
         id: launch
         timeout-minutes: 15
@@ -449,20 +515,27 @@ jobs:
         env:
           UDID: ${{ steps.sim.outputs.udid }}
           CACHE_HIT: ${{ steps.appcache.outputs.cache-hit }}
+          BUILD_CONFIGURATION: ${{ inputs.configuration }}
         run: |
           set -euo pipefail
           APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
           [ -n "$APP" ] || { echo "No .app to install"; exit 1; }
 
           if [ "$CACHE_HIT" = "true" ]; then
-            # The fingerprint ignores app JS, so a reused binary carries a stale
-            # bundle. Re-embed current JS rather than rebuilding natively.
-            echo "Reused cached native build; refreshing the JS bundle"
-            npx expo export:embed \
-              --platform ios \
-              --dev false \
-              --bundle-output "$APP/main.jsbundle" \
-              --assets-dest "$APP"
+            if [ "$BUILD_CONFIGURATION" = "release" ]; then
+              # The fingerprint ignores app JS, so a reused Release binary carries
+              # a stale bundle. Re-embed current JS rather than rebuilding natively.
+              echo "Reused cached Release build; refreshing the embedded JS bundle"
+              npx expo export:embed \
+                --platform ios \
+                --dev false \
+                --bundle-output "$APP/main.jsbundle" \
+                --assets-dest "$APP"
+            else
+              echo "Reused cached Development Build; leaving JS unembedded for Metro"
+            fi
+          elif [ "$BUILD_CONFIGURATION" = "development" ]; then
+            echo "Development Build is using Metro; no Release bundle embedding"
           fi
 
           plist_value() {
@@ -479,10 +552,18 @@ jobs:
           CLIENT_ID='<missing>'
           REVERSED_CLIENT_ID='<missing>'
           GOOGLE_APP_ID='<missing>'
+          APP_SCHEME='<missing>'
           if [ -n "$GOOGLE_PLIST" ]; then
             CLIENT_ID=$(plist_value "$GOOGLE_PLIST" CLIENT_ID)
             REVERSED_CLIENT_ID=$(plist_value "$GOOGLE_PLIST" REVERSED_CLIENT_ID)
             GOOGLE_APP_ID=$(plist_value "$GOOGLE_PLIST" GOOGLE_APP_ID)
+          fi
+          if [ "$BUILD_CONFIGURATION" = "development" ]; then
+            APP_SCHEME=$(plist_value "$INFO_PLIST" 'CFBundleURLTypes:0:CFBundleURLSchemes:0')
+            [ "$APP_SCHEME" != '<missing>' ] || {
+              echo "::error::Development Build has no URL scheme for Expo Dev Client";
+              exit 1;
+            }
           fi
 
           xcrun simctl install "$UDID" "$APP"
@@ -498,11 +579,20 @@ jobs:
           echo "CLIENT_ID=$CLIENT_ID"
           echo "REVERSED_CLIENT_ID=$REVERSED_CLIENT_ID"
           echo "GOOGLE_APP_ID=$GOOGLE_APP_ID"
+          echo "NativeSim configuration=$BUILD_CONFIGURATION"
+          if [ "$BUILD_CONFIGURATION" = "development" ]; then
+            echo "Expo Dev Client URL scheme=$APP_SCHEME"
+          fi
           echo '::endgroup::'
 
           echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
           echo "executable=$EXECUTABLE" >> "$GITHUB_OUTPUT"
           xcrun simctl launch "$UDID" "$BUNDLE_ID" 2>&1 | tee startup-launch.log
+          if [ "$BUILD_CONFIGURATION" = "development" ]; then
+            DEV_CLIENT_URL="${APP_SCHEME}://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081"
+            echo "Opening Expo Dev Client against Metro at http://127.0.0.1:8081"
+            xcrun simctl openurl "$UDID" "$DEV_CLIENT_URL" 2>&1 | tee -a startup-launch.log
+          fi
           echo "Launched $BUNDLE_ID"
 
       - name: Diagnose startup exit
@@ -517,6 +607,7 @@ jobs:
           DIAG_DIR="build/native-sim-startup-diagnostics"
           mkdir -p "$DIAG_DIR"
           [ -f startup-launch.log ] && cp startup-launch.log "$DIAG_DIR/startup-launch.log"
+          [ -f metro.log ] && cp metro.log "$DIAG_DIR/metro.log"
 
           APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' | head -1)
           if [ -z "$APP" ] || [ ! -f "$APP/Info.plist" ]; then
@@ -796,6 +887,7 @@ jobs:
       - name: Hold the stream open
         env:
           AGENT_ENABLED: ${{ inputs.agent_device }}
+          BUILD_CONFIGURATION: ${{ inputs.configuration }}
           GATE_TOKEN: ${{ inputs.gate_token }}
           AGENT_DEVICE_DAEMON_IDLE_TIMEOUT_MS: "0"
           AGENT_DEVICE_IOS_RUNNER_IDLE_STOP_MS: "0"
@@ -812,6 +904,12 @@ jobs:
           while [ "$(date +%s)" -lt "$END" ]; do
             if ! curl -fsS -o /dev/null "http://127.0.0.1:$PREVIEW_PORT/healthz"; then
               echo "::error::serve-sim stopped responding"
+              exit 1
+            fi
+            if [ "$BUILD_CONFIGURATION" = "development" ] \
+               && ! curl -fsS "http://127.0.0.1:8081/status" 2>/dev/null \
+                  | grep -q 'packager-status:running'; then
+              echo "::error::Metro stopped responding during the Development Build session"
               exit 1
             fi
             # A dead agent proxy is not worth tearing down a working stream for,

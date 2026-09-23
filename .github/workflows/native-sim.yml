@@ -30,7 +30,7 @@ on:
         options:
           - release
           - development
-        default: release
+        default: development
         required: true
       app_url:
         description: URL of a prebuilt simulator .app archive (mode:app)

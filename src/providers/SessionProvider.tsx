@@ -10,6 +10,13 @@ import {
 } from 'react';
 
 import { authDataSource } from '@/services/auth/AuthDataSource';
+import {
+  createAuthDiagnostic,
+  getAuthDiagnosticEvents,
+  getAuthDiagnosticStage,
+  recordAuthDiagnosticEvent,
+  type AuthDiagnosticSnapshot,
+} from '@/services/auth/AuthDiagnostic';
 import { AuthUserFacingError, mapAuthError } from '@/services/auth/AuthErrorMapper';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
 import { setRouteTrackingSession } from '@/services/routes/RouteTrackingSessionBridge';
@@ -20,6 +27,7 @@ export interface SessionContextValue {
   user: AuthUser | null;
   status: SessionStatus;
   error: string | null;
+  authDiagnostic: AuthDiagnosticSnapshot | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -46,10 +54,12 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   const [user, setUser] = useState<AuthUser | null>(() => dataSource.getCurrentUser());
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [authDiagnostic, setAuthDiagnostic] = useState<AuthDiagnosticSnapshot | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
   const sessionUidRef = useRef<string | null>(user?.id ?? null);
   const sessionVersionRef = useRef(0);
   const [sessionVersion, setSessionVersion] = useState(0);
+  const suppressNextNullAuthStateRef = useRef(false);
 
   const commitSession = useCallback((nextUser: AuthUser | null, nextStatus: SessionStatus) => {
     const nextUid = nextUser?.id ?? null;
@@ -59,6 +69,11 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       setSessionVersion(sessionVersionRef.current);
     }
     setRouteTrackingSession(nextUid, sessionVersionRef.current);
+    if (nextStatus === 'authenticated') {
+      recordAuthDiagnosticEvent('session:authenticated');
+    } else if (nextStatus === 'unauthenticated') {
+      recordAuthDiagnosticEvent('session:unauthenticated');
+    }
     setUser(nextUser);
     setStatus(nextStatus);
   }, []);
@@ -67,6 +82,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     let mounted = true;
     let initializationResolved = false;
     let initialAuthError: string | null = null;
+    let initialAuthDiagnostic: AuthDiagnosticSnapshot | null = null;
     let pendingUser: AuthUser | null = null;
     let resolveFirstAuthState: () => void = () => undefined;
     const firstAuthState = new Promise<void>((resolve) => {
@@ -76,6 +92,22 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     const unsubscribe = dataSource.subscribe(
       (nextUser) => {
         if (!mounted) return;
+        recordAuthDiagnosticEvent(nextUser ? 'auth-state:user' : 'auth-state:null');
+        if (!nextUser && suppressNextNullAuthStateRef.current) {
+          suppressNextNullAuthStateRef.current = false;
+        } else if (!nextUser && initializationResolved && sessionUidRef.current) {
+          setAuthDiagnostic(
+            createAuthDiagnostic(
+              'auth-state',
+              {
+                code: 'auth-state-null',
+                message: 'Firebase retornou null após uma sessão autenticada.',
+              },
+              'auth-state-null',
+              'Firebase retornou null após uma sessão autenticada.',
+            ),
+          );
+        }
         pendingUser = nextUser;
         resolveFirstAuthState();
         if (!initializationResolved) return;
@@ -84,12 +116,21 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       },
       (authError) => {
         if (!mounted) return;
+        const diagnostic = createAuthDiagnostic(
+          'auth-state',
+          authError,
+          'auth-state-error',
+          'Falha no estado do Firebase Auth.',
+        );
+        recordAuthDiagnosticEvent('auth-state:error', diagnostic.code);
         const message = mapAuthError(authError, 'session').message;
         if (!initializationResolved) {
           initialAuthError = message;
+          initialAuthDiagnostic = diagnostic;
           resolveFirstAuthState();
           return;
         }
+        setAuthDiagnostic(diagnostic);
         commitSession(null, 'error');
         setError(message);
       },
@@ -104,6 +145,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
         if (!mounted) return;
         initializationResolved = true;
         if (initialAuthError) {
+          setAuthDiagnostic(initialAuthDiagnostic);
           commitSession(null, 'error');
           setError(initialAuthError);
           return;
@@ -113,6 +155,14 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       })
       .catch((authError) => {
         if (!mounted) return;
+        setAuthDiagnostic(
+          createAuthDiagnostic(
+            'auth:init',
+            authError,
+            'auth-init-error',
+            'Falha ao inicializar Firebase Auth.',
+          ),
+        );
         commitSession(null, 'error');
         setError(mapAuthError(authError, 'session').message);
       });
@@ -125,16 +175,27 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
 
   const runAuthentication = useCallback(
     async (operation: () => Promise<AuthUser>, operationType: 'email' | 'google') => {
+      const diagnosticEventStart = getAuthDiagnosticEvents().length;
       setOperationLoading(true);
       setError(null);
+      setAuthDiagnostic(null);
+      suppressNextNullAuthStateRef.current = false;
       try {
         const nextUser = await operation();
+        setAuthDiagnostic(null);
         commitSession(nextUser, 'authenticated');
       } catch (authError) {
         const mapped =
           authError instanceof AuthUserFacingError
             ? authError
             : mapAuthError(authError, operationType);
+        suppressNextNullAuthStateRef.current = true;
+        setAuthDiagnostic(
+          createAuthDiagnostic(
+            getAuthDiagnosticStage(operationType, diagnosticEventStart),
+            authError,
+          ),
+        );
         commitSession(null, 'unauthenticated');
         setError(mapped.message);
         throw mapped;
@@ -202,10 +263,13 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   const signOut = useCallback(async () => {
     setOperationLoading(true);
     setError(null);
+    setAuthDiagnostic(null);
+    suppressNextNullAuthStateRef.current = true;
     try {
       await dataSource.signOut();
       commitSession(null, 'unauthenticated');
     } catch (authError) {
+      suppressNextNullAuthStateRef.current = false;
       setError(mapAuthError(authError, 'logout').message);
       setStatus(user ? 'authenticated' : 'error');
       throw authError;
@@ -227,6 +291,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       checkAuthentication,
       clearError,
       error,
+      authDiagnostic,
       isAuthenticated: Boolean(user),
       isLoading: status === 'loading' || operationLoading,
       signIn,
@@ -245,6 +310,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       checkAuthentication,
       clearError,
       error,
+      authDiagnostic,
       operationLoading,
       signIn,
       signInWithGoogleNative,

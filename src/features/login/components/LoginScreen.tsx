@@ -2,6 +2,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { InlineError } from '@/components/feedback';
 import { GlassSurface } from '@/components/premium';
 import { AppLogo } from '@/components/branding/AppLogo';
 import { useSession } from '@/providers';
@@ -16,7 +17,7 @@ export type LoginScreenProps = {
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signInWithGoogleNative } = useSession();
+  const { authDiagnostic, signInWithGoogleNative } = useSession();
   const { theme } = useAppTheme();
   const [isLoading, setIsLoading] = useState(false);
   const isMounted = useRef(true);
@@ -93,6 +94,36 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               ) : null}
             </Pressable>
           </GlassSurface>
+          {authDiagnostic ? (
+            <View
+              accessibilityLiveRegion="assertive"
+              accessibilityRole="alert"
+              style={[
+                styles.diagnostic,
+                {
+                  backgroundColor: theme.colors.dangerSurface,
+                  borderColor: theme.colors.danger,
+                  borderRadius: theme.radius.md,
+                  borderWidth: theme.borders.width.hairline,
+                  padding: theme.spacing.sm,
+                },
+              ]}
+            >
+              <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
+                Auth diagnostic
+              </Text>
+              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                Stage: {authDiagnostic.stage}
+              </Text>
+              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                Code: {authDiagnostic.code}
+              </Text>
+              <InlineError message={authDiagnostic.message} style={styles.diagnosticMessage} />
+              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                Events: {authDiagnostic.events.join(' → ')}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </View>
@@ -125,6 +156,13 @@ const styles = StyleSheet.create({
   buttonSurface: {
     alignSelf: 'center',
     width: '60%',
+  },
+  diagnostic: {
+    marginTop: 12,
+    width: '100%',
+  },
+  diagnosticMessage: {
+    marginTop: 2,
   },
   googleButton: {
     alignItems: 'center',

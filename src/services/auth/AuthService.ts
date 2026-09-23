@@ -2,6 +2,7 @@ import type { AuthRepository } from '@/repositories/auth';
 import { firebaseAuthRepository } from '@/repositories/auth';
 import { connectivityService } from '@/services/connectivity';
 
+import { recordAuthDiagnosticEvent } from './AuthDiagnostic';
 import { AuthUserFacingError, mapAuthError } from './AuthErrorMapper';
 import type { AuthServiceContract, AuthStateListener, AuthUser } from './types';
 
@@ -50,8 +51,10 @@ export class AuthService implements AuthServiceContract {
   }
 
   public async signInWithGooglePopup(): Promise<AuthUser> {
+    recordAuthDiagnosticEvent('firebase:signin-start');
     try {
       const user = await this.repository.signInWithGooglePopup();
+      recordAuthDiagnosticEvent('firebase:signin-success');
       return this.validateGoogleUser(user);
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'google');
@@ -66,12 +69,15 @@ export class AuthService implements AuthServiceContract {
     idToken: string,
     accessToken?: string,
   ): Promise<AuthUser> {
+    recordAuthDiagnosticEvent('firebase:signin-start');
     if (!idToken.trim()) {
+      recordAuthDiagnosticEvent('google:credential-missing');
       throw new AuthUserFacingError('configuration', 'Token do Google ausente.');
     }
 
     try {
       const user = await this.repository.signInWithGoogleCredential(idToken, accessToken);
+      recordAuthDiagnosticEvent('firebase:signin-success');
       return this.validateGoogleUser(user);
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'google');
@@ -94,6 +100,7 @@ export class AuthService implements AuthServiceContract {
   private async validateGoogleUser(user: AuthUser): Promise<AuthUser> {
     const email = user.email?.trim().toLowerCase();
     if (email !== AUTHORIZED_GOOGLE_EMAIL) {
+      recordAuthDiagnosticEvent('allowlist:denied');
       await Promise.resolve(this.repository.signOut()).catch(() => undefined);
       throw new AuthUserFacingError(
         'account-not-authorized',
@@ -101,6 +108,7 @@ export class AuthService implements AuthServiceContract {
       );
     }
 
+    recordAuthDiagnosticEvent('allowlist:allowed');
     return user;
   }
 

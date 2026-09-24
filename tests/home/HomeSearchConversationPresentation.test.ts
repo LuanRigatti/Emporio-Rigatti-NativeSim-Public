@@ -128,7 +128,7 @@ describe('HomeSearchConversation temporal attachment presentation', () => {
     });
   });
 
-  it('shows the searching orb and keeps the current loading label', () => {
+  it('shows only a centered 64pt searching orb while keeping its accessible loading label', () => {
     act(() => {
       renderer = create(
         React.createElement(HomeSearchConversation, {
@@ -138,10 +138,38 @@ describe('HomeSearchConversation temporal attachment presentation', () => {
     });
 
     expect(renderer.root.findByProps({ testID: 'native-thinking-orb' }).props.children).toBe(
-      'searching|20|light|#667085',
+      'searching|64|light|#667085',
     );
-    expect(renderer.root.findByProps({ accessibilityLabel: 'Consultando' })).toBeTruthy();
-    expect(renderer.root.findByProps({ children: 'Consultando…' })).toBeTruthy();
+    const loadingState = renderer.root.findByProps({ accessibilityLabel: 'Consultando' });
+    expect(loadingState).toBeTruthy();
+    expect(renderer.root.findAllByProps({ children: 'Consultando…' })).toHaveLength(0);
+    expect(StyleSheet.flatten(loadingState.props.style)).toMatchObject({
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'center',
+      width: '100%',
+    });
+    const responseSlot = loadingState.parent;
+    if (!responseSlot)
+      throw new Error('Expected the loading state to be inside its response slot.');
+    const turnContainer = responseSlot.parent;
+    if (!turnContainer)
+      throw new Error('Expected the response slot to be inside a conversation turn.');
+    const conversationContainer = turnContainer.parent;
+    if (!conversationContainer) throw new Error('Expected the turn to be inside the conversation.');
+
+    expect(StyleSheet.flatten(responseSlot.props.style)).toMatchObject({
+      flexGrow: 1,
+      minHeight: 0,
+    });
+    expect(StyleSheet.flatten(turnContainer.props.style)).toMatchObject({
+      flexGrow: 1,
+      minHeight: 0,
+    });
+    expect(StyleSheet.flatten(conversationContainer.props.style)).toMatchObject({
+      flexGrow: 1,
+      minHeight: 0,
+    });
 
     mockResolvedMode = 'dark';
     act(() => {
@@ -152,7 +180,7 @@ describe('HomeSearchConversation temporal attachment presentation', () => {
       );
     });
     expect(renderer.root.findByProps({ testID: 'native-thinking-orb' }).props.children).toBe(
-      'searching|20|dark|#667085',
+      'searching|64|dark|#667085',
     );
   });
 

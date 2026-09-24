@@ -281,9 +281,9 @@ describe('Financeiro AppMode routing', () => {
     const selector = findWholesalePeriodSelector(renderer);
 
     expect(selector.props.items).toEqual([
-      { key: 'month', label: 'Mês' },
-      { key: 'day', label: 'Dia' },
-      { key: 'week', label: 'Semana' },
+      { key: 'month', label: 'Mensal' },
+      { key: 'day', label: 'Diário' },
+      { key: 'week', label: 'Semanal' },
       { key: 'all', label: 'Total' },
     ]);
     expect(selector.props.selectedKey).toBe('month');

@@ -102,15 +102,20 @@ export default function HomeSearchConversation({ turns }: Props) {
   const responseLayout = LinearTransition.duration(responseLayoutDuration).easing(
     theme.animations.easing.standard,
   );
+  const lastTurn = turns[turns.length - 1];
+  const loadingTurnId = lastTurn?.status === 'loading' ? lastTurn.id : undefined;
 
   if (turns.length === 0) {
     return null;
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, loadingTurnId !== undefined ? styles.loadingContainer : null]}>
       {turns.map((turn) => (
-        <View key={turn.id} style={styles.turn}>
+        <View
+          key={turn.id}
+          style={[styles.turn, turn.id === loadingTurnId ? styles.loadingTurn : null]}
+        >
           <Animated.View entering={turnEntry} style={styles.userRow}>
             <View
               accessible
@@ -138,7 +143,13 @@ export default function HomeSearchConversation({ turns }: Props) {
             </View>
           </Animated.View>
 
-          <Animated.View layout={responseLayout} style={styles.responseSlot}>
+          <Animated.View
+            layout={responseLayout}
+            style={[
+              styles.responseSlot,
+              turn.id === loadingTurnId ? styles.loadingResponseSlot : null,
+            ]}
+          >
             {turn.status === 'loading' ? (
               <Animated.View
                 accessible
@@ -146,17 +157,14 @@ export default function HomeSearchConversation({ turns }: Props) {
                 entering={loadingEntry}
                 exiting={responseExit}
                 key={`${turn.id}-loading`}
-                style={styles.responseState}
+                style={styles.loadingState}
               >
                 <NativeThinkingOrb
                   colorScheme={resolvedMode}
                   fallbackColor={theme.colors.textSecondary}
-                  size={20}
+                  size={64}
                   state="searching"
                 />
-                <Text style={[styles.responseStateText, { color: theme.colors.textSecondary }]}>
-                  Consultando…
-                </Text>
               </Animated.View>
             ) : turn.status === 'success' ? (
               <Animated.View
@@ -200,12 +208,24 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 24,
   },
+  loadingContainer: {
+    flexGrow: 1,
+    minHeight: 0,
+  },
   turn: {
     width: '100%',
     gap: 12,
   },
+  loadingTurn: {
+    flexGrow: 1,
+    minHeight: 0,
+  },
   responseSlot: {
     width: '100%',
+  },
+  loadingResponseSlot: {
+    flexGrow: 1,
+    minHeight: 0,
   },
   userRow: {
     alignItems: 'flex-end',
@@ -246,6 +266,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     paddingHorizontal: 16,
+  },
+  loadingState: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    width: '100%',
   },
   responseStateText: {
     fontSize: 15,

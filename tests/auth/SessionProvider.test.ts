@@ -2,7 +2,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, useEffect } from 'react';
 
 import { SessionProvider, useSession } from '@/providers/SessionProvider';
-import { resetAuthDiagnosticEvents } from '@/services/auth/AuthDiagnostic';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
 
 jest.mock('@/services/auth/AuthDataSource', () => ({
@@ -17,7 +16,6 @@ type AuthListener = (user: AuthUser | null) => void;
 class DeferredAuthDataSource implements AuthDataSource {
   private currentUser: AuthUser | null = null;
   private listener: AuthListener | null = null;
-  private googleError: unknown = new Error('Not used in test.');
 
   public getCurrentUser(): AuthUser | null {
     return this.currentUser;
@@ -35,7 +33,7 @@ class DeferredAuthDataSource implements AuthDataSource {
   }
 
   public signInWithGoogleNative(): Promise<AuthUser> {
-    return Promise.reject(this.googleError);
+    return Promise.reject(new Error('Not used in test.'));
   }
 
   public signInWithGooglePopup(): Promise<AuthUser> {
@@ -58,10 +56,6 @@ class DeferredAuthDataSource implements AuthDataSource {
     this.currentUser = user;
     this.listener?.(user);
   }
-
-  public setGoogleError(error: unknown): void {
-    this.googleError = error;
-  }
 }
 
 const restoredUser: AuthUser = {
@@ -73,10 +67,6 @@ const restoredUser: AuthUser = {
 };
 
 describe('SessionProvider startup resolution', () => {
-  beforeEach(() => {
-    resetAuthDiagnosticEvents();
-  });
-
   it('does not expose unauthenticated before Firebase emits its first auth state', async () => {
     const source = new DeferredAuthDataSource();
     let currentStatus: ReturnType<typeof useSession>['status'] | undefined;
@@ -239,49 +229,6 @@ describe('SessionProvider startup resolution', () => {
       restoredUser.id,
       secondLoginVersion,
     );
-    act(() => renderer!.unmount());
-  });
-
-  it('exposes a sanitized diagnostic when Google authentication fails', async () => {
-    const source = new DeferredAuthDataSource();
-    source.setGoogleError({
-      code: 'auth/invalid-credential',
-      message:
-        'idToken=eyJheader.payload.signature user=test-user@example.test uid=uid-alphanumeric-123',
-    });
-    let currentSession: ReturnType<typeof useSession> | undefined;
-
-    function Harness() {
-      currentSession = useSession();
-      return null;
-    }
-
-    let renderer: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        createElement(SessionProvider, { dataSource: source }, createElement(Harness)),
-      );
-    });
-
-    await act(async () => {
-      source.emit(null);
-      await Promise.resolve();
-    });
-
-    await act(async () => {
-      await expect(currentSession!.signInWithGoogleNative()).rejects.toMatchObject({
-        code: 'unknown',
-      });
-    });
-
-    expect(currentSession?.status).toBe('unauthenticated');
-    expect(currentSession?.authDiagnostic).toMatchObject({
-      code: 'auth-invalid-credential',
-      stage: 'google',
-    });
-    expect(currentSession?.authDiagnostic?.message).not.toContain('eyJheader');
-    expect(currentSession?.authDiagnostic?.message).not.toContain('test-user@example.test');
-    expect(currentSession?.authDiagnostic?.message).not.toContain('uid-alphanumeric-123');
     act(() => renderer!.unmount());
   });
 });

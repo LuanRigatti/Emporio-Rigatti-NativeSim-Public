@@ -44,9 +44,9 @@ export default function FinanceiroRoute() {
 }
 
 const WHOLESALE_FINANCE_PERIOD_ITEMS = [
-  { key: 'month', label: 'Mês' },
-  { key: 'day', label: 'Dia' },
-  { key: 'week', label: 'Semana' },
+  { key: 'month', label: 'Mensal' },
+  { key: 'day', label: 'Diário' },
+  { key: 'week', label: 'Semanal' },
   { key: 'all', label: 'Total' },
 ] as const;
 

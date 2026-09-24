@@ -180,6 +180,7 @@ export default function HomeSearchScreen() {
   );
   const showSuggestions =
     suggestionsVisible && conversationTurns.length === 0 && query.trim().length === 0;
+  const isLatestTurnLoading = conversationTurns[conversationTurns.length - 1]?.status === 'loading';
 
   const handleConversationContentSizeChange = useCallback(() => {
     if (!scrollToEndRequestedRef.current) return;
@@ -213,7 +214,10 @@ export default function HomeSearchScreen() {
         <View style={styles.searchBody}>
           <ScrollView
             automaticallyAdjustKeyboardInsets
-            contentContainerStyle={styles.searchScrollContent}
+            contentContainerStyle={[
+              styles.searchScrollContent,
+              isLatestTurnLoading ? styles.loadingSearchScrollContent : null,
+            ]}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={handleConversationContentSizeChange}
             ref={conversationScrollRef}
@@ -277,6 +281,9 @@ const styles = StyleSheet.create({
   },
   searchScrollContent: {
     paddingBottom: spacing.xxl + COMPOSER_COLLAPSED_HEIGHT + spacing.lg,
+  },
+  loadingSearchScrollContent: {
+    flexGrow: 1,
   },
   searchBody: {
     flex: 1,

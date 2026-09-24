@@ -3,14 +3,16 @@ jest.mock('@/repositories/auth', () => ({
 }));
 
 import { AuthService } from '@/services/auth/AuthService';
-import { getAuthDiagnosticEvents, resetAuthDiagnosticEvents } from '@/services/auth/AuthDiagnostic';
 import type { AuthRepository } from '@/repositories/auth';
 import { connectivityService, type ConnectivityState } from '@/services/connectivity';
 import type { AuthUser } from '@/services/auth/types';
 
 class FakeAuthRepository implements AuthRepository {
   public currentUser: AuthUser | null = null;
-  public readonly emailSignIn = jest.fn<Promise<AuthUser>, [email: string, password: string]>();
+  public readonly emailSignIn = jest.fn<
+    Promise<AuthUser>,
+    [email: string, password: string]
+  >();
   public readonly googleSignIn = jest.fn<
     Promise<AuthUser>,
     [idToken: string, accessToken?: string]
@@ -70,7 +72,6 @@ describe('AuthService', () => {
   let connectivitySpy: jest.SpiedFunction<typeof connectivityService.getCurrentState>;
 
   beforeEach(() => {
-    resetAuthDiagnosticEvents();
     connectivitySpy = jest
       .spyOn(connectivityService, 'getCurrentState')
       .mockResolvedValue(connectedState);
@@ -134,11 +135,6 @@ describe('AuthService', () => {
       authorizedGoogleUser,
     );
     expect(repository.googleSignIn).toHaveBeenCalledWith('id-token', 'access-token');
-    expect(getAuthDiagnosticEvents()).toEqual([
-      'firebase:signin-start',
-      'firebase:signin-success',
-      'allowlist:allowed',
-    ]);
   });
 
   it('uses the Firebase popup for Web Google login', async () => {
@@ -160,11 +156,6 @@ describe('AuthService', () => {
       code: 'account-not-authorized',
     });
     expect(repository.signOutCall).toHaveBeenCalledTimes(1);
-    expect(getAuthDiagnosticEvents()).toEqual([
-      'firebase:signin-start',
-      'firebase:signin-success',
-      'allowlist:denied',
-    ]);
   });
 
   it('reads the restored session exposed by Firebase persistence', () => {

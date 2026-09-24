@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { Keyboard, Text, View } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { HomeSearchResponse } from '@/features/home/search/HomeSearchTypes';
 import HomeSearchScreen from '@/features/home/components/HomeSearchScreen';
@@ -303,6 +303,44 @@ describe('HomeSearchScreen conversation presentation', () => {
     expect(serializedTree).toContain('primeira pesquisa');
     expect(serializedTree).toContain('segunda pesquisa');
     expect(mockSearch).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('lets the active loading response fill the viewport and returns to intrinsic layout on resolve', async () => {
+    let resolveSearch!: (value: HomeSearchResponse) => void;
+    mockSearch.mockReturnValueOnce(
+      new Promise<HomeSearchResponse>((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(HomeSearchScreen));
+    });
+
+    const getSearchContentStyle = () =>
+      StyleSheet.flatten(renderer.root.findByType(ScrollView).props.contentContainerStyle);
+    expect(getSearchContentStyle().flexGrow).toBeUndefined();
+
+    await act(async () => {
+      renderer.root.findByProps({ testID: 'composer' }).props.onSubmit('Consulta em andamento');
+    });
+
+    expect(getSearchContentStyle().flexGrow).toBe(1);
+    expect(renderer.root.findByProps({ accessibilityLabel: 'Consultando' })).toBeTruthy();
+
+    await act(async () => {
+      resolveSearch(response('Consulta em andamento'));
+      await Promise.resolve();
+    });
+
+    expect(getSearchContentStyle().flexGrow).toBeUndefined();
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Consultando' })).toHaveLength(0);
+    expect(renderer.root.findByProps({ testID: 'search-result' })).toBeTruthy();
 
     await act(async () => {
       renderer.unmount();

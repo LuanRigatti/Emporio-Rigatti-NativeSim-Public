@@ -6,7 +6,6 @@ import Constants from 'expo-constants';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import { signInWithNativeGoogle } from '@/services/auth/NativeGoogleSignInService';
-import { getAuthDiagnosticEvents, resetAuthDiagnosticEvents } from '@/services/auth/AuthDiagnostic';
 
 jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {
@@ -40,7 +39,6 @@ describe('NativeGoogleSignInService', () => {
   const originalIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
   const originalWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   beforeEach(() => {
-    resetAuthDiagnosticEvents();
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = 'ios-client-id';
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = 'web-client-id';
     mockedConstants.expoConfig = null;
@@ -72,10 +70,6 @@ describe('NativeGoogleSignInService', () => {
 
     await expect(signInWithNativeGoogle()).resolves.toEqual({ idToken: 'google-id-token' });
     expect(GoogleSignin.configure).toHaveBeenCalledWith({ webClientId: 'web-client-id' });
-    expect(getAuthDiagnosticEvents()).toEqual([
-      'google:start',
-      'google:credential-received:idToken-present',
-    ]);
   });
 
   it('does not pass the Dev environment iOS client ID to Final Google Sign-In', async () => {

@@ -8,11 +8,6 @@ import {
   type ReactNativeAsyncStorage,
 } from 'firebase/auth';
 
-import {
-  recordAuthDiagnosticEvent,
-  sanitizeAuthDiagnosticCode,
-} from '@/services/auth/AuthDiagnostic';
-
 import { getFirebaseApp } from './app';
 
 // Firebase's React Native export is selected by Metro, but is not declared by
@@ -36,10 +31,8 @@ export function getFirebaseAuth(): Auth {
     auth = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
-    recordAuthDiagnosticEvent('auth:init:persistent');
-  } catch (error) {
+  } catch {
     // Fast Refresh can re-run this module after Auth was already initialized.
-    recordAuthDiagnosticEvent('auth:init:fallback-getAuth', sanitizeAuthDiagnosticCode(error));
     auth = getAuth(app);
   }
 

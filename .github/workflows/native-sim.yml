@@ -79,7 +79,7 @@ on:
         description: Xcode scheme (defaults to the generated workspace name)
         default: ""
       cache:
-        description: Reuse a fingerprint-matched .app instead of rebuilding natively
+        description: Reuse a matching .app and incremental Release DerivedData cache
         default: "true"
       runner:
         description: Runner label (must be arm64 — serve-sim ships arm64-only binaries)
@@ -227,6 +227,29 @@ jobs:
         with:
           path: build/native-sim-app
           key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-${{ steps.cache_namespace.outputs.namespace }}-${{ steps.fp.outputs.hash }}
+
+      - name: Identify Xcode for Release DerivedData cache
+        id: xcode
+        if: inputs.mode == 'build' && inputs.configuration == 'release' && inputs.cache == 'true' && steps.appcache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          XCODE_VERSION=$(xcodebuild -version | awk '
+            /^Xcode / { version = $2 }
+            /^Build version / { build = $3 }
+            END {
+              if (version == "" || build == "") exit 1
+              printf "%s-%s", version, build
+            }')
+          echo "version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Xcode cache version: $XCODE_VERSION"
+
+      - name: Restore Release DerivedData cache
+        id: deriveddata
+        if: inputs.mode == 'build' && inputs.configuration == 'release' && inputs.cache == 'true' && steps.appcache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: build/native-sim-derived-data
+          key: native-sim-deriveddata-${{ runner.os }}-${{ inputs.runner }}-${{ steps.xcode.outputs.version }}-iphonesimulator-release-${{ inputs.scheme || 'default' }}-${{ steps.fp.outputs.hash }}-keychain-signed-v2-schema1
 
       - name: Boot simulator
         timeout-minutes: 10
@@ -423,7 +446,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build app
-        timeout-minutes: 60
+        id: build_app
+        timeout-minutes: 90
         if: inputs.mode == 'build' && steps.appcache.outputs.cache-hit != 'true'
         env:
           UDID: ${{ steps.sim.outputs.udid }}
@@ -437,8 +461,10 @@ jobs:
           esac
 
           echo "Building NativeSim $BUILD_CONFIGURATION configuration as Xcode $XCODE_CONFIGURATION"
+          DERIVED_DATA_PATH=build/ios
           SIGNING_SETTINGS=()
           if [ "$BUILD_CONFIGURATION" = "release" ]; then
+            DERIVED_DATA_PATH=build/native-sim-derived-data
             SIGNING_SETTINGS=(
               CODE_SIGNING_ALLOWED=YES
               CODE_SIGNING_REQUIRED=YES
@@ -467,12 +493,12 @@ jobs:
             -configuration "$XCODE_CONFIGURATION" \
             -sdk iphonesimulator \
             -destination "id=$UDID" \
-            -derivedDataPath build/ios \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
             "${SIGNING_SETTINGS[@]}" \
             -quiet \
             build
 
-          APP=$(find "build/ios/Build/Products/${XCODE_CONFIGURATION}-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)
+          APP=$(find "$DERIVED_DATA_PATH/Build/Products/${XCODE_CONFIGURATION}-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)
           [ -n "$APP" ] || { echo "No .app produced"; exit 1; }
 
           # Park the bundle where the cache (and the install step) expect it.
@@ -538,6 +564,13 @@ jobs:
         with:
           path: build/native-sim-app
           key: native-sim-app-${{ runner.os }}-${{ inputs.configuration }}-${{ steps.cache_namespace.outputs.namespace }}-${{ steps.fp.outputs.hash }}
+
+      - name: Save Release DerivedData cache
+        if: inputs.mode == 'build' && inputs.configuration == 'release' && inputs.cache == 'true' && steps.appcache.outputs.cache-hit != 'true' && steps.deriveddata.outputs.cache-hit != 'true' && steps.build_app.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: build/native-sim-derived-data
+          key: native-sim-deriveddata-${{ runner.os }}-${{ inputs.runner }}-${{ steps.xcode.outputs.version }}-iphonesimulator-release-${{ inputs.scheme || 'default' }}-${{ steps.fp.outputs.hash }}-keychain-signed-v2-schema1
 
       - name: Export app archive
         if: inputs.mode == 'build' && inputs.export_app == 'true'

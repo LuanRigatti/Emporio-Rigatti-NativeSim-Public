@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { KeyboardController, KeyboardEvents } from 'react-native-keyboard-controller';
 import {
@@ -24,6 +24,8 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
   const [mode, setMode] = useState<Mode>('closed');
   const [sheet, setSheet] = useState<Sheet>('photos');
   const [closing, setClosing] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const leadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const open = useSharedValue(0);
   const plusOut = useSharedValue(0);
@@ -31,6 +33,13 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
   const menuOpacity = useSharedValue(1);
   const gridOpacity = useSharedValue(0);
   const blur = useSharedValue(0);
+
+  useEffect(
+    () => () => {
+      if (leadTimer.current !== null) clearTimeout(leadTimer.current);
+    },
+    [],
+  );
 
   const closeSheet = useCallback(
     (restoreFocus = true) => {
@@ -51,19 +60,33 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
     );
   }, [blur]);
 
+  const clearLead = useCallback(() => {
+    if (leadTimer.current === null) return;
+    clearTimeout(leadTimer.current);
+    leadTimer.current = null;
+    setOpening(false);
+  }, []);
+
   const openMenu = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMode('menu');
     plusOut.set(withSpring(1, SPRING.panel));
     morph.set(0);
     gridOpacity.set(0);
     menuOpacity.set(1);
     blur.set(1);
-    open.set(withSpring(1, SPRING.panel));
-    blur.set(withTiming(0, { duration: DURATION.blur, easing: EASE_FADE }));
-  }, [blur, gridOpacity, menuOpacity, morph, open, plusOut]);
+    clearLead();
+    setOpening(true);
+    leadTimer.current = setTimeout(() => {
+      leadTimer.current = null;
+      setOpening(false);
+      setMode('menu');
+      open.set(withSpring(1, SPRING.panel));
+      blur.set(withTiming(0, { duration: DURATION.blur, easing: EASE_FADE }));
+    }, DURATION.plusLead);
+  }, [blur, clearLead, gridOpacity, menuOpacity, morph, open, plusOut]);
 
   const dismiss = useCallback(() => {
+    clearLead();
     onLeaveSheet?.();
     setClosing(true);
     blur.set(withTiming(1, { duration: DURATION.panel, easing: EASE_FADE }));
@@ -77,7 +100,7 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
       }),
     );
     plusOut.set(withDelay(DURATION.plusLead, withSpring(0, SPRING.panelOut)));
-  }, [blur, closeSheet, gridOpacity, menuOpacity, morph, onLeaveSheet, open, plusOut]);
+  }, [blur, clearLead, closeSheet, gridOpacity, menuOpacity, morph, onLeaveSheet, open, plusOut]);
 
   const showSheet = useCallback(
     (next: Sheet) => {
@@ -110,8 +133,8 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
     [dismiss, showSheet],
   );
 
-  const onPlusPress = useCallback(() => {
-    if (mode === 'closed') openMenu();
+  const onPlusTap = useCallback(() => {
+    if (mode === 'closed' && leadTimer.current === null) openMenu();
     else dismiss();
   }, [dismiss, mode, openMenu]);
 
@@ -165,13 +188,14 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
     mode,
     sheet,
     closing,
+    opening,
     open,
     plusOut,
     morph,
     menuOpacity,
     gridOpacity,
     blur,
-    onPlusPress,
+    onPlusTap,
     dismiss,
     backToMenu,
     onMenuAction,

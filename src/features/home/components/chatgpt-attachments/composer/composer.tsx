@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -10,9 +10,7 @@ import {
   type TextInput as TextInputType,
 } from 'react-native';
 import Animated, {
-  Extrapolation,
   FadeOut,
-  interpolate,
   LinearTransition,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -24,7 +22,9 @@ import { AttachmentIcon } from '../AttachmentIcon';
 import { COLORS, COMPOSER, COMPOSER_STRIP_HEIGHT, DURATION, GUTTER } from '../constants';
 import { Glass } from '../glass';
 import { formatLocalDateAttachment, formatLocalDateAttachmentCompact } from '../local-date';
+import { AttachHoldButton } from './attach-hold-button';
 import type { LibraryPhoto } from '../photos/use-photo-library';
+import { getRecentHoldMenuPhotos } from './hold-menu';
 
 interface ThumbnailProps {
   photo: LibraryPhoto;
@@ -74,9 +74,13 @@ function Thumbnail({ photo, hidden, foreground, onRemove, thumbBackground }: Thu
 
 export interface ComposerProps {
   attachments: LibraryPhoto[];
+  recentPhotos: LibraryPhoto[];
   strip: SharedValue<number>;
   plusOut: SharedValue<number>;
+  composerBottom: SharedValue<number>;
+  screenWidth: number;
   pendingIds: string[];
+  holdMenuPendingIds: string[];
   value: string;
   placeholder?: string;
   dateAttachment?: string;
@@ -87,7 +91,10 @@ export interface ComposerProps {
   onFocusChange?: (focused: boolean) => void;
   onSubmit?: (value: string) => void;
   onRemoveDateAttachment?: () => void;
-  onPlusPress: () => void;
+  onPlusTap: () => void;
+  holdMenuEnabled: boolean;
+  onHoldPhotoSelect: (photo: LibraryPhoto) => void;
+  onHoldPhotoDockSettled: (photoId: string) => void;
   onRemove: (id: string) => void;
 }
 
@@ -95,9 +102,13 @@ export interface ComposerProps {
 export const Composer = forwardRef<TextInputType, ComposerProps>(function Composer(
   {
     attachments,
+    recentPhotos,
     strip,
     plusOut,
+    composerBottom,
+    screenWidth,
     pendingIds,
+    holdMenuPendingIds,
     value,
     placeholder = 'Pesquisar',
     dateAttachment,
@@ -108,7 +119,10 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     onFocusChange,
     onSubmit,
     onRemoveDateAttachment,
-    onPlusPress,
+    onPlusTap,
+    holdMenuEnabled,
+    onHoldPhotoSelect,
+    onHoldPhotoDockSettled,
     onRemove,
   },
   ref,
@@ -121,10 +135,15 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
   const composerSurface = resolvedMode === 'dark' ? COLORS.surface : theme.colors.glassSurface;
   const thumbBackground =
     resolvedMode === 'dark' ? COLORS.photoFill : theme.colors.backgroundSecondary;
-  const plusStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(plusOut.get(), [0, 0.75], [1, 0], Extrapolation.CLAMP),
-    transform: [{ translateX: plusOut.get() * COMPOSER.plusSlide }],
-  }));
+  const holdMenuPhotos = useMemo(
+    () =>
+      getRecentHoldMenuPhotos(
+        recentPhotos,
+        attachments.map((attachment) => attachment.id),
+        holdMenuPendingIds,
+      ),
+    [attachments, holdMenuPendingIds, recentPhotos],
+  );
 
   const [retained, setRetained] = useState(attachments);
   useEffect(() => {
@@ -187,22 +206,18 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
       </Animated.View>
 
       <View style={styles.row}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Adicionar anexo"
-          hitSlop={12}
-          onPress={onPlusPress}
-          style={styles.plus}
-        >
-          <Animated.View style={plusStyle}>
-            <AttachmentIcon
-              name="plus"
-              size={COMPOSER.plusSize}
-              color={foreground}
-              style={styles.plusGlyph}
-            />
-          </Animated.View>
-        </Pressable>
+        <AttachHoldButton
+          photos={holdMenuPhotos}
+          attachmentCount={attachments.length}
+          holdEnabled={holdMenuEnabled}
+          plusOut={plusOut}
+          composerBottom={composerBottom}
+          strip={strip}
+          screenWidth={screenWidth}
+          onPress={onPlusTap}
+          onPhotoSelect={onHoldPhotoSelect}
+          onDockSettled={onHoldPhotoDockSettled}
+        />
 
         {dateAttachment ? (
           <DateAttachmentChip
@@ -333,11 +348,6 @@ const styles = StyleSheet.create({
     paddingRight: 9,
     gap: 10,
   },
-  plus: {
-    width: COMPOSER.plusHit,
-    alignItems: 'center',
-  },
-  plusGlyph: { fontWeight: '600' },
   dateChip: {
     maxWidth: COMPOSER.dateChipMaxWidth,
     height: COMPOSER.dateChipHeight,

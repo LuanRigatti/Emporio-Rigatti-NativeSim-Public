@@ -96,6 +96,22 @@ export default function HomeSearchAttachmentsComposer({
     resetPanel: panel.resetAfterLeave,
     onSettled: clearSelection,
   });
+  const [holdMenuPendingIds, setHoldMenuPendingIds] = useState<string[]>([]);
+
+  const attachHoldMenuPhoto = useCallback(
+    (photo: LibraryPhoto) => {
+      setHoldMenuPendingIds((current) =>
+        current.includes(photo.id) ? current : [...current, photo.id],
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      addAttachments([photo]);
+    },
+    [addAttachments],
+  );
+
+  const finishHoldMenuPhotoDock = useCallback((photoId: string) => {
+    setHoldMenuPendingIds((current) => current.filter((id) => id !== photoId));
+  }, []);
 
   const resetDateAttachment = useCallback(() => {
     setDateAttachmentState(null);
@@ -268,9 +284,13 @@ export default function HomeSearchAttachmentsComposer({
         <Composer
           ref={inputRef}
           attachments={attachments}
+          recentPhotos={photos}
           strip={strip}
           plusOut={panel.plusOut}
-          pendingIds={flights.map((flight) => flight.photo.id)}
+          composerBottom={composerBottom}
+          screenWidth={width}
+          pendingIds={[...flights.map((flight) => flight.photo.id), ...holdMenuPendingIds]}
+          holdMenuPendingIds={holdMenuPendingIds}
           value={value}
           placeholder={placeholder}
           focusRequestKey={focusRequestKey}
@@ -280,7 +300,10 @@ export default function HomeSearchAttachmentsComposer({
           onSubmit={handleSubmit}
           dateAttachment={selectedDate ?? undefined}
           onRemoveDateAttachment={resetDateAttachment}
-          onPlusPress={panel.onPlusPress}
+          onPlusTap={panel.onPlusTap}
+          holdMenuEnabled={panel.mode === 'closed' && !panel.closing && !panel.opening}
+          onHoldPhotoSelect={attachHoldMenuPhoto}
+          onHoldPhotoDockSettled={finishHoldMenuPhotoDock}
           onRemove={removeAttachment}
         />
       </Animated.View>

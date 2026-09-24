@@ -20,7 +20,8 @@ const mockView = View;
 const mockFormatLocalDateAttachment = formatLocalDateAttachment;
 const mockFormatLocalDateAttachmentCompact = formatLocalDateAttachmentCompact;
 let mockSetAttachmentPanelState:
-  ((state: { closing: boolean; mode: string; sheet: string }) => void) | undefined;
+  | ((state: { closing: boolean; mode: string; opening?: boolean; sheet: string }) => void)
+  | undefined;
 let mockPanelDismissCount = 0;
 
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
@@ -86,18 +87,33 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/attachment-fl
 jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', () => ({
   Composer: ({
     dateAttachment,
-    onPlusPress,
+    onPlusTap,
+    holdMenuEnabled,
+    holdMenuPendingIds,
+    recentPhotos,
     onRemoveDateAttachment,
     onSubmit,
   }: {
     dateAttachment?: string;
-    onPlusPress: () => void;
+    onPlusTap: () => void;
+    holdMenuEnabled: boolean;
+    holdMenuPendingIds: string[];
+    recentPhotos: unknown[];
     onRemoveDateAttachment: () => void;
     onSubmit: (value: string) => boolean;
   }) =>
     mockReact.createElement(
       'ComposerMock',
-      { dateAttachment, onPlusPress, onRemoveDateAttachment, onSubmit, testID: 'composer' },
+      {
+        dateAttachment,
+        onPlusTap,
+        holdMenuEnabled,
+        holdMenuPendingIds,
+        recentPhotos,
+        onRemoveDateAttachment,
+        onSubmit,
+        testID: 'composer',
+      },
       dateAttachment
         ? mockReact.createElement(
             mockView,
@@ -202,10 +218,12 @@ jest.mock('@/features/home/components/chatgpt-attachments/use-attachment-panel',
       const [mode, setMode] = actualReact.useState('closed');
       const [sheet, setSheet] = actualReact.useState('photos');
       const [closing, setClosing] = actualReact.useState(false);
+      const [opening, setOpening] = actualReact.useState(false);
       mockSetAttachmentPanelState = (state) => {
         setMode(state.mode);
         setSheet(state.sheet);
         setClosing(state.closing);
+        setOpening(state.opening ?? false);
       };
       const dismiss = () => {
         mockPanelDismissCount += 1;
@@ -231,7 +249,7 @@ jest.mock('@/features/home/components/chatgpt-attachments/use-attachment-panel',
           setClosing(false);
           setMode(action);
         },
-        onPlusPress: () => {
+        onPlusTap: () => {
           if (mode === 'closed') {
             setClosing(false);
             setMode('menu');
@@ -240,6 +258,7 @@ jest.mock('@/features/home/components/chatgpt-attachments/use-attachment-panel',
           }
         },
         open: shared,
+        opening,
         plusOut: shared,
         resetAfterLeave: jest.fn(),
         sheet,
@@ -280,12 +299,17 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
 
   const openCalendar = () => {
     const composer = renderer.root.findByProps({ testID: 'composer' });
-    act(() => composer.props.onPlusPress());
+    act(() => composer.props.onPlusTap());
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Data' }).props.onPress());
     return renderer.root;
   };
 
-  const setPanelState = (state: { closing: boolean; mode: string; sheet: string }) => {
+  const setPanelState = (state: {
+    closing: boolean;
+    mode: string;
+    opening?: boolean;
+    sheet: string;
+  }) => {
     if (!mockSetAttachmentPanelState) throw new Error('Attachment panel state is not mounted.');
     act(() => mockSetAttachmentPanelState?.(state));
   };
@@ -394,6 +418,20 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
     expect(renderer.root.findByProps({ accessibilityLabel: 'Câmera' })).toBeTruthy();
   });
 
+  it('keeps the short tap on the traditional menu and does not route hold through AttachmentPanel', () => {
+    mountComposer();
+    const composer = renderer.root.findByProps({ testID: 'composer' });
+
+    expect(composer.props.holdMenuEnabled).toBe(true);
+    expect(composer.props.recentPhotos).toEqual([]);
+    expect(composer.props.onPlusLongPress).toBeUndefined();
+    act(() => composer.props.onPlusTap());
+    expect(renderer.root.findByProps({ accessibilityLabel: 'Câmera' })).toBeTruthy();
+    expect(renderer.root.findByProps({ accessibilityLabel: 'Fotos' })).toBeTruthy();
+    expect(renderer.root.findAllByProps({ testID: 'photo-grid' })).toHaveLength(0);
+    expect(renderer.root.findByProps({ testID: 'composer' }).props.holdMenuEnabled).toBe(false);
+  });
+
   it('removes the date chip and includes the date in a submitted search before resetting it', () => {
     mountComposer();
     openCalendar();
@@ -456,14 +494,14 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
     mountComposer();
     const composer = renderer.root.findByProps({ testID: 'composer' });
 
-    act(() => composer.props.onPlusPress());
+    act(() => composer.props.onPlusTap());
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Câmera' }).props.onPress());
     expect(renderer.root.findByProps({ testID: 'camera-preview' })).toBeTruthy();
     expect(renderer.root.findByProps({ testID: 'camera-controls' })).toBeTruthy();
 
-    act(() => renderer.root.findByProps({ testID: 'composer' }).props.onPlusPress());
+    act(() => renderer.root.findByProps({ testID: 'composer' }).props.onPlusTap());
     setPanelState({ closing: false, mode: 'closed', sheet: 'camera' });
-    act(() => renderer.root.findByProps({ testID: 'composer' }).props.onPlusPress());
+    act(() => renderer.root.findByProps({ testID: 'composer' }).props.onPlusTap());
     act(() => renderer.root.findByProps({ accessibilityLabel: 'Fotos' }).props.onPress());
     expect(renderer.root.findByProps({ testID: 'photo-grid' })).toBeTruthy();
     expect(renderer.root.findByProps({ testID: 'photo-controls' })).toBeTruthy();

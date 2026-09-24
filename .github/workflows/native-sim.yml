@@ -506,6 +506,188 @@ jobs:
           mkdir -p build/native-sim-app
           cp -R "$APP" build/native-sim-app/
 
+      - name: Capture iOS Expo module linkage diagnostics
+        if: always() && inputs.mode == 'build'
+        continue-on-error: true
+        env:
+          BUILD_CONFIGURATION: ${{ inputs.configuration }}
+          APP_CACHE_HIT: ${{ steps.appcache.outputs.cache-hit }}
+        run: |
+          set +e
+          LINKAGE_DIR="build/native-sim-startup-diagnostics/native-linkage"
+          mkdir -p "$LINKAGE_DIR"
+          SUMMARY="$LINKAGE_DIR/summary.txt"
+          {
+            echo "Build configuration: ${BUILD_CONFIGURATION:-unknown}"
+            echo "App cache hit: ${APP_CACHE_HIT:-unknown}"
+          } > "$SUMMARY"
+
+          if [ -f ios/Podfile.lock ]; then
+            cp ios/Podfile.lock "$LINKAGE_DIR/Podfile.lock"
+            echo "Podfile.lock: captured" >> "$SUMMARY"
+          else
+            echo "Podfile.lock: unavailable (native project was not generated)" >> "$SUMMARY"
+          fi
+
+          PROVIDER_COUNT=0
+          while IFS= read -r PROVIDER; do
+            [ -f "$PROVIDER" ] || continue
+            PROVIDER_COUNT=$((PROVIDER_COUNT + 1))
+            TARGET_SUPPORT_DIR=$(basename "$(dirname "$PROVIDER")")
+            TARGET_NAME="${TARGET_SUPPORT_DIR#Pods-}"
+            TARGET_DIR="$LINKAGE_DIR/targets/$TARGET_SUPPORT_DIR"
+            mkdir -p "$TARGET_DIR"
+            cp "$PROVIDER" "$TARGET_DIR/ExpoModulesProvider.swift"
+
+            {
+              echo ""
+              echo "Provider target: $TARGET_NAME"
+              echo "Provider source: $PROVIDER"
+              echo "Provider artifact: targets/$TARGET_SUPPORT_DIR/ExpoModulesProvider.swift"
+              echo "Physical BlurViewModule.self occurrences: $(grep -oF 'BlurViewModule.self' "$PROVIDER" | wc -l | tr -d '[:space:]')"
+              awk -v configuration="${BUILD_CONFIGURATION:-release}" '
+                BEGIN {
+                  wanted = configuration == "development" ? "debug" : "release"
+                  branch = "common"
+                }
+                /^[[:space:]]*#if DEBUG/ { branch = "debug"; next }
+                /^[[:space:]]*#else/ { branch = "release"; next }
+                /^[[:space:]]*#endif/ { branch = "common"; next }
+                /module:[[:space:]]*BlurViewModule\.self/ {
+                  total++
+                  if (branch == wanted || branch == "common") active++
+                }
+                END {
+                  printf "Active BlurViewModule.self references for %s: %d (physical lines: %d)\n", wanted, active, total
+                }
+              ' "$PROVIDER"
+              echo "Provider module imports:"
+              grep -nE '^[[:space:]]*internal import ' "$PROVIDER" || true
+              echo "Provider module entries:"
+              grep -nE 'module:[[:space:]]*.*\.self' "$PROVIDER" || true
+            } >> "$SUMMARY"
+          done < <(find "ios/Pods/Target Support Files" -type f -name ExpoModulesProvider.swift -print 2>/dev/null | sort)
+
+          if [ "$PROVIDER_COUNT" -eq 0 ]; then
+            echo "ExpoModulesProvider.swift: unavailable" >> "$SUMMARY"
+          else
+            echo "ExpoModulesProvider.swift files captured: $PROVIDER_COUNT" >> "$SUMMARY"
+          fi
+
+          CLASS_DECLARATIONS="$LINKAGE_DIR/native-module-class-declarations.txt"
+          : > "$CLASS_DECLARATIONS"
+          for PACKAGE in expo-blur expo-backdrop; do
+            SOURCE_FILE="node_modules/$PACKAGE/ios/BlurViewModule.swift"
+            echo "[$PACKAGE] $SOURCE_FILE" >> "$CLASS_DECLARATIONS"
+            if [ -f "$SOURCE_FILE" ]; then
+              grep -nE 'class BlurViewModule|Name\("(ExpoBlur|BlurView)"\)|View\((ExpoBlurView|GaussianBlurView|ProgressiveBlurView)' "$SOURCE_FILE" >> "$CLASS_DECLARATIONS" || true
+            else
+              echo "source unavailable" >> "$CLASS_DECLARATIONS"
+            fi
+            echo >> "$CLASS_DECLARATIONS"
+          done
+
+          if npx expo-modules-autolinking resolve --platform apple --json --project-root "$GITHUB_WORKSPACE" \
+            > "$LINKAGE_DIR/autolink-resolution.json" \
+            2> "$LINKAGE_DIR/autolink-resolution.stderr"; then
+            node - "$LINKAGE_DIR/autolink-resolution.json" "$BUILD_CONFIGURATION" "$LINKAGE_DIR/targets" "$LINKAGE_DIR/provider-package-map.tsv" <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const [resolutionPath, configuration, targetsDir, outputPath] = process.argv.slice(2);
+          const resolved = JSON.parse(fs.readFileSync(resolutionPath, 'utf8'));
+          const commonPackages = (resolved.modules || []).filter((item) => !item.debugOnly);
+          const debugPackages = (resolved.modules || []).filter((item) => item.debugOnly);
+          const includedPackages = configuration === 'development'
+            ? [...commonPackages, ...debugPackages]
+            : commonPackages;
+          const descriptors = includedPackages.flatMap((pkg) => (pkg.modules || []).map((module) => ({
+            className: module.class,
+            packageName: pkg.packageName,
+            packageVersion: pkg.packageVersion || '',
+            swiftModules: (pkg.swiftModuleNames || []).join(','),
+            pods: (pkg.pods || []).map((pod) => pod.podName).filter(Boolean).join(','),
+          })));
+          const activeBranch = configuration === 'development' ? 'debug' : 'release';
+          const output = [
+            'provider_target\tprovider_line\tactive_branch\tswift_class_reference\tqualification\tpackage_by_autolink_order\tsame_class_candidates',
+          ];
+
+          for (const targetFolder of fs.readdirSync(targetsDir, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
+            const providerPath = path.join(targetsDir, targetFolder.name, 'ExpoModulesProvider.swift');
+            if (!fs.existsSync(providerPath)) continue;
+            const lines = fs.readFileSync(providerPath, 'utf8').split(/\r?\n/);
+            let branch = 'common';
+            const entries = [];
+            for (let index = 0; index < lines.length; index++) {
+              const line = lines[index];
+              if (/^\s*#if DEBUG/.test(line)) { branch = 'debug'; continue; }
+              if (/^\s*#else/.test(line)) { branch = 'release'; continue; }
+              if (/^\s*#endif/.test(line)) { branch = 'common'; continue; }
+              if (branch !== 'common' && branch !== activeBranch) continue;
+              const match = line.match(/module:\s*([A-Za-z_][A-Za-z0-9_.]*)\.self/);
+              if (match) entries.push({ line: index + 1, classReference: match[1] });
+            }
+
+            const occurrenceByClass = new Map();
+            for (const entry of entries) {
+              const className = entry.classReference.split('.').at(-1);
+              const candidates = descriptors.filter((item) => item.className === className);
+              const occurrence = occurrenceByClass.get(className) || 0;
+              occurrenceByClass.set(className, occurrence + 1);
+              const ordered = candidates[occurrence];
+              const orderedPackage = ordered
+                ? `${ordered.packageName}@${ordered.packageVersion}[swift=${ordered.swiftModules};pods=${ordered.pods}]`
+                : 'unmapped';
+              const candidatePackages = candidates.map((item) =>
+                `${item.packageName}@${item.packageVersion}[swift=${item.swiftModules};pods=${item.pods}]`
+              ).join('|');
+              output.push([
+                targetFolder.name.replace(/^Pods-/, ''),
+                entry.line,
+                activeBranch,
+                entry.classReference,
+                entry.classReference.includes('.') ? 'qualified' : 'unqualified',
+                orderedPackage,
+                candidatePackages,
+              ].join('\t'));
+            }
+          }
+
+          fs.writeFileSync(outputPath, `${output.join('\n')}\n`);
+          NODE
+            if [ "$?" -ne 0 ]; then
+              echo "Provider-to-package mapping: failed; raw provider and resolution JSON retained" >> "$SUMMARY"
+            else
+              echo "Provider-to-package map: captured (unqualified class origins are mapped by autolinking order; candidates are listed)" >> "$SUMMARY"
+            fi
+          else
+            echo "Expo autolinking resolution: failed; see autolink-resolution.stderr" >> "$SUMMARY"
+          fi
+
+          XCODE_TARGETS="$LINKAGE_DIR/provider-target-membership.txt"
+          : > "$XCODE_TARGETS"
+          for PROJECT in ios/*.xcodeproj; do
+            [ -d "$PROJECT" ] || continue
+            ruby -rxcodeproj -e '
+              project_path = ARGV.fetch(0)
+              project = Xcodeproj::Project.open(project_path)
+              project.targets.each do |target|
+                phase = target.source_build_phase
+                next unless phase
+                phase.files_references.compact.each do |reference|
+                  next unless File.basename(reference.path.to_s) == "ExpoModulesProvider.swift"
+                  puts [project_path, target.name, reference.path].join("\t")
+                end
+              end
+            ' "$PROJECT" >> "$XCODE_TARGETS" 2>> "$LINKAGE_DIR/provider-target-membership.stderr" || true
+          done
+          [ -s "$XCODE_TARGETS" ] || echo "Xcode project membership could not be resolved" > "$XCODE_TARGETS"
+
+          echo "Expo native-module class declarations saved to $CLASS_DECLARATIONS" >> "$SUMMARY"
+          echo "Native linkage diagnostics saved under $LINKAGE_DIR (no .app included)"
+          cat "$SUMMARY"
+
       - name: Inspect signed Release app
         if: inputs.mode == 'build' && inputs.configuration == 'release'
         run: |

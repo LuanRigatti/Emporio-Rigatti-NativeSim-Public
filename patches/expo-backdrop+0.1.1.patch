@@ -1,0 +1,14 @@
+diff --git a/node_modules/expo-backdrop/expo-module.config.json b/node_modules/expo-backdrop/expo-module.config.json
+index ec9a267..e03510b 100644
+--- a/node_modules/expo-backdrop/expo-module.config.json
++++ b/node_modules/expo-backdrop/expo-module.config.json
+@@ -4 +4 @@
+-    "modules": ["BlurViewModule"]
++    "modules": ["ExpoBackdropBlurViewModule"]
+diff --git a/node_modules/expo-backdrop/ios/BlurViewModule.swift b/node_modules/expo-backdrop/ios/BlurViewModule.swift
+index a787632..df56489 100644
+--- a/node_modules/expo-backdrop/ios/BlurViewModule.swift
++++ b/node_modules/expo-backdrop/ios/BlurViewModule.swift
+@@ -3 +3 @@
+-public class BlurViewModule: Module {
++public class ExpoBackdropBlurViewModule: Module {

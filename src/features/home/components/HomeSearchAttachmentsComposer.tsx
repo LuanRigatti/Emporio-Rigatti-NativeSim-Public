@@ -104,25 +104,35 @@ export default function HomeSearchAttachmentsComposer({
   const [holdMenuPendingIds, setHoldMenuPendingIds] = useState<string[]>([]);
   const [isModelIntensityMounted, setIsModelIntensityMounted] = useState(false);
   const [isModelIntensityVisible, setIsModelIntensityVisible] = useState(false);
+  const [isModelIntensityGeometryReady, setIsModelIntensityGeometryReady] = useState(false);
+  const [modelIntensityOriginTag, setModelIntensityOriginTag] = useState<number | null>(null);
   const [modelIntensityStep, setModelIntensityStep] = useState<ModelIntensityStep>('medium');
   const [isPhotoHoldMenuVisible, setIsPhotoHoldMenuVisible] = useState(false);
 
   const isModelIntensityBlocked =
     panel.mode !== 'closed' || panel.closing || panel.opening || isPhotoHoldMenuVisible;
 
-  const toggleModelIntensity = useCallback(() => {
-    if (isModelIntensityBlocked) return;
-    if (isModelIntensityVisible) {
-      setIsModelIntensityVisible(false);
-      return;
-    }
-    setIsModelIntensityMounted(true);
-    setIsModelIntensityVisible(true);
-  }, [isModelIntensityBlocked, isModelIntensityVisible]);
+  const toggleModelIntensity = useCallback(
+    (originViewTag: number) => {
+      if (isModelIntensityBlocked) return;
+      if (isModelIntensityVisible) {
+        setIsModelIntensityVisible(false);
+        return;
+      }
+      if (!Number.isInteger(originViewTag) || originViewTag <= 0) return;
+      setModelIntensityOriginTag(originViewTag);
+      setIsModelIntensityGeometryReady(false);
+      setIsModelIntensityMounted(true);
+      setIsModelIntensityVisible(true);
+    },
+    [isModelIntensityBlocked, isModelIntensityVisible],
+  );
 
   const closeModelIntensityImmediately = useCallback(() => {
     setIsModelIntensityVisible(false);
     setIsModelIntensityMounted(false);
+    setIsModelIntensityGeometryReady(false);
+    setModelIntensityOriginTag(null);
   }, []);
 
   const handlePhotoHoldMenuVisibilityChange = useCallback((visible: boolean) => {
@@ -130,6 +140,8 @@ export default function HomeSearchAttachmentsComposer({
     if (visible) {
       setIsModelIntensityVisible(false);
       setIsModelIntensityMounted(false);
+      setIsModelIntensityGeometryReady(false);
+      setModelIntensityOriginTag(null);
     }
   }, []);
 
@@ -277,8 +289,19 @@ export default function HomeSearchAttachmentsComposer({
   }, [closeModelIntensityImmediately, panel]);
 
   const handleModelIntensityTransitionComplete = useCallback((expanded: boolean) => {
-    if (!expanded) setIsModelIntensityMounted(false);
+    if (!expanded) {
+      setIsModelIntensityMounted(false);
+      setIsModelIntensityGeometryReady(false);
+      setModelIntensityOriginTag(null);
+    }
   }, []);
+
+  const handleModelIntensityGeometryReady = useCallback(
+    (event: { nativeEvent: { ready: boolean } }) => {
+      setIsModelIntensityGeometryReady(event.nativeEvent.ready);
+    },
+    [],
+  );
 
   const handleModelIntensityDismissRequest = useCallback(() => {
     if (isModelIntensityVisible && !isModelIntensityBlocked) {
@@ -362,6 +385,7 @@ export default function HomeSearchAttachmentsComposer({
           onRemoveDateAttachment={resetDateAttachment}
           onPlusTap={handlePlusTap}
           onToggleModelIntensity={toggleModelIntensity}
+          modelIntensityOriginHidden={isModelIntensityMounted && isModelIntensityGeometryReady}
           modelIntensityExpanded={isModelIntensityVisible}
           modelIntensityLabel={getModelIntensityStepLabel(modelIntensityStep)}
           modelIntensityDisabled={isModelIntensityBlocked}
@@ -475,11 +499,13 @@ export default function HomeSearchAttachmentsComposer({
         blocked={isModelIntensityBlocked}
         composerBottom={composerBottom}
         mounted={isModelIntensityMounted}
+        originViewTag={modelIntensityOriginTag}
         screenHeight={height}
         screenWidth={width}
         selectedStep={modelIntensityStep}
         strip={strip}
         onDismissRequest={handleModelIntensityDismissRequest}
+        onGeometryReady={handleModelIntensityGeometryReady}
         onInteractionCommitted={handleModelIntensityInteractionCommitted}
         onSelectedStepChange={setModelIntensityStep}
         onTransitionComplete={handleModelIntensityTransitionComplete}

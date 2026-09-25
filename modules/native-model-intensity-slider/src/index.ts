@@ -1,7 +1,11 @@
-export { default as NativeModelIntensitySlider } from './NativeModelIntensitySlider';
+export {
+  default as NativeModelIntensitySlider,
+  nativeModelIntensitySliderAvailable,
+} from './NativeModelIntensitySlider';
 export type {
   ModelIntensityColorScheme,
   ModelIntensityDismissRequestEvent,
+  ModelIntensityGeometryReadyEvent,
   ModelIntensityInteractionCommittedEvent,
   ModelIntensityStep,
   ModelIntensityStepChangeEvent,

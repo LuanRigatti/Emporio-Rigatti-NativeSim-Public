@@ -11,6 +11,12 @@ import { triggerSelectionHaptic } from '@/utils/haptics';
 const mockReact = React;
 const mockView = View;
 
+jest.mock('react-native', () => {
+  const actual = jest.requireActual<typeof import('react-native')>('react-native');
+  const mocked = Object.create(actual) as typeof actual;
+  Object.defineProperty(mocked, 'findNodeHandle', { value: jest.fn(() => 321) });
+  return mocked;
+});
 jest.mock('expo-image', () => ({ Image: () => null }));
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('react-native-reanimated', () => {
@@ -91,6 +97,7 @@ describe('Composer model intensity control', () => {
     onRemoveDateAttachment: jest.fn(),
     onPlusTap: jest.fn(),
     onToggleModelIntensity: toggle,
+    modelIntensityOriginHidden: false,
     modelIntensityExpanded: false,
     modelIntensityLabel: '5.6 Medium',
     modelIntensityDisabled: false,
@@ -150,9 +157,10 @@ describe('Composer model intensity control', () => {
       flexShrink: 0,
     });
     expect(intensityButton.props.accessibilityLabel).toBe('Intensidade do modelo');
+    expect(intensityButton.props.collapsable).toBe(false);
 
     act(() => intensityButton.props.onPress());
-    expect(toggle).toHaveBeenCalledTimes(1);
+    expect(toggle).toHaveBeenCalledWith(321);
     expect(triggerSelectionHaptic).toHaveBeenCalledTimes(1);
     expect(submit).not.toHaveBeenCalled();
 

@@ -11,6 +11,8 @@ const NativeView: ComponentType<NativeModelIntensitySliderProps> | null = native
     )
   : null;
 
+export const nativeModelIntensitySliderAvailable = NativeView !== null;
+
 export default function NativeModelIntensitySliderViewIOS(props: NativeModelIntensitySliderProps) {
   return NativeView ? <NativeView {...props} /> : <NativeModelIntensitySliderFallback {...props} />;
 }

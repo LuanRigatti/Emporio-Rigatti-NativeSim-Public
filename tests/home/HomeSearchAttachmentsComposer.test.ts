@@ -91,6 +91,7 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
     modelIntensityDisabled,
     modelIntensityExpanded,
     modelIntensityLabel,
+    modelIntensityOriginHidden,
     onPlusTap,
     onToggleModelIntensity,
     onHoldMenuVisibilityChange,
@@ -105,8 +106,9 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
     modelIntensityDisabled: boolean;
     modelIntensityExpanded: boolean;
     modelIntensityLabel: string;
+    modelIntensityOriginHidden: boolean;
     onPlusTap: () => void;
-    onToggleModelIntensity: () => void;
+    onToggleModelIntensity: (originViewTag: number) => void;
     onHoldMenuVisibilityChange: (visible: boolean) => void;
     holdMenuEnabled: boolean;
     holdMenuPendingIds: string[];
@@ -122,6 +124,7 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
         modelIntensityDisabled,
         modelIntensityExpanded,
         modelIntensityLabel,
+        modelIntensityOriginHidden,
         onPlusTap,
         onToggleModelIntensity,
         onHoldMenuVisibilityChange,
@@ -143,7 +146,7 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
           accessibilityLabel: 'Intensidade do modelo',
           disabled: modelIntensityDisabled,
           key: 'model-intensity',
-          onPress: onToggleModelIntensity,
+          onPress: () => onToggleModelIntensity(2468),
           testID: 'composer-model-intensity-button',
         }),
         onHoldMenuVisibilityChange
@@ -189,8 +192,10 @@ jest.mock(
       active,
       blocked,
       mounted,
+      originViewTag,
       selectedStep,
       onDismissRequest,
+      onGeometryReady,
       onInteractionCommitted,
       onSelectedStepChange,
       onTransitionComplete,
@@ -198,8 +203,10 @@ jest.mock(
       active: boolean;
       blocked: boolean;
       mounted: boolean;
+      originViewTag: number | null;
       selectedStep: string;
       onDismissRequest: () => void;
+      onGeometryReady: (event: { nativeEvent: { ready: boolean } }) => void;
       onInteractionCommitted: (step: string) => void;
       onSelectedStepChange: (step: string) => void;
       onTransitionComplete: (expanded: boolean) => void;
@@ -207,7 +214,13 @@ jest.mock(
       mounted && !blocked
         ? mockReact.createElement(
             mockView,
-            { active, mounted, selectedStep, testID: 'model-intensity-overlay' } as never,
+            {
+              active,
+              mounted,
+              originViewTag,
+              selectedStep,
+              testID: 'model-intensity-overlay',
+            } as never,
             mockReact.createElement(mockText, { testID: 'model-intensity-step' }, selectedStep),
             mockReact.createElement(mockPressable, {
               onPress: () => onSelectedStepChange('high'),
@@ -220,6 +233,10 @@ jest.mock(
             mockReact.createElement(mockPressable, {
               onPress: onDismissRequest,
               testID: 'model-intensity-dismiss-target',
+            }),
+            mockReact.createElement(mockPressable, {
+              onPress: () => onGeometryReady({ nativeEvent: { ready: true } }),
+              testID: 'mock-intensity-geometry-ready',
             }),
             mockReact.createElement(mockPressable, {
               onPress: onDismissRequest,
@@ -541,7 +558,18 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
       renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
     );
 
-    expect(renderer.root.findByProps({ testID: 'model-intensity-overlay' })).toBeTruthy();
+    expect(
+      renderer.root.findByProps({ testID: 'model-intensity-overlay' }).props.originViewTag,
+    ).toBe(2468);
+    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityOriginHidden).toBe(
+      false,
+    );
+    act(() =>
+      renderer.root.findByProps({ testID: 'mock-intensity-geometry-ready' }).props.onPress(),
+    );
+    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityOriginHidden).toBe(
+      true,
+    );
     expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
     expect(onSubmit).not.toHaveBeenCalled();
 

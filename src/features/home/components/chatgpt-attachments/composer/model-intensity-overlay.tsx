@@ -1,6 +1,6 @@
 import { ProgressiveBlurView } from 'expo-backdrop';
-import { memo, useCallback, useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { findNodeHandle, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { OverKeyboardView } from 'react-native-keyboard-controller';
 import Animated, {
   useAnimatedStyle,
@@ -9,7 +9,11 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useAppTheme } from '@/theme';
-import { NativeModelIntensitySlider, type ModelIntensityStep } from 'native-model-intensity-slider';
+import {
+  NativeModelIntensitySlider,
+  nativeModelIntensitySliderAvailable,
+  type ModelIntensityStep,
+} from 'native-model-intensity-slider';
 import { COMPOSER, COMPOSER_STRIP_HEIGHT, GUTTER } from '../constants';
 
 interface ModelIntensityOverlayProps {
@@ -18,11 +22,13 @@ interface ModelIntensityOverlayProps {
   blocked: boolean;
   composerBottom: SharedValue<number>;
   mounted: boolean;
+  originViewTag: number | null;
   screenHeight: number;
   screenWidth: number;
   selectedStep: ModelIntensityStep;
   strip: SharedValue<number>;
   onDismissRequest: () => void;
+  onGeometryReady: (event: { nativeEvent: { ready: boolean } }) => void;
   onInteractionCommitted: (step: ModelIntensityStep) => void;
   onSelectedStepChange: (step: ModelIntensityStep) => void;
   onTransitionComplete: (expanded: boolean) => void;
@@ -43,17 +49,22 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
   blocked,
   composerBottom,
   mounted,
+  originViewTag,
   screenHeight,
   screenWidth,
   selectedStep,
   strip,
   onDismissRequest,
+  onGeometryReady,
   onInteractionCommitted,
   onSelectedStepChange,
   onTransitionComplete,
 }: ModelIntensityOverlayProps) {
   const { resolvedMode, theme } = useAppTheme();
   const blurOpacity = useSharedValue(0);
+  const targetViewRef = useRef<View>(null);
+  const [targetViewTag, setTargetViewTag] = useState<number | undefined>();
+  const [geometryRevision, setGeometryRevision] = useState(0);
   const sliderWidth = Math.min(screenWidth - GUTTER * 2, SLIDER_MAX_WIDTH);
   const blurStrongHeight =
     BLUR_LAYOUT.topLead +
@@ -125,6 +136,36 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
     onDismissRequest();
   }, [onDismissRequest]);
 
+  const nativeSliderProps = {
+    accentColor: theme.colors.primary,
+    colorScheme: resolvedMode,
+    expanded: active,
+    geometryRevision,
+    onDismissRequest: handleNativeDismissRequest,
+    onGeometryReady,
+    onInteractionCommitted: handleInteractionCommitted,
+    onStepChange: handleStepChange,
+    onTransitionComplete: handleTransitionComplete,
+    originViewTag: originViewTag ?? undefined,
+    selectedStep,
+    testID: 'native-model-intensity-slider',
+  };
+
+  const handleTargetLayout = useCallback(() => {
+    const tag = targetViewRef.current ? findNodeHandle(targetViewRef.current) : null;
+    if (typeof tag === 'number') setTargetViewTag(tag);
+    setGeometryRevision((revision) => revision + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted || !nativeModelIntensitySliderAvailable) {
+      setTargetViewTag(undefined);
+      return;
+    }
+
+    handleTargetLayout();
+  }, [handleTargetLayout, mounted]);
+
   return (
     <OverKeyboardView visible={mounted && !blocked}>
       {mounted && !blocked ? (
@@ -162,23 +203,36 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
             testID="model-intensity-dismiss-target"
           />
 
-          <Animated.View
-            pointerEvents={active ? 'box-none' : 'none'}
-            style={[styles.sliderPosition, sliderPositionStyle]}
-          >
-            <NativeModelIntensitySlider
-              accentColor={theme.colors.primary}
-              colorScheme={resolvedMode}
-              expanded={active}
-              onDismissRequest={handleNativeDismissRequest}
-              onInteractionCommitted={handleInteractionCommitted}
-              onStepChange={handleStepChange}
-              onTransitionComplete={handleTransitionComplete}
-              selectedStep={selectedStep}
-              style={{ width: sliderWidth, height: SLIDER_HEIGHT }}
-              testID="native-model-intensity-slider"
-            />
-          </Animated.View>
+          {nativeModelIntensitySliderAvailable ? (
+            <>
+              <Animated.View style={[styles.sliderTargetPosition, sliderPositionStyle]}>
+                <View
+                  ref={targetViewRef}
+                  collapsable={false}
+                  onLayout={handleTargetLayout}
+                  pointerEvents="none"
+                  style={{ width: sliderWidth, height: SLIDER_HEIGHT }}
+                  testID="model-intensity-target-frame"
+                />
+              </Animated.View>
+
+              <NativeModelIntensitySlider
+                {...nativeSliderProps}
+                style={StyleSheet.absoluteFill}
+                targetViewTag={targetViewTag}
+              />
+            </>
+          ) : (
+            <Animated.View
+              pointerEvents="box-none"
+              style={[styles.sliderTargetPosition, sliderPositionStyle]}
+            >
+              <NativeModelIntensitySlider
+                {...nativeSliderProps}
+                style={{ width: sliderWidth, height: SLIDER_HEIGHT }}
+              />
+            </Animated.View>
+          )}
         </View>
       ) : null}
     </OverKeyboardView>
@@ -195,7 +249,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   dismissTarget: StyleSheet.absoluteFill,
-  sliderPosition: {
+  sliderTargetPosition: {
     position: 'absolute',
     left: 0,
     right: 0,

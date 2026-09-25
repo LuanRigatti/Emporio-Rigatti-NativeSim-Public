@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { forwardRef, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  findNodeHandle,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -94,7 +95,8 @@ export interface ComposerProps {
   onSubmit?: (value: string) => void;
   onRemoveDateAttachment?: () => void;
   onPlusTap: () => void;
-  onToggleModelIntensity: () => void;
+  onToggleModelIntensity: (originViewTag: number) => void;
+  modelIntensityOriginHidden: boolean;
   onHoldMenuVisibilityChange?: (visible: boolean) => void;
   modelIntensityExpanded: boolean;
   modelIntensityLabel: string;
@@ -128,6 +130,7 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     onRemoveDateAttachment,
     onPlusTap,
     onToggleModelIntensity,
+    modelIntensityOriginHidden,
     onHoldMenuVisibilityChange,
     modelIntensityExpanded,
     modelIntensityLabel,
@@ -140,6 +143,7 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
   ref,
 ) {
   const { resolvedMode, theme } = useAppTheme();
+  const intensityActionRef = useRef<View>(null);
   const hasAttachments = attachments.length > 0;
   const foreground = resolvedMode === 'dark' ? COLORS.text : theme.colors.textPrimary;
   const placeholderColor =
@@ -257,6 +261,8 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
         />
 
         <Pressable
+          ref={intensityActionRef}
+          collapsable={false}
           accessibilityRole="button"
           accessibilityLabel={
             modelIntensityExpanded ? 'Fechar intensidade do modelo' : 'Intensidade do modelo'
@@ -270,9 +276,15 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           disabled={modelIntensityDisabled}
           onPress={() => {
             triggerSelectionHaptic();
-            onToggleModelIntensity();
+            const originViewTag = intensityActionRef.current
+              ? findNodeHandle(intensityActionRef.current)
+              : null;
+            if (typeof originViewTag === 'number') onToggleModelIntensity(originViewTag);
           }}
-          style={styles.intensityAction}
+          style={[
+            styles.intensityAction,
+            modelIntensityOriginHidden && styles.intensityActionHidden,
+          ]}
           testID="composer-model-intensity-button"
         >
           <Ionicons name="options-outline" size={18} color={foreground} />
@@ -439,5 +451,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  intensityActionHidden: {
+    opacity: 0,
   },
 });

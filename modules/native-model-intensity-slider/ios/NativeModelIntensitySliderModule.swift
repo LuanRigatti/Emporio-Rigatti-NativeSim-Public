@@ -21,11 +21,24 @@ public class NativeModelIntensitySliderModule: Module {
         view.setAccentColor(accentColor)
       }
 
+      Prop("originViewTag") { (view: NativeModelIntensitySliderView, tag: Int) in
+        view.setOriginViewTag(tag)
+      }
+
+      Prop("targetViewTag") { (view: NativeModelIntensitySliderView, tag: Int) in
+        view.setTargetViewTag(tag)
+      }
+
+      Prop("geometryRevision") { (view: NativeModelIntensitySliderView, revision: Int) in
+        view.setGeometryRevision(revision)
+      }
+
       Events(
         "onStepChange",
         "onTransitionComplete",
         "onInteractionCommitted",
-        "onDismissRequest"
+        "onDismissRequest",
+        "onGeometryReady"
       )
     }
   }

@@ -16,11 +16,15 @@ export type ModelIntensityInteractionCommittedEvent = NativeSyntheticEvent<{
 }>;
 
 export type ModelIntensityDismissRequestEvent = NativeSyntheticEvent<Record<string, never>>;
+export type ModelIntensityGeometryReadyEvent = NativeSyntheticEvent<{ ready: boolean }>;
 
 export interface NativeModelIntensitySliderProps {
   accentColor: string;
   colorScheme: ModelIntensityColorScheme;
   expanded: boolean;
+  geometryRevision?: number;
+  onGeometryReady?: (event: ModelIntensityGeometryReadyEvent) => void;
+  originViewTag?: number;
   onDismissRequest?: (event: ModelIntensityDismissRequestEvent) => void;
   onInteractionCommitted?: (event: ModelIntensityInteractionCommittedEvent) => void;
   onStepChange?: (event: ModelIntensityStepChangeEvent) => void;
@@ -28,4 +32,5 @@ export interface NativeModelIntensitySliderProps {
   selectedStep: ModelIntensityStep;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  targetViewTag?: number;
 }

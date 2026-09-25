@@ -10,6 +10,12 @@ jest.mock('expo-backdrop', () => ({
   ProgressiveBlurView: (props: Record<string, unknown>) =>
     mockReact.createElement(mockView, { ...props, testID: 'progressive-blur' } as never),
 }));
+jest.mock('react-native', () => {
+  const actual = jest.requireActual<typeof import('react-native')>('react-native');
+  const mocked = Object.create(actual) as typeof actual;
+  Object.defineProperty(mocked, 'findNodeHandle', { value: jest.fn(() => 901) });
+  return mocked;
+});
 jest.mock('react-native-keyboard-controller', () => ({
   OverKeyboardView: ({ children, visible }: { children: React.ReactNode; visible: boolean }) =>
     mockReact.createElement(mockView, { testID: 'over-keyboard-view', visible } as never, children),
@@ -46,6 +52,7 @@ jest.mock('@/theme', () => ({
   }),
 }));
 jest.mock('native-model-intensity-slider', () => ({
+  nativeModelIntensitySliderAvailable: true,
   NativeModelIntensitySlider: (props: Record<string, unknown>) =>
     mockReact.createElement(mockView, {
       ...props,
@@ -58,6 +65,7 @@ describe('ModelIntensityOverlay lifecycle', () => {
   const onSelectedStepChange = jest.fn();
   const onTransitionComplete = jest.fn();
   const onDismissRequest = jest.fn();
+  const onGeometryReady = jest.fn();
   const onInteractionCommitted = jest.fn();
   const composerBottom = { get: () => 620 } as never;
   const strip = { get: () => 0 } as never;
@@ -69,11 +77,13 @@ describe('ModelIntensityOverlay lifecycle', () => {
       blocked,
       composerBottom,
       mounted,
+      originViewTag: 777,
       screenHeight: 844,
       screenWidth: 390,
       selectedStep: 'medium',
       strip,
       onDismissRequest,
+      onGeometryReady,
       onInteractionCommitted,
       onSelectedStepChange,
       onTransitionComplete,
@@ -83,6 +93,7 @@ describe('ModelIntensityOverlay lifecycle', () => {
     onSelectedStepChange.mockClear();
     onTransitionComplete.mockClear();
     onDismissRequest.mockClear();
+    onGeometryReady.mockClear();
     onInteractionCommitted.mockClear();
     if (renderer) act(() => renderer.unmount());
   });
@@ -97,8 +108,24 @@ describe('ModelIntensityOverlay lifecycle', () => {
     expect(host.props.visible).toBe(true);
     expect(nativeSlider.props.selectedStep).toBe('medium');
     expect(nativeSlider.props.expanded).toBe(true);
-    expect(nativeSlider.props.style).toMatchObject({ width: 320, height: 92 });
-    expect(nativeSlider.parent?.props.pointerEvents).toBe('box-none');
+    expect(StyleSheet.flatten(nativeSlider.props.style)).toMatchObject({
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    });
+    expect(nativeSlider.props.originViewTag).toBe(777);
+    expect(nativeSlider.props.targetViewTag).toBe(901);
+    expect(nativeSlider.props.geometryRevision).toBeGreaterThan(0);
+    const targetFrame = renderer.root.findByProps({ testID: 'model-intensity-target-frame' });
+    expect(targetFrame.props.collapsable).toBe(false);
+    expect(targetFrame.props.pointerEvents).toBe('none');
+    expect(StyleSheet.flatten(targetFrame.props.style)).toMatchObject({
+      width: 320,
+      height: 92,
+    });
+    expect(nativeSlider.props.onGeometryReady).toBe(onGeometryReady);
     const blur = renderer.root.findByProps({ testID: 'progressive-blur' });
     expect(blur.props).toMatchObject({
       edge: 'top',

@@ -217,10 +217,10 @@ private struct NativeModelIntensitySliderContent: View {
 }
 
 private enum SliderGeometry {
-  static let shellHeight: CGFloat = 58
+  static let shellHeight: CGFloat = 66
   static let railHorizontalInset: CGFloat = 10
   static let railVerticalInset: CGFloat = 9
-  static let thumbDiameter: CGFloat = 36
+  static let thumbDiameter: CGFloat = 44
   static let draggingThumbHorizontalScale: CGFloat = 1.035
   static let markerDiameter: CGFloat = 2.5
   static let labelHeight: CGFloat = 21
@@ -455,7 +455,7 @@ private struct NativeModelIntensitySliderTrack: View {
 
         ForEach(ModelIntensityStep.allCases, id: \.rawValue) { step in
           Circle()
-            .fill(Color.white.opacity(CGFloat(step.index) / 2 <= progress ? 0.34 : 0.56))
+            .fill(Color.white.opacity(CGFloat(step.index) / 2 <= progress ? 0.68 : 0.56))
             .frame(width: SliderGeometry.markerDiameter, height: SliderGeometry.markerDiameter)
             .position(
               x: SliderGeometry.thumbDiameter / 2

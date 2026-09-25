@@ -137,8 +137,8 @@ describe('ModelIntensityOverlay lifecycle', () => {
     const localBackdropFrame = renderer.root
       .findAllByType(View)
       .map((view) => StyleSheet.flatten(view.props.style))
-      .find((style) => style?.height === 272);
-    expect(localBackdropFrame).toMatchObject({ top: 436, height: 272 });
+      .find((style) => style?.height === 260);
+    expect(localBackdropFrame).toMatchObject({ top: 448, height: 260 });
     const dismissTarget = renderer.root.findByProps({ testID: 'model-intensity-dismiss-target' });
     expect(dismissTarget.props).toMatchObject({
       pointerEvents: 'auto',

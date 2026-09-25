@@ -34,7 +34,7 @@ interface ModelIntensityOverlayProps {
   onTransitionComplete: (expanded: boolean) => void;
 }
 
-const OVERLAY_GAP = 28;
+const OVERLAY_GAP = 16;
 const SLIDER_HEIGHT = 92;
 const SLIDER_MAX_WIDTH = 320;
 const BLUR_LAYOUT = {

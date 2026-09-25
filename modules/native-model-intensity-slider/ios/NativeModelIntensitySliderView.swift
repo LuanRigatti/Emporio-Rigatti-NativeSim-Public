@@ -428,7 +428,7 @@ private struct NativeModelIntensitySliderTrack: View {
     let height = rect.height
     let centerY = thumbCenter.y - rect.minY
 
-    ZStack(alignment: .topLeading) {
+    return ZStack(alignment: .topLeading) {
       Capsule()
         .fill(.ultraThinMaterial)
         .overlay {

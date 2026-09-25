@@ -220,8 +220,8 @@ private enum SliderGeometry {
   static let shellHeight: CGFloat = 58
   static let railHorizontalInset: CGFloat = 10
   static let railVerticalInset: CGFloat = 9
-  static let railHeight: CGFloat = 40
   static let thumbDiameter: CGFloat = 36
+  static let draggingThumbHorizontalScale: CGFloat = 1.035
   static let markerDiameter: CGFloat = 2.5
   static let labelHeight: CGFloat = 21
   static let labelGap: CGFloat = 4
@@ -288,34 +288,70 @@ private struct NativeModelIntensitySliderTrack: View {
     GeometryReader { geometry in
       let width = geometry.size.width
       let height = geometry.size.height
-      let baseRailWidth = max(width - SliderGeometry.railHorizontalInset * 2, 0)
+      let shellHeight = min(SliderGeometry.shellHeight, height)
+      let baseOuterRect = CGRect(
+        x: 0,
+        y: (height - shellHeight) / 2,
+        width: width,
+        height: shellHeight
+      )
+      let baseInnerRect = baseOuterRect.insetBy(
+        dx: SliderGeometry.railHorizontalInset,
+        dy: SliderGeometry.railVerticalInset
+      )
       let rawForVisuals = isGestureActive ? rawDragProgress : logicalProgress
-      let overscroll = overscrollDistance(rawForVisuals, available: max(baseRailWidth - SliderGeometry.thumbDiameter, 1))
+      let overscroll = overscrollDistance(
+        rawForVisuals,
+        available: max(baseInnerRect.width - SliderGeometry.thumbDiameter, 1)
+      )
       let outerLeadingStretch = overscroll.direction < 0 ? overscroll.outer : 0
       let outerTrailingStretch = overscroll.direction > 0 ? overscroll.outer : 0
-      let innerLeadingStretch = overscroll.direction < 0 ? overscroll.inner : 0
-      let innerTrailingStretch = overscroll.direction > 0 ? overscroll.inner : 0
-      let railX = SliderGeometry.railHorizontalInset - innerLeadingStretch
-      let railWidth = baseRailWidth + innerLeadingStretch + innerTrailingStretch
-      let railHeight = min(SliderGeometry.railHeight, max(height - SliderGeometry.railVerticalInset * 2, 0))
-      let thumbCenter = railX + SliderGeometry.thumbDiameter / 2 + logicalProgress * max(railWidth - SliderGeometry.thumbDiameter, 0)
-      let fillWidth = max(thumbCenter - railX, SliderGeometry.thumbDiameter / 2)
-      let shellHeight = min(SliderGeometry.shellHeight, height)
+      let outerRect = CGRect(
+        x: baseOuterRect.minX - outerLeadingStretch,
+        y: baseOuterRect.minY,
+        width: baseOuterRect.width + outerLeadingStretch + outerTrailingStretch,
+        height: baseOuterRect.height
+      )
+      let requestedInnerLeadingStretch = overscroll.direction < 0 ? overscroll.inner : 0
+      let requestedInnerTrailingStretch = overscroll.direction > 0 ? overscroll.inner : 0
+      let thumbStretchClearance =
+        SliderGeometry.thumbDiameter
+          * (isDragging ? SliderGeometry.draggingThumbHorizontalScale : 1) / 2
+          - SliderGeometry.thumbDiameter / 2
+      let maximumInnerLeadingStretch = max(
+        baseInnerRect.minX - outerRect.minX - thumbStretchClearance,
+        0
+      )
+      let maximumInnerTrailingStretch = max(
+        outerRect.maxX - baseInnerRect.maxX - thumbStretchClearance,
+        0
+      )
+      let innerLeadingStretch = min(requestedInnerLeadingStretch, maximumInnerLeadingStretch)
+      let innerTrailingStretch = min(requestedInnerTrailingStretch, maximumInnerTrailingStretch)
+      let innerRect = CGRect(
+        x: baseInnerRect.minX - innerLeadingStretch,
+        y: baseInnerRect.minY,
+        width: baseInnerRect.width + innerLeadingStretch + innerTrailingStretch,
+        height: baseInnerRect.height
+      )
+      let thumbCenter = CGPoint(
+        x: innerRect.minX + SliderGeometry.thumbDiameter / 2
+          + logicalProgress * max(innerRect.width - SliderGeometry.thumbDiameter, 0),
+        y: innerRect.midY
+      )
+      let fillWidth = max(thumbCenter.x - innerRect.minX, SliderGeometry.thumbDiameter / 2)
 
-      ZStack(alignment: .leading) {
-        trackShell(width: width + outerLeadingStretch + outerTrailingStretch, height: shellHeight)
-          .offset(x: -outerLeadingStretch)
+      ZStack(alignment: .topLeading) {
+        trackShell(width: outerRect.width, height: outerRect.height)
+          .offset(x: outerRect.minX, y: outerRect.minY)
 
         innerRail(
-          width: railWidth,
-          height: railHeight,
+          rect: innerRect,
           progress: logicalProgress,
           fillWidth: fillWidth,
-          thumbCenter: thumbCenter,
-          leadingOffset: railX
+          thumbCenter: thumbCenter
         )
-        .frame(width: railWidth, height: railHeight)
-        .offset(x: railX, y: (height - railHeight) / 2)
+        .offset(x: innerRect.minX, y: innerRect.minY)
         .opacity(isExpanded ? 1 : 0)
         .allowsHitTesting(isExpanded)
       }
@@ -333,7 +369,7 @@ private struct NativeModelIntensitySliderTrack: View {
               onDragStart()
             }
 
-            let progress = rawProgress(for: event.location.x, railWidth: baseRailWidth)
+            let progress = rawProgress(for: event.location.x, railWidth: baseInnerRect.width)
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
@@ -342,7 +378,7 @@ private struct NativeModelIntensitySliderTrack: View {
             onStepChange(.from(index: Int((clamp(progress, to: 0...1) * 2).rounded())))
           }
           .onEnded { event in
-            let progress = clamp(rawProgress(for: event.location.x, railWidth: baseRailWidth), to: 0...1)
+            let progress = clamp(rawProgress(for: event.location.x, railWidth: baseInnerRect.width), to: 0...1)
             let step = ModelIntensityStep.from(index: Int((progress * 2).rounded()))
             onStepChange(step)
             snapGeneration += 1
@@ -383,14 +419,16 @@ private struct NativeModelIntensitySliderTrack: View {
   }
 
   private func innerRail(
-    width: CGFloat,
-    height: CGFloat,
+    rect: CGRect,
     progress: CGFloat,
     fillWidth: CGFloat,
-    thumbCenter: CGFloat,
-    leadingOffset: CGFloat
+    thumbCenter: CGPoint
   ) -> some View {
-    ZStack(alignment: .leading) {
+    let width = rect.width
+    let height = rect.height
+    let centerY = thumbCenter.y - rect.minY
+
+    ZStack(alignment: .topLeading) {
       Capsule()
         .fill(.ultraThinMaterial)
         .overlay {
@@ -399,30 +437,36 @@ private struct NativeModelIntensitySliderTrack: View {
         .overlay {
           Capsule().strokeBorder(Color.white.opacity(colorScheme == "dark" ? 0.16 : 0.22), lineWidth: 0.7)
         }
+        .frame(width: width, height: height)
 
-      Capsule()
-        .fill(
-          LinearGradient(
-            colors: [accentColor.opacity(0.96), accentColor],
-            startPoint: .leading,
-            endPoint: .trailing
+      ZStack(alignment: .topLeading) {
+        Capsule()
+          .fill(
+            LinearGradient(
+              colors: [accentColor.opacity(0.96), accentColor],
+              startPoint: .leading,
+              endPoint: .trailing
+            )
           )
-        )
-        .frame(width: min(fillWidth, width), height: height)
-        .overlay {
-          Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.6)
+          .frame(width: min(fillWidth, width), height: height)
+          .overlay {
+            Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.6)
+          }
+
+        ForEach(ModelIntensityStep.allCases, id: \.rawValue) { step in
+          Circle()
+            .fill(Color.white.opacity(CGFloat(step.index) / 2 <= progress ? 0.34 : 0.56))
+            .frame(width: SliderGeometry.markerDiameter, height: SliderGeometry.markerDiameter)
+            .position(
+              x: SliderGeometry.thumbDiameter / 2
+                + CGFloat(step.index) / 2 * max(width - SliderGeometry.thumbDiameter, 0),
+              y: centerY
+            )
+            .accessibilityHidden(true)
         }
-
-      ForEach(ModelIntensityStep.allCases, id: \.rawValue) { step in
-        Circle()
-          .fill(Color.white.opacity(CGFloat(step.index) / 2 <= progress ? 0.34 : 0.56))
-          .frame(width: SliderGeometry.markerDiameter, height: SliderGeometry.markerDiameter)
-          .position(
-            x: SliderGeometry.thumbDiameter / 2 + CGFloat(step.index) / 2 * max(width - SliderGeometry.thumbDiameter, 0),
-            y: height / 2
-          )
-          .accessibilityHidden(true)
       }
+      .frame(width: width, height: height)
+      .clipShape(Capsule())
 
       Circle()
         .fill(
@@ -437,11 +481,14 @@ private struct NativeModelIntensitySliderTrack: View {
           Circle().strokeBorder(Color.black.opacity(0.07), lineWidth: 0.7)
         }
         .shadow(color: .black.opacity(colorScheme == "dark" ? 0.24 : 0.14), radius: 2, x: 0, y: 1)
-        .scaleEffect(x: isDragging ? 1.035 : 1, y: isDragging ? 0.985 : 1)
-        .position(x: thumbCenter - leadingOffset, y: height / 2)
+        .scaleEffect(
+          x: isDragging ? SliderGeometry.draggingThumbHorizontalScale : 1,
+          y: isDragging ? 0.985 : 1
+        )
+        .position(x: thumbCenter.x - rect.minX, y: centerY)
         .accessibilityHidden(true)
     }
-    .clipShape(Capsule())
+    .frame(width: width, height: height)
   }
 
   @ViewBuilder
@@ -450,11 +497,7 @@ private struct NativeModelIntensitySliderTrack: View {
       Capsule()
         .fill(Color.clear)
         .frame(width: width, height: height)
-        .glassEffect(.regular.interactive(), in: Capsule())
-        .overlay {
-          Capsule().strokeBorder(shellRim, lineWidth: 0.7)
-        }
-        .shadow(color: .black.opacity(colorScheme == "dark" ? 0.12 : 0.08), radius: 2, x: 0, y: 1)
+        .glassEffect(.clear.interactive(), in: Capsule())
     } else {
       Capsule()
         .fill(.ultraThinMaterial)

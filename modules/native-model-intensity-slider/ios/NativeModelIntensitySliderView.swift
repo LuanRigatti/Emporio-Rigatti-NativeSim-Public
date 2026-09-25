@@ -114,11 +114,12 @@ private struct NativeModelIntensitySliderContent: View {
           .opacity(model.isExpanded ? 1 : 0)
           .animation(reduceMotion ? nil : .easeInOut(duration: 0.14), value: model.isExpanded)
           .id(model.selectedStep)
-          .transition(reduceMotion ? .identity : .opacity)
-          .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.12),
-            value: model.selectedStep
+          .transition(
+            reduceMotion
+              ? .identity
+              : .opacity.combined(with: .scale(scale: 0.98, anchor: .center))
           )
+          .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: model.selectedStep)
 
         NativeModelIntensitySliderTrack(
           selectedStep: model.selectedStep,
@@ -226,6 +227,24 @@ private struct NativeModelIntensitySliderTrack: View {
     isDragging || isSnapping ? dragProgress : CGFloat(selectedStep.index) / 2
   }
 
+  private var isGestureActive: Bool {
+    isDragging || isSnapping
+  }
+
+  private var shellTint: Color {
+    Color.black.opacity(colorScheme == "dark" ? 0.24 : 0.30)
+  }
+
+  private var shellRim: LinearGradient {
+    let highlightOpacity = colorScheme == "dark" ? 0.30 : 0.48
+    let edgeOpacity = colorScheme == "dark" ? 0.12 : 0.22
+    return LinearGradient(
+      colors: [Color.white.opacity(highlightOpacity), Color.white.opacity(edgeOpacity)],
+      startPoint: .topLeading,
+      endPoint: .bottomTrailing
+    )
+  }
+
   var body: some View {
     GeometryReader { geometry in
       let width = geometry.size.width
@@ -233,13 +252,20 @@ private struct NativeModelIntensitySliderTrack: View {
       let thumbCenter = thumbSize / 2 + currentProgress * available
 
       ZStack(alignment: .leading) {
-        Capsule()
-          .fill(Color.black.opacity(colorScheme == "dark" ? 0.82 : 0.88))
-          .frame(width: width, height: SliderGeometry.trackHeight)
+        trackShell(width: width)
 
         Capsule()
-          .fill(accentColor)
+          .fill(
+            LinearGradient(
+              colors: [accentColor.opacity(0.94), accentColor],
+              startPoint: .leading,
+              endPoint: .trailing
+            )
+          )
           .frame(width: thumbCenter, height: SliderGeometry.trackHeight)
+          .overlay {
+            Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 0.7)
+          }
 
         ForEach(ModelIntensityStep.allCases, id: \.rawValue) { step in
           Circle()
@@ -253,9 +279,28 @@ private struct NativeModelIntensitySliderTrack: View {
         }
 
         Circle()
-          .fill(Color.white)
+          .fill(
+            LinearGradient(
+              colors: [Color.white, Color.white.opacity(0.88)],
+              startPoint: .topLeading,
+              endPoint: .bottomTrailing
+            )
+          )
           .frame(width: thumbSize, height: thumbSize)
-          .shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)
+          .overlay {
+            Circle().strokeBorder(Color.black.opacity(0.06), lineWidth: 0.6)
+          }
+          .shadow(
+            color: .black.opacity(colorScheme == "dark" ? 0.28 : 0.18),
+            radius: 3,
+            x: 0,
+            y: 1
+          )
+          .scaleEffect(x: isGestureActive ? 1.06 : 1, y: isGestureActive ? 0.97 : 1)
+          .animation(
+            reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.84),
+            value: isGestureActive
+          )
           .position(x: thumbCenter, y: geometry.size.height / 2)
           .accessibilityHidden(true)
       }
@@ -302,7 +347,7 @@ private struct NativeModelIntensitySliderTrack: View {
               }
               completeSnapIfPending(generation)
             } else {
-              withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
+              withAnimation(.spring(response: 0.28, dampingFraction: 0.94)) {
                 dragProgress = target
                 isDragging = false
                 isSnapping = true
@@ -321,6 +366,29 @@ private struct NativeModelIntensitySliderTrack: View {
       )
     )
     .accessibilityHidden(true)
+  }
+
+  @ViewBuilder
+  private func trackShell(width: CGFloat) -> some View {
+    if #available(iOS 26.0, *) {
+      Capsule()
+        .fill(Color.clear)
+        .frame(width: width, height: SliderGeometry.trackHeight)
+        .glassEffect(.regular.tint(shellTint).interactive(), in: Capsule())
+        .overlay {
+          Capsule().strokeBorder(shellRim, lineWidth: 0.8)
+        }
+    } else {
+      Capsule()
+        .fill(.ultraThinMaterial)
+        .overlay {
+          Capsule().fill(shellTint)
+        }
+        .frame(width: width, height: SliderGeometry.trackHeight)
+        .overlay {
+          Capsule().strokeBorder(shellRim, lineWidth: 0.8)
+        }
+    }
   }
 
   private func completeSnapIfPending(_ generation: Int) {

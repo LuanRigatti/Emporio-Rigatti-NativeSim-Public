@@ -21,7 +21,12 @@ public class NativeModelIntensitySliderModule: Module {
         view.setAccentColor(accentColor)
       }
 
-      Events("onStepChange", "onTransitionComplete")
+      Events(
+        "onStepChange",
+        "onTransitionComplete",
+        "onInteractionCommitted",
+        "onDismissRequest"
+      )
     }
   }
 }

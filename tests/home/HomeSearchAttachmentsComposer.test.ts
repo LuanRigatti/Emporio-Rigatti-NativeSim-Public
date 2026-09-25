@@ -190,6 +190,8 @@ jest.mock(
       blocked,
       mounted,
       selectedStep,
+      onDismissRequest,
+      onInteractionCommitted,
       onSelectedStepChange,
       onTransitionComplete,
     }: {
@@ -197,17 +199,31 @@ jest.mock(
       blocked: boolean;
       mounted: boolean;
       selectedStep: string;
+      onDismissRequest: () => void;
+      onInteractionCommitted: (step: string) => void;
       onSelectedStepChange: (step: string) => void;
       onTransitionComplete: (expanded: boolean) => void;
     }) =>
       mounted && !blocked
         ? mockReact.createElement(
             mockView,
-            { active, selectedStep, testID: 'model-intensity-overlay' } as never,
+            { active, mounted, selectedStep, testID: 'model-intensity-overlay' } as never,
             mockReact.createElement(mockText, { testID: 'model-intensity-step' }, selectedStep),
             mockReact.createElement(mockPressable, {
               onPress: () => onSelectedStepChange('high'),
               testID: 'mock-select-high-intensity',
+            }),
+            mockReact.createElement(mockPressable, {
+              onPress: () => onInteractionCommitted(selectedStep),
+              testID: 'mock-intensity-interaction-commit',
+            }),
+            mockReact.createElement(mockPressable, {
+              onPress: onDismissRequest,
+              testID: 'model-intensity-dismiss-target',
+            }),
+            mockReact.createElement(mockPressable, {
+              onPress: onDismissRequest,
+              testID: 'mock-native-intensity-dismiss',
             }),
             mockReact.createElement(mockPressable, {
               onPress: () => onTransitionComplete(false),
@@ -556,6 +572,57 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
 
     act(() =>
       renderer.root.findByProps({ testID: 'composer' }).props.onHoldMenuVisibilityChange(true),
+    );
+    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
+  });
+
+  it('closes after the native scrub commit and unmounts only after collapse completion', () => {
+    mountComposer();
+    const searchInput = renderer.root.findByProps({ testID: 'search-text-input' });
+    act(() =>
+      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
+    );
+    act(() => renderer.root.findByProps({ testID: 'mock-select-high-intensity' }).props.onPress());
+    act(() =>
+      renderer.root.findByProps({ testID: 'mock-intensity-interaction-commit' }).props.onPress(),
+    );
+
+    const closingOverlay = renderer.root.findByProps({ testID: 'model-intensity-overlay' });
+    expect(closingOverlay.props.active).toBe(false);
+    expect(closingOverlay.props.mounted).toBe(true);
+    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityLabel).toBe(
+      '5.6 High',
+    );
+    expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    act(() =>
+      renderer.root.findByProps({ testID: 'mock-intensity-close-complete' }).props.onPress(),
+    );
+    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
+  });
+
+  it('closes on an outside dismissal request without committing or submitting and waits for collapse', () => {
+    mountComposer();
+    const searchInput = renderer.root.findByProps({ testID: 'search-text-input' });
+    act(() =>
+      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
+    );
+    act(() =>
+      renderer.root.findByProps({ testID: 'model-intensity-dismiss-target' }).props.onPress(),
+    );
+
+    const closingOverlay = renderer.root.findByProps({ testID: 'model-intensity-overlay' });
+    expect(closingOverlay.props.active).toBe(false);
+    expect(closingOverlay.props.mounted).toBe(true);
+    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityLabel).toBe(
+      '5.6 Medium',
+    );
+    expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    act(() =>
+      renderer.root.findByProps({ testID: 'mock-intensity-close-complete' }).props.onPress(),
     );
     expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
   });

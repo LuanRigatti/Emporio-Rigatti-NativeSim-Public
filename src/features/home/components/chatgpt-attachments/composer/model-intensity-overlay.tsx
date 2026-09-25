@@ -1,6 +1,6 @@
 import { ProgressiveBlurView } from 'expo-backdrop';
 import { memo, useCallback, useEffect } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { OverKeyboardView } from 'react-native-keyboard-controller';
 import Animated, {
   useAnimatedStyle,
@@ -14,6 +14,7 @@ import { COMPOSER, COMPOSER_STRIP_HEIGHT, GUTTER } from '../constants';
 
 interface ModelIntensityOverlayProps {
   active: boolean;
+  attachmentStripVisible: boolean;
   blocked: boolean;
   composerBottom: SharedValue<number>;
   mounted: boolean;
@@ -21,18 +22,24 @@ interface ModelIntensityOverlayProps {
   screenWidth: number;
   selectedStep: ModelIntensityStep;
   strip: SharedValue<number>;
+  onDismissRequest: () => void;
+  onInteractionCommitted: (step: ModelIntensityStep) => void;
   onSelectedStepChange: (step: ModelIntensityStep) => void;
   onTransitionComplete: (expanded: boolean) => void;
 }
 
 const OVERLAY_GAP = 28;
-const BLUR_PRELUDE = 260;
-const BLUR_INTENSITY = 22;
 const SLIDER_HEIGHT = 92;
 const SLIDER_MAX_WIDTH = 320;
+const BLUR_LAYOUT = {
+  topLead: 16,
+  fadeTail: 88,
+  intensity: 22,
+} as const;
 
 export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
   active,
+  attachmentStripVisible,
   blocked,
   composerBottom,
   mounted,
@@ -40,12 +47,22 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
   screenWidth,
   selectedStep,
   strip,
+  onDismissRequest,
+  onInteractionCommitted,
   onSelectedStepChange,
   onTransitionComplete,
 }: ModelIntensityOverlayProps) {
   const { resolvedMode, theme } = useAppTheme();
   const blurOpacity = useSharedValue(0);
   const sliderWidth = Math.min(screenWidth - GUTTER * 2, SLIDER_MAX_WIDTH);
+  const blurStrongHeight =
+    BLUR_LAYOUT.topLead +
+    SLIDER_HEIGHT +
+    OVERLAY_GAP +
+    COMPOSER.rowHeight +
+    (attachmentStripVisible ? COMPOSER_STRIP_HEIGHT : 0);
+  const blurHeight = blurStrongHeight + BLUR_LAYOUT.fadeTail;
+  const blurStartOffset = blurStrongHeight / blurHeight;
 
   useEffect(() => {
     if (blocked) {
@@ -61,7 +78,16 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
       composerBottom.get() -
       strip.get() * COMPOSER_STRIP_HEIGHT -
       COMPOSER.rowHeight -
-      BLUR_PRELUDE,
+      OVERLAY_GAP -
+      SLIDER_HEIGHT -
+      BLUR_LAYOUT.topLead,
+    height:
+      BLUR_LAYOUT.topLead +
+      SLIDER_HEIGHT +
+      OVERLAY_GAP +
+      COMPOSER.rowHeight +
+      strip.get() * COMPOSER_STRIP_HEIGHT +
+      BLUR_LAYOUT.fadeTail,
     opacity: blurOpacity.get(),
   }));
 
@@ -88,6 +114,17 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
     [onTransitionComplete],
   );
 
+  const handleInteractionCommitted = useCallback(
+    (event: { nativeEvent: { step: ModelIntensityStep } }) => {
+      onInteractionCommitted(event.nativeEvent.step);
+    },
+    [onInteractionCommitted],
+  );
+
+  const handleNativeDismissRequest = useCallback(() => {
+    onDismissRequest();
+  }, [onDismissRequest]);
+
   return (
     <OverKeyboardView visible={mounted && !blocked}>
       {mounted && !blocked ? (
@@ -102,18 +139,28 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
             />
             <Animated.View pointerEvents="none" style={[styles.backdrop, backdropStyle]}>
               <ProgressiveBlurView
-                edge="bottom"
-                intensity={BLUR_INTENSITY}
+                edge="top"
+                intensity={BLUR_LAYOUT.intensity}
                 scrollFallback={false}
+                startOffset={blurStartOffset}
                 tint={
                   resolvedMode === 'dark'
                     ? 'systemUltraThinMaterialDark'
                     : 'systemUltraThinMaterialLight'
                 }
+                tintColor="transparent"
                 style={StyleSheet.absoluteFill}
               />
             </Animated.View>
           </View>
+
+          <Pressable
+            accessible={false}
+            onPress={onDismissRequest}
+            pointerEvents={active ? 'auto' : 'none'}
+            style={styles.dismissTarget}
+            testID="model-intensity-dismiss-target"
+          />
 
           <Animated.View
             pointerEvents={active ? 'box-none' : 'none'}
@@ -123,6 +170,8 @@ export const ModelIntensityOverlay = memo(function ModelIntensityOverlay({
               accentColor={theme.colors.primary}
               colorScheme={resolvedMode}
               expanded={active}
+              onDismissRequest={handleNativeDismissRequest}
+              onInteractionCommitted={handleInteractionCommitted}
               onStepChange={handleStepChange}
               onTransitionComplete={handleTransitionComplete}
               selectedStep={selectedStep}
@@ -144,8 +193,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
   },
+  dismissTarget: StyleSheet.absoluteFill,
   sliderPosition: {
     position: 'absolute',
     left: 0,

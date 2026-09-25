@@ -29,16 +29,23 @@ private final class NativeModelIntensitySliderModel: ObservableObject {
   @Published var selectedStep: ModelIntensityStep = .medium
   @Published var colorScheme = "light"
   @Published var accentColorHex = "#0A84FF"
+  @Published private(set) var transitionGeneration = 0
 
   var onStepChange: ((ModelIntensityStep) -> Void)?
   var onTransitionComplete: ((Bool) -> Void)?
+  var onInteractionCommitted: ((ModelIntensityStep) -> Void)?
+  var onDismissRequest: (() -> Void)?
 
-  private var transitionPending = false
+  private var pendingTransitionGeneration: Int?
+  private var dismissRequested = false
   private let selectionFeedback = UISelectionFeedbackGenerator()
 
   func setExpanded(_ expanded: Bool, animated: Bool) {
     guard isExpanded != expanded else { return }
-    transitionPending = true
+    transitionGeneration += 1
+    let generation = transitionGeneration
+    pendingTransitionGeneration = generation
+    dismissRequested = !expanded
 
     if animated {
       withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
@@ -46,14 +53,26 @@ private final class NativeModelIntensitySliderModel: ObservableObject {
       }
     } else {
       isExpanded = expanded
-      completeTransitionIfPending()
+      completeTransitionIfPending(generation)
     }
   }
 
-  func completeTransitionIfPending() {
-    guard transitionPending else { return }
-    transitionPending = false
+  func completeTransitionIfPending(_ generation: Int) {
+    guard pendingTransitionGeneration == generation else { return }
+    pendingTransitionGeneration = nil
     onTransitionComplete?(isExpanded)
+  }
+
+  func commitInteraction(_ step: ModelIntensityStep) {
+    guard isExpanded, !dismissRequested else { return }
+    dismissRequested = true
+    onInteractionCommitted?(step)
+  }
+
+  func requestDismiss() {
+    guard isExpanded, !dismissRequested else { return }
+    dismissRequested = true
+    onDismissRequest?()
   }
 
   func setSelectedStep(_ step: ModelIntensityStep, notify: Bool = false) {
@@ -77,6 +96,9 @@ private final class NativeModelIntensitySliderModel: ObservableObject {
 private struct NativeModelIntensitySliderContent: View {
   @ObservedObject var model: NativeModelIntensitySliderModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var trackFrame: CGRect = .zero
+
+  private static let coordinateSpaceName = "model-intensity-overlay"
 
   private var accentColor: Color {
     Color(hex: model.accentColorHex)
@@ -103,10 +125,22 @@ private struct NativeModelIntensitySliderContent: View {
           accentColor: accentColor,
           colorScheme: model.colorScheme,
           onDragStart: model.prepareSelectionFeedback,
-          onStepChange: { model.setSelectedStep($0, notify: true) }
+          onStepChange: { model.setSelectedStep($0, notify: true) },
+          onInteractionCommitted: { model.commitInteraction($0) }
         )
-        .frame(width: model.isExpanded ? geometry.size.width : 0, height: 44)
+        .frame(
+          width: model.isExpanded ? geometry.size.width : 0,
+          height: SliderGeometry.trackHeight
+        )
         .frame(maxWidth: .infinity, alignment: .center)
+        .background {
+          GeometryReader { trackGeometry in
+            Color.clear.preference(
+              key: SliderTrackFramePreferenceKey.self,
+              value: trackGeometry.frame(in: .named(Self.coordinateSpaceName))
+            )
+          }
+        }
         .opacity(model.isExpanded ? 1 : 0)
         .allowsHitTesting(model.isExpanded)
         .animation(
@@ -116,6 +150,16 @@ private struct NativeModelIntensitySliderContent: View {
       }
       .frame(width: geometry.size.width, height: geometry.size.height)
     }
+    .contentShape(Rectangle())
+    .coordinateSpace(name: Self.coordinateSpaceName)
+    .onPreferenceChange(SliderTrackFramePreferenceKey.self) { trackFrame = $0 }
+    .simultaneousGesture(
+      SpatialTapGesture(coordinateSpace: .named(Self.coordinateSpaceName))
+        .onEnded { event in
+          guard model.isExpanded, !trackFrame.contains(event.location) else { return }
+          model.requestDismiss()
+        }
+    )
     .preferredColorScheme(model.colorScheme == "dark" ? .dark : .light)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Intensidade do modelo")
@@ -130,13 +174,32 @@ private struct NativeModelIntensitySliderContent: View {
         break
       }
     }
+    .accessibilityAction(.escape) { model.requestDismiss() }
     .accessibilityHidden(!model.isExpanded)
     .modifier(
-      TransitionCompletionObserver(
+      AnimationCompletionObserver(
         value: model.isExpanded ? 1 : 0,
-        onCompletion: { model.completeTransitionIfPending() }
+        generation: model.transitionGeneration,
+        onCompletion: { model.completeTransitionIfPending($0) }
       )
     )
+  }
+}
+
+private enum SliderGeometry {
+  static let trackHeight: CGFloat = 56
+  static let thumbDiameter: CGFloat = 48
+  static let markerDiameter: CGFloat = 3
+}
+
+private struct SliderTrackFramePreferenceKey: PreferenceKey {
+  static let defaultValue = CGRect.zero
+
+  static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+    let next = nextValue()
+    if next != .zero {
+      value = next
+    }
   }
 }
 
@@ -146,16 +209,21 @@ private struct NativeModelIntensitySliderTrack: View {
   let colorScheme: String
   let onDragStart: () -> Void
   let onStepChange: (ModelIntensityStep) -> Void
+  let onInteractionCommitted: (ModelIntensityStep) -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var dragProgress: CGFloat = 0.5
   @State private var isDragging = false
+  @State private var isSnapping = false
+  @State private var snapAnimationValue: CGFloat = 0
+  @State private var snapGeneration = 0
+  @State private var pendingCommitStep: ModelIntensityStep?
+  @State private var pendingCommitGeneration: Int?
 
-  private let thumbSize: CGFloat = 24
-  private let visualTrackHeight: CGFloat = 9
+  private var thumbSize: CGFloat { SliderGeometry.thumbDiameter }
 
   private var currentProgress: CGFloat {
-    isDragging ? dragProgress : CGFloat(selectedStep.index) / 2
+    isDragging || isSnapping ? dragProgress : CGFloat(selectedStep.index) / 2
   }
 
   var body: some View {
@@ -167,16 +235,16 @@ private struct NativeModelIntensitySliderTrack: View {
       ZStack(alignment: .leading) {
         Capsule()
           .fill(Color.black.opacity(colorScheme == "dark" ? 0.82 : 0.88))
-          .frame(width: width, height: visualTrackHeight)
+          .frame(width: width, height: SliderGeometry.trackHeight)
 
         Capsule()
           .fill(accentColor)
-          .frame(width: thumbCenter, height: visualTrackHeight)
+          .frame(width: thumbCenter, height: SliderGeometry.trackHeight)
 
         ForEach(ModelIntensityStep.allCases, id: \.rawValue) { step in
           Circle()
             .fill(Color.white.opacity(step.index <= selectedStep.index ? 0.3 : 0.5))
-            .frame(width: 3, height: 3)
+            .frame(width: SliderGeometry.markerDiameter, height: SliderGeometry.markerDiameter)
             .position(
               x: thumbSize / 2 + CGFloat(step.index) / 2 * available,
               y: geometry.size.height / 2
@@ -194,9 +262,13 @@ private struct NativeModelIntensitySliderTrack: View {
       .frame(width: width, height: geometry.size.height)
       .contentShape(Rectangle())
       .gesture(
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
           .onChanged { event in
             if !isDragging {
+              snapGeneration += 1
+              pendingCommitStep = nil
+              pendingCommitGeneration = nil
+              isSnapping = false
               isDragging = true
               onDragStart()
             }
@@ -213,41 +285,74 @@ private struct NativeModelIntensitySliderTrack: View {
             let progress = min(max((event.location.x - thumbSize / 2) / max(available, 1), 0), 1)
             let step = ModelIntensityStep.from(index: Int((progress * 2).rounded()))
             onStepChange(step)
+            snapGeneration += 1
+            let generation = snapGeneration
+            pendingCommitStep = step
+            pendingCommitGeneration = generation
+            let target = CGFloat(step.index) / 2
 
             if reduceMotion {
-              dragProgress = CGFloat(step.index) / 2
-              isDragging = false
+              var transaction = Transaction()
+              transaction.disablesAnimations = true
+              withTransaction(transaction) {
+                dragProgress = target
+                isDragging = false
+                isSnapping = true
+                snapAnimationValue = CGFloat(generation)
+              }
+              completeSnapIfPending(generation)
             } else {
               withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-                dragProgress = CGFloat(step.index) / 2
+                dragProgress = target
                 isDragging = false
+                isSnapping = true
+                snapAnimationValue = CGFloat(generation)
               }
             }
           }
       )
     }
-    .frame(height: 44)
+    .frame(height: SliderGeometry.trackHeight)
+    .modifier(
+      AnimationCompletionObserver(
+        value: snapAnimationValue,
+        generation: snapGeneration,
+        onCompletion: completeSnapIfPending
+      )
+    )
     .accessibilityHidden(true)
+  }
+
+  private func completeSnapIfPending(_ generation: Int) {
+    guard pendingCommitGeneration == generation, let step = pendingCommitStep else { return }
+    pendingCommitGeneration = nil
+    pendingCommitStep = nil
+    isSnapping = false
+    onInteractionCommitted(step)
   }
 }
 
-private struct TransitionCompletionObserver: ViewModifier, Animatable {
+private struct AnimationCompletionObserver: ViewModifier, Animatable {
   var value: CGFloat
   let target: CGFloat
-  let onCompletion: () -> Void
+  let generation: Int
+  let onCompletion: (Int) -> Void
 
   var animatableData: CGFloat {
     get { value }
     set {
       value = newValue
       guard abs(newValue - target) < 0.001 else { return }
-      DispatchQueue.main.async(execute: onCompletion)
+      let generation = generation
+      let onCompletion = onCompletion
+      DispatchQueue.main.async { onCompletion(generation) }
     }
   }
 
-  init(value: CGFloat, onCompletion: @escaping () -> Void) {
+  init(value: CGFloat, generation: Int, onCompletion: @escaping (Int) -> Void) {
     self.value = value
     self.target = value
+    self.generation = generation
     self.onCompletion = onCompletion
   }
 
@@ -278,6 +383,8 @@ public final class NativeModelIntensitySliderView: ExpoView {
 
   public let onStepChange = EventDispatcher()
   public let onTransitionComplete = EventDispatcher()
+  public let onInteractionCommitted = EventDispatcher()
+  public let onDismissRequest = EventDispatcher()
 
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -288,6 +395,12 @@ public final class NativeModelIntensitySliderView: ExpoView {
     }
     model.onTransitionComplete = { [weak self] expanded in
       self?.onTransitionComplete(["expanded": expanded])
+    }
+    model.onInteractionCommitted = { [weak self] step in
+      self?.onInteractionCommitted(["step": step.rawValue])
+    }
+    model.onDismissRequest = { [weak self] in
+      self?.onDismissRequest([:])
     }
 
     let controller = UIHostingController(rootView: NativeModelIntensitySliderContent(model: model))

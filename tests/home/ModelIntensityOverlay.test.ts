@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { ModelIntensityOverlay } from '@/features/home/components/chatgpt-attachments/composer/model-intensity-overlay';
 
 const mockReact = React;
@@ -57,12 +57,15 @@ describe('ModelIntensityOverlay lifecycle', () => {
   let renderer!: ReactTestRenderer;
   const onSelectedStepChange = jest.fn();
   const onTransitionComplete = jest.fn();
+  const onDismissRequest = jest.fn();
+  const onInteractionCommitted = jest.fn();
   const composerBottom = { get: () => 620 } as never;
   const strip = { get: () => 0 } as never;
 
   const renderOverlay = (active: boolean, blocked = false, mounted = true) =>
     React.createElement(ModelIntensityOverlay, {
       active,
+      attachmentStripVisible: false,
       blocked,
       composerBottom,
       mounted,
@@ -70,6 +73,8 @@ describe('ModelIntensityOverlay lifecycle', () => {
       screenWidth: 390,
       selectedStep: 'medium',
       strip,
+      onDismissRequest,
+      onInteractionCommitted,
       onSelectedStepChange,
       onTransitionComplete,
     });
@@ -77,6 +82,8 @@ describe('ModelIntensityOverlay lifecycle', () => {
   afterEach(() => {
     onSelectedStepChange.mockClear();
     onTransitionComplete.mockClear();
+    onDismissRequest.mockClear();
+    onInteractionCommitted.mockClear();
     if (renderer) act(() => renderer.unmount());
   });
 
@@ -92,14 +99,39 @@ describe('ModelIntensityOverlay lifecycle', () => {
     expect(nativeSlider.props.expanded).toBe(true);
     expect(nativeSlider.props.style).toMatchObject({ width: 320, height: 92 });
     expect(nativeSlider.parent?.props.pointerEvents).toBe('box-none');
-    expect(renderer.root.findByProps({ testID: 'progressive-blur' }).props).toMatchObject({
-      edge: 'bottom',
+    const blur = renderer.root.findByProps({ testID: 'progressive-blur' });
+    expect(blur.props).toMatchObject({
+      edge: 'top',
       intensity: 22,
       scrollFallback: false,
+      tintColor: 'transparent',
     });
+    expect(blur.props.startOffset).toBeGreaterThan(0);
+    const localBackdropFrame = renderer.root
+      .findAllByType(View)
+      .map((view) => StyleSheet.flatten(view.props.style))
+      .find((style) => style?.height === 272);
+    expect(localBackdropFrame).toMatchObject({ top: 436, height: 272 });
+    const dismissTarget = renderer.root.findByProps({ testID: 'model-intensity-dismiss-target' });
+    expect(dismissTarget.props).toMatchObject({
+      pointerEvents: 'auto',
+    });
+    expect(StyleSheet.flatten(dismissTarget.props.style)).toMatchObject({
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    });
+    act(() => dismissTarget.props.onPress());
+    expect(onDismissRequest).toHaveBeenCalledTimes(1);
 
     act(() => nativeSlider.props.onStepChange({ nativeEvent: { step: 'high' } }));
     expect(onSelectedStepChange).toHaveBeenCalledWith('high');
+    act(() => nativeSlider.props.onInteractionCommitted({ nativeEvent: { step: 'high' } }));
+    expect(onInteractionCommitted).toHaveBeenCalledWith('high');
+    act(() => nativeSlider.props.onDismissRequest({ nativeEvent: {} }));
+    expect(onDismissRequest).toHaveBeenCalledTimes(2);
   });
 
   it('reverses the native expansion on close and unmounts only after its completion event', () => {
@@ -111,6 +143,9 @@ describe('ModelIntensityOverlay lifecycle', () => {
     const nativeSlider = renderer.root.findByProps({ testID: 'native-model-intensity-slider' });
     expect(nativeSlider.props.expanded).toBe(false);
     expect(renderer.root.findByProps({ testID: 'over-keyboard-view' }).props.visible).toBe(true);
+    expect(
+      renderer.root.findByProps({ testID: 'model-intensity-dismiss-target' }).props.pointerEvents,
+    ).toBe('none');
 
     act(() => nativeSlider.props.onTransitionComplete({ nativeEvent: { expanded: false } }));
     expect(onTransitionComplete).toHaveBeenCalledWith(false);

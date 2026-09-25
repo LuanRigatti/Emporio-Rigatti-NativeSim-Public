@@ -280,6 +280,21 @@ export default function HomeSearchAttachmentsComposer({
     if (!expanded) setIsModelIntensityMounted(false);
   }, []);
 
+  const handleModelIntensityDismissRequest = useCallback(() => {
+    if (isModelIntensityVisible && !isModelIntensityBlocked) {
+      setIsModelIntensityVisible(false);
+    }
+  }, [isModelIntensityBlocked, isModelIntensityVisible]);
+
+  const handleModelIntensityInteractionCommitted = useCallback(
+    (step: ModelIntensityStep) => {
+      if (!isModelIntensityVisible || isModelIntensityBlocked) return;
+      setModelIntensityStep(step);
+      setIsModelIntensityVisible(false);
+    },
+    [isModelIntensityBlocked, isModelIntensityVisible],
+  );
+
   const grid =
     panel.mode === 'camera' ? (
       <CameraSheet
@@ -456,6 +471,7 @@ export default function HomeSearchAttachmentsComposer({
 
       <ModelIntensityOverlay
         active={isModelIntensityVisible && !isModelIntensityBlocked}
+        attachmentStripVisible={attachments.length > 0}
         blocked={isModelIntensityBlocked}
         composerBottom={composerBottom}
         mounted={isModelIntensityMounted}
@@ -463,6 +479,8 @@ export default function HomeSearchAttachmentsComposer({
         screenWidth={width}
         selectedStep={modelIntensityStep}
         strip={strip}
+        onDismissRequest={handleModelIntensityDismissRequest}
+        onInteractionCommitted={handleModelIntensityInteractionCommitted}
         onSelectedStepChange={setModelIntensityStep}
         onTransitionComplete={handleModelIntensityTransitionComplete}
       />

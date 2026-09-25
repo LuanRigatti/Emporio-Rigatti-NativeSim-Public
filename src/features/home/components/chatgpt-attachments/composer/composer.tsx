@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { forwardRef, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -18,6 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useAppTheme } from '@/theme';
+import { triggerSelectionHaptic } from '@/utils/haptics';
 import { AttachmentIcon } from '../AttachmentIcon';
 import { COLORS, COMPOSER, COMPOSER_STRIP_HEIGHT, DURATION, GUTTER } from '../constants';
 import { Glass } from '../glass';
@@ -92,6 +94,11 @@ export interface ComposerProps {
   onSubmit?: (value: string) => void;
   onRemoveDateAttachment?: () => void;
   onPlusTap: () => void;
+  onToggleModelIntensity: () => void;
+  onHoldMenuVisibilityChange?: (visible: boolean) => void;
+  modelIntensityExpanded: boolean;
+  modelIntensityLabel: string;
+  modelIntensityDisabled?: boolean;
   holdMenuEnabled: boolean;
   onHoldPhotoSelect: (photo: LibraryPhoto) => void;
   onHoldPhotoDockSettled: (photoId: string) => void;
@@ -120,6 +127,11 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     onSubmit,
     onRemoveDateAttachment,
     onPlusTap,
+    onToggleModelIntensity,
+    onHoldMenuVisibilityChange,
+    modelIntensityExpanded,
+    modelIntensityLabel,
+    modelIntensityDisabled = false,
     holdMenuEnabled,
     onHoldPhotoSelect,
     onHoldPhotoDockSettled,
@@ -215,6 +227,7 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           strip={strip}
           screenWidth={screenWidth}
           onPress={onPlusTap}
+          onHoldMenuVisibilityChange={onHoldMenuVisibilityChange}
           onPhotoSelect={onHoldPhotoSelect}
           onDockSettled={onHoldPhotoDockSettled}
         />
@@ -242,6 +255,28 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           multiline={false}
           style={[styles.field, { color: foreground }]}
         />
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            modelIntensityExpanded ? 'Fechar intensidade do modelo' : 'Intensidade do modelo'
+          }
+          accessibilityHint="Abre o controle visual de intensidade do modelo."
+          accessibilityState={{
+            disabled: modelIntensityDisabled,
+            expanded: modelIntensityExpanded,
+          }}
+          accessibilityValue={{ text: modelIntensityLabel }}
+          disabled={modelIntensityDisabled}
+          onPress={() => {
+            triggerSelectionHaptic();
+            onToggleModelIntensity();
+          }}
+          style={styles.intensityAction}
+          testID="composer-model-intensity-button"
+        >
+          <Ionicons name="options-outline" size={18} color={foreground} />
+        </Pressable>
 
         <Pressable
           accessibilityRole="button"
@@ -397,5 +432,12 @@ const styles = StyleSheet.create({
     borderRadius: COMPOSER.actionSize / 2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  intensityAction: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 });

@@ -41,6 +41,7 @@ interface AttachHoldButtonProps {
   strip: SharedValue<number>;
   screenWidth: number;
   onPress: () => void;
+  onHoldMenuVisibilityChange?: (visible: boolean) => void;
   onPhotoSelect: (photo: LibraryPhoto) => void;
   onDockSettled: (photoId: string) => void;
 }
@@ -60,6 +61,7 @@ export const AttachHoldButton = memo(function AttachHoldButton({
   strip,
   screenWidth,
   onPress,
+  onHoldMenuVisibilityChange,
   onPhotoSelect,
   onDockSettled,
 }: AttachHoldButtonProps) {
@@ -82,11 +84,18 @@ export const AttachHoldButton = memo(function AttachHoldButton({
     if (tiles.length) void Image.prefetch(tiles.map((photo) => photo.id));
   }, [tiles]);
 
-  const mountMenu = useCallback((anchor: number) => {
-    setBandAnchorY(anchor);
-    setIsMenuMounted(true);
-  }, []);
-  const unmountMenu = useCallback(() => setIsMenuMounted(false), []);
+  const mountMenu = useCallback(
+    (anchor: number) => {
+      setBandAnchorY(anchor);
+      setIsMenuMounted(true);
+      onHoldMenuVisibilityChange?.(true);
+    },
+    [onHoldMenuVisibilityChange],
+  );
+  const unmountMenu = useCallback(() => {
+    setIsMenuMounted(false);
+    onHoldMenuVisibilityChange?.(false);
+  }, [onHoldMenuVisibilityChange]);
   const handleTap = useCallback(() => onPress(), [onPress]);
   const handleSelect = useCallback(
     (index: number) => {

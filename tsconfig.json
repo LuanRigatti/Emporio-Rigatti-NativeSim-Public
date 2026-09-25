@@ -9,7 +9,8 @@
       "@/*": ["src/*"],
       "native-card-context-menu": ["modules/native-card-context-menu/src"],
       "native-search-field": ["modules/native-search-field/src"],
-      "native-thinking-orb": ["modules/native-thinking-orb/src"]
+      "native-thinking-orb": ["modules/native-thinking-orb/src"],
+      "native-model-intensity-slider": ["modules/native-model-intensity-slider/src"]
     }
   },
   "exclude": ["dist"]

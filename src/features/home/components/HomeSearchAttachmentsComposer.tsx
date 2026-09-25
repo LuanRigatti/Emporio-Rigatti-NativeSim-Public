@@ -12,6 +12,11 @@ import { CameraBar } from './chatgpt-attachments/camera/camera-bar';
 import { CameraSheet, type CameraSheetHandle } from './chatgpt-attachments/camera/camera-sheet';
 import { AttachmentFlight } from './chatgpt-attachments/composer/attachment-flight';
 import { Composer } from './chatgpt-attachments/composer/composer';
+import { ModelIntensityOverlay } from './chatgpt-attachments/composer/model-intensity-overlay';
+import {
+  getModelIntensityStepLabel,
+  type ModelIntensityStep,
+} from './chatgpt-attachments/composer/model-intensity-steps';
 import {
   ATTACHMENT_CONTROL_GLASS_TINT,
   BOTTOM_BAR,
@@ -97,6 +102,36 @@ export default function HomeSearchAttachmentsComposer({
     onSettled: clearSelection,
   });
   const [holdMenuPendingIds, setHoldMenuPendingIds] = useState<string[]>([]);
+  const [isModelIntensityMounted, setIsModelIntensityMounted] = useState(false);
+  const [isModelIntensityVisible, setIsModelIntensityVisible] = useState(false);
+  const [modelIntensityStep, setModelIntensityStep] = useState<ModelIntensityStep>('medium');
+  const [isPhotoHoldMenuVisible, setIsPhotoHoldMenuVisible] = useState(false);
+
+  const isModelIntensityBlocked =
+    panel.mode !== 'closed' || panel.closing || panel.opening || isPhotoHoldMenuVisible;
+
+  const toggleModelIntensity = useCallback(() => {
+    if (isModelIntensityBlocked) return;
+    if (isModelIntensityVisible) {
+      setIsModelIntensityVisible(false);
+      return;
+    }
+    setIsModelIntensityMounted(true);
+    setIsModelIntensityVisible(true);
+  }, [isModelIntensityBlocked, isModelIntensityVisible]);
+
+  const closeModelIntensityImmediately = useCallback(() => {
+    setIsModelIntensityVisible(false);
+    setIsModelIntensityMounted(false);
+  }, []);
+
+  const handlePhotoHoldMenuVisibilityChange = useCallback((visible: boolean) => {
+    setIsPhotoHoldMenuVisible(visible);
+    if (visible) {
+      setIsModelIntensityVisible(false);
+      setIsModelIntensityMounted(false);
+    }
+  }, []);
 
   const attachHoldMenuPhoto = useCallback(
     (photo: LibraryPhoto) => {
@@ -226,14 +261,24 @@ export default function HomeSearchAttachmentsComposer({
 
   const handleMenuAction = useCallback(
     (action: MenuAction) => {
+      closeModelIntensityImmediately();
       if (action === 'files') {
         void pickFiles();
         return;
       }
       panel.onMenuAction(action);
     },
-    [pickFiles, panel],
+    [closeModelIntensityImmediately, pickFiles, panel],
   );
+
+  const handlePlusTap = useCallback(() => {
+    closeModelIntensityImmediately();
+    panel.onPlusTap();
+  }, [closeModelIntensityImmediately, panel]);
+
+  const handleModelIntensityTransitionComplete = useCallback((expanded: boolean) => {
+    if (!expanded) setIsModelIntensityMounted(false);
+  }, []);
 
   const grid =
     panel.mode === 'camera' ? (
@@ -300,7 +345,12 @@ export default function HomeSearchAttachmentsComposer({
           onSubmit={handleSubmit}
           dateAttachment={selectedDate ?? undefined}
           onRemoveDateAttachment={resetDateAttachment}
-          onPlusTap={panel.onPlusTap}
+          onPlusTap={handlePlusTap}
+          onToggleModelIntensity={toggleModelIntensity}
+          modelIntensityExpanded={isModelIntensityVisible}
+          modelIntensityLabel={getModelIntensityStepLabel(modelIntensityStep)}
+          modelIntensityDisabled={isModelIntensityBlocked}
+          onHoldMenuVisibilityChange={handlePhotoHoldMenuVisibilityChange}
           holdMenuEnabled={panel.mode === 'closed' && !panel.closing && !panel.opening}
           onHoldPhotoSelect={attachHoldMenuPhoto}
           onHoldPhotoDockSettled={finishHoldMenuPhotoDock}
@@ -403,6 +453,19 @@ export default function HomeSearchAttachmentsComposer({
           </View>
         ) : null}
       </OverKeyboardView>
+
+      <ModelIntensityOverlay
+        active={isModelIntensityVisible && !isModelIntensityBlocked}
+        blocked={isModelIntensityBlocked}
+        composerBottom={composerBottom}
+        mounted={isModelIntensityMounted}
+        screenHeight={height}
+        screenWidth={width}
+        selectedStep={modelIntensityStep}
+        strip={strip}
+        onSelectedStepChange={setModelIntensityStep}
+        onTransitionComplete={handleModelIntensityTransitionComplete}
+      />
     </View>
   );
 }

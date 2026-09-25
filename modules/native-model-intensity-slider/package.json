@@ -1,0 +1,7 @@
+{
+  "name": "native-model-intensity-slider",
+  "version": "0.1.0",
+  "description": "Native SwiftUI model intensity slider for the Home Search composer.",
+  "license": "UNLICENSED",
+  "private": true
+}

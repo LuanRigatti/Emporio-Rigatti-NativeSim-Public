@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeGlassBackButton } from '@/components/native';
-import { GlassCard, PremiumScreen } from '@/components/premium';
+import { GlassCard, PremiumScreen, ProgressiveCollapsibleScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -36,38 +36,38 @@ export function OpenPaymentClientsScreen({
       title=""
     />
   );
+  const totalCard =
+    clientCards.length > 0 ? (
+      <GlassCard
+        style={[
+          styles.totalCard,
+          {
+            borderRadius: theme.radius.lg,
+            paddingHorizontal: theme.spacing.sm,
+            paddingVertical: theme.spacing.xs,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            theme.typography.body,
+            {
+              color: theme.colors.textPrimary,
+              fontSize: 17,
+              fontWeight: theme.typography.headline.fontWeight,
+            },
+          ]}
+        >
+          {maskCurrency(totalOpenAmount)}
+        </Text>
+      </GlassCard>
+    ) : undefined;
   const pageTitle = (
     <NativeGlassHeader
       includeTopSafeArea={false}
       mode="transparent"
       largeTitle
-      rightActions={
-        clientCards.length > 0 ? (
-          <GlassCard
-            style={[
-              styles.totalCard,
-              {
-                borderRadius: theme.radius.lg,
-                paddingHorizontal: theme.spacing.sm,
-                paddingVertical: theme.spacing.xs,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                theme.typography.body,
-                {
-                  color: theme.colors.textPrimary,
-                  fontSize: 17,
-                  fontWeight: theme.typography.headline.fontWeight,
-                },
-              ]}
-            >
-              {maskCurrency(totalOpenAmount)}
-            </Text>
-          </GlassCard>
-        ) : undefined
-      }
+      rightActions={totalCard}
       title="Em aberto"
       titleStyle={{
         fontFamily: 'System',
@@ -77,6 +77,39 @@ export function OpenPaymentClientsScreen({
       }}
     />
   );
+  const clientCardsContent =
+    clientCards.length > 0 ? (
+      <OpenPaymentClientCards
+        clients={clientCards}
+        onMarkAsPaid={markDeliveryPaid}
+        testModeEnabled={testModeEnabled}
+      />
+    ) : (
+      <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
+        Nenhum recebimento em aberto
+      </Text>
+    );
+  const originalContentTopOffset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
+
+  const content = (
+    <View style={[styles.content, { gap: theme.spacing.lg, marginTop: originalContentTopOffset }]}>
+      {pageTitle}
+      {clientCardsContent}
+    </View>
+  );
+
+  if (nativeHeader) {
+    return (
+      <ProgressiveCollapsibleScreen
+        compactTitle="Em aberto"
+        contentTopInset={originalContentTopOffset}
+        largeTitle={pageTitle}
+        nativeHeader
+      >
+        {clientCardsContent}
+      </ProgressiveCollapsibleScreen>
+    );
+  }
 
   return (
     <PremiumScreen
@@ -85,33 +118,9 @@ export function OpenPaymentClientsScreen({
         { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
       ]}
       overlayHeader={header}
-      overlayHeaderContentOffset={nativeHeader ? theme.sizes.touchTargetMinimum : undefined}
       progressiveBlur
     >
-      <View
-        style={[
-          styles.content,
-          {
-            gap: theme.spacing.lg,
-            marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-          },
-        ]}
-      >
-        {pageTitle}
-        {clientCards.length > 0 ? (
-          <>
-            <OpenPaymentClientCards
-              clients={clientCards}
-              onMarkAsPaid={markDeliveryPaid}
-              testModeEnabled={testModeEnabled}
-            />
-          </>
-        ) : (
-          <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
-            Nenhum recebimento em aberto
-          </Text>
-        )}
-      </View>
+      {content}
     </PremiumScreen>
   );
 }

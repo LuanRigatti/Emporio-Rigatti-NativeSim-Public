@@ -84,7 +84,9 @@ export function SplashGate() {
     );
   }, [biometricError, biometricLocked, retryBiometric]);
 
-  const handleOverlayReady = useCallback(() => setOverlayReady(true), []);
+  const handleOverlayReady = useCallback(() => {
+    setOverlayReady(true);
+  }, []);
   const handleAnimationComplete = useCallback(() => {
     if (navigationStartedRef.current) return;
 

@@ -6,7 +6,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ReactNode } from 'react';
 
 import RegistrarLayout from '@/app/(tabs)/registrar/_layout';
-import RetailOrderClientRoute from '@/app/registrar-pedido-varejo/index';
+import RetailOrderCombinedRoute from '@/app/registrar-pedido-varejo/index';
+import RetailOrderNewClientRoute from '@/app/registrar-pedido-varejo/novo-cliente';
 import RetailOrderProductsRoute from '@/app/registrar-pedido-varejo/produtos';
 import RetailOrderDetailsRoute from '@/app/registrar-pedido-varejo/detalhes';
 import RetailOrderSummaryRoute from '@/app/registrar-pedido-varejo/resumo';
@@ -21,7 +22,8 @@ jest.mock('expo-router', () => {
   const Stack = ({ children, ...props }: { children?: ReactNode }) =>
     React.createElement('stack', props, children);
   Stack.Screen = Screen;
-  return { Stack };
+  const Redirect = (props: { href: string }) => React.createElement('redirect', props);
+  return { Redirect, Stack };
 });
 
 jest.mock('@/theme', () => ({
@@ -29,8 +31,14 @@ jest.mock('@/theme', () => ({
 }));
 
 jest.mock('@/features/retail-orders/components/RetailOrderStepScreen', () => ({
+  RetailOrderCombinedRegistrarScreen: () =>
+    require('react').createElement('retail-order-combined-screen'),
   RetailOrderStepScreen: ({ step }: { step: string }) =>
     require('react').createElement('retail-order-step', { step }),
+}));
+
+jest.mock('@/features/retail-orders/components/RetailOrderNewClientScreen', () => ({
+  RetailOrderNewClientScreen: () => require('react').createElement('retail-order-new-client'),
 }));
 
 const rootLayoutSource = readFileSync(resolve(process.cwd(), 'src/app/_layout.tsx'), 'utf8');
@@ -65,10 +73,11 @@ describe('RetailOrderRegistrarRoute', () => {
     );
   });
 
-  it('registers the four retail wizard pages with the prior transparent Root Stack header and stable back', () => {
+  it('registers the combined wizard entry, later steps, and legacy redirect in the Root Stack', () => {
     const routes = [
-      ['registrar-pedido-varejo/index', 'Cliente'],
-      ['registrar-pedido-varejo/produtos', 'Produtos'],
+      ['registrar-pedido-varejo/index', 'Novo pedido'],
+      ['registrar-pedido-varejo/novo-cliente', 'Novo cliente'],
+      ['registrar-pedido-varejo/produtos', 'compatibilidade'],
       ['registrar-pedido-varejo/detalhes', 'Detalhes'],
       ['registrar-pedido-varejo/resumo', 'Resumo'],
     ] as const;
@@ -106,7 +115,9 @@ describe('RetailOrderRegistrarRoute', () => {
     expect(stepScreenSource).toContain('overlayHeader={header}');
     expect(stepScreenSource).toContain('progressiveBlur');
     expect(stepScreenSource).not.toContain('useHeaderHeight');
-    expect(stepScreenSource).not.toContain('scrollViewProps');
+    expect(stepScreenSource).toContain(
+      "scrollViewProps={{ keyboardShouldPersistTaps: 'handled' }}",
+    );
     expect(stepScreenSource).not.toContain("overflow: 'hidden'");
     expect(stepScreenSource).not.toContain('retailScrollDiagnostics');
     expect(stepScreenSource).not.toContain('RETAIL-SCROLL-DIAG');
@@ -119,9 +130,36 @@ describe('RetailOrderRegistrarRoute', () => {
     expect(premiumScreenSource).not.toContain('scrollViewRef');
   });
 
+  it('renders the combined Cliente + Produtos page at the wizard entry', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(RetailOrderCombinedRoute));
+    });
+
+    expect(
+      renderer.root.findAll((node) => String(node.type) === 'retail-order-combined-screen'),
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => String(node.type) === 'redirect')).toHaveLength(0);
+    expect(renderer.root.findAll((node) => String(node.type) === 'retail-order-step')).toHaveLength(
+      0,
+    );
+  });
+
+  it('registers and renders the Retail new-client page in the Root Native Stack', () => {
+    expect(rootLayoutSource).toMatch(
+      /name="registrar-pedido-varejo\/novo-cliente"[\s\S]{0,700}hidesBottomBarWhenPushed: true[\s\S]{0,250}BackButton displayMode="default" withMenu=\{false\}/,
+    );
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(RetailOrderNewClientRoute));
+    });
+    expect(
+      renderer.root.findAll((node) => String(node.type) === 'retail-order-new-client'),
+    ).toHaveLength(1);
+  });
+
   it.each([
-    [RetailOrderClientRoute, 'client'],
-    [RetailOrderProductsRoute, 'products'],
     [RetailOrderDetailsRoute, 'details'],
     [RetailOrderSummaryRoute, 'summary'],
   ] as const)('%s renders only the shared retail step content', (Route, step) => {
@@ -138,5 +176,19 @@ describe('RetailOrderRegistrarRoute', () => {
     const stepScreens = renderer.root.findAll((node) => String(node.type) === 'retail-order-step');
     expect(stepScreens).toHaveLength(1);
     expect(stepScreens[0].props.step).toBe(step);
+  });
+
+  it('redirects the legacy Produtos route to the combined wizard entry', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(RetailOrderProductsRoute));
+    });
+
+    expect(renderer.root.findAll((node) => String(node.type) === 'redirect')[0].props.href).toBe(
+      '/registrar-pedido-varejo',
+    );
+    expect(renderer.root.findAll((node) => String(node.type) === 'retail-order-step')).toHaveLength(
+      0,
+    );
   });
 });

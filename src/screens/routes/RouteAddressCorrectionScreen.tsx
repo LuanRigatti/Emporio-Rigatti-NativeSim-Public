@@ -22,12 +22,12 @@ import {
   type RouteCoordinate,
   type RouteSession,
 } from '@/types/route';
-import { useAppTheme } from '@/theme';
+import { getInsetSurfaceColor, useAppTheme } from '@/theme';
 
 type Props = NativeStackScreenProps<DeliveriesStackParamList, 'RouteAddressCorrection'>;
 
 export function RouteAddressCorrectionScreen({ navigation, route }: Props) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const { getSession, recreate, loading, error } = useRoute();
   const session = getSession(route.params.sessionId);
   const [address, setAddress] = useState(route.params.address);
@@ -116,7 +116,14 @@ export function RouteAddressCorrectionScreen({ navigation, route }: Props) {
         >
           Editar cadastro do cliente
         </SecondaryButton>
-        <Card style={{ height: 280, overflow: 'hidden', padding: 0 }}>
+        <Card
+          style={{
+            backgroundColor: getInsetSurfaceColor(resolvedMode, theme.colors.surface),
+            height: 280,
+            overflow: 'hidden',
+            padding: 0,
+          }}
+        >
           <NativeRouteMap
             initialCoordinate={mapStops[0]?.coordinates ?? ROUTE_MAP_DEFAULT_CENTER}
             selectable

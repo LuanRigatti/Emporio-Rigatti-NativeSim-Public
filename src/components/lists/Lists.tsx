@@ -10,21 +10,25 @@ import type { CommonAccessibilityProps, ViewComponentStyle } from '../types';
 
 export type ListItemProps = CommonAccessibilityProps & {
   title: string;
+  titleColor?: string;
   subtitle?: string;
   leading?: ReactNode;
   trailing?: ReactNode;
   onPress?: () => void;
   disabled?: boolean;
+  disablePressedBackground?: boolean;
   style?: ViewComponentStyle;
 };
 
 export function ListItem({
   title,
+  titleColor,
   subtitle,
   leading,
   trailing,
   onPress,
   disabled = false,
+  disablePressedBackground = false,
   style,
   accessibilityLabel,
   accessibilityHint,
@@ -44,7 +48,9 @@ export function ListItem({
     >
       {leading ? <View style={{ marginRight: theme.spacing.sm }}>{leading}</View> : null}
       <View style={styles.content}>
-        <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>{title}</Text>
+        <Text style={[theme.typography.body, { color: titleColor ?? theme.colors.textPrimary }]}>
+          {title}
+        </Text>
         {subtitle ? (
           <Text
             style={[
@@ -74,7 +80,9 @@ export function ListItem({
         onPress();
       }}
       style={({ pressed }) => [
-        pressed && !disabled ? { backgroundColor: theme.colors.backgroundSecondary } : undefined,
+        pressed && !disabled && !disablePressedBackground
+          ? { backgroundColor: theme.colors.backgroundSecondary }
+          : undefined,
       ]}
     >
       {content}

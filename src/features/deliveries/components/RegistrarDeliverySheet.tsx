@@ -1,5 +1,9 @@
 import { NativeBottomSheet } from '@/components/native';
-import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
+import { useAppTheme } from '@/theme';
+import {
+  APPROVED_DARK_SHEET_GLASS_TINT,
+  APPROVED_LIGHT_SHEET_GLASS_TINT,
+} from '@/theme/sheetGlassTints';
 
 import {
   DEFAULT_REGISTRAR_DELIVERY_BUCKET_PRICE,
@@ -16,7 +20,7 @@ export function RegistrarDeliverySheet({
   useClientPager?: boolean;
 }) {
   const { resolvedMode } = useAppTheme();
-  const useDarkGlassSurface = resolvedMode === 'dark';
+
   return (
     <NativeBottomSheet
       bucketPrice={DEFAULT_REGISTRAR_DELIVERY_BUCKET_PRICE}
@@ -27,10 +31,12 @@ export function RegistrarDeliverySheet({
       onPageSettled={controller.handlePageSettled}
       onSelect={controller.handleSelect}
       onVisibleChange={controller.handleVisibleChange}
-      glassSurface={useDarkGlassSurface}
-      glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
       initialPage={useClientPager ? 0 : initialPage}
-      presentationBackgroundInteraction="enabled"
+      glassSurface
+      glassTint={
+        resolvedMode === 'dark' ? APPROVED_DARK_SHEET_GLASS_TINT : APPROVED_LIGHT_SHEET_GLASS_TINT
+      }
+      presentationBackgroundInteraction="disabled"
       presentationBackgroundMode="native"
       selectedItem={controller.selectedClient}
       subtitle="Escolha o cliente"

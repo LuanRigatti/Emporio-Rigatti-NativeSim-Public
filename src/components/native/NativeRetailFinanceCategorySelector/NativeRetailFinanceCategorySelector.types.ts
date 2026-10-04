@@ -14,7 +14,8 @@ export type NativeRetailFinanceCategorySelectorProps = {
   itemHorizontalPadding?: number;
   itemSpacing?: number;
   onChange: (key: string) => void;
+  scrollable?: boolean;
+  selectionAnimationMode?: 'native' | 'slidingBubble';
   selectedKey: string;
-  selectedVisualScale?: number;
   style?: StyleProp<ViewStyle>;
 };

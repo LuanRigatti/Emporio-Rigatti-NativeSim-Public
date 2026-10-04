@@ -39,11 +39,10 @@ export function FinancialTrendIndicator({
   const difference = effectiveComparison?.diferenca ?? 0;
   const isPositive = difference > 0;
   const isNegative = difference < 0;
-  const trendColors = isPositive
-    ? { background: theme.colors.successSurface, foreground: theme.colors.success }
-    : isNegative
-      ? { background: theme.colors.dangerSurface, foreground: theme.colors.danger }
-      : { background: 'transparent', foreground: theme.colors.textPrimary };
+  const trendColors = {
+    background: theme.colors.background,
+    foreground: theme.colors.textPrimary,
+  };
 
   const systemName = isPositive ? 'arrow.up.right' : isNegative ? 'arrow.down.right' : 'minus';
 

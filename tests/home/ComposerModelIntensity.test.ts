@@ -6,19 +6,11 @@ import {
   Composer,
   type ComposerProps,
 } from '@/features/home/components/chatgpt-attachments/composer/composer';
-import { triggerSelectionHaptic } from '@/utils/haptics';
 
 const mockReact = React;
 const mockView = View;
 
-jest.mock('react-native', () => {
-  const actual = jest.requireActual<typeof import('react-native')>('react-native');
-  const mocked = Object.create(actual) as typeof actual;
-  Object.defineProperty(mocked, 'findNodeHandle', { value: jest.fn(() => 321) });
-  return mocked;
-});
 jest.mock('expo-image', () => ({ Image: () => null }));
-jest.mock('@expo/vector-icons/Ionicons', () => () => null);
 jest.mock('react-native-reanimated', () => {
   const actualReactNative = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -37,7 +29,6 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 jest.mock('react-native-worklets', () => ({ scheduleOnRN: jest.fn() }));
-jest.mock('@/utils/haptics', () => ({ triggerSelectionHaptic: jest.fn() }));
 jest.mock('@/theme', () => ({
   useAppTheme: () => ({
     resolvedMode: 'light',
@@ -67,9 +58,8 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/attach-hold-b
   AttachHoldButton: () => mockReact.createElement(mockView, { testID: 'composer-plus' }),
 }));
 
-describe('Composer model intensity control', () => {
+describe('Composer search controls', () => {
   let renderer!: ReactTestRenderer;
-  const toggle = jest.fn();
   const submit = jest.fn();
   const sharedValue = (value: number) =>
     ({
@@ -96,84 +86,42 @@ describe('Composer model intensity control', () => {
     onSubmit: submit,
     onRemoveDateAttachment: jest.fn(),
     onPlusTap: jest.fn(),
-    onToggleModelIntensity: toggle,
-    modelIntensityOriginHidden: false,
-    modelIntensityExpanded: false,
-    modelIntensityLabel: '5.6 Medium',
-    modelIntensityDisabled: false,
     holdMenuEnabled: true,
     onHoldPhotoSelect: jest.fn(),
     onHoldPhotoDockSettled: jest.fn(),
     onRemove: jest.fn(),
   };
 
-  const collectAccessibilityLabels = (node: unknown, labels: string[] = []): string[] => {
-    if (Array.isArray(node)) {
-      node.forEach((child) => collectAccessibilityLabels(child, labels));
-      return labels;
-    }
-
-    if (!node || typeof node !== 'object') return labels;
-
-    const jsonNode = node as {
-      props?: { accessibilityLabel?: unknown };
-      children?: unknown[] | null;
-    };
-    if (typeof jsonNode.props?.accessibilityLabel === 'string') {
-      labels.push(jsonNode.props.accessibilityLabel);
-    }
-    jsonNode.children?.forEach((child) => collectAccessibilityLabels(child, labels));
-    return labels;
-  };
-
   beforeEach(() => {
-    toggle.mockClear();
     submit.mockClear();
-    jest.mocked(triggerSelectionHaptic).mockClear();
   });
 
   afterEach(() => {
     if (renderer) act(() => renderer.unmount());
   });
 
-  it('places an accessible 44pt control before Search without wrapping the plus gesture or input', () => {
+  it('removes intensity controls while keeping the input, plus action, and search submit', () => {
     act(() => {
       renderer = create(React.createElement(Composer, props));
     });
 
-    const plus = renderer.root.findByProps({ testID: 'composer-plus' });
     const searchInput = renderer.root.findByType(TextInput);
-    const intensityButton = renderer.root.findByProps({
-      testID: 'composer-model-intensity-button',
-    });
-    const accessibilityLabels = collectAccessibilityLabels(renderer.toJSON());
-    expect(accessibilityLabels.indexOf('Intensidade do modelo')).toBeLessThan(
-      accessibilityLabels.indexOf('Pesquisar'),
-    );
-    expect(plus.props.testID).toBe('composer-plus');
-    expect(StyleSheet.flatten(intensityButton.props.style)).toMatchObject({
-      width: 44,
-      height: 44,
-      flexShrink: 0,
-    });
-    expect(intensityButton.props.accessibilityLabel).toBe('Intensidade do modelo');
-    expect(intensityButton.props.collapsable).toBe(false);
+    const sendButton = renderer.root.findByProps({ testID: 'composer-send-button' });
 
-    act(() => intensityButton.props.onPress());
-    expect(toggle).toHaveBeenCalledWith(321);
-    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(1);
-    expect(submit).not.toHaveBeenCalled();
+    expect(
+      renderer.root.findAllByProps({ testID: 'composer-model-intensity-button' }),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({ accessibilityLabel: 'Intensidade do modelo' }),
+    ).toHaveLength(0);
+    expect(renderer.root.findByProps({ testID: 'composer-plus' })).toBeTruthy();
+    expect(StyleSheet.flatten(searchInput.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+    expect(sendButton.props.accessibilityLabel).toBe('Pesquisar');
+    expect(sendButton.props.onLongPress).toBeUndefined();
 
-    act(() => {
-      renderer.update(
-        React.createElement(Composer, {
-          ...props,
-          modelIntensityExpanded: true,
-          modelIntensityLabel: '5.6 High',
-        }),
-      );
-    });
-    expect(renderer.root.findByType(TextInput)).toBe(searchInput);
-    expect(renderer.root.findByProps({ testID: 'composer-plus' })).toBe(plus);
+    act(() => sendButton.props.onPress());
+
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit).toHaveBeenCalledWith('Consulta de teste');
   });
 });

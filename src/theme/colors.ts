@@ -148,12 +148,17 @@ export const darkColors: ThemeColors = {
 
 export const GLASS_DARK_TINT_OPACITY = 0.85 as const;
 
-export const darkModeCardSurface = '#19191A' as const;
+export const darkModeCardSurface = '#0C0C0E' as const;
+export const darkModeInsetSurface = '#19191A' as const;
 export const registrarSheetDetailLightSurface = '#FFFFFF' as const;
 export const registrarSheetDetailDarkSurface = 'rgba(80, 80, 84, 0.40)' as const;
 
 export function getCardSurfaceColor(mode: 'light' | 'dark', lightSurface: string): string {
   return mode === 'dark' ? darkModeCardSurface : lightSurface;
+}
+
+export function getInsetSurfaceColor(mode: 'light' | 'dark', lightSurface: string): string {
+  return mode === 'dark' ? darkModeInsetSurface : lightSurface;
 }
 
 function colorWithOpacity(hexColor: string, opacity: number): string {

@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { KeyboardController, KeyboardEvents } from 'react-native-keyboard-controller';
@@ -68,7 +67,6 @@ export function useAttachmentPanel({ onLeaveSheet }: PanelOptions = {}) {
   }, []);
 
   const openMenu = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     plusOut.set(withSpring(1, SPRING.panel));
     morph.set(0);
     gridOpacity.set(0);

@@ -60,6 +60,18 @@ const backupSnapshot: FirestoreBackupSnapshot = {
     },
   ],
   monthlyData: [{ data: { luz: 20, month: '2026-08' }, id: '2026-08' }],
+  routeFinancialLedger: [
+    {
+      data: {
+        date: '2026-08-06',
+        distanceMeters: 12_400,
+        routeId: 'route-1',
+        schemaVersion: 1,
+        status: 'active',
+      },
+      id: 'route-1',
+    },
+  ],
   settings: {
     car: { gasolineAutonomy: 10 },
     company: { tradeName: 'Empresa' },
@@ -120,8 +132,8 @@ describe('FirestoreBackupRestoreService', () => {
     const result = await service.restore(preparation, true);
 
     expect(result.status).toBe('completed');
-    expect(result.created).toBe(9);
-    expect(result.writesAttempted).toBe(9);
+    expect(result.created).toBe(10);
+    expect(result.writesAttempted).toBe(10);
     expect(result.deletionsAttempted).toBe(0);
     expect(result.postRestoreEquivalent).toBe(true);
     expect(commitOperations).toHaveBeenCalledTimes(1);
@@ -138,6 +150,19 @@ describe('FirestoreBackupRestoreService', () => {
       seconds: 1786363200,
       toDate: expect.any(Function),
     });
+    expect(
+      operations.find((operation) => operation.entity === 'routeFinancialLedger'),
+    ).toMatchObject({
+      id: 'route-1',
+      path: 'users/firebase-user-1/routeFinancialLedger/route-1',
+      data: {
+        date: '2026-08-06',
+        distanceMeters: 12_400,
+        routeId: 'route-1',
+        schemaVersion: 1,
+        status: 'active',
+      },
+    });
   });
 
   it('skips identical documents and never invokes a write for an identical backup', async () => {
@@ -152,7 +177,7 @@ describe('FirestoreBackupRestoreService', () => {
 
     expect(result.status).toBe('completed');
     expect(result.created).toBe(0);
-    expect(result.skipped).toBe(9);
+    expect(result.skipped).toBe(10);
     expect(result.writesAttempted).toBe(0);
     expect(commitOperations).not.toHaveBeenCalled();
   });
@@ -173,7 +198,7 @@ describe('FirestoreBackupRestoreService', () => {
 
     expect(preparation.report.entities.clients.conflicts).toBe(1);
     expect(result.conflicts).toBe(1);
-    expect(result.created).toBe(8);
+    expect(result.created).toBe(9);
     const operations = commitOperations.mock
       .calls[0][1] as readonly FirestoreBackupRestoreDocument[];
     expect(operations.some((operation) => operation.id === 'client-1')).toBe(false);

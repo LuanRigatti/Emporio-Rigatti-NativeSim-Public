@@ -87,6 +87,9 @@ export function LocationTrackingScreen() {
   > | null>(null);
   const [claimDialogVisible, setClaimDialogVisible] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
+  const [ledgerMigrationDialogVisible, setLedgerMigrationDialogVisible] = useState(false);
+  const [ledgerMigrationBusy, setLedgerMigrationBusy] = useState(false);
+  const [ledgerMigrationMessage, setLedgerMigrationMessage] = useState<string | null>(null);
   const { enabled: testModeEnabled } = useTestModePresentation();
 
   useEffect(() => {
@@ -180,6 +183,26 @@ export function LocationTrackingScreen() {
     selectedPeriod,
     testModeEnabled,
   ]);
+
+  const handleMigrateRouteFinancialLedger = useCallback(async () => {
+    if (ledgerMigrationBusy || testModeEnabled) return;
+
+    setLedgerMigrationBusy(true);
+    setTrackingError(null);
+    try {
+      const result = await locationTrackingService.migrateLocalRouteHistoryToLedger();
+      setLedgerMigrationMessage(
+        `Novas: ${result.created} · Já existentes: ${result.alreadyPresent} · ` +
+          `Excluídas: ${result.skippedDeleted} · Conflitos: ${result.conflicts} · ` +
+          `Falhas: ${result.failed}`,
+      );
+      setLedgerMigrationDialogVisible(false);
+    } catch (error) {
+      setTrackingError({ message: getErrorMessage(error) });
+    } finally {
+      setLedgerMigrationBusy(false);
+    }
+  }, [ledgerMigrationBusy, testModeEnabled]);
 
   const handleStart = useCallback(async () => {
     if (testModeEnabled) return;
@@ -325,6 +348,37 @@ export function LocationTrackingScreen() {
                 </TextButton>
               </View>
             ) : null}
+            {__DEV__ ? (
+              <View
+                style={[
+                  styles.legacyClaimCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: theme.radius.lg,
+                    padding: theme.spacing.md,
+                  },
+                ]}
+              >
+                <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                  Sincronize as distâncias das rotas deste dispositivo com Finanças. Coordenadas e
+                  amostras GPS permanecem locais.
+                </Text>
+                {ledgerMigrationMessage ? (
+                  <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                    {ledgerMigrationMessage}
+                  </Text>
+                ) : null}
+                <TextButton
+                  accessibilityLabel="Sincronizar histórico de rotas com Finanças"
+                  disabled={ledgerMigrationBusy || testModeEnabled}
+                  loading={ledgerMigrationBusy}
+                  onPress={() => setLedgerMigrationDialogVisible(true)}
+                  size="small"
+                >
+                  Sincronizar rotas históricas
+                </TextButton>
+              </View>
+            ) : null}
             {routeHistoryByDay.length > 0 ? (
               routeHistoryByDay.map(([date, sessions]) => (
                 <View key={date} style={styles.dayGroup}>
@@ -392,6 +446,17 @@ export function LocationTrackingScreen() {
         onConfirm={() => void handleClaimLegacyHistory()}
         title="Assumir histórico antigo?"
         visible={claimDialogVisible}
+      />
+      <ConfirmationDialog
+        confirmLabel="Sincronizar"
+        loading={ledgerMigrationBusy}
+        message="Serão enviados ao Firestore somente o ID, a data e a distância de cada rota local. Coordenadas, amostras e dados brutos de GPS não serão enviados. Registros remotos divergentes não serão substituídos."
+        onCancel={() => {
+          if (!ledgerMigrationBusy) setLedgerMigrationDialogVisible(false);
+        }}
+        onConfirm={() => void handleMigrateRouteFinancialLedger()}
+        title="Sincronizar distâncias históricas?"
+        visible={ledgerMigrationDialogVisible}
       />
     </>
   );

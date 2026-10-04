@@ -37,7 +37,9 @@ describe('Wholesale History completion context action', () => {
   it('opts into the same Wholesale calendar week for both toolbar label and filtered range', () => {
     const source = readSource('src/features/history/components/HistoryScreen.tsx');
 
-    expect(source).toContain("viewMode === 'week' ? selectedWeek : getHistoryMonthRange");
+    expect(source).toContain("if (viewMode === 'week') return selectedWeek;");
+    expect(source).toContain('return getHistoryMonthRange(selectedDate);');
+    expect(source).toContain('selectedPeriodDeliveries');
     expect(source).toContain('weekSelection: selectedWeek');
   });
 });

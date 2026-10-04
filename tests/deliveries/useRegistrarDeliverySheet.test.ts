@@ -3,6 +3,7 @@ import { createElement } from 'react';
 
 import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
 import { flushAfterNativeDismiss, runAfterNativeDismiss } from '@/utils/nativeDismissActionQueue';
+import type { ClientModel } from '@/types/data';
 
 jest.mock('@/utils/haptics', () => ({
   triggerLightImpactHaptic: jest.fn(),
@@ -13,6 +14,60 @@ jest.mock('@/utils/presentation/testModeValues', () => ({
 }));
 
 describe('useRegistrarDeliverySheet', () => {
+  it('opens with the selected client and retains it after dismissal for inline selection', () => {
+    const client: ClientModel = {
+      address: 'Rua das Flores, 10',
+      canonicalName: 'Mercado Central',
+      clientId: 'client:mercado-central',
+      currentPrice: 49.8,
+      hasIncompleteAddress: false,
+      normalizedName: 'mercado central',
+      sources: ['delivery'],
+      usesBoleto: false,
+      usesInvoice: false,
+    };
+    let current: ReturnType<typeof useRegistrarDeliverySheet> | undefined;
+
+    function Harness() {
+      current = useRegistrarDeliverySheet({
+        clients: [client],
+        create: jest.fn(async () => ({ id: 'created-delivery' }) as never),
+        preserveSelectedClientOnDismiss: true,
+      });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(createElement(Harness));
+    });
+
+    if (!current) throw new Error('Controller nao foi criado.');
+    const item = current.clientItems[0];
+    act(() => {
+      current?.handleSelect(item);
+    });
+    expect(current.selectedClient?.id).toBe(client.clientId);
+
+    act(() => {
+      current?.openSelectedClientSheet();
+    });
+    expect(current.sheetVisible).toBe(true);
+    expect(current.selectedClient?.id).toBe(client.clientId);
+
+    act(() => {
+      current?.handleVisibleChange(false);
+      current?.handleDismiss();
+      current?.handlePageSettled(0);
+    });
+    expect(current.sheetVisible).toBe(false);
+    expect(current.selectedClient?.id).toBe(client.clientId);
+
+    act(() => {
+      renderer?.unmount();
+    });
+  });
+
   it('keeps the sheet in dismissal state until the native completion callback', () => {
     const onDismiss = jest.fn();
     const createDelivery = jest.fn(async () => ({ id: 'created-delivery' }) as never);

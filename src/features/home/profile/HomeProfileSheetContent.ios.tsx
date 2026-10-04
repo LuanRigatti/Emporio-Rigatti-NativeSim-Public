@@ -35,7 +35,7 @@ import { useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { NativeAvatarButton } from '@/components/native';
-import { getCardSurfaceColor, getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
+import { getInsetSurfaceColor, getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 
 import type { HomeProfileSheetContentProps } from './HomeProfileSheetContent';
@@ -256,7 +256,7 @@ export default function HomeProfileSheetContent({
                     pointerEvents="none"
                     style={[
                       StyleSheet.absoluteFill,
-                      { backgroundColor: getCardSurfaceColor(resolvedMode, '#FFFFFF') },
+                      { backgroundColor: getInsetSurfaceColor(resolvedMode, '#FFFFFF') },
                     ]}
                   />
                 ) : null}

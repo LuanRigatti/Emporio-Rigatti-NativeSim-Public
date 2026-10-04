@@ -9,7 +9,7 @@ import {
   NativeTextField,
 } from '@/components/native';
 import { PremiumCard } from '@/components/premium';
-import { useAppTheme } from '@/theme';
+import { getInsetSurfaceColor, useAppTheme } from '@/theme';
 import type { RetailPaymentDraft, RetailPaymentMethod } from '@/types/data';
 import { formatCurrency, normalizeMoney, parseIsoCalendarDate, todayIso } from '@/utils/data';
 
@@ -30,7 +30,7 @@ export function RetailOrderPaymentSheet({
   outstandingAmount,
   visible,
 }: RetailOrderPaymentSheetProps) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<RetailPaymentMethod>('Pix');
   const [paidAt, setPaidAt] = useState(todayIso());
@@ -152,7 +152,15 @@ export function RetailOrderPaymentSheet({
           Saldo em aberto: {formatCurrency(outstandingAmount)}
         </Text>
 
-        <PremiumCard style={[styles.card, { gap: theme.spacing.md }]}>
+        <PremiumCard
+          style={[
+            styles.card,
+            {
+              backgroundColor: getInsetSurfaceColor(resolvedMode, theme.colors.surface),
+              gap: theme.spacing.md,
+            },
+          ]}
+        >
           <View style={styles.field}>
             <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
               Valor

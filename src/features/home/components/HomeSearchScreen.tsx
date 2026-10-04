@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { InteractionManager, Keyboard, ScrollView, StyleSheet, View } from 'react-native';
+import { InteractionManager, Keyboard, StyleSheet, type ScrollView } from 'react-native';
 import { Stack, useFocusEffect, useNavigation } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
-import { PremiumScreen } from '@/components/premium';
+import { ProgressiveCollapsibleScreen } from '@/components/premium';
 import { getCardSurfaceColor, spacing, useAppTheme } from '@/theme';
 import { prewarmAppleIntelligence } from '../search/AppleIntelligenceSearchInterpreter';
 import type { HomeSearchTemporalContext } from '../search/HomeSearchTypes';
@@ -161,9 +161,6 @@ export default function HomeSearchScreen() {
     [handleSubmit],
   );
 
-  const header = (
-    <NativeGlassHeader includeTopSafeArea mode="transparent" pointerEvents="box-none" title="" />
-  );
   const pageTitle = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -200,61 +197,11 @@ export default function HomeSearchScreen() {
           onPress={() => setSuggestionsVisible((visible) => !visible)}
         />
       </Stack.Toolbar>
-      <PremiumScreen
-        contentContainerStyle={{
-          paddingBottom: 0,
-          paddingHorizontal: 0,
-        }}
-        overlayHeader={header}
-        overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
-        overlayHeaderSpacing={0}
-        progressiveBlur
-        scrollable={false}
-      >
-        <View style={styles.searchBody}>
-          <ScrollView
-            automaticallyAdjustKeyboardInsets
-            contentContainerStyle={[
-              styles.searchScrollContent,
-              isLatestTurnLoading ? styles.loadingSearchScrollContent : null,
-            ]}
-            keyboardShouldPersistTaps="handled"
-            onContentSizeChange={handleConversationContentSizeChange}
-            ref={conversationScrollRef}
-            showsVerticalScrollIndicator={false}
-            style={styles.resultsScroll}
-          >
-            <View
-              style={[
-                styles.pageTitleBlock,
-                {
-                  marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-                  paddingHorizontal: theme.layout.screenHorizontalPadding,
-                },
-              ]}
-            >
-              {pageTitle}
-            </View>
-            {showSuggestions ? (
-              <HomeSearchScreenNativeHost mode="content">
-                <HomeSearchHelpContent
-                  cardBackground={getCardSurfaceColor(resolvedMode, theme.colors.surface)}
-                  onSelectQuery={handleSelectSuggestion}
-                />
-              </HomeSearchScreenNativeHost>
-            ) : conversationTurns.length > 0 ? (
-              <HomeSearchConversation turns={conversationTurns} />
-            ) : (
-              <HomeSearchScreenNativeHost mode="content">
-                <HomeSearchResultsContent
-                  isLarge
-                  loading={false}
-                  response={null}
-                  scrollable={false}
-                />
-              </HomeSearchScreenNativeHost>
-            )}
-          </ScrollView>
+      <ProgressiveCollapsibleScreen
+        compactTitle="Pesquisa"
+        contentGap={0}
+        contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
+        fixedContent={
           <HomeSearchAttachmentsComposer
             blurRequestKey={blurRequestKey}
             focusRequestKey={focusRequestKey}
@@ -266,27 +213,50 @@ export default function HomeSearchScreen() {
             placeholder="Busque clientes, entregas e filtros"
             value={query}
           />
-        </View>
-      </PremiumScreen>
+        }
+        largeTitle={pageTitle}
+        largeTitleContainerStyle={{
+          marginBottom: spacing.md,
+          paddingHorizontal: theme.layout.screenHorizontalPadding,
+        }}
+        nativeHeader
+        scrollRef={conversationScrollRef}
+        scrollContentContainerStyle={[
+          styles.searchScrollContent,
+          isLatestTurnLoading ? styles.loadingSearchScrollContent : null,
+          { paddingHorizontal: 0 },
+        ]}
+        scrollViewProps={{
+          automaticallyAdjustKeyboardInsets: true,
+          keyboardShouldPersistTaps: 'handled',
+          onContentSizeChange: handleConversationContentSizeChange,
+        }}
+      >
+        {showSuggestions ? (
+          <HomeSearchScreenNativeHost mode="content">
+            <HomeSearchHelpContent
+              cardBackground={getCardSurfaceColor(resolvedMode, theme.colors.surface)}
+              onSelectQuery={handleSelectSuggestion}
+            />
+          </HomeSearchScreenNativeHost>
+        ) : conversationTurns.length > 0 ? (
+          <HomeSearchConversation turns={conversationTurns} />
+        ) : (
+          <HomeSearchScreenNativeHost mode="content">
+            <HomeSearchResultsContent isLarge loading={false} response={null} scrollable={false} />
+          </HomeSearchScreenNativeHost>
+        )}
+      </ProgressiveCollapsibleScreen>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  pageTitleBlock: {
-    marginBottom: spacing.md,
-  },
-  resultsScroll: {
-    flex: 1,
-  },
   searchScrollContent: {
+    flexGrow: 0,
     paddingBottom: spacing.xxl + COMPOSER_COLLAPSED_HEIGHT + spacing.lg,
   },
   loadingSearchScrollContent: {
     flexGrow: 1,
-  },
-  searchBody: {
-    flex: 1,
-    minHeight: 0,
   },
 });

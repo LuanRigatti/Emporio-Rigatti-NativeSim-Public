@@ -33,7 +33,7 @@ jest.mock('@/services/costs', () => ({
     light: '',
     other: '',
   },
-  costSettingsStorage: { getCached: jest.fn() },
+  costSettingsStorage: { getCached: jest.fn(), setCached: jest.fn() },
   firestoreDailyMonthlyDataSource: {
     loadAllAsCostSettings: jest.fn(),
     saveSettingsDiff: jest.fn(),
@@ -46,6 +46,7 @@ jest.mock('@/services/costs', () => ({
 
 const mockUseAuth = jest.mocked(useAuth);
 const mockGetCached = jest.mocked(costSettingsStorage.getCached);
+const mockSetCached = jest.mocked(costSettingsStorage.setCached);
 const mockLocalLoad = jest.mocked(localDailyDataDataSource.load);
 const mockLocalSave = jest.mocked(localDailyDataDataSource.save);
 const mockRemoteLoad = jest.mocked(firestoreDailyMonthlyDataSource.loadAllAsCostSettings);
@@ -92,8 +93,14 @@ function settings(
   };
 }
 
-function Harness({ onRender }: { onRender: (value: ReturnType<typeof useCostSettings>) => void }) {
-  onRender(useCostSettings());
+function Harness({
+  onRender,
+  options,
+}: {
+  onRender: (value: ReturnType<typeof useCostSettings>) => void;
+  options?: Parameters<typeof useCostSettings>[0];
+}) {
+  onRender(useCostSettings(options));
   return null;
 }
 
@@ -101,6 +108,7 @@ describe('useCostSettings local-first session flow', () => {
   beforeEach(() => {
     mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, sessionVersion: 0 } as never);
     mockGetCached.mockReturnValue(null);
+    mockSetCached.mockReset();
     mockLocalLoad.mockReset().mockResolvedValue(settings({}));
     mockLocalSave.mockReset().mockResolvedValue(undefined);
     mockRemoteLoad.mockReset().mockResolvedValue(settings({}));
@@ -114,6 +122,30 @@ describe('useCostSettings local-first session flow', () => {
         remoteWrites.push(args[2] as CostSettings);
       }
     });
+  });
+
+  it('uses cached settings immediately without remote sync when requested by a detail screen', async () => {
+    const cached = settings({ '2026-09-02': { fuelPrice: '6,25' } });
+    mockGetCached.mockReturnValue(cached);
+    mockLocalLoad.mockResolvedValue(cached);
+
+    let current: ReturnType<typeof useCostSettings> | undefined;
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(
+        createElement(Harness, {
+          onRender: (value) => (current = value),
+          options: { allowCachedInitial: true, syncRemote: false },
+        }),
+      );
+      await settle();
+    });
+
+    expect(current?.isHydrated).toBe(true);
+    expect(current?.getValues('day', '2026-09-02').fuelPrice).toBe('6,25');
+    expect(mockRemoteLoad).not.toHaveBeenCalled();
+
+    await act(async () => renderer?.unmount());
   });
 
   it('updates and persists locally before remote hydration finishes', async () => {

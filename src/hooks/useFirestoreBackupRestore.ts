@@ -7,6 +7,7 @@ import {
   type FirestoreBackupRestorePreparation,
   type FirestoreBackupRestoreReport,
 } from '@/services/backup';
+import { reconcileLiveActivityAfterRestore } from '@/features/deliveries/liveActivity/LiveActivityRestoreReconciliation';
 
 export type ConfirmFirestoreBackupRestore = (
   report: FirestoreBackupDryRunReport,
@@ -18,7 +19,7 @@ export type FirestoreBackupRestoreFlowResult = {
 };
 
 export function useFirestoreBackupRestore() {
-  const { user } = useAuth();
+  const { sessionVersion, user } = useAuth();
   const userId = user?.id;
   const service = useMemo(() => {
     if (!userId || userId === 'mock-user-1') return null;
@@ -51,6 +52,9 @@ export function useFirestoreBackupRestore() {
         if (!confirmed) return { preparation, result: null };
 
         const result = await service.restore(preparation, true);
+        if (result.writesSucceeded > 0 && userId) {
+          await reconcileLiveActivityAfterRestore(result.writesSucceeded, userId, sessionVersion);
+        }
         return { preparation, result };
       } catch (restoreError) {
         setError(
@@ -63,7 +67,7 @@ export function useFirestoreBackupRestore() {
         setIsBusy(false);
       }
     },
-    [isBusy, service],
+    [isBusy, service, sessionVersion, userId],
   );
 
   return { error, isBusy, restoreBackup };

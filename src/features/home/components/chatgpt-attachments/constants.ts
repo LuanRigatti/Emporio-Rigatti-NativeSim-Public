@@ -1,5 +1,6 @@
 import type { ViewStyle } from 'react-native';
 import { Easing } from 'react-native-reanimated';
+import { KEYBOARD_COMPOSER_GAP } from '@/components/keyboard/keyboardLiftGeometry';
 
 /** Port of the measured constants from the source chatgpt-attachments demo. */
 export const GUTTER = 12;
@@ -27,7 +28,7 @@ export const COMPOSER = {
   rowPaddingLeft: 14,
   plusHit: 30,
   plusWell: 34,
-  keyboardGap: 12,
+  keyboardGap: KEYBOARD_COMPOSER_GAP,
   stripPaddingTop: 8,
   stripGap: 7,
   thumbSize: 115,

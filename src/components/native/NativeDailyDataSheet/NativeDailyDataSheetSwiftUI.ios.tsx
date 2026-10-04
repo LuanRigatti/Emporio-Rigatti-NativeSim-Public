@@ -43,9 +43,7 @@ import type { SFSymbol } from 'sf-symbols-typescript';
 import { getLiquidGlassTint, spacing, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
-import {
-  NATIVE_SHEET_PRESENTATION_BACKGROUND,
-} from '@/components/native/nativeSheetBackground';
+import { NATIVE_SHEET_PRESENTATION_BACKGROUND } from '@/components/native/nativeSheetBackground';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import RegistrarDeliveryPagerRN from '../NativeBottomSheet/RegistrarDeliveryPagerRN';
 import NativeSheetFieldIcon from '../NativeSheetFieldIcon';
@@ -104,6 +102,8 @@ export default function NativeDailyDataSheetSwiftUI({
   initialValues = EMPTY_VALUES,
   onSubmit,
   onVisibleChange,
+  presentationBackgroundColor,
+  presentationBackgroundInteraction: backgroundInteraction = 'enabled',
   presentationBackgroundMode = 'system',
   visible,
 }: NativeDailyDataSheetProps) {
@@ -177,7 +177,10 @@ export default function NativeDailyDataSheetSwiftUI({
     <VStack
       alignment="leading"
       spacing={0}
-      modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' }), padding({ vertical: spacing.sm })]}
+      modifiers={[
+        frame({ maxWidth: Infinity, alignment: 'leading' }),
+        padding({ vertical: spacing.sm }),
+      ]}
     >
       <HStack
         alignment="center"
@@ -260,9 +263,7 @@ export default function NativeDailyDataSheetSwiftUI({
           >
             <NativeSheetFieldIcon systemImage={item.systemImage} />
             <VStack alignment="leading" spacing={2} modifiers={[layoutPriority(1)]}>
-              <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>
-                {item.label}
-              </Text>
+              <Text modifiers={[roundedFont({ size: 17, weight: 'semibold' })]}>{item.label}</Text>
               <Text
                 modifiers={[
                   roundedFont({ size: 13, weight: 'regular' }),
@@ -307,9 +308,7 @@ export default function NativeDailyDataSheetSwiftUI({
             buttonStyle('plain'),
             controlSize('large'),
             offset({ y: 76 }),
-            ...(!selectedField || submitting || testModeEnabled
-              ? [disabledModifier(true)]
-              : []),
+            ...(!selectedField || submitting || testModeEnabled ? [disabledModifier(true)] : []),
           ]}
           onPress={() => {
             if (!selectedField || submitting) return;
@@ -336,13 +335,8 @@ export default function NativeDailyDataSheetSwiftUI({
   );
 
   const detailHeader = (
-    <ZStack
-      alignment="center"
-      modifiers={[frame({ maxWidth: Infinity }), offset({ y: -64 })]}
-    >
-      <Text
-        modifiers={[roundedFont({ size: 19, weight: 'semibold' }), offset({ y: 8 })]}
-      >
+    <ZStack alignment="center" modifiers={[frame({ maxWidth: Infinity }), offset({ y: -64 })]}>
+      <Text modifiers={[roundedFont({ size: 19, weight: 'semibold' }), offset({ y: 8 })]}>
         {detailField.label}
       </Text>
       <HStack modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}>
@@ -383,7 +377,10 @@ export default function NativeDailyDataSheetSwiftUI({
     <VStack
       alignment="leading"
       spacing={spacing.sm}
-      modifiers={[frame({ maxWidth: Infinity, alignment: 'topLeading' }), padding({ horizontal: 2 })]}
+      modifiers={[
+        frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+        padding({ horizontal: 2 }),
+      ]}
     >
       {detailHeader}
       {field(
@@ -421,9 +418,7 @@ export default function NativeDailyDataSheetSwiftUI({
       <VStack
         alignment="leading"
         spacing={spacing.sm}
-        modifiers={[
-          frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
-        ]}
+        modifiers={[frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]}
       >
         <VStack
           alignment="leading"
@@ -459,15 +454,20 @@ export default function NativeDailyDataSheetSwiftUI({
       </ZStack>
       {content}
     </ZStack>
-  ) : content;
-  const presentationBackgroundModifier =
-    glassSurface || presentationBackgroundMode !== 'native'
-      ? presentationBackground(
-          glassSurface || presentationBackgroundMode === 'transparent'
-            ? '#00000000'
-            : NATIVE_SHEET_PRESENTATION_BACKGROUND,
-        )
-      : null;
+  ) : (
+    content
+  );
+  const presentationBackgroundModifier = glassSurface
+    ? presentationBackground('#00000000')
+    : presentationBackgroundColor
+      ? presentationBackground(presentationBackgroundColor)
+      : presentationBackgroundMode !== 'native'
+        ? presentationBackground(
+            presentationBackgroundMode === 'transparent'
+              ? '#00000000'
+              : NATIVE_SHEET_PRESENTATION_BACKGROUND,
+          )
+        : null;
 
   return (
     <Host
@@ -480,7 +480,7 @@ export default function NativeDailyDataSheetSwiftUI({
       <BottomSheet isPresented={visible} onIsPresentedChange={onVisibleChange}>
         <Group
           modifiers={[
-            setPresentationBackgroundInteraction('enabled'),
+            setPresentationBackgroundInteraction(backgroundInteraction),
             ...(presentationBackgroundModifier ? [presentationBackgroundModifier] : []),
             presentationDetents([{ fraction: 0.46 }]),
             presentationDragIndicator('visible'),

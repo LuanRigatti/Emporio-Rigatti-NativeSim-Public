@@ -1,5 +1,5 @@
 import type { DailyExpenses } from '@/types/data';
-import type { RouteTrackingSession } from '@/types/routeTracking';
+import type { RouteFinancialSummary, RouteTrackingSession } from '@/types/routeTracking';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
 
 export type RouteDistanceSummary = {
@@ -16,24 +16,41 @@ export type ConsolidatedDistanceSummary = {
   routeCount: number;
 };
 
+export function deduplicateRouteFinancialSummaries(
+  summaries: readonly RouteFinancialSummary[],
+): RouteFinancialSummary[] {
+  const byRouteId = new Map<string, RouteFinancialSummary>();
+  summaries.forEach((summary) => {
+    if (!byRouteId.has(summary.id)) byRouteId.set(summary.id, summary);
+  });
+  return [...byRouteId.values()];
+}
+
 export function summarizeRouteDistance(
   sessions: readonly RouteTrackingSession[],
 ): RouteDistanceSummary {
+  const uniqueSessions = deduplicateRouteFinancialSummaries(sessions);
   return {
-    routeCount: sessions.length,
-    totalKilometers: sessions.reduce((total, session) => total + session.distanceMeters / 1000, 0),
+    routeCount: uniqueSessions.length,
+    totalKilometers: uniqueSessions.reduce(
+      (total, session) => total + session.distanceMeters / 1000,
+      0,
+    ),
   };
 }
 
 export function summarizeRouteKilometersByDate(
-  sessions: readonly RouteTrackingSession[],
+  sessions: readonly RouteFinancialSummary[],
 ): RouteKilometersByDate {
-  return sessions.reduce<Record<string, number>>((byDate, session) => {
-    const date = normalizeLegacyDate(session.date) ?? session.date.trim();
-    if (!date) return byDate;
-    byDate[date] = (byDate[date] ?? 0) + session.distanceMeters / 1000;
-    return byDate;
-  }, {});
+  return deduplicateRouteFinancialSummaries(sessions).reduce<Record<string, number>>(
+    (byDate, session) => {
+      const date = normalizeLegacyDate(session.date) ?? session.date.trim();
+      if (!date) return byDate;
+      byDate[date] = (byDate[date] ?? 0) + session.distanceMeters / 1000;
+      return byDate;
+    },
+    {},
+  );
 }
 
 export function summarizeConsolidatedKilometers(
@@ -41,7 +58,9 @@ export function summarizeConsolidatedKilometers(
   dailyExpenses: DailyExpenses = {},
   isDateInPeriod: (date: string) => boolean = () => true,
 ): ConsolidatedDistanceSummary {
-  const matchingSessions = sessions.filter((session) => isDateInPeriod(session.date));
+  const matchingSessions = deduplicateRouteFinancialSummaries(sessions).filter((session) =>
+    isDateInPeriod(session.date),
+  );
   const gpsKilometers = matchingSessions.reduce(
     (total, session) => total + session.distanceMeters / 1000,
     0,

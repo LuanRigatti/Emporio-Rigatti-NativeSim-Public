@@ -16,8 +16,8 @@ import {
   type FinancialDailyDetail,
   type MonthlyFinancialDetailMetric,
 } from '@/services/finance';
-import { routeTrackingRepository } from '@/services/routes';
-import type { RouteTrackingSession } from '@/types/routeTracking';
+import { locationTrackingService } from '@/services/routes';
+import type { RouteFinancialSummary } from '@/types/routeTracking';
 import { useAppTheme } from '@/theme';
 import { formatCurrency, formatPtBrDate } from '@/utils/data';
 import { formatMonthlyPeriodKey, parseMonthlyPeriodParam } from '../utils/monthlyPeriodUtils';
@@ -63,8 +63,10 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
     }
   }, [params.period]);
 
-  const initialRouteSessions = routeTrackingRepository.getMemoryRouteHistory();
-  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>(
+  const [initialRouteSessions] = useState(() =>
+    locationTrackingService.getMemoryFinancialRouteSummaries(),
+  );
+  const [routeSessions, setRouteSessions] = useState<RouteFinancialSummary[]>(
     () => initialRouteSessions ?? [],
   );
   const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
@@ -75,11 +77,12 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
   const selectedMonthKey = formatMonthlyPeriodKey(selectedYear, selectedMonth);
   const { refresh, snapshot, loading } = useFinancialData(
     expenseQueryForFinancialSelection({ kind: 'month', month: selectedMonthKey }),
-    { displayMonth: selectedMonthKey },
+    { displayMonth: selectedMonthKey, skipRefreshWhenCached: true },
   );
   const { fuelCostByDate, isReady: fuelCostsReady } = useFinancialFuelCosts(
     snapshot?.gastosDiarios ?? {},
     routeSessions,
+    { allowCachedInitialSettings: true, syncRemoteSettings: false },
   );
 
   useFocusEffect(
@@ -89,8 +92,12 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
       isFirstFocus.current = false;
 
       const refreshPromise = isInitial ? Promise.resolve() : refresh();
+      const routeSummariesPromise =
+        metric === 'lucroLiquido' && !(isInitial && initialRouteSessions !== null)
+          ? locationTrackingService.getFinancialRouteSummaries()
+          : Promise.resolve(initialRouteSessions ?? []);
 
-      void Promise.all([refreshPromise, routeTrackingRepository.getRouteHistory()])
+      void Promise.all([refreshPromise, routeSummariesPromise])
         .then(([, sessions]) => {
           if (active) {
             setRouteSessions(sessions);
@@ -107,10 +114,11 @@ export function MonthlyFinancialDetailScreen({ metric }: Props) {
       return () => {
         active = false;
       };
-    }, [refresh]),
+    }, [initialRouteSessions, metric, refresh]),
   );
 
-  const isDataReady = !loading && routesLoaded && fuelCostsReady;
+  const isDataReady =
+    snapshot !== null && !loading && (metric === 'faturamento' || (routesLoaded && fuelCostsReady));
   const animateDetailRows = initialDataResolved;
 
   /* eslint-disable react-hooks/set-state-in-effect */

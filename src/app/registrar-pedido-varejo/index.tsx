@@ -1,5 +1,5 @@
-import { RetailOrderStepScreen } from '@/features/retail-orders/components/RetailOrderStepScreen';
+import { RetailOrderCombinedRegistrarScreen } from '@/features/retail-orders/components/RetailOrderStepScreen';
 
-export default function RetailOrderClientRoute() {
-  return <RetailOrderStepScreen step="client" />;
+export default function RetailOrderCombinedRoute() {
+  return <RetailOrderCombinedRegistrarScreen />;
 }

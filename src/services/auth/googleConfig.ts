@@ -15,7 +15,7 @@ export function getGoogleClientIds(): GoogleClientIds {
       ? Constants.expoConfig.extra.googleIosClientId
       : undefined;
   const fallbackIosClientId =
-    getAppVariant() === 'final' ? undefined : process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+    getAppVariant() === 'default' ? process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID : undefined;
 
   return {
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,

@@ -9,6 +9,7 @@ import { HOLD_MENU_GESTURE } from './hold-menu.constants';
 
 export interface ComposerPlusGestureCallbacks {
   holdEnabled: boolean;
+  onTouchDown: () => void;
   onTap: () => void;
   onHoldBegin: (event: GestureStateChangeEvent<PanGestureHandlerEventPayload>) => void;
   onHoldStart: (event: GestureStateChangeEvent<PanGestureHandlerEventPayload>) => void;
@@ -22,6 +23,7 @@ export interface ComposerPlusGestureCallbacks {
 /** Keep the source interaction model: a continuous Pan hold has priority over a short tap. */
 export function createComposerPlusGesture({
   holdEnabled,
+  onTouchDown,
   onTap,
   onHoldBegin,
   onHoldStart,
@@ -36,9 +38,14 @@ export function createComposerPlusGesture({
     .onUpdate(onHoldUpdate)
     .onFinalize(onHoldFinalize);
 
-  const tap = Gesture.Tap().onEnd((_event, success) => {
-    if (success) scheduleOnRN(onTap);
-  });
+  const tap = Gesture.Tap()
+    .onTouchesDown((event) => {
+      'worklet';
+      if (!holdEnabled && event.numberOfTouches === 1) scheduleOnRN(onTouchDown);
+    })
+    .onEnd((_event, success) => {
+      if (success) scheduleOnRN(onTap);
+    });
 
   return Gesture.Exclusive(hold, tap);
 }

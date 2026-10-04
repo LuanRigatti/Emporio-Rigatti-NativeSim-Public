@@ -13,11 +13,13 @@ import { Keyboard } from 'react-native';
 
 import { useRetailOrderCatalog } from '@/hooks/useRetailOrderCatalog';
 import { useRetailOrders } from '@/hooks/useRetailOrders';
+import { useAppMode } from '@/providers';
 import type { RetailClient, RetailOrderCreateInput, RetailProduct } from '@/types/data';
 import { formatPtBrDate, todayIso } from '@/utils/data';
 
 import {
   buildRetailOrderCreateInput,
+  buildRetailOrderLineItem,
   buildRetailOrderWriteData,
   calculateRetailOrderDraftTotals,
   RetailOrderCostError,
@@ -148,6 +150,7 @@ function validationDraftForProduct(
 
 export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { mode } = useAppMode();
   const catalog = useRetailOrderCatalog();
   const { create } = useRetailOrders();
   const [draft, setDraft] = useState<RetailOrderDraftValues>(createInitialDraft);
@@ -247,13 +250,17 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
     !submitting;
 
   useEffect(() => {
-    if (!pathname.endsWith('/produtos') || !activeProductIds.length) return;
+    if (mode !== 'retail' || pathname !== '/registrar-pedido-varejo' || !activeProductIds.length) {
+      return;
+    }
     void prefetchForOrder(activeProductIds, draft.orderDate);
-  }, [activeProductIds, draft.orderDate, pathname, prefetchForOrder]);
+  }, [activeProductIds, draft.orderDate, mode, pathname, prefetchForOrder]);
 
   const updateDraft = useCallback(
     <K extends keyof RetailOrderDraftValues>(key: K, value: RetailOrderDraftValues[K]) => {
       setDraft((current) => ({ ...current, [key]: value }));
+      if (key === 'deliveryAddressSnapshot') setDeliveryAddressEdited(true);
+      if (key === 'deliveryFee') setDeliveryFeeEdited(true);
       setError(undefined);
     },
     [],
@@ -261,6 +268,12 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
 
   const handleClientChange = useCallback(
     (clientId: string) => {
+      if (!clientId) {
+        setDraft((current) => ({ ...current, clientId: '' }));
+        setError(undefined);
+        return;
+      }
+
       const client = activeClients.find((candidate) => candidate.clientId === clientId);
       if (!client) return;
       setDraft((current) => ({
@@ -322,12 +335,7 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
           referenceDate: draft.orderDate,
           refresh: false,
         });
-        const orderInput = buildRetailOrderCreateInput(
-          validationDraftForProduct(draft, productId),
-          selectedClient,
-          activeProducts,
-        );
-        buildRetailOrderWriteData('validation', orderInput, orderCatalog);
+        buildRetailOrderLineItem({ productId, quantity: 1 }, draft.orderDate, orderCatalog);
       } catch (validationError) {
         if (generation !== validationGeneration.current) return;
         if (validationError instanceof RetailOrderCostError) {
@@ -343,12 +351,10 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
       }
     },
     [
-      activeProducts,
       catalog,
       draft,
       preparingOrder,
       productById,
-      selectedClient,
       selectedProductId,
       submitting,
       validatingProductId,
@@ -454,9 +460,10 @@ export function RetailOrderFlowProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const isRetailOrderRoute =
-      pathname === '/registrar-pedido-varejo' || pathname.startsWith('/registrar-pedido-varejo/');
+      mode === 'retail' &&
+      (pathname === '/registrar-pedido-varejo' || pathname.startsWith('/registrar-pedido-varejo/'));
     if (!isRetailOrderRoute) resetFlow();
-  }, [pathname, resetFlow]);
+  }, [mode, pathname, resetFlow]);
 
   const submitOrder = useCallback(async () => {
     if (submitting || submittingRef.current) return;

@@ -6,9 +6,11 @@ import type { HomeSearchResponse } from '@/features/home/search/HomeSearchTypes'
 import HomeSearchScreen from '@/features/home/components/HomeSearchScreen';
 
 const mockSearch = jest.fn();
+const mockProgressiveCollapsibleScreenProps = jest.fn();
 const mockReact = React;
 const mockText = Text;
 const mockView = View;
+const mockScrollView = ScrollView;
 const keyboardDismissSpy = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
 
 jest.mock('react-native-reanimated', () => ({
@@ -45,8 +47,6 @@ jest.mock('expo-router', () => ({
   useFocusEffect: jest.fn(),
   useNavigation: () => ({}),
 }));
-
-jest.mock('@/providers', () => ({}));
 
 jest.mock('@/theme', () => ({
   getCardSurfaceColor: jest.fn(() => '#FFFFFF'),
@@ -85,8 +85,46 @@ jest.mock('@/components/layout', () => ({
 }));
 
 jest.mock('@/components/premium', () => ({
-  PremiumScreen: ({ children }: { children: React.ReactNode }) => {
-    return mockReact.createElement(mockView, null, children);
+  ProgressiveCollapsibleScreen: ({
+    children,
+    fixedContent,
+    largeTitle,
+    largeTitleContainerStyle,
+    contentTopInset,
+    scrollContentContainerStyle,
+    scrollRef,
+    scrollViewProps,
+  }: {
+    children: React.ReactNode;
+    fixedContent: React.ReactNode;
+    largeTitle: React.ReactNode;
+    largeTitleContainerStyle?: React.ComponentProps<typeof View>['style'];
+    contentTopInset: number;
+    scrollContentContainerStyle?: React.ComponentProps<typeof ScrollView>['contentContainerStyle'];
+    scrollRef: React.Ref<ScrollView>;
+    scrollViewProps: React.ComponentProps<typeof ScrollView>;
+  }) => {
+    mockProgressiveCollapsibleScreenProps({ contentTopInset, largeTitleContainerStyle });
+
+    return mockReact.createElement(
+      mockReact.Fragment,
+      null,
+      mockReact.createElement(
+        mockScrollView,
+        {
+          ...scrollViewProps,
+          contentContainerStyle: scrollContentContainerStyle,
+          ref: scrollRef,
+        },
+        mockReact.createElement(
+          mockView,
+          { testID: 'search-large-title', style: largeTitleContainerStyle },
+          largeTitle,
+        ),
+        children,
+      ),
+      fixedContent,
+    );
   },
 }));
 
@@ -182,7 +220,35 @@ function response(query: string): HomeSearchResponse {
 describe('HomeSearchScreen conversation presentation', () => {
   beforeEach(() => {
     mockSearch.mockReset();
+    mockProgressiveCollapsibleScreenProps.mockReset();
     keyboardDismissSpy.mockClear();
+  });
+
+  it('reserves the baseline large-title inset in scroll layout without a transform', async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(HomeSearchScreen));
+    });
+
+    const progressiveScreenProps =
+      mockProgressiveCollapsibleScreenProps.mock.calls[
+        mockProgressiveCollapsibleScreenProps.mock.calls.length - 1
+      ][0];
+    expect(progressiveScreenProps.contentTopInset).toBe(32 + 40 + 2 * 2 + 2);
+
+    const titleWrapper = renderer.root.findByProps({ testID: 'search-large-title' });
+    expect(StyleSheet.flatten(titleWrapper.props.style).transform).toBeUndefined();
+
+    const scrollContentStyle = StyleSheet.flatten(
+      renderer.root.findByType(ScrollView).props.contentContainerStyle,
+    );
+    expect(scrollContentStyle.paddingTop).toBeUndefined();
+    expect(scrollContentStyle.flexGrow).toBe(0);
+    expect(renderer.root.findByProps({ testID: 'composer' })).toBeTruthy();
+
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
   it('starts with suggestions closed and toggles the existing card from the native toolbar', async () => {
@@ -324,7 +390,7 @@ describe('HomeSearchScreen conversation presentation', () => {
 
     const getSearchContentStyle = () =>
       StyleSheet.flatten(renderer.root.findByType(ScrollView).props.contentContainerStyle);
-    expect(getSearchContentStyle().flexGrow).toBeUndefined();
+    expect(getSearchContentStyle().flexGrow).toBe(0);
 
     await act(async () => {
       renderer.root.findByProps({ testID: 'composer' }).props.onSubmit('Consulta em andamento');
@@ -338,7 +404,7 @@ describe('HomeSearchScreen conversation presentation', () => {
       await Promise.resolve();
     });
 
-    expect(getSearchContentStyle().flexGrow).toBeUndefined();
+    expect(getSearchContentStyle().flexGrow).toBe(0);
     expect(renderer.root.findAllByProps({ accessibilityLabel: 'Consultando' })).toHaveLength(0);
     expect(renderer.root.findByProps({ testID: 'search-result' })).toBeTruthy();
 

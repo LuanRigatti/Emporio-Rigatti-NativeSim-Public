@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Alert, Keyboard, Platform, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -19,25 +19,39 @@ import {
   NativeGlassIconButton,
 } from '@/components/native';
 import type { NativeDailyDataValues } from '@/components/native';
-import { AnimatedPressable, PremiumCard, PremiumScreen } from '@/components/premium';
+import {
+  AnimatedPressable,
+  GlassSurface,
+  PremiumCard,
+  PremiumScreen,
+  ProgressiveCollapsibleScreen,
+  SearchBar,
+} from '@/components/premium';
+import { ListItem } from '@/components/lists';
+import { StickyActionFooter } from '@/components/premium/StickyActionFooter';
 import { RegistrarDeliverySheet } from '@/features/deliveries/components/RegistrarDeliverySheet';
 import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
+import type { RegistrarDeliverySheetController } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
+import { consumeRecentlyAddedRegistrarDeliveryIds } from '@/features/deliveries/utils/registrarDelivery';
+import HomeShortcutCard from '@/features/home/components/HomeShortcutCard';
+import { normalizeHomeSearchText } from '@/features/home/search/HomeSearchQueryParser';
 import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
 import { RetailOrderRegistrarLauncher } from '@/features/retail-orders/components/RetailOrderRegistrarScreen';
 import { useAppMode, useAppSafeAreaInsets } from '@/providers';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useCostSettings } from '@/hooks/useCostSettings';
+import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
 import {
-  getCardSurfaceColor,
-  getLiquidGlassTint,
-  registrarDeliveryDarkLiquidGlassTint,
-  useAppTheme,
-} from '@/theme';
+  APPROVED_DARK_SHEET_GLASS_TINT,
+  APPROVED_LIGHT_SHEET_GLASS_TINT,
+} from '@/theme/sheetGlassTints';
 import { triggerLightImpactHaptic, triggerSelectionHaptic } from '@/utils/haptics';
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import { wholesaleDeliveryLiveActivityCoordinator } from '@/features/deliveries/liveActivity/LiveActivityCoordinator';
+import { useLiveActivityCoordinatorState } from '@/features/deliveries/liveActivity/useLiveActivityCoordinator';
 import type { Delivery } from '@/types/data';
 
 const DELIVERY_CARD_GROWTH_DURATION = 200;
@@ -104,8 +118,8 @@ export default function PrototypeRegistrar() {
 }
 
 function RegistrarModeSelection() {
-  const { resolvedMode, theme } = useAppTheme();
-  const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
+  const { theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
   const router = useRouter();
 
   const handleOpenRegistrarEntrega = () => {
@@ -129,18 +143,16 @@ function RegistrarModeSelection() {
   );
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <PremiumScreen
-        contentContainerStyle={[
-          styles.modeSelectionContent,
-          { marginTop: theme.spacing.xxxl + theme.spacing.xl + 2 },
-        ]}
-        progressiveBlurHeight={
-          theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
-        }
-        progressiveBlurTopOffset={0}
-        progressiveBlur
+      <ProgressiveCollapsibleScreen
+        compactTitle="Registrar"
+        contentGap={0}
+        contentTopInset={theme.spacing.xxxl + theme.spacing.xl + 2}
+        largeTitle={<View style={styles.header}>{header}</View>}
+        nativeTabRoot
+        scrollContentContainerStyle={{
+          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg,
+        }}
       >
-        <View style={styles.header}>{header}</View>
         <View
           style={[
             styles.modeSelection,
@@ -149,73 +161,45 @@ function RegistrarModeSelection() {
             },
           ]}
         >
-          <PremiumCard
-            style={[
-              styles.modeSelectionCard,
-              {
-                backgroundColor: registrarCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.md,
-                padding: theme.spacing.lg,
-              },
-            ]}
-          >
-            <View style={[styles.modeOptions, { gap: theme.spacing.xl }]}>
-              <AnimatedPressable
-                accessibilityLabel="Abrir Registrar Entrega"
-                accessibilityRole="button"
-                containerStyle={styles.modeOptionContainer}
-                onPress={handleOpenRegistrarEntrega}
-                style={styles.modeOption}
-              >
-                <View style={[styles.modeIcon, { backgroundColor: theme.colors.background }]}>
-                  <Ionicons color={theme.colors.textSecondary} name="cube-outline" size={21} />
-                </View>
-                <View style={styles.modeCopy}>
-                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                    Registrar Entrega
-                  </Text>
-                </View>
+          <View style={[styles.modeOptions, { gap: theme.spacing.sm }]}>
+            <HomeShortcutCard
+              accessibilityLabel="Abrir Registrar Entrega"
+              icon={<Ionicons color={theme.colors.textSecondary} name="cube-outline" size={21} />}
+              label="Registrar Entrega"
+              onPress={handleOpenRegistrarEntrega}
+              trailing={
                 <Ionicons
                   color={theme.colors.textSecondary}
                   name="chevron-forward"
                   size={theme.sizes.iconMedium}
                 />
-              </AnimatedPressable>
-              <AnimatedPressable
-                accessibilityLabel="Abrir Registrar Dados"
-                accessibilityRole="button"
-                containerStyle={styles.modeOptionContainer}
-                onPress={handleOpenRegistrarDados}
-                style={styles.modeOption}
-              >
-                <View style={[styles.modeIcon, { backgroundColor: theme.colors.background }]}>
-                  <Ionicons color={theme.colors.textSecondary} name="calendar-outline" size={21} />
-                </View>
-                <View style={styles.modeCopy}>
-                  <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                    Registrar Dados
-                  </Text>
-                </View>
+              }
+            />
+            <HomeShortcutCard
+              accessibilityLabel="Abrir Registrar Dados"
+              icon={
+                <Ionicons color={theme.colors.textSecondary} name="calendar-outline" size={21} />
+              }
+              label="Registrar Dados"
+              onPress={handleOpenRegistrarDados}
+              trailing={
                 <Ionicons
                   color={theme.colors.textSecondary}
                   name="chevron-forward"
                   size={theme.sizes.iconMedium}
                 />
-              </AnimatedPressable>
-            </View>
-          </PremiumCard>
+              }
+            />
+          </View>
         </View>
-      </PremiumScreen>
+      </ProgressiveCollapsibleScreen>
     </View>
   );
 }
 
-export function RegistrarDailyDataScreen({
-  showLargeTitle = false,
-}: { showLargeTitle?: boolean } = {}) {
+export function RegistrarDailyDataScreen() {
   const insets = useAppSafeAreaInsets();
   const { resolvedMode, theme } = useAppTheme();
-  const useDarkGlassSurface = resolvedMode === 'dark';
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -281,14 +265,8 @@ export function RegistrarDailyDataScreen({
     setSheetVisible(true);
   }, [getLatestDailyValue]);
 
-  const header = (
-    <NativeGlassHeader
-      mode="transparent"
-      rightActions={<View style={styles.headerTrailingActions} />}
-      title={showLargeTitle ? '' : 'Dados Diários'}
-    />
-  );
-  const pageTitle = showLargeTitle ? (
+  const originalContentTopOffset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
+  const pageTitle = (
     <NativeGlassHeader
       includeTopSafeArea={false}
       largeTitle
@@ -296,7 +274,7 @@ export function RegistrarDailyDataScreen({
       title="Dados Diários"
       titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
     />
-  ) : null;
+  );
   const renderDailyDataContent = () => (
     <>
       <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
@@ -335,32 +313,24 @@ export function RegistrarDailyDataScreen({
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <PremiumScreen
-        contentContainerStyle={[styles.dailyDataContent, { paddingHorizontal: 0 }]}
-        overlayHeader={header}
-        overlayHeaderContentOffset={showLargeTitle ? theme.sizes.touchTargetMinimum : undefined}
-        overlayHeaderSpacing={showLargeTitle ? 0 : theme.spacing.md}
-        progressiveBlur
+      <ProgressiveCollapsibleScreen
+        compactTitle="Dados Diários"
+        contentGap={0}
+        contentTopInset={originalContentTopOffset}
+        largeTitle={pageTitle}
+        largeTitleContainerStyle={{
+          marginBottom: theme.spacing.xs,
+          paddingHorizontal: theme.layout.screenHorizontalPadding,
+        }}
+        nativeHeader
+        scrollContentContainerStyle={{
+          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg,
+          paddingHorizontal: 0,
+        }}
+        scrollViewProps={{ keyboardShouldPersistTaps: 'handled' }}
       >
-        {pageTitle ? (
-          <View
-            style={[
-              styles.pageTitleBlock,
-              {
-                marginBottom: theme.spacing.xs,
-                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-                paddingHorizontal: theme.layout.screenHorizontalPadding,
-              },
-            ]}
-          >
-            {pageTitle}
-          </View>
-        ) : null}
         <View
-          style={[
-            styles.dailyDataList,
-            { gap: theme.spacing.sm, paddingTop: showLargeTitle ? theme.spacing.md : 28 },
-          ]}
+          style={[styles.dailyDataList, { gap: theme.spacing.sm, paddingTop: theme.spacing.md }]}
         >
           <Animated.View style={styles.fullWidth}>
             <View
@@ -449,7 +419,7 @@ export function RegistrarDailyDataScreen({
             </View>
           </Animated.View>
         </View>
-      </PremiumScreen>
+      </ProgressiveCollapsibleScreen>
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <View
           style={[
@@ -474,11 +444,14 @@ export function RegistrarDailyDataScreen({
         </View>
       </View>
       <NativeDailyDataSheet
-        glassSurface={useDarkGlassSurface}
-        glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
+        glassSurface
+        glassTint={
+          resolvedMode === 'dark' ? APPROVED_DARK_SHEET_GLASS_TINT : APPROVED_LIGHT_SHEET_GLASS_TINT
+        }
         initialValues={dailySheetInitialValues}
         onSubmit={handleDailyDataSubmit}
         onVisibleChange={setSheetVisible}
+        presentationBackgroundInteraction="disabled"
         presentationBackgroundMode="native"
         visible={sheetVisible}
       />
@@ -496,6 +469,7 @@ export function RegistrarDeliveryScreen({
   const colorScheme = useColorScheme();
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
+  const router = useRouter();
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const {
     quantity: maskQuantity,
@@ -505,6 +479,9 @@ export function RegistrarDeliveryScreen({
   const dark = colorScheme === 'dark';
   const { clients } = useClients();
   const [currentDate, setCurrentDate] = useState(() => todayIso());
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [clientSearchBlurRequestKey, setClientSearchBlurRequestKey] = useState(0);
+  const [clientSearchFocused, setClientSearchFocused] = useState(false);
   const [deliverySortMode, setDeliverySortMode] = useState<DeliverySortMode>('latest');
   const {
     allDeliveries: sourceDeliveries,
@@ -514,15 +491,56 @@ export function RegistrarDeliveryScreen({
     mode: 'today',
     date: currentDate,
   });
-  const registrarDeliverySheet = useRegistrarDeliverySheet({ clients, create });
-  const { openSheet, recentlyAddedDeliveryIds } = registrarDeliverySheet;
+  const registrarDeliverySheet = useRegistrarDeliverySheet({
+    clients,
+    create,
+    preserveSelectedClientOnDismiss: inlineClientSelection,
+  });
+  const normalizedClientSearchQuery = useMemo(
+    () => normalizeHomeSearchText(clientSearchQuery),
+    [clientSearchQuery],
+  );
+  const filteredClientItems = useMemo(() => {
+    const items = registrarDeliverySheet.clientItems;
+    if (!normalizedClientSearchQuery) return items;
+
+    return items.filter((item) =>
+      normalizeHomeSearchText(item.title).includes(normalizedClientSearchQuery),
+    );
+  }, [normalizedClientSearchQuery, registrarDeliverySheet.clientItems]);
+  const { markRecentlyAddedDeliveryIds, openSheet, recentlyAddedDeliveryIds } =
+    registrarDeliverySheet;
+  const handleOpenClientRegistration = useCallback(
+    (clientId: string) => {
+      if (clientSearchFocused) {
+        Keyboard.dismiss();
+        setClientSearchBlurRequestKey((requestKey) => requestKey + 1);
+        return;
+      }
+
+      triggerLightImpactHaptic();
+      router.push({ pathname: '/registrar-entrega/[clientId]', params: { clientId } });
+    },
+    [clientSearchFocused, router],
+  );
+  const handleClientSearchFocus = useCallback(() => {
+    setClientSearchFocused(true);
+    triggerLightImpactHaptic();
+  }, []);
+  const handleClientSearchBlur = useCallback(() => {
+    setClientSearchFocused(false);
+  }, []);
+  const handleOpenNewClient = useCallback(() => {
+    router.push('/clientes/novo');
+  }, [router]);
   useFocusEffect(
     useCallback(() => {
+      markRecentlyAddedDeliveryIds(consumeRecentlyAddedRegistrarDeliveryIds());
       setCurrentDate(todayIso());
 
       const refreshDate = setInterval(() => setCurrentDate(todayIso()), 60_000);
       return () => clearInterval(refreshDate);
-    }, []),
+    }, [markRecentlyAddedDeliveryIds]),
   );
   const todayDeliveries = useMemo(
     () =>
@@ -552,6 +570,7 @@ export function RegistrarDeliveryScreen({
       </Text>
     ) : undefined;
   const emptyDeliveryCardMinHeight = theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
+  const stickyActionFooterHeight = 58 + insets.bottom + theme.spacing.md + theme.spacing.sm;
   const deliveryRowHeight =
     theme.spacing.sm * 2 +
     Math.max(
@@ -585,256 +604,496 @@ export function RegistrarDeliveryScreen({
     setDeliverySortMode(sortMode);
   }, []);
 
+  const clientSelectionTitle = inlineClientSelection ? 'Clientes' : 'Entregas';
+
   const header = (
     <NativeGlassHeader
+      collapsibleTitleRole="compact"
       includeTopSafeArea
       mode="transparent"
       pointerEvents="box-none"
       rightActions={showLargeTitle ? undefined : deliveryTotal}
-      title={showLargeTitle ? '' : 'Entregas'}
+      title={showLargeTitle ? '' : clientSelectionTitle}
     />
   );
   const pageTitle = showLargeTitle ? (
     <NativeGlassHeader
+      collapsibleTitleRole="large"
       includeTopSafeArea={false}
       largeTitle
       mode="transparent"
-      rightActions={deliveryTotal}
-      title="Entregas"
+      rightActions={inlineClientSelection ? undefined : deliveryTotal}
+      title={clientSelectionTitle}
       titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
     />
   ) : null;
 
-  return (
-    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <RegistrarDeliveryToolbar
-        onSortChange={handleDeliverySortChange}
-        sortMode={deliverySortMode}
-      />
-      <PremiumScreen
-        contentContainerStyle={{
-          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.xl,
-          paddingHorizontal: 0,
-        }}
-        overlayHeader={header}
-        overlayHeaderContentOffset={showLargeTitle ? theme.sizes.touchTargetMinimum : undefined}
-        overlayHeaderSpacing={showLargeTitle ? 0 : theme.spacing.md}
-        progressiveBlur
-      >
-        {pageTitle ? (
-          <View
-            style={[
-              styles.pageTitleBlock,
-              {
-                marginBottom: theme.spacing.xs,
-                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-                paddingHorizontal: theme.layout.screenHorizontalPadding,
-              },
-            ]}
-          >
-            {pageTitle}
-          </View>
-        ) : null}
+  const originalContentTopOffset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
+  const pageTitleBlock = (
+    <>
+      {pageTitle ? (
         <View
           style={[
-            styles.deliveryList,
-            { gap: theme.spacing.sm, paddingTop: showLargeTitle ? theme.spacing.md : 28 },
-          ]}
-        >
-          {todayDeliveries.length > 0 ? (
-            <>
-              {!showLargeTitle ? (
-                <View
-                  style={[
-                    styles.deliveryTitleSlot,
-                    {
-                      height: theme.typography.headline.lineHeight,
-                      marginTop: -theme.spacing.xs,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      theme.typography.headline,
-                      styles.deliveryDayTitle,
-                      { color: theme.colors.textPrimary },
-                    ]}
-                  >
-                    Hoje
-                  </Text>
-                </View>
-              ) : null}
-              <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
-                <View style={[styles.todayDeliveriesGroup, { gap: theme.spacing.xs }]}>
-                  {todayDeliveries.map((delivery) => {
-                    const renderDeliveryItemRow = (preview = false) => (
-                      <View
-                        style={[
-                          styles.deliveryItemRow,
-                          {
-                            backgroundColor: preview ? registrarCardSurface : 'transparent',
-                            borderRadius: theme.radius.xl + theme.spacing.sm,
-                            height: deliveryRowHeight,
-                            overflow: preview ? 'hidden' : undefined,
-                            paddingHorizontal: theme.spacing.md,
-                            paddingVertical: theme.spacing.sm,
-                            width: '100%',
-                          },
-                        ]}
-                      >
-                        <OpenPaymentClientIcon />
-                        <View style={styles.deliveryItemCopy}>
-                          <Text
-                            style={[
-                              theme.typography.body,
-                              {
-                                color: theme.colors.textPrimary,
-                                fontWeight: theme.typography.headline.fontWeight,
-                              },
-                            ]}
-                          >
-                            {delivery.cliente}
-                          </Text>
-                          <Text
-                            style={[
-                              theme.typography.footnote,
-                              { color: theme.colors.textSecondary },
-                            ]}
-                          >
-                            {maskQuantity(delivery.quantidadeBaldes)}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[
-                            theme.typography.body,
-                            { color: theme.colors.textPrimary, fontWeight: '600' },
-                          ]}
-                        >
-                          {maskText(delivery.valor)}
-                        </Text>
-                      </View>
-                    );
-                    const rowContent = renderDeliveryItemRow();
-                    const rowActions = [
-                      {
-                        destructive: true,
-                        disabled: testModeEnabled,
-                        id: 'delete-delivery',
-                        onPress: () => {
-                          void removeDelivery(delivery.id);
-                        },
-                        systemImage: 'trash' as const,
-                        title: 'Excluir',
-                      },
-                    ];
-                    const cardStyle = [
-                      styles.deliveryItemCard,
-                      styles.fullWidth,
-                      {
-                        borderRadius: theme.radius.xl + theme.spacing.sm,
-                        height: deliveryRowHeight,
-                      },
-                    ];
-
-                    return (
-                      <Animated.View
-                        entering={FadeIn.duration(deliveryItemTransitionDuration)}
-                        exiting={FadeOut.duration(deliveryItemTransitionDuration)}
-                        key={delivery.id}
-                        layout={deliveryItemLayoutTransition}
-                        style={styles.fullWidth}
-                      >
-                        <NativeCardContextMenu
-                          actions={rowActions}
-                          matchContents={{ horizontal: true, vertical: false }}
-                          preview={
-                            <PremiumCard style={cardStyle}>
-                              {renderDeliveryItemRow(true)}
-                            </PremiumCard>
-                          }
-                          style={[
-                            styles.deliveryContextMenu,
-                            {
-                              borderRadius: theme.radius.xl + theme.spacing.sm,
-                              height: deliveryRowHeight,
-                            },
-                          ]}
-                        >
-                          <PremiumCard style={cardStyle}>{rowContent}</PremiumCard>
-                        </NativeCardContextMenu>
-                      </Animated.View>
-                    );
-                  })}
-                </View>
-              </Animated.View>
-            </>
-          ) : (
-            <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
-              <PremiumCard
-                style={[
-                  styles.emptyDeliveryCard,
-                  {
-                    borderRadius: theme.radius.xl + theme.spacing.lg,
-                    height: '100%',
-                    paddingVertical: theme.spacing.xxl * 2,
-                  },
-                ]}
-              >
-                <View style={styles.emptyStateCard}>
-                  <Text
-                    style={[
-                      theme.typography.body,
-                      { color: theme.colors.textSecondary, textAlign: 'center' },
-                    ]}
-                  >
-                    Nenhuma entrega hoje
-                  </Text>
-                </View>
-              </PremiumCard>
-            </Animated.View>
-          )}
-        </View>
-      </PremiumScreen>
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View
-          style={[
-            styles.floatingAdd,
+            styles.pageTitleBlock,
             {
-              bottom: Math.max(0, insets.bottom - theme.spacing.xs),
+              marginBottom: theme.spacing.xs,
+              marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+              paddingHorizontal: theme.layout.screenHorizontalPadding,
             },
           ]}
         >
-          <NativeGlassIconButton
-            accessibilityLabel="Adicionar entrega"
-            color={dark ? '#FFFFFF' : '#000000'}
-            containerSize={56}
-            containerWidth={116}
-            glassTint={getLiquidGlassTint(resolvedMode)}
-            interactiveGlass
-            label="Adicionar"
-            labelSize={18}
-            onPress={openSheet}
-            shape="capsule"
-          />
+          {pageTitle}
         </View>
-      </View>
-      <RegistrarDeliverySheet
-        controller={registrarDeliverySheet}
-        initialPage={inlineClientSelection ? 1 : 0}
-        useClientPager={inlineClientSelection}
+      ) : null}
+    </>
+  );
+  const deliveryList = (
+    <View
+      style={[
+        styles.deliveryList,
+        {
+          gap: theme.spacing.sm,
+          paddingTop:
+            inlineClientSelection && showLargeTitle
+              ? theme.spacing.sm
+              : showLargeTitle
+                ? theme.spacing.md
+                : 28,
+        },
+      ]}
+    >
+      {inlineClientSelection ? (
+        <RegistrarClientSelectionSection
+          cardSurfaceColor={registrarCardSurface}
+          hasSearchQuery={normalizedClientSearchQuery.length > 0}
+          items={filteredClientItems}
+          onSelect={handleOpenClientRegistration}
+          searchFocused={clientSearchFocused}
+        />
+      ) : null}
+      {!inlineClientSelection && todayDeliveries.length > 0 ? (
+        <>
+          {!showLargeTitle ? (
+            <View
+              style={[
+                styles.deliveryTitleSlot,
+                {
+                  height: theme.typography.headline.lineHeight,
+                  marginTop: -theme.spacing.xs,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  theme.typography.headline,
+                  styles.deliveryDayTitle,
+                  { color: theme.colors.textPrimary },
+                ]}
+              >
+                Hoje
+              </Text>
+            </View>
+          ) : null}
+          <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
+            <View style={[styles.todayDeliveriesGroup, { gap: theme.spacing.xs }]}>
+              {todayDeliveries.map((delivery) => {
+                const renderDeliveryItemRow = (preview = false) => (
+                  <View
+                    style={[
+                      styles.deliveryItemRow,
+                      {
+                        backgroundColor: preview ? registrarCardSurface : 'transparent',
+                        borderRadius: theme.radius.xl + theme.spacing.sm,
+                        height: deliveryRowHeight,
+                        overflow: preview ? 'hidden' : undefined,
+                        paddingHorizontal: theme.spacing.md,
+                        paddingVertical: theme.spacing.sm,
+                        width: '100%',
+                      },
+                    ]}
+                  >
+                    <OpenPaymentClientIcon />
+                    <View style={styles.deliveryItemCopy}>
+                      <Text
+                        style={[
+                          theme.typography.body,
+                          {
+                            color: theme.colors.textPrimary,
+                            fontWeight: theme.typography.headline.fontWeight,
+                          },
+                        ]}
+                      >
+                        {delivery.cliente}
+                      </Text>
+                      <Text
+                        style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                      >
+                        {maskQuantity(delivery.quantidadeBaldes)}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        theme.typography.body,
+                        { color: theme.colors.textPrimary, fontWeight: '600' },
+                      ]}
+                    >
+                      {maskText(delivery.valor)}
+                    </Text>
+                  </View>
+                );
+                const rowContent = renderDeliveryItemRow();
+                const rowActions = [
+                  {
+                    destructive: true,
+                    disabled: testModeEnabled,
+                    id: 'delete-delivery',
+                    onPress: () => {
+                      void removeDelivery(delivery.id);
+                    },
+                    systemImage: 'trash' as const,
+                    title: 'Excluir',
+                  },
+                ];
+                const cardStyle = [
+                  styles.deliveryItemCard,
+                  styles.fullWidth,
+                  {
+                    borderRadius: theme.radius.xl + theme.spacing.sm,
+                    height: deliveryRowHeight,
+                  },
+                ];
+
+                return (
+                  <Animated.View
+                    entering={FadeIn.duration(deliveryItemTransitionDuration)}
+                    exiting={FadeOut.duration(deliveryItemTransitionDuration)}
+                    key={delivery.id}
+                    layout={deliveryItemLayoutTransition}
+                    style={styles.fullWidth}
+                  >
+                    <NativeCardContextMenu
+                      actions={rowActions}
+                      matchContents={{ horizontal: true, vertical: false }}
+                      preview={
+                        <PremiumCard style={cardStyle}>{renderDeliveryItemRow(true)}</PremiumCard>
+                      }
+                      style={[
+                        styles.deliveryContextMenu,
+                        {
+                          borderRadius: theme.radius.xl + theme.spacing.sm,
+                          height: deliveryRowHeight,
+                        },
+                      ]}
+                    >
+                      <PremiumCard style={cardStyle}>{rowContent}</PremiumCard>
+                    </NativeCardContextMenu>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </Animated.View>
+        </>
+      ) : inlineClientSelection ? null : (
+        <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
+          <PremiumCard
+            style={[
+              styles.emptyDeliveryCard,
+              {
+                borderRadius: theme.radius.xl + theme.spacing.lg,
+                height: '100%',
+                paddingVertical: theme.spacing.xxl * 2,
+              },
+            ]}
+          >
+            <View style={styles.emptyStateCard}>
+              <Text
+                style={[
+                  theme.typography.body,
+                  { color: theme.colors.textSecondary, textAlign: 'center' },
+                ]}
+              >
+                Nenhuma entrega hoje
+              </Text>
+            </View>
+          </PremiumCard>
+        </Animated.View>
+      )}
+    </View>
+  );
+  const shouldUseProgressiveCollapsibleScreen = inlineClientSelection && showLargeTitle;
+  return (
+    <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+      <RegistrarDeliveryToolbar
+        inlineClientSelection={inlineClientSelection}
+        onCreateClient={handleOpenNewClient}
+        onSortChange={handleDeliverySortChange}
+        sortMode={deliverySortMode}
       />
+      {shouldUseProgressiveCollapsibleScreen ? (
+        <ProgressiveCollapsibleScreen
+          compactTitle={clientSelectionTitle}
+          contentGap={0}
+          contentTopInset={originalContentTopOffset}
+          largeTitle={pageTitle}
+          largeTitleContainerStyle={{
+            marginBottom: theme.spacing.xs,
+            paddingHorizontal: theme.layout.screenHorizontalPadding,
+          }}
+          nativeHeader
+          scrollViewProps={{
+            automaticallyAdjustKeyboardInsets: true,
+            keyboardShouldPersistTaps: 'handled',
+          }}
+          scrollContentContainerStyle={{
+            paddingBottom:
+              theme.layout.tabBarHeight +
+              insets.bottom +
+              theme.spacing.xl +
+              (inlineClientSelection ? stickyActionFooterHeight : 0),
+            paddingHorizontal: 0,
+          }}
+        >
+          {deliveryList}
+        </ProgressiveCollapsibleScreen>
+      ) : (
+        <PremiumScreen
+          collapsibleTitle={showLargeTitle ? { compactTitle: clientSelectionTitle } : undefined}
+          contentContainerStyle={{
+            paddingBottom:
+              theme.layout.tabBarHeight +
+              insets.bottom +
+              theme.spacing.xl +
+              (inlineClientSelection ? stickyActionFooterHeight : 0),
+            paddingHorizontal: 0,
+          }}
+          overlayHeader={header}
+          overlayHeaderContentOffset={showLargeTitle ? theme.sizes.touchTargetMinimum : undefined}
+          overlayHeaderSpacing={showLargeTitle ? 0 : theme.spacing.md}
+          progressiveBlur
+        >
+          {pageTitleBlock}
+          {deliveryList}
+        </PremiumScreen>
+      )}
+      {inlineClientSelection ? (
+        <StickyActionFooter
+          contentContainerStyle={{ paddingHorizontal: '8%' }}
+          height={stickyActionFooterHeight}
+          keyboardAware
+        >
+          <GlassSurface glassEffectStyle="clear" interactive style={{ width: '100%' }}>
+            <SearchBar
+              accessibilityLabel="Buscar cliente"
+              blurRequestKey={clientSearchBlurRequestKey}
+              keyboardAppearance={resolvedMode === 'dark' ? 'dark' : 'light'}
+              onChangeText={setClientSearchQuery}
+              onClear={() => setClientSearchQuery('')}
+              onBlur={handleClientSearchBlur}
+              onFocus={handleClientSearchFocus}
+              placeholder="Buscar cliente"
+              returnKeyType="search"
+              style={{
+                backgroundColor: 'transparent',
+                borderColor: 'transparent',
+                borderWidth: 0,
+              }}
+              value={clientSearchQuery}
+            />
+          </GlassSurface>
+        </StickyActionFooter>
+      ) : (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <View
+            style={[
+              styles.floatingAdd,
+              {
+                bottom: Math.max(0, insets.bottom - theme.spacing.xs),
+              },
+            ]}
+          >
+            <NativeGlassIconButton
+              accessibilityLabel="Adicionar entrega"
+              color={dark ? '#FFFFFF' : '#000000'}
+              containerSize={56}
+              containerWidth={116}
+              glassTint={getLiquidGlassTint(resolvedMode)}
+              interactiveGlass
+              label="Adicionar"
+              labelSize={18}
+              onPress={openSheet}
+              shape="capsule"
+            />
+          </View>
+        </View>
+      )}
+      {!inlineClientSelection ? (
+        <RegistrarDeliverySheet controller={registrarDeliverySheet} />
+      ) : null}
+    </View>
+  );
+}
+
+function RegistrarClientSelectionSection({
+  cardSurfaceColor,
+  hasSearchQuery,
+  items,
+  onSelect,
+  searchFocused,
+}: {
+  cardSurfaceColor: string;
+  hasSearchQuery: boolean;
+  items: RegistrarDeliverySheetController['clientItems'];
+  onSelect: (clientId: string) => void;
+  searchFocused: boolean;
+}) {
+  const { resolvedMode, theme } = useAppTheme();
+
+  return (
+    <View style={styles.clientSelectionSection}>
+      {items.length > 0 ? (
+        <View style={{ gap: theme.spacing.sm, width: '100%' }}>
+          {items.map((item) => {
+            return (
+              <AnimatedPressable
+                accessibilityHint="Abrir registro de entrega para este cliente"
+                accessibilityLabel={item.title}
+                accessibilityRole="button"
+                containerStyle={{ width: '100%' }}
+                disablePressAnimation={searchFocused}
+                key={item.id}
+                onPress={() => onSelect(item.id)}
+              >
+                <ListItem
+                  leading={
+                    <OpenPaymentClientIcon
+                      backgroundColor={
+                        resolvedMode === 'dark'
+                          ? theme.colors.selectionSurface
+                          : theme.colors.background
+                      }
+                      iconColor={
+                        resolvedMode === 'dark'
+                          ? theme.colors.selectionContent
+                          : theme.colors.textPrimary
+                      }
+                      iconName="person"
+                    />
+                  }
+                  style={{
+                    backgroundColor: cardSurfaceColor,
+                    borderRadius: theme.radius.pill,
+                    borderCurve: 'continuous',
+                    overflow: 'hidden',
+                    paddingHorizontal: theme.spacing.md,
+                    width: '100%',
+                  }}
+                  title={item.title}
+                />
+              </AnimatedPressable>
+            );
+          })}
+        </View>
+      ) : hasSearchQuery ? (
+        <Text
+          style={[
+            theme.typography.body,
+            { color: theme.colors.textSecondary, paddingVertical: theme.spacing.sm },
+          ]}
+        >
+          Nenhum cliente encontrado
+        </Text>
+      ) : (
+        <View
+          style={[
+            styles.clientSelectionEmpty,
+            { gap: theme.spacing.sm, paddingVertical: theme.spacing.xl },
+          ]}
+        >
+          <Ionicons color={theme.colors.textSecondary} name="person-add-outline" size={28} />
+          <Text
+            style={[
+              theme.typography.headline,
+              { color: theme.colors.textPrimary, textAlign: 'center' },
+            ]}
+          >
+            Nenhum cliente cadastrado
+          </Text>
+          <Text
+            style={[
+              theme.typography.footnote,
+              { color: theme.colors.textSecondary, textAlign: 'center' },
+            ]}
+          >
+            Cadastre um cliente para registrar uma entrega.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
 
 function RegistrarDeliveryToolbar({
+  inlineClientSelection,
+  onCreateClient,
   onSortChange,
   sortMode,
 }: {
+  inlineClientSelection: boolean;
+  onCreateClient: () => void;
   onSortChange: (sortMode: DeliverySortMode) => void;
   sortMode: DeliverySortMode;
 }) {
   const { theme } = useAppTheme();
+  const liveActivityState = useLiveActivityCoordinatorState();
+
+  if (inlineClientSelection) {
+    return (
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityHint="Abre o cadastro de cliente"
+          accessibilityLabel="Novo cliente"
+          onPress={onCreateClient}
+          separateBackground={false}
+          tintColor={theme.colors.textPrimary}
+        >
+          <Stack.Toolbar.Icon sf="person.badge.plus" />
+          <Stack.Toolbar.Label>Novo cliente</Stack.Toolbar.Label>
+        </Stack.Toolbar.Button>
+        {Platform.OS === 'ios' ? (
+          <Stack.Toolbar.Button
+            accessibilityHint={
+              liveActivityState.isActive
+                ? 'Encerra a Atividade ao vivo das entregas no Atacado'
+                : liveActivityState.supported !== true
+                  ? 'Disponível em uma Development Build iOS com suporte a Live Activities'
+                  : liveActivityState.canStart
+                    ? 'Mostra os baldes e as entregas de hoje na Tela Bloqueada e na Dynamic Island'
+                    : 'Aguarde uma consulta completa das entregas de hoje'
+            }
+            accessibilityLabel={
+              liveActivityState.isActive
+                ? 'Encerrar atividade ao vivo'
+                : 'Iniciar atividade ao vivo'
+            }
+            disabled={
+              liveActivityState.isBusy ||
+              liveActivityState.supported !== true ||
+              (!liveActivityState.isActive && !liveActivityState.canStart)
+            }
+            icon="dot.radiowaves.left.and.right"
+            onPress={() => {
+              void wholesaleDeliveryLiveActivityCoordinator.toggleFromToolbar().then((result) => {
+                if (!result.ok) Alert.alert('Atividade ao vivo', result.message);
+              });
+            }}
+            selected={liveActivityState.isActive}
+            separateBackground={false}
+            tintColor={theme.colors.textPrimary}
+          />
+        ) : null}
+      </Stack.Toolbar>
+    );
+  }
 
   return (
     <Stack.Toolbar placement="right">
@@ -901,19 +1160,7 @@ const styles = StyleSheet.create({
   header: { minHeight: 44 },
   modeSelectionContent: { flexGrow: 1 },
   modeSelection: { flex: 1 },
-  modeSelectionCard: { width: '100%' },
   modeOptions: { width: '100%' },
-  modeOptionContainer: { width: '100%' },
-  modeOption: { alignItems: 'center', flexDirection: 'row', minHeight: 54, width: '100%' },
-  modeIcon: {
-    alignItems: 'center',
-    borderRadius: 27,
-    height: 54,
-    justifyContent: 'center',
-    width: 54,
-  },
-  modeCopy: { flex: 1, gap: 4, marginLeft: 12, marginRight: 12 },
-  dailyDataContent: { flexGrow: 1 },
   fullWidth: { width: '100%' },
   pageTitleBlock: { width: '100%' },
   floatingAdd: {
@@ -928,9 +1175,10 @@ const styles = StyleSheet.create({
   dailyDataCard: { gap: 16 },
   dailyDataRows: { gap: 12 },
   dailyDataRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  headerTrailingActions: { width: 104 },
   deliveryList: { paddingHorizontal: 16, paddingTop: 28 },
   emptyDeliveryCard: { width: '100%' },
+  clientSelectionSection: { width: '100%' },
+  clientSelectionEmpty: { alignItems: 'center', width: '100%' },
   deliveryItemCard: { padding: 0 },
   deliveryTitleSlot: { alignItems: 'center', justifyContent: 'center', width: '100%' },
   deliveryDayTitle: { textAlign: 'center' },

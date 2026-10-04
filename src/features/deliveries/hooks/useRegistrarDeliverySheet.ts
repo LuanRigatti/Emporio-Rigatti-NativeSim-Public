@@ -3,23 +3,28 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { NativeBottomSheetConfirmation, NativeBottomSheetItem } from '@/components/native';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-import { todayIso } from '@/utils/data';
-import type { ClientModel, Delivery, DeliveryDraft } from '@/types/data';
+import type { ClientModel } from '@/types/data';
+
+import {
+  createRegistrarDeliveryFromConfirmation,
+  toRegistrarDeliverySheetItem,
+  type CreateRegistrarDelivery,
+} from '../utils/registrarDelivery';
 
 export const DEFAULT_REGISTRAR_DELIVERY_BUCKET_PRICE = 49.8;
-
-type CreateDelivery = (draft: DeliveryDraft) => Promise<Delivery>;
 
 export type RegistrarDeliverySheetPhase = 'closed' | 'presented' | 'dismissing';
 
 type UseRegistrarDeliverySheetOptions = {
   clients: readonly ClientModel[];
-  create: CreateDelivery;
+  create: CreateRegistrarDelivery;
   onDismiss?: () => void;
+  preserveSelectedClientOnDismiss?: boolean;
 };
 
 export type RegistrarDeliverySheetController = {
   clientItems: NativeBottomSheetItem[];
+  markRecentlyAddedDeliveryIds: (deliveryIds: readonly string[]) => void;
   dismissSheet: () => void;
   getSheetPhase: () => RegistrarDeliverySheetPhase;
   handleConfirm: (confirmation: NativeBottomSheetConfirmation) => void;
@@ -28,6 +33,7 @@ export type RegistrarDeliverySheetController = {
   handleSelect: (item: NativeBottomSheetItem) => void;
   handleVisibleChange: (visible: boolean) => void;
   openSheet: () => void;
+  openSelectedClientSheet: () => void;
   recentlyAddedDeliveryIds: readonly string[];
   selectedClient: NativeBottomSheetItem | null;
   sheetDismissing: boolean;
@@ -38,6 +44,7 @@ export function useRegistrarDeliverySheet({
   clients,
   create,
   onDismiss,
+  preserveSelectedClientOnDismiss = false,
 }: UseRegistrarDeliverySheetOptions): RegistrarDeliverySheetController {
   const { enabled: testModeEnabled } = useTestModePresentation();
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -47,25 +54,37 @@ export function useRegistrarDeliverySheet({
   const sheetPhaseRef = useRef<RegistrarDeliverySheetPhase>('closed');
 
   const clientItems = useMemo<NativeBottomSheetItem[]>(
-    () =>
-      clients.map((client) => ({
-        bucketPrice: client.currentPrice,
-        id: client.clientId,
-        title: client.canonicalName,
-        systemImage: 'person.crop.circle.fill',
-      })),
+    () => clients.map(toRegistrarDeliverySheetItem),
     [clients],
   );
 
-  const openSheet = useCallback(() => {
+  const markRecentlyAddedDeliveryIds = useCallback((deliveryIds: readonly string[]) => {
+    if (deliveryIds.length === 0) return;
+    setRecentlyAddedDeliveryIds((current) => [
+      ...deliveryIds,
+      ...current.filter((deliveryId) => !deliveryIds.includes(deliveryId)),
+    ]);
+  }, []);
+
+  const presentSheet = useCallback((clearSelection: boolean) => {
     if (sheetPhaseRef.current === 'dismissing') return;
 
-    triggerLightImpactHaptic();
-    setSelectedClient(null);
+    if (clearSelection) {
+      triggerLightImpactHaptic();
+      setSelectedClient(null);
+    }
     sheetPhaseRef.current = 'presented';
     setSheetDismissing(false);
     setSheetVisible(true);
   }, []);
+
+  const openSheet = useCallback(() => presentSheet(true), [presentSheet]);
+
+  const openSelectedClientSheet = useCallback(() => {
+    if (!selectedClient || !clients.some((client) => client.clientId === selectedClient.id)) return;
+
+    presentSheet(false);
+  }, [clients, presentSheet, selectedClient]);
 
   const dismissSheet = useCallback(() => {
     if (sheetPhaseRef.current !== 'presented') return;
@@ -80,35 +99,21 @@ export function useRegistrarDeliverySheet({
   const handleConfirm = useCallback(
     (confirmation: NativeBottomSheetConfirmation) => {
       if (testModeEnabled) return;
-      const currentClient = clients.find((client) => client.clientId === confirmation.client.id);
-      if (!currentClient?.clientId || !currentClient.address) return;
-      const bucketPrice = currentClient.currentPrice ?? confirmation.bucketPrice;
-
-      void create({
-        address: currentClient.address,
-        addressConfirmed: true,
-        clientId: currentClient.clientId,
-        clientName: confirmation.client.title,
-        date: todayIso(confirmation.date),
-        delivered: false,
-        invoiceStatus: 'a_emitir',
-        quantity: confirmation.quantity,
-        status: 'Não Pago',
-        value: bucketPrice * confirmation.quantity,
-        valueWasManuallyChanged: false,
-        historicalUnitPrice: bucketPrice,
+      void createRegistrarDeliveryFromConfirmation({
+        clients,
+        confirmation,
+        create,
+        testModeEnabled,
       })
         .then((created) => {
-          setRecentlyAddedDeliveryIds((current) => [
-            created.id,
-            ...current.filter((deliveryId) => deliveryId !== created.id),
-          ]);
+          if (!created) return;
+          markRecentlyAddedDeliveryIds([created.id]);
         })
         .catch(() => undefined);
 
       dismissSheet();
     },
-    [clients, create, dismissSheet, testModeEnabled],
+    [clients, create, dismissSheet, markRecentlyAddedDeliveryIds, testModeEnabled],
   );
 
   const handleSelect = useCallback(
@@ -122,23 +127,26 @@ export function useRegistrarDeliverySheet({
     [clients],
   );
 
-  const handleVisibleChange = useCallback((visible: boolean) => {
-    if (visible) {
-      if (sheetPhaseRef.current === 'dismissing') return;
+  const handleVisibleChange = useCallback(
+    (visible: boolean) => {
+      if (visible) {
+        if (sheetPhaseRef.current === 'dismissing') return;
 
-      sheetPhaseRef.current = 'presented';
-      setSheetDismissing(false);
-      setSheetVisible(true);
-      return;
-    }
+        sheetPhaseRef.current = 'presented';
+        setSheetDismissing(false);
+        setSheetVisible(true);
+        return;
+      }
 
-    if (sheetPhaseRef.current === 'closed') return;
+      if (sheetPhaseRef.current === 'closed') return;
 
-    sheetPhaseRef.current = 'dismissing';
-    setSheetDismissing(true);
-    setSheetVisible(false);
-    setSelectedClient(null);
-  }, []);
+      sheetPhaseRef.current = 'dismissing';
+      setSheetDismissing(true);
+      setSheetVisible(false);
+      if (!preserveSelectedClientOnDismiss) setSelectedClient(null);
+    },
+    [preserveSelectedClientOnDismiss],
+  );
 
   const handleDismiss = useCallback(() => {
     if (sheetPhaseRef.current === 'closed') return;
@@ -147,12 +155,15 @@ export function useRegistrarDeliverySheet({
     onDismiss?.();
     setSheetDismissing(false);
     setSheetVisible(false);
-    setSelectedClient(null);
-  }, [onDismiss]);
+    if (!preserveSelectedClientOnDismiss) setSelectedClient(null);
+  }, [onDismiss, preserveSelectedClientOnDismiss]);
 
-  const handlePageSettled = useCallback((page: number) => {
-    if (page === 0) setSelectedClient(null);
-  }, []);
+  const handlePageSettled = useCallback(
+    (page: number) => {
+      if (page === 0 && !preserveSelectedClientOnDismiss) setSelectedClient(null);
+    },
+    [preserveSelectedClientOnDismiss],
+  );
 
   return {
     clientItems,
@@ -163,7 +174,9 @@ export function useRegistrarDeliverySheet({
     handlePageSettled,
     handleSelect,
     handleVisibleChange,
+    markRecentlyAddedDeliveryIds,
     openSheet,
+    openSelectedClientSheet,
     recentlyAddedDeliveryIds,
     selectedClient,
     sheetDismissing,

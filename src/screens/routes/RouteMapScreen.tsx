@@ -20,12 +20,12 @@ import {
 import { useRoute } from '@/hooks/useRoute';
 import type { DeliveriesStackParamList } from '@/navigation/types';
 import { routeExternalMapsService } from '@/services/routes';
-import { useAppTheme } from '@/theme';
+import { getInsetSurfaceColor, useAppTheme } from '@/theme';
 
 type Props = NativeStackScreenProps<DeliveriesStackParamList, 'RouteMap'>;
 
 export function RouteMapScreen({ navigation, route }: Props) {
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const routeState = useRoute(route.params.sessionId);
   const session = routeState.session ?? routeState.getSession(route.params.sessionId);
 
@@ -104,7 +104,14 @@ export function RouteMapScreen({ navigation, route }: Props) {
       />
       <View style={{ gap: theme.spacing.md, padding: theme.spacing.md }}>
         {session.stops.length > 0 ? (
-          <Card style={{ height: 320, overflow: 'hidden', padding: 0 }}>
+          <Card
+            style={{
+              backgroundColor: getInsetSurfaceColor(resolvedMode, theme.colors.surface),
+              height: 320,
+              overflow: 'hidden',
+              padding: 0,
+            }}
+          >
             <NativeRouteMap polylines={polylines} stops={session.stops} />
           </Card>
         ) : (

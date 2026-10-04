@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/native';
-import { GlassCard, PremiumScreen } from '@/components/premium';
+import { GlassCard, PremiumScreen, ProgressiveCollapsibleScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
@@ -156,6 +156,21 @@ export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolea
     </View>
   );
 
+  if (nativeHeader) {
+    return (
+      <ProgressiveCollapsibleScreen
+        compactTitle="Documentos"
+        contentGap={theme.spacing.lg}
+        contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
+        largeTitle={pageTitle}
+        nativeHeader
+        scrollContentContainerStyle={{ paddingBottom: theme.spacing.xxxl }}
+      >
+        {documentContent}
+      </ProgressiveCollapsibleScreen>
+    );
+  }
+
   return (
     <PremiumScreen
       contentContainerStyle={[
@@ -163,25 +178,9 @@ export function InvoicesScreen({ nativeHeader = false }: { nativeHeader?: boolea
         { gap: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
       ]}
       overlayHeader={header}
-      overlayHeaderContentOffset={nativeHeader ? theme.sizes.touchTargetMinimum : undefined}
       progressiveBlur
     >
-      {nativeHeader ? (
-        <View
-          style={[
-            styles.pageContent,
-            {
-              gap: theme.spacing.lg,
-              marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-            },
-          ]}
-        >
-          {pageTitle}
-          {documentContent}
-        </View>
-      ) : (
-        documentContent
-      )}
+      {documentContent}
     </PremiumScreen>
   );
 }
@@ -215,13 +214,18 @@ function DocumentTypeCard({
   title: string;
 }) {
   const { resolvedMode } = useAppTheme();
-  const { enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
-    useTestModePresentation();
+  const {
+    enabled: testModeEnabled,
+    quantity: maskQuantity,
+    text: maskText,
+  } = useTestModePresentation();
   const documentItemRowHeight = 54 + theme.spacing.sm * 2;
 
   return (
     <View style={styles.typeSection}>
-      <Text style={[theme.typography.headline, styles.typeTitle, { color: theme.colors.textPrimary }]}>
+      <Text
+        style={[theme.typography.headline, styles.typeTitle, { color: theme.colors.textPrimary }]}
+      >
         {title}
       </Text>
       <GlassCard style={[styles.typeCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
@@ -250,7 +254,10 @@ function DocumentTypeCard({
                         },
                       ]}
                     >
-                      <OpenPaymentClientIcon />
+                      <OpenPaymentClientIcon
+                        backgroundColor={theme.colors.background}
+                        iconName="person"
+                      />
                       <View style={styles.documentItemCopy}>
                         <Text
                           style={[
@@ -272,7 +279,10 @@ function DocumentTypeCard({
                       <Text
                         style={[
                           theme.typography.body,
-                          { color: theme.colors.textPrimary, fontWeight: theme.typography.headline.fontWeight },
+                          {
+                            color: theme.colors.textPrimary,
+                            fontWeight: theme.typography.headline.fontWeight,
+                          },
                         ]}
                       >
                         {maskText(item.amount)}
@@ -281,19 +291,7 @@ function DocumentTypeCard({
                   );
 
                   return (
-                    <View
-                      key={item.id}
-                      style={[
-                        styles.contextContainer,
-                        {
-                          backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.glassSurface),
-                          borderRadius: theme.radius.xl + theme.spacing.sm,
-                          height: documentItemRowHeight,
-                          overflow: 'hidden',
-                          width: '100%',
-                        },
-                      ]}
-                    >
+                    <View key={item.id} style={{ height: documentItemRowHeight, width: '100%' }}>
                       <NativeCardContextMenu
                         actions={[
                           {
@@ -341,7 +339,6 @@ function formatCurrency(value: number): string {
 
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
-  pageContent: { width: '100%' },
   typeSection: { width: '100%' },
   typeList: { width: '100%' },
   typeCard: { gap: 12, overflow: 'hidden', padding: 16 },
@@ -349,7 +346,6 @@ const styles = StyleSheet.create({
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },
   documentItemGroup: { width: '100%' },
-  contextContainer: { overflow: 'hidden' },
   contextMenu: { width: '100%' },
   documentItemRow: {
     alignItems: 'center',

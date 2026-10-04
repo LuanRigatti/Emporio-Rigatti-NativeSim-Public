@@ -7,6 +7,7 @@ import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriod
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn().mockResolvedValue(null),
+  removeItem: jest.fn().mockResolvedValue(undefined),
   setItem: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -959,6 +960,37 @@ describe('useFinancialData hydration', () => {
     await act(async () => {
       renderer?.unmount();
     });
+  });
+
+  it('skips the initial refresh when the selected month is already cached in memory', async () => {
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+    await financialPeriodSnapshotCache.write(mockUserId, '2026-08', snapshot, snapshot);
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(
+        { month: '2026-08' },
+        { displayMonth: '2026-08', skipRefreshWhenCached: true },
+      );
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await Promise.resolve();
+    });
+
+    expect(current?.snapshot).toEqual(snapshot);
+    expect(current?.loading).toBe(false);
+    expect(mockLoadAppData).not.toHaveBeenCalled();
+    expect(mockLoadCosts).not.toHaveBeenCalled();
+    expect(mockLoadDeliveries).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
   });
 
   it('keeps the all-time cache when canonical revalidation fails', async () => {

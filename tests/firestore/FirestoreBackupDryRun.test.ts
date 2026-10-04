@@ -44,6 +44,18 @@ const backupSnapshot: FirestoreBackupSnapshot = {
     },
   ],
   monthlyData: [{ data: { luz: 20, month: '2026-08' }, id: '2026-08' }],
+  routeFinancialLedger: [
+    {
+      data: {
+        date: '2026-08-06',
+        distanceMeters: 12_400,
+        routeId: 'route-1',
+        schemaVersion: 1,
+        status: 'active',
+      },
+      id: 'route-1',
+    },
+  ],
   settings: {
     car: { gasolineAutonomy: 10 },
     company: { tradeName: 'Empresa' },
@@ -100,6 +112,7 @@ describe('FirestoreBackupDryRunService', () => {
     expect(report.entities.payments.wouldCreate).toBe(1);
     expect(report.entities.dailyData.wouldCreate).toBe(1);
     expect(report.entities.monthlyData.wouldCreate).toBe(1);
+    expect(report.entities.routeFinancialLedger.wouldCreate).toBe(1);
     expect(report.entities['settings/company'].wouldCreate).toBe(1);
   });
 
@@ -132,7 +145,7 @@ describe('FirestoreBackupDryRunService', () => {
       backupContents({ metadata: { checksumSha256: 'wrong' } }),
       'invalid-checksum',
     ],
-    ['schema incompatível', backupContents({ schemaVersion: 2 }), 'unsupported-schema-version'],
+    ['schema incompatível', backupContents({ schemaVersion: 3 }), 'unsupported-schema-version'],
     ['UID diferente', backupContents({ uid: 'other-user' }), 'uid-mismatch'],
   ])('%s bloqueia a comparação sem ler o Firestore', async (_name, contents, code) => {
     const readSnapshot = jest.fn(async () => emptySnapshot());
@@ -155,5 +168,57 @@ describe('FirestoreBackupDryRunService', () => {
     });
 
     expect(value).toEqual({ seconds: 1786363200, nanoseconds: 123000000 });
+  });
+
+  it('accepts existing schema v1 backups without the route ledger collection', async () => {
+    const legacy = JSON.parse(backupContents()) as {
+      appData: Record<string, unknown>;
+      metadata: { counts: Record<string, unknown> };
+      schemaVersion: number;
+    };
+    legacy.schemaVersion = 1;
+    delete legacy.appData.routeFinancialLedger;
+    delete legacy.metadata.counts.routeFinancialLedger;
+
+    const report = await new FirestoreBackupDryRunService(uid, {
+      readSnapshot: async () => emptySnapshot(),
+    }).run(JSON.stringify(legacy), 'legacy-backup.json');
+
+    expect(report.status).toBe('ready');
+    expect(report.entities.routeFinancialLedger.totalInBackup).toBe(0);
+  });
+
+  it('rejects a route ledger added to a legacy schema v1 backup', async () => {
+    const legacy = JSON.parse(backupContents()) as {
+      schemaVersion: number;
+    };
+    legacy.schemaVersion = 1;
+
+    const report = await new FirestoreBackupDryRunService(uid, {
+      readSnapshot: async () => emptySnapshot(),
+    }).run(JSON.stringify(legacy), 'legacy-backup-with-route-ledger.json');
+
+    expect(report.status).toBe('blocked');
+    expect(report.validationErrors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'invalid-structure' })]),
+    );
+  });
+
+  it('blocks route ledger backups containing GPS samples or coordinates', async () => {
+    const payload = JSON.parse(backupContents()) as {
+      appData: { routeFinancialLedger: Record<string, Record<string, unknown>> };
+    };
+    payload.appData.routeFinancialLedger['route-1']!.samples = [
+      { latitude: -25.4, longitude: -49.2 },
+    ];
+
+    const report = await new FirestoreBackupDryRunService(uid, {
+      readSnapshot: async () => emptySnapshot(),
+    }).run(JSON.stringify(payload), 'gps-leak.json');
+
+    expect(report.status).toBe('blocked');
+    expect(report.validationErrors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'invalid-record' })]),
+    );
   });
 });

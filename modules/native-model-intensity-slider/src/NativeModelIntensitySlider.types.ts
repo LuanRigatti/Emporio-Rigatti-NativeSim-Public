@@ -17,6 +17,22 @@ export type ModelIntensityInteractionCommittedEvent = NativeSyntheticEvent<{
 
 export type ModelIntensityDismissRequestEvent = NativeSyntheticEvent<Record<string, never>>;
 export type ModelIntensityGeometryReadyEvent = NativeSyntheticEvent<{ ready: boolean }>;
+export type NativeSendPickerHostDetachedEvent = NativeSyntheticEvent<Record<string, never>>;
+
+export type NativeSendHoldEvent = {
+  sessionId: string;
+  sendButtonTag: number;
+};
+
+export type NativeSendHoldCompletionEvent = {
+  sessionId: string;
+};
+
+export type NativeSendHoldEventName = 'onSendHoldBegan' | 'onSendHoldCancelled';
+
+export type NativeSendHoldListener = (
+  event: NativeSendHoldEvent | NativeSendHoldCompletionEvent,
+) => void;
 
 export interface NativeModelIntensitySliderProps {
   accentColor: string;
@@ -33,4 +49,11 @@ export interface NativeModelIntensitySliderProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
   targetViewTag?: number;
+}
+
+export interface NativeSendIntelligencePickerProps extends NativeModelIntensitySliderProps {
+  interactionSessionId?: string;
+  sendContentColor: string;
+  sendSurfaceColor: string;
+  onHostDetached?: (event: NativeSendPickerHostDetachedEvent) => void;
 }

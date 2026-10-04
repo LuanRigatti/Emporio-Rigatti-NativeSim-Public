@@ -40,7 +40,7 @@ export function DeliveryCard({
   const cardRadius = theme.radius.xl + theme.spacing.sm;
   const content = (
     <View style={styles.cardRow}>
-      <OpenPaymentClientIcon backgroundColor={theme.colors.background} />
+      <OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />
       <View style={styles.cardContent}>
         <View style={styles.cardHeaderRow}>
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>

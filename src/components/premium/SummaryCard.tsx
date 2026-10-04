@@ -23,7 +23,7 @@ export function SummaryCard({
 }: SummaryCardProps) {
   const { theme } = useAppTheme();
   const { text: maskText } = useTestModePresentation();
-  const cardRadius = theme.radius.xl + theme.spacing.sm;
+  const cardRadius = theme.radius.xl + theme.spacing.md;
   return (
     <PremiumCard style={[styles.card, { borderRadius: cardRadius }, style]}>
       <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>{title}</Text>

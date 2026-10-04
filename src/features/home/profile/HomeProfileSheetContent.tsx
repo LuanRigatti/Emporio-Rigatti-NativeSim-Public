@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/feedback';
 import { NativeButton } from '@/components/native';
-import { getCardSurfaceColor, useAppTheme } from '@/theme';
+import { getInsetSurfaceColor, useAppTheme } from '@/theme';
 
 export type HomeProfileSheetContentProps = {
   displayName: string;
@@ -50,7 +50,7 @@ export default function HomeProfileSheetContent({
           style={[
             styles.accountCard,
             {
-              backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+              backgroundColor: getInsetSurfaceColor(resolvedMode, theme.colors.surface),
               borderColor: theme.colors.separator,
               borderRadius: theme.radius.xl + theme.spacing.xxs,
               marginTop: theme.spacing.sm,

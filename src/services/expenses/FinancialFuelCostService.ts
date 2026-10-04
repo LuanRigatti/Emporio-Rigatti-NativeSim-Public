@@ -1,7 +1,7 @@
 import type { CarSettings } from '@/services/car';
 import { summarizeRouteKilometersByDate } from '@/services/routes/routeTrackingDistance';
 import type { DailyExpenses } from '@/types/data';
-import type { RouteTrackingSession } from '@/types/routeTracking';
+import type { RouteFinancialSummary } from '@/types/routeTracking';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
 
 import { EXPENSE_CUTOFFS, expenseCalculationService } from './ExpenseCalculationService';
@@ -23,7 +23,7 @@ export type FinancialFuelSettings = {
 
 export function calculateFinancialFuelCostsByDate(
   dailyExpenses: DailyExpenses,
-  routeSessions: readonly RouteTrackingSession[],
+  routeSessions: readonly RouteFinancialSummary[],
   settings: FinancialFuelSettings,
   carSettings: CarSettings,
 ): Readonly<Record<string, number>> {

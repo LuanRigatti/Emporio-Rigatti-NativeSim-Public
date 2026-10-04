@@ -2,6 +2,7 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { NativeButton } from '@/components/native';
 import { useAppTheme } from '@/theme';
+import type { NativeButtonProps } from '@/types/native-ui';
 
 type RetailOrderPrimaryButtonProps = {
   accessibilityHint?: string;
@@ -9,8 +10,10 @@ type RetailOrderPrimaryButtonProps = {
   accessibilityValue?: string;
   disabled?: boolean;
   gateDisabledAction?: boolean;
+  haptic?: NativeButtonProps['haptic'];
   label: string;
   onPress: () => void;
+  preserveDisabledAppearance?: boolean;
 };
 
 export function RetailOrderPrimaryButton({
@@ -19,11 +22,14 @@ export function RetailOrderPrimaryButton({
   accessibilityValue,
   disabled,
   gateDisabledAction,
+  haptic,
   label,
   onPress,
+  preserveDisabledAppearance,
 }: RetailOrderPrimaryButtonProps) {
   const { width } = useWindowDimensions();
   const { theme } = useAppTheme();
+  const actionGated = Boolean(disabled && preserveDisabledAppearance);
 
   return (
     <View style={styles.container}>
@@ -34,14 +40,17 @@ export function RetailOrderPrimaryButton({
         backgroundColor={theme.colors.contrastSurface}
         color={theme.colors.contrastContent}
         controlSize="large"
-        disabled={disabled}
+        disabled={actionGated ? false : disabled}
         gateDisabledAction={gateDisabledAction}
-        haptic="light"
+        haptic={actionGated ? 'none' : (haptic ?? 'light')}
         horizontalPadding={28}
         label={label}
         minHeight={58}
         minWidth={width * 0.84}
-        onPress={onPress}
+        onPress={() => {
+          if (actionGated) return;
+          onPress();
+        }}
         variant="filled"
       />
     </View>

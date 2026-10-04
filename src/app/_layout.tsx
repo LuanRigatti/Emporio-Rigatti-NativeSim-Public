@@ -34,12 +34,16 @@ import {
 import { retailClientDataSource } from '@/services/retail-clients';
 import { retailOrderDataSource, retailPaymentDataSource } from '@/services/retail-orders';
 import { firestoreDeliveryDataSource } from '@/services/deliveries';
+import { wholesaleDeliveryLiveActivityCoordinator } from '@/features/deliveries/liveActivity/LiveActivityCoordinator';
 import { firestoreFactoryReceiptDataSource } from '@/services/factory-purchases';
+import { carSettingsStorage } from '@/services/car';
+import { costSettingsStorage } from '@/services/costs';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
 import { RetailOrderFlowProvider } from '@/features/retail-orders/components/RetailOrderFlowProvider';
+import { HomeModeTransitionHost } from '@/features/home/components/HomeModeTransitionHost';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -81,6 +85,8 @@ function AppShell() {
     [resolvedMode, theme],
   );
 
+  useEffect(() => wholesaleDeliveryLiveActivityCoordinator.attach(), []);
+
   useEffect(() => {
     routeTrackingRepository.setSessionUser(sessionUid, sessionVersion);
     firestoreClientDataSource.setSessionUser(sessionUid, sessionVersion);
@@ -94,7 +100,13 @@ function AppShell() {
     retailPaymentDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreDeliveryDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreFactoryReceiptDataSource.setSessionUser(sessionUid, sessionVersion);
-  }, [sessionUid, sessionVersion]);
+    if (status !== 'loading') {
+      void wholesaleDeliveryLiveActivityCoordinator.setSession(
+        isAuthenticated ? (sessionUid ?? null) : null,
+        sessionVersion,
+      );
+    }
+  }, [isAuthenticated, sessionUid, sessionVersion, status]);
 
   useEffect(() => {
     let active = true;
@@ -108,6 +120,9 @@ function AppShell() {
     void Promise.allSettled([
       firestoreClientDataSource.hydrateFromCache(user.id),
       firestoreDeliveryDataSource.hydrateFromCache(user.id),
+      costSettingsStorage.load(user.id),
+      carSettingsStorage.load(),
+      locationTrackingService.hydrateFinancialRouteSummariesFromCache(),
       Font.loadAsync(Ionicons.font),
     ]).finally(() => {
       if (active) setHydratedSessionKey(sessionKey);
@@ -204,6 +219,26 @@ function AppShell() {
                   }}
                 >
                   <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="registrar-pedido-varejo/novo-cliente"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default" withMenu={false}>
+                    Voltar
+                  </Stack.Screen.BackButton>
                 </Stack.Screen>
                 <Stack.Screen
                   name="registrar-pedido-varejo/produtos"
@@ -322,6 +357,22 @@ function AppShell() {
                   <Stack.Screen.BackButton displayMode="minimal" />
                 </Stack.Screen>
                 <Stack.Screen
+                  name="registrar-entrega/[clientId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
                   name="registrar-dados"
                   options={{
                     animation: 'default',
@@ -384,6 +435,39 @@ function AppShell() {
                   }}
                 >
                   <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica-compras/[purchaseId]"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerBackButtonMenuEnabled: false,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
+                </Stack.Screen>
+                <Stack.Screen
+                  name="fabrica-compras/[purchaseId]/pagamento"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
                 </Stack.Screen>
                 <Stack.Screen
                   name="pesquisa"
@@ -452,6 +536,22 @@ function AppShell() {
                   }}
                 >
                   <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
+                  name="clientes/novo"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="default">Voltar</Stack.Screen.BackButton>
                 </Stack.Screen>
                 <Stack.Screen
                   name="clientes/[clientId]"
@@ -899,6 +999,7 @@ function AppShell() {
               </Stack.Protected>
             </Stack>
           </NavigationThemeProvider>
+          <HomeModeTransitionHost />
         </KeyboardProvider>
         <BiometricLockOverlay
           onRetry={biometricUnlock.retry}

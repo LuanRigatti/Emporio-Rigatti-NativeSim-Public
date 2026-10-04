@@ -1,6 +1,6 @@
-import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { Keyboard, Platform, StyleSheet, Text, View } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Loading } from '@/components/feedback';
 import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
@@ -12,12 +12,17 @@ import {
   NativeTextField,
   type NativeTextFieldProps,
 } from '@/components/native';
-import { PremiumCard, PremiumScreen } from '@/components/premium';
-import { ProgressiveBlur } from '@/components/ui/progressive-blur';
-import { ENABLE_PROGRESSIVE_BLUR } from '@/config/featureFlags';
+import {
+  PremiumCard,
+  PremiumScreen,
+  ProgressiveCollapsibleScreen,
+  SearchBar,
+} from '@/components/premium';
+import { StickyActionFooter } from '@/components/premium/StickyActionFooter';
 import { useAppSafeAreaInsets } from '@/providers';
-import { formatCurrency, parseIsoCalendarDate, todayIso } from '@/utils/data';
+import { formatCurrency, normalizeClientKey, parseIsoCalendarDate, todayIso } from '@/utils/data';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
+import { triggerNativeButtonHaptic } from '@/utils/haptics';
 
 import {
   type RetailOrderFlowContextValue,
@@ -50,7 +55,9 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
     />
   );
   const cardSpacing = theme.spacing.md * 2 - theme.spacing.xs / 2 - 4;
+  const contentTopInset = theme.spacing.xxxl + theme.spacing.xl + 2;
   const detailsStickyActionHeight = 58 + insets.bottom + theme.spacing.md + theme.spacing.sm;
+  const usesProgressiveCollapsibleScreen = step === 'details' || step === 'summary';
 
   useEffect(() => {
     if (!flow.catalogLoading && redirectPath) router.replace(redirectPath);
@@ -60,46 +67,57 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
   const isRedirecting = Boolean(redirectPath);
   const showsDetailsStickyAction =
     step === 'details' && !flow.catalogLoading && !isRedirecting && !flow.catalogError;
+  const contentPaddingBottom =
+    theme.layout.tabBarHeight +
+    insets.bottom +
+    theme.spacing.xl +
+    (showsDetailsStickyAction ? detailsStickyActionHeight : 0);
+  const stepContent =
+    flow.catalogLoading || isRedirecting ? (
+      <PremiumCard style={[styles.card, { backgroundColor: cardSurface, marginTop: cardSpacing }]}>
+        <Loading
+          label={isRedirecting ? 'Abrindo pedido Varejo...' : 'Carregando dados do Varejo...'}
+        />
+      </PremiumCard>
+    ) : flow.catalogError ? (
+      <PremiumCard style={[styles.card, { backgroundColor: cardSurface, marginTop: cardSpacing }]}>
+        <Text style={[theme.typography.body, { color: theme.colors.danger }]}>
+          {flow.catalogError}
+        </Text>
+      </PremiumCard>
+    ) : (
+      <RetailOrderStepCard cardMarginTop={cardSpacing} flow={flow} step={step} />
+    );
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-      <PremiumScreen
-        contentContainerStyle={[
-          styles.content,
-          {
-            marginTop: theme.spacing.xxxl + theme.spacing.xl + 2,
-            paddingBottom:
-              theme.layout.tabBarHeight +
-              insets.bottom +
-              theme.spacing.xl +
-              (showsDetailsStickyAction ? detailsStickyActionHeight : 0),
-          },
-        ]}
-        overlayHeader={header}
-        overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
-        progressiveBlur
-      >
-        <View style={styles.header}>{pageTitle}</View>
-        {flow.catalogLoading || isRedirecting ? (
-          <PremiumCard
-            style={[styles.card, { backgroundColor: cardSurface, marginTop: cardSpacing }]}
-          >
-            <Loading
-              label={isRedirecting ? 'Abrindo pedido Varejo...' : 'Carregando dados do Varejo...'}
-            />
-          </PremiumCard>
-        ) : flow.catalogError ? (
-          <PremiumCard
-            style={[styles.card, { backgroundColor: cardSurface, marginTop: cardSpacing }]}
-          >
-            <Text style={[theme.typography.body, { color: theme.colors.danger }]}>
-              {flow.catalogError}
-            </Text>
-          </PremiumCard>
-        ) : (
-          <RetailOrderStepCard cardMarginTop={cardSpacing} flow={flow} step={step} />
-        )}
-      </PremiumScreen>
+      {usesProgressiveCollapsibleScreen ? (
+        <ProgressiveCollapsibleScreen
+          compactTitle={STEP_TITLES[step]}
+          contentGap={0}
+          contentTopInset={contentTopInset}
+          largeTitle={pageTitle}
+          largeTitleContainerStyle={styles.header}
+          nativeHeader
+          scrollContentContainerStyle={{ paddingBottom: contentPaddingBottom }}
+          scrollViewProps={{ keyboardShouldPersistTaps: 'handled' }}
+        >
+          {stepContent}
+        </ProgressiveCollapsibleScreen>
+      ) : (
+        <PremiumScreen
+          contentContainerStyle={[
+            styles.content,
+            { marginTop: contentTopInset, paddingBottom: contentPaddingBottom },
+          ]}
+          overlayHeader={header}
+          overlayHeaderContentOffset={theme.sizes.touchTargetMinimum}
+          progressiveBlur
+        >
+          <View style={styles.header}>{pageTitle}</View>
+          {stepContent}
+        </PremiumScreen>
+      )}
       {showsDetailsStickyAction ? (
         <DetailsStickyAction flow={flow} height={detailsStickyActionHeight} />
       ) : null}
@@ -119,10 +137,10 @@ export function RetailOrderStepScreen({ step }: { step: RetailOrderFlowStep }) {
 function getSafeRedirectPath(
   flow: RetailOrderFlowContextValue,
   step: RetailOrderFlowStep,
-): '/registrar-pedido-varejo' | '/registrar-pedido-varejo/produtos' | null {
+): '/registrar-pedido-varejo' | null {
   if (step !== 'client' && !flow.draft.clientId) return '/registrar-pedido-varejo';
   if ((step === 'details' || step === 'summary') && !flow.draft.lineItems.length) {
-    return '/registrar-pedido-varejo/produtos';
+    return '/registrar-pedido-varejo';
   }
   return null;
 }
@@ -130,7 +148,245 @@ function getSafeRedirectPath(
 function handleSuccess(flow: RetailOrderFlowContextValue, router: ReturnType<typeof useRouter>) {
   if (!flow.successVisible) return;
   flow.dismissSuccess();
-  router.dismissAll();
+  router.dismissTo('/registrar');
+}
+
+export function RetailOrderCombinedRegistrarScreen() {
+  const { resolvedMode, theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
+  const router = useRouter();
+  const flow = useRetailOrderFlow();
+  const stickyActionFooterHeight = 58 + insets.bottom + theme.spacing.md + theme.spacing.sm;
+  const contentTopInset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
+  const largeTitle = (
+    <NativeGlassHeader
+      includeTopSafeArea={false}
+      largeTitle
+      mode="transparent"
+      title="Novo pedido"
+      titleStyle={getNativeLargeTitleStyle(theme.spacing.xxs)}
+    />
+  );
+  const continueDisabled =
+    flow.catalogLoading ||
+    Boolean(flow.catalogError) ||
+    !flow.selectedClient ||
+    !flow.canContinueProducts;
+
+  const handleContinue = async () => {
+    if (!flow.selectedClient || continueDisabled) return;
+    if (!(await flow.validateProducts())) return;
+
+    triggerNativeButtonHaptic('light');
+    Keyboard.dismiss();
+    router.push('/registrar-pedido-varejo/detalhes');
+  };
+
+  return (
+    <>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityHint="Abre o cadastro de cliente Varejo"
+          accessibilityLabel="Adicionar cliente"
+          onPress={() => {
+            Keyboard.dismiss();
+            router.push('/registrar-pedido-varejo/novo-cliente');
+          }}
+          separateBackground={false}
+          tintColor={theme.colors.textPrimary}
+        >
+          <Stack.Toolbar.Icon sf="person.badge.plus" />
+          <Stack.Toolbar.Label>Novo cliente</Stack.Toolbar.Label>
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+        <ProgressiveCollapsibleScreen
+          compactTitle="Novo pedido"
+          contentGap={0}
+          contentTopInset={contentTopInset}
+          largeTitle={largeTitle}
+          largeTitleContainerStyle={{
+            marginBottom: theme.spacing.xs,
+            paddingHorizontal: theme.layout.screenHorizontalPadding,
+          }}
+          nativeHeader
+          scrollViewProps={{ keyboardShouldPersistTaps: 'handled' }}
+          scrollContentContainerStyle={{
+            paddingBottom: insets.bottom + theme.spacing.xl + stickyActionFooterHeight,
+            paddingHorizontal: 0,
+          }}
+        >
+          <View
+            style={[
+              styles.combinedContent,
+              {
+                gap: theme.spacing.md,
+                paddingHorizontal: theme.layout.screenHorizontalPadding,
+                paddingTop: theme.spacing.md,
+              },
+            ]}
+          >
+            {flow.error ? (
+              <Text
+                accessibilityRole="alert"
+                style={[theme.typography.footnote, { color: theme.colors.danger }]}
+              >
+                {flow.error}
+              </Text>
+            ) : null}
+            {flow.catalogLoading ? (
+              <PremiumCard
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+                    borderRadius: theme.radius.xl + theme.spacing.sm,
+                  },
+                ]}
+              >
+                <Loading label="Carregando dados do Varejo..." />
+              </PremiumCard>
+            ) : flow.catalogError ? (
+              <PremiumCard
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+                    borderRadius: theme.radius.xl + theme.spacing.sm,
+                  },
+                ]}
+              >
+                <Text style={[theme.typography.body, { color: theme.colors.danger }]}>
+                  {flow.catalogError}
+                </Text>
+              </PremiumCard>
+            ) : (
+              <>
+                <RetailOrderEntryCard title="Cliente">
+                  <RetailOrderClientSearch flow={flow} />
+                </RetailOrderEntryCard>
+                <RetailOrderEntryCard title="Produtos">
+                  <ProductsStep flow={flow} showContinue={false} />
+                </RetailOrderEntryCard>
+              </>
+            )}
+          </View>
+        </ProgressiveCollapsibleScreen>
+        <StickyActionFooter height={stickyActionFooterHeight}>
+          <RetailOrderPrimaryButton
+            accessibilityHint={
+              !flow.selectedClient
+                ? 'Selecione um cliente para continuar.'
+                : flow.canContinueProducts
+                  ? undefined
+                  : 'Adicione ao menos um produto válido para continuar.'
+            }
+            accessibilityValue={continueDisabled ? 'Indisponível' : undefined}
+            disabled={continueDisabled}
+            gateDisabledAction
+            haptic="none"
+            label="Continuar"
+            onPress={() => void handleContinue()}
+          />
+        </StickyActionFooter>
+      </View>
+    </>
+  );
+}
+
+function RetailOrderClientSearch({ flow }: { flow: RetailOrderFlowContextValue }) {
+  const { theme } = useAppTheme();
+  const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const normalizedQuery = normalizeClientKey(query);
+  const matchingClients = useMemo(
+    () =>
+      normalizedQuery
+        ? flow.activeClients.filter((client) =>
+            normalizeClientKey(client.name).includes(normalizedQuery),
+          )
+        : [],
+    [flow.activeClients, normalizedQuery],
+  );
+  const displayedValue = searching ? query : (flow.selectedClient?.name ?? '');
+
+  return (
+    <View style={[styles.clientSearch, { gap: theme.spacing.sm }]}>
+      <SearchBar
+        accessibilityLabel="Buscar cliente"
+        onChangeText={(value) => {
+          setQuery(value);
+          setSearching(true);
+        }}
+        onClear={() => {
+          setQuery('');
+          setSearching(false);
+          flow.handleClientChange('');
+        }}
+        onFocus={() => {
+          if (!searching) setQuery('');
+          setSearching(true);
+        }}
+        placeholder="Buscar cliente"
+        value={displayedValue}
+      />
+      {searching && normalizedQuery ? (
+        matchingClients.length ? (
+          <View style={[styles.clientSearchResults, { gap: theme.spacing.xs }]}>
+            {matchingClients.map((client) => (
+              <Pressable
+                accessibilityLabel={client.name}
+                accessibilityRole="button"
+                key={client.clientId}
+                onPress={() => {
+                  flow.handleClientChange(client.clientId);
+                  setQuery('');
+                  setSearching(false);
+                  Keyboard.dismiss();
+                }}
+                style={[
+                  styles.clientSearchResult,
+                  {
+                    minHeight: theme.sizes.touchTargetMinimum,
+                    paddingHorizontal: theme.spacing.xs,
+                  },
+                ]}
+                testID={`retail-client-result-${client.clientId}`}
+              >
+                <Text style={[theme.typography.body, { color: theme.colors.textPrimary }]}>
+                  {client.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Nenhum cliente encontrado
+          </Text>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+function RetailOrderEntryCard({ children, title }: { children: ReactNode; title: string }) {
+  const { resolvedMode, theme } = useAppTheme();
+
+  return (
+    <PremiumCard
+      style={[
+        styles.card,
+        {
+          backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+          borderRadius: theme.radius.xl + theme.spacing.sm,
+          gap: theme.spacing.md,
+        },
+      ]}
+    >
+      <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>{title}</Text>
+      {children}
+    </PremiumCard>
+  );
 }
 
 function RetailOrderStepCard({
@@ -183,9 +439,17 @@ function RetailOrderStepCard({
   );
 }
 
-function ClientStep({ flow }: { flow: RetailOrderFlowContextValue }) {
+function ClientStep({
+  flow,
+  showContinue = true,
+  showSelectorLabel = true,
+}: {
+  flow: RetailOrderFlowContextValue;
+  showContinue?: boolean;
+  showSelectorLabel?: boolean;
+}) {
   const router = useRouter();
-  const { theme } = useAppTheme();
+  const { resolvedMode, theme } = useAppTheme();
   const hasClients = flow.activeClients.length > 0;
   const continueDisabled = flow.submitting || !flow.selectedClient;
   const continueAccessibilityHint = flow.submitting
@@ -211,49 +475,65 @@ function ClientStep({ flow }: { flow: RetailOrderFlowContextValue }) {
     );
   }
 
+  const selector = (
+    <NativeDropdown
+      accessibilityLabel="Selecione o cliente"
+      disabled={flow.submitting}
+      items={flow.activeClients.map((client) => ({
+        label: client.name,
+        value: client.clientId,
+      }))}
+      label={flow.selectedClient?.name ?? 'Selecionar'}
+      onValueChange={flow.handleClientChange}
+      selectedValue={flow.draft.clientId}
+    />
+  );
+
   return (
     <>
-      <View style={styles.clientSelectorRow}>
-        <Text
-          style={[
-            styles.clientSelectorLabel,
-            theme.typography.body,
-            { color: theme.colors.textPrimary, fontWeight: '600' },
-          ]}
-        >
-          Selecione o cliente
-        </Text>
-        <NativeDropdown
-          accessibilityLabel="Selecione o cliente"
-          disabled={flow.submitting}
-          items={flow.activeClients.map((client) => ({
-            label: client.name,
-            value: client.clientId,
-          }))}
-          label={flow.selectedClient?.name ?? 'Selecionar'}
-          onValueChange={flow.handleClientChange}
-          selectedValue={flow.draft.clientId}
+      {showSelectorLabel ? (
+        <View style={styles.clientSelectorRow}>
+          <Text
+            style={[
+              styles.clientSelectorLabel,
+              theme.typography.body,
+              { color: theme.colors.textPrimary, fontWeight: '600' },
+            ]}
+          >
+            Selecione o cliente
+          </Text>
+          {selector}
+        </View>
+      ) : (
+        <View style={styles.clientDropdown}>{selector}</View>
+      )}
+      {showContinue ? (
+        <RetailOrderPrimaryButton
+          accessibilityHint={continueAccessibilityHint}
+          accessibilityValue={continueDisabled ? 'Indisponível' : undefined}
+          disabled={continueDisabled}
+          gateDisabledAction
+          label="Continuar"
+          onPress={() => {
+            if (!flow.selectedClient) return;
+            flow.clearError();
+            Keyboard.dismiss();
+            router.push('/registrar-pedido-varejo/produtos');
+          }}
         />
-      </View>
-      <RetailOrderPrimaryButton
-        accessibilityHint={continueAccessibilityHint}
-        accessibilityValue={continueDisabled ? 'Indisponível' : undefined}
-        disabled={continueDisabled}
-        gateDisabledAction
-        label="Continuar"
-        onPress={() => {
-          if (!flow.selectedClient) return;
-          flow.clearError();
-          Keyboard.dismiss();
-          router.push('/registrar-pedido-varejo/produtos');
-        }}
-      />
+      ) : null}
     </>
   );
 }
 
-function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
-  const { theme } = useAppTheme();
+function ProductsStep({
+  flow,
+  showContinue = true,
+}: {
+  flow: RetailOrderFlowContextValue;
+  showContinue?: boolean;
+}) {
+  const { resolvedMode, theme } = useAppTheme();
   const router = useRouter();
 
   return (
@@ -311,8 +591,11 @@ function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
                 style={[
                   styles.lineCard,
                   {
-                    backgroundColor: theme.colors.surfaceMuted,
-                    borderRadius: theme.radius.md,
+                    backgroundColor:
+                      resolvedMode === 'light'
+                        ? theme.colors.background
+                        : theme.colors.surfaceMuted,
+                    borderRadius: theme.radius.card,
                   },
                 ]}
               >
@@ -377,22 +660,24 @@ function ProductsStep({ flow }: { flow: RetailOrderFlowContextValue }) {
           Nenhum produto adicionado.
         </Text>
       )}
-      <RetailOrderPrimaryButton
-        accessibilityHint={
-          flow.canContinueProducts
-            ? undefined
-            : 'Adicione ao menos um produto válido para continuar.'
-        }
-        accessibilityValue={flow.canContinueProducts ? undefined : 'Indisponível'}
-        disabled={!flow.canContinueProducts}
-        gateDisabledAction
-        label="Continuar"
-        onPress={async () => {
-          if (!(await flow.validateProducts())) return;
-          Keyboard.dismiss();
-          router.push('/registrar-pedido-varejo/detalhes');
-        }}
-      />
+      {showContinue ? (
+        <RetailOrderPrimaryButton
+          accessibilityHint={
+            flow.canContinueProducts
+              ? undefined
+              : 'Adicione ao menos um produto válido para continuar.'
+          }
+          accessibilityValue={flow.canContinueProducts ? undefined : 'Indisponível'}
+          disabled={!flow.canContinueProducts}
+          gateDisabledAction
+          label="Continuar"
+          onPress={async () => {
+            if (!(await flow.validateProducts())) return;
+            Keyboard.dismiss();
+            router.push('/registrar-pedido-varejo/detalhes');
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -527,47 +812,25 @@ function DetailsStickyAction({
   flow: RetailOrderFlowContextValue;
   height: number;
 }) {
-  const { resolvedMode, theme } = useAppTheme();
-  const insets = useAppSafeAreaInsets();
   const router = useRouter();
-  const showProgressiveBlur = ENABLE_PROGRESSIVE_BLUR && Platform.OS === 'ios';
 
   return (
-    <View pointerEvents="box-none" style={[styles.detailsStickyAction, { height }]}>
-      {showProgressiveBlur ? (
-        <ProgressiveBlur
-          edge="bottom"
-          fadeStart={theme.spacing.sm}
-          height={height}
-          intensity={30}
-          layers={4}
-          style={{ bottom: 0 }}
-          tint={resolvedMode === 'dark' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterial'}
-        />
-      ) : null}
-      <View
-        pointerEvents="box-none"
-        style={[
-          styles.detailsStickyActionContent,
-          { paddingBottom: insets.bottom + theme.spacing.sm },
-        ]}
-      >
-        <RetailOrderPrimaryButton
-          accessibilityHint={
-            flow.preparingOrder ? 'Aguarde enquanto os custos do pedido são validados.' : undefined
-          }
-          accessibilityValue={flow.preparingOrder ? 'Indisponível' : undefined}
-          disabled={flow.submitting || flow.preparingOrder}
-          gateDisabledAction
-          label="Ver resumo"
-          onPress={async () => {
-            if (!(await flow.validateProducts())) return;
-            Keyboard.dismiss();
-            router.push('/registrar-pedido-varejo/resumo');
-          }}
-        />
-      </View>
-    </View>
+    <StickyActionFooter height={height}>
+      <RetailOrderPrimaryButton
+        accessibilityHint={
+          flow.preparingOrder ? 'Aguarde enquanto os custos do pedido são validados.' : undefined
+        }
+        accessibilityValue={flow.preparingOrder ? 'Indisponível' : undefined}
+        disabled={flow.submitting || flow.preparingOrder}
+        gateDisabledAction
+        label="Ver resumo"
+        onPress={async () => {
+          if (!(await flow.validateProducts())) return;
+          Keyboard.dismiss();
+          router.push('/registrar-pedido-varejo/resumo');
+        }}
+      />
+    </StickyActionFooter>
   );
 }
 
@@ -694,6 +957,10 @@ function OrderTextField({
 const styles = StyleSheet.create({
   card: { width: '100%' },
   clientSelectorLabel: { flex: 1 },
+  clientDropdown: { alignItems: 'flex-start', width: '100%' },
+  clientSearch: { width: '100%' },
+  clientSearchResult: { justifyContent: 'center' },
+  clientSearchResults: { width: '100%' },
   clientSelectorRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -701,10 +968,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   content: { flexGrow: 1 },
+  combinedContent: { width: '100%' },
   detailsCard: { width: '100%' },
   detailsContainer: { width: '100%' },
-  detailsStickyAction: { bottom: 0, left: 0, position: 'absolute', right: 0, zIndex: 3 },
-  detailsStickyActionContent: { bottom: 0, left: 0, position: 'absolute', right: 0 },
   dateRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   header: { minHeight: 44 },
   field: { gap: 4, width: '100%' },

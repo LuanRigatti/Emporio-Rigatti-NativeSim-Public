@@ -18,6 +18,7 @@ function createGesturePair(callbacks: ComposerPlusGestureCallbacks) {
 function callbacks(overrides: Partial<ComposerPlusGestureCallbacks> = {}) {
   return {
     holdEnabled: true,
+    onTouchDown: jest.fn(),
     onTap: jest.fn(),
     onHoldBegin: jest.fn(),
     onHoldStart: jest.fn(),
@@ -78,9 +79,22 @@ describe('Pesquisa composer plus hold menu gestures', () => {
     const { hold, tap } = createGesturePair(handlers);
 
     expect(hold.config.enabled).toBe(false);
+    tap.handlers.onTouchesDown?.({ numberOfTouches: 1 } as never, {} as never);
     tap.handlers.onEnd?.({} as never, true);
 
+    expect(handlers.onTouchDown).toHaveBeenCalledTimes(1);
     expect(handlers.onTap).toHaveBeenCalledTimes(1);
     expect(handlers.onHoldStart).not.toHaveBeenCalled();
+  });
+
+  it('does not use the tap touch-down fallback when Pan owns the hold interaction', () => {
+    const handlers = callbacks({ holdEnabled: true });
+    const { hold, tap } = createGesturePair(handlers);
+
+    tap.handlers.onTouchesDown?.({ numberOfTouches: 1 } as never, {} as never);
+    hold.handlers.onBegin?.({} as never);
+
+    expect(handlers.onTouchDown).not.toHaveBeenCalled();
+    expect(handlers.onHoldBegin).toHaveBeenCalledTimes(1);
   });
 });

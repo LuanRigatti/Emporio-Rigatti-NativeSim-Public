@@ -102,7 +102,7 @@ export type NativeButtonProps = {
   label: string;
   onPress: () => void;
   haptic?: NativeButtonHaptic;
-  variant?: 'glass' | 'primary' | 'filled' | 'surface';
+  variant?: 'glass' | 'plain' | 'primary' | 'filled' | 'surface';
   glassTint?: string;
   backgroundColor?: string;
   controlSize?: 'mini' | 'small' | 'regular' | 'large' | 'extraLarge';
@@ -121,7 +121,7 @@ export type NativeButtonProps = {
   accessibilityLabel?: string;
 };
 
-export type NativeButtonHaptic = 'none' | 'light' | 'medium' | 'heavy' | 'selection';
+export type NativeButtonHaptic = 'none' | 'light' | 'medium' | 'heavy' | 'soft' | 'selection';
 
 export type NativeButtonContent = {
   type: 'stacked';

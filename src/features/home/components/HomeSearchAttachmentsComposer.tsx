@@ -12,11 +12,6 @@ import { CameraBar } from './chatgpt-attachments/camera/camera-bar';
 import { CameraSheet, type CameraSheetHandle } from './chatgpt-attachments/camera/camera-sheet';
 import { AttachmentFlight } from './chatgpt-attachments/composer/attachment-flight';
 import { Composer } from './chatgpt-attachments/composer/composer';
-import { ModelIntensityOverlay } from './chatgpt-attachments/composer/model-intensity-overlay';
-import {
-  getModelIntensityStepLabel,
-  type ModelIntensityStep,
-} from './chatgpt-attachments/composer/model-intensity-steps';
 import {
   ATTACHMENT_CONTROL_GLASS_TINT,
   BOTTOM_BAR,
@@ -102,55 +97,12 @@ export default function HomeSearchAttachmentsComposer({
     onSettled: clearSelection,
   });
   const [holdMenuPendingIds, setHoldMenuPendingIds] = useState<string[]>([]);
-  const [isModelIntensityMounted, setIsModelIntensityMounted] = useState(false);
-  const [isModelIntensityVisible, setIsModelIntensityVisible] = useState(false);
-  const [isModelIntensityGeometryReady, setIsModelIntensityGeometryReady] = useState(false);
-  const [modelIntensityOriginTag, setModelIntensityOriginTag] = useState<number | null>(null);
-  const [modelIntensityStep, setModelIntensityStep] = useState<ModelIntensityStep>('medium');
-  const [isPhotoHoldMenuVisible, setIsPhotoHoldMenuVisible] = useState(false);
-
-  const isModelIntensityBlocked =
-    panel.mode !== 'closed' || panel.closing || panel.opening || isPhotoHoldMenuVisible;
-
-  const toggleModelIntensity = useCallback(
-    (originViewTag: number) => {
-      if (isModelIntensityBlocked) return;
-      if (isModelIntensityVisible) {
-        setIsModelIntensityVisible(false);
-        return;
-      }
-      if (!Number.isInteger(originViewTag) || originViewTag <= 0) return;
-      setModelIntensityOriginTag(originViewTag);
-      setIsModelIntensityGeometryReady(false);
-      setIsModelIntensityMounted(true);
-      setIsModelIntensityVisible(true);
-    },
-    [isModelIntensityBlocked, isModelIntensityVisible],
-  );
-
-  const closeModelIntensityImmediately = useCallback(() => {
-    setIsModelIntensityVisible(false);
-    setIsModelIntensityMounted(false);
-    setIsModelIntensityGeometryReady(false);
-    setModelIntensityOriginTag(null);
-  }, []);
-
-  const handlePhotoHoldMenuVisibilityChange = useCallback((visible: boolean) => {
-    setIsPhotoHoldMenuVisible(visible);
-    if (visible) {
-      setIsModelIntensityVisible(false);
-      setIsModelIntensityMounted(false);
-      setIsModelIntensityGeometryReady(false);
-      setModelIntensityOriginTag(null);
-    }
-  }, []);
 
   const attachHoldMenuPhoto = useCallback(
     (photo: LibraryPhoto) => {
       setHoldMenuPendingIds((current) =>
         current.includes(photo.id) ? current : [...current, photo.id],
       );
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       addAttachments([photo]);
     },
     [addAttachments],
@@ -273,50 +225,18 @@ export default function HomeSearchAttachmentsComposer({
 
   const handleMenuAction = useCallback(
     (action: MenuAction) => {
-      closeModelIntensityImmediately();
       if (action === 'files') {
         void pickFiles();
         return;
       }
       panel.onMenuAction(action);
     },
-    [closeModelIntensityImmediately, pickFiles, panel],
+    [pickFiles, panel],
   );
 
   const handlePlusTap = useCallback(() => {
-    closeModelIntensityImmediately();
     panel.onPlusTap();
-  }, [closeModelIntensityImmediately, panel]);
-
-  const handleModelIntensityTransitionComplete = useCallback((expanded: boolean) => {
-    if (!expanded) {
-      setIsModelIntensityMounted(false);
-      setIsModelIntensityGeometryReady(false);
-      setModelIntensityOriginTag(null);
-    }
-  }, []);
-
-  const handleModelIntensityGeometryReady = useCallback(
-    (event: { nativeEvent: { ready: boolean } }) => {
-      setIsModelIntensityGeometryReady(event.nativeEvent.ready);
-    },
-    [],
-  );
-
-  const handleModelIntensityDismissRequest = useCallback(() => {
-    if (isModelIntensityVisible && !isModelIntensityBlocked) {
-      setIsModelIntensityVisible(false);
-    }
-  }, [isModelIntensityBlocked, isModelIntensityVisible]);
-
-  const handleModelIntensityInteractionCommitted = useCallback(
-    (step: ModelIntensityStep) => {
-      if (!isModelIntensityVisible || isModelIntensityBlocked) return;
-      setModelIntensityStep(step);
-      setIsModelIntensityVisible(false);
-    },
-    [isModelIntensityBlocked, isModelIntensityVisible],
-  );
+  }, [panel]);
 
   const grid =
     panel.mode === 'camera' ? (
@@ -384,12 +304,6 @@ export default function HomeSearchAttachmentsComposer({
           dateAttachment={selectedDate ?? undefined}
           onRemoveDateAttachment={resetDateAttachment}
           onPlusTap={handlePlusTap}
-          onToggleModelIntensity={toggleModelIntensity}
-          modelIntensityOriginHidden={isModelIntensityMounted && isModelIntensityGeometryReady}
-          modelIntensityExpanded={isModelIntensityVisible}
-          modelIntensityLabel={getModelIntensityStepLabel(modelIntensityStep)}
-          modelIntensityDisabled={isModelIntensityBlocked}
-          onHoldMenuVisibilityChange={handlePhotoHoldMenuVisibilityChange}
           holdMenuEnabled={panel.mode === 'closed' && !panel.closing && !panel.opening}
           onHoldPhotoSelect={attachHoldMenuPhoto}
           onHoldPhotoDockSettled={finishHoldMenuPhotoDock}
@@ -492,24 +406,6 @@ export default function HomeSearchAttachmentsComposer({
           </View>
         ) : null}
       </OverKeyboardView>
-
-      <ModelIntensityOverlay
-        active={isModelIntensityVisible && !isModelIntensityBlocked}
-        attachmentStripVisible={attachments.length > 0}
-        blocked={isModelIntensityBlocked}
-        composerBottom={composerBottom}
-        mounted={isModelIntensityMounted}
-        originViewTag={modelIntensityOriginTag}
-        screenHeight={height}
-        screenWidth={width}
-        selectedStep={modelIntensityStep}
-        strip={strip}
-        onDismissRequest={handleModelIntensityDismissRequest}
-        onGeometryReady={handleModelIntensityGeometryReady}
-        onInteractionCommitted={handleModelIntensityInteractionCommitted}
-        onSelectedStepChange={setModelIntensityStep}
-        onTransitionComplete={handleModelIntensityTransitionComplete}
-      />
     </View>
   );
 }

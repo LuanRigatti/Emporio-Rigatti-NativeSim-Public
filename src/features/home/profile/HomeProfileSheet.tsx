@@ -4,7 +4,7 @@ import { NativeBottomSheet } from '@/components/native';
 import type { NativeBottomSheetProps } from '@/components/native';
 import { useAuth } from '@/providers';
 import { locationTrackingService } from '@/services/routes';
-import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
+import { lightModeLiquidGlassTint } from '@/theme';
 
 import HomeProfileSheetContent from './HomeProfileSheetContent';
 
@@ -21,8 +21,6 @@ type Props = {
 export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
   const { error, isLoading, sessionVersion, signOut, updateDisplayName, user } = useAuth();
   const userId = user?.id;
-  const { resolvedMode } = useAppTheme();
-  const useDarkGlassSurface = resolvedMode === 'dark';
   const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
 
   const handleSignOut = useCallback(async () => {
@@ -77,9 +75,9 @@ export function HomeProfileSheet({ onVisibleChange, visible }: Props) {
       items={[]}
       onDismiss={handleDismiss}
       onVisibleChange={onVisibleChange}
-      glassSurface={useDarkGlassSurface}
-      glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
-      presentationBackgroundMode="transparent"
+      glassSurface
+      glassTint={lightModeLiquidGlassTint}
+      presentationBackgroundInteraction="disabled"
       title="Perfil"
       visible={visible}
     />

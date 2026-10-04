@@ -33,23 +33,33 @@ type PendingLocalSave = {
   promise: Promise<boolean>;
 };
 
-export function useCostSettings() {
+type UseCostSettingsOptions = {
+  allowCachedInitial?: boolean;
+  syncRemote?: boolean;
+};
+
+export function useCostSettings(options: UseCostSettingsOptions = {}) {
   const { user, sessionVersion } = useAuth();
   const userId = user?.id ?? null;
   const storageScope = userId ?? COST_SETTINGS_DEFAULT_SCOPE;
   const sessionKey = createSessionKey(userId, sessionVersion);
+  const allowCachedInitial = options.allowCachedInitial ?? false;
+  const syncRemote = options.syncRemote ?? true;
   const sessionKeyRef = useRef(sessionKey);
   useLayoutEffect(() => {
     sessionKeyRef.current = sessionKey;
   }, [sessionKey]);
 
   const cachedSettings = costSettingsStorage.getCached(storageScope);
+  const hasInitialCachedSettings = allowCachedInitial && cachedSettings !== null;
   const [settings, setSettings] = useState<CostSettings>(
     () => cachedSettings ?? cloneSettings(EMPTY_COST_SETTINGS),
   );
-  const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(null);
+  const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(() =>
+    allowCachedInitial && cachedSettings ? sessionKey : null,
+  );
   const [remoteStatus, setRemoteStatus] = useState<RemoteStatus>(() =>
-    userId && ENABLE_FIRESTORE_DAILY_MONTHLY ? 'loading' : 'disabled',
+    userId && ENABLE_FIRESTORE_DAILY_MONTHLY && syncRemote ? 'loading' : 'disabled',
   );
   const lastHydratedSessionKey = useRef<string | null>(null);
   const localRevision = useRef(0);
@@ -57,7 +67,7 @@ export function useCostSettings() {
   const remoteSettings = useRef<CostSettings | null>(null);
   const mountedRef = useRef(true);
   const pendingLocalSave = useRef<PendingLocalSave | null>(null);
-  const isHydrated = hydratedSessionKey === sessionKey;
+  const isHydrated = hydratedSessionKey === sessionKey || (hasInitialCachedSettings && !syncRemote);
 
   useEffect(
     () => () => {
@@ -94,9 +104,23 @@ export function useCostSettings() {
       dirtyChanges.current.clear();
       remoteSettings.current = null;
       pendingLocalSave.current = null;
-      setSettings(cloneSettings(EMPTY_COST_SETTINGS));
-      setHydratedSessionKey(null);
-      setRemoteStatus(hydrationUserId && ENABLE_FIRESTORE_DAILY_MONTHLY ? 'loading' : 'disabled');
+      const initialCachedSettings = allowCachedInitial
+        ? costSettingsStorage.getCached(storageScope)
+        : null;
+      setSettings(cloneSettings(initialCachedSettings ?? EMPTY_COST_SETTINGS));
+      setHydratedSessionKey(initialCachedSettings ? hydrationSessionKey : null);
+      setRemoteStatus(
+        hydrationUserId && ENABLE_FIRESTORE_DAILY_MONTHLY && syncRemote ? 'loading' : 'disabled',
+      );
+    }
+
+    const initialCachedSettings = allowCachedInitial
+      ? costSettingsStorage.getCached(storageScope)
+      : null;
+    if (initialCachedSettings && !syncRemote) {
+      return () => {
+        mounted = false;
+      };
     }
 
     const hydrationRevision = localRevision.current;
@@ -111,6 +135,7 @@ export function useCostSettings() {
         if (!mounted || !isCurrentSession(sessionKeyRef, hydrationSessionKey)) return;
         if (__DEV__) console.warn('[useCostSettings] Local cost settings fallback empty.', error);
         storedSettings = cloneSettings(EMPTY_COST_SETTINGS);
+        costSettingsStorage.setCached(storedSettings, storageScope);
       }
       if (!mounted || !isCurrentSession(sessionKeyRef, hydrationSessionKey)) return;
 
@@ -121,7 +146,7 @@ export function useCostSettings() {
       }
       setHydratedSessionKey(hydrationSessionKey);
 
-      if (!hydrationUserId || !ENABLE_FIRESTORE_DAILY_MONTHLY) return;
+      if (!hydrationUserId || !ENABLE_FIRESTORE_DAILY_MONTHLY || !syncRemote) return;
 
       try {
         const remote = await firestoreDailyMonthlyDataSource.loadAllAsCostSettings(
@@ -147,8 +172,9 @@ export function useCostSettings() {
             return settingsEquivalent(current, merged) ? current : merged;
           });
         } else {
+          const merged = mergeRemoteWithLocalChanges(remote, storedSettings, storedSettings, []);
+          costSettingsStorage.setCached(merged, storageScope);
           setSettings((current) => {
-            const merged = mergeRemoteWithLocalChanges(remote, storedSettings, current, []);
             return settingsEquivalent(current, merged) ? current : merged;
           });
         }
@@ -163,7 +189,7 @@ export function useCostSettings() {
     return () => {
       mounted = false;
     };
-  }, [sessionKey, storageScope, userId]);
+  }, [allowCachedInitial, sessionKey, storageScope, syncRemote, userId]);
 
   useEffect(() => {
     let active = true;

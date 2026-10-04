@@ -4,16 +4,21 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ReactNode, useEffect } from 'react';
+import { StyleSheet } from 'react-native';
 
 import NativeButtonSwiftUI from '@/components/native/NativeButton/NativeButtonSwiftUI.ios';
 import { RetailOrderRegistrarLauncher } from '@/features/retail-orders/components/RetailOrderRegistrarScreen';
+import { RetailOrderPrimaryButton } from '@/features/retail-orders/components/RetailOrderPrimaryButton';
 import {
   RetailOrderFlowProvider,
   type RetailOrderFlowContextValue,
   type RetailOrderFlowStep,
   useRetailOrderFlow,
 } from '@/features/retail-orders/components/RetailOrderFlowProvider';
-import { RetailOrderStepScreen } from '@/features/retail-orders/components/RetailOrderStepScreen';
+import {
+  RetailOrderCombinedRegistrarScreen,
+  RetailOrderStepScreen,
+} from '@/features/retail-orders/components/RetailOrderStepScreen';
 import type { NativeButtonProps } from '@/types/native-ui';
 
 jest.mock('@expo/ui/swift-ui', () => {
@@ -69,6 +74,8 @@ jest.mock('react-native', () => {
 });
 
 let mockPathname = '/registrar-pedido-varejo';
+const mockAppMode = { mode: 'retail' as 'wholesale' | 'retail' };
+let mockResolvedMode: 'light' | 'dark' = 'light';
 let observedFlow: RetailOrderFlowContextValue | undefined;
 const mockRouter = {
   dismissAll: jest.fn(),
@@ -79,6 +86,7 @@ const mockRouter = {
 const mockCreate = jest.fn<Promise<string>, [unknown, unknown]>().mockResolvedValue('order-1');
 const mockPrefetchForOrder = jest.fn().mockResolvedValue(undefined);
 const mockPrepareForOrder = jest.fn().mockResolvedValue({});
+const mockLightImpactHaptic = jest.fn();
 const mockNativeButtonHaptic = jest.fn();
 
 const products: {
@@ -155,6 +163,28 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 jest.mock('expo-router', () => ({
+  Stack: {
+    Toolbar: Object.assign(
+      ({ children, ...props }: { children?: ReactNode }) => {
+        const React = require('react') as typeof import('react');
+        return React.createElement('stack-toolbar', props, children);
+      },
+      {
+        Button: ({ children, ...props }: { children?: ReactNode }) => {
+          const React = require('react') as typeof import('react');
+          return React.createElement('stack-toolbar-button', props, children);
+        },
+        Icon: (props: Record<string, unknown>) => {
+          const React = require('react') as typeof import('react');
+          return React.createElement('stack-toolbar-icon', props);
+        },
+        Label: ({ children, ...props }: { children?: ReactNode }) => {
+          const React = require('react') as typeof import('react');
+          return React.createElement('stack-toolbar-label', props, children);
+        },
+      },
+    ),
+  },
   usePathname: () => mockPathname,
   useRouter: () => mockRouter,
 }));
@@ -222,9 +252,56 @@ jest.mock('@/components/premium', () => ({
     const React = require('react') as typeof import('react');
     return React.createElement('premium-screen', props, children);
   },
+  ProgressiveCollapsibleScreen: ({
+    children,
+    largeTitle,
+    ...props
+  }: {
+    children?: ReactNode;
+    largeTitle?: ReactNode;
+  }) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('progressive-collapsible-screen', props, largeTitle, children);
+  },
+  SearchBar: (props: Record<string, unknown>) => {
+    const React = require('react') as typeof import('react');
+    const clearButton =
+      props.value && typeof props.onClear === 'function'
+        ? React.createElement('search-clear-button', {
+            accessibilityLabel: 'Limpar busca',
+            onPress: props.onClear,
+          })
+        : null;
+    return React.createElement('search-bar', props, clearButton);
+  },
 }));
 
+jest.mock('@/components/premium/StickyActionFooter', () => {
+  const React = require('react') as typeof import('react');
+  const { ProgressiveBlur } = require('@/components/ui/progressive-blur') as {
+    ProgressiveBlur: (props: Record<string, unknown>) => ReactNode;
+  };
+  return {
+    StickyActionFooter: ({ children, height }: { children?: ReactNode; height: number }) =>
+      React.createElement(
+        'sticky-action-footer',
+        { height },
+        React.createElement(ProgressiveBlur, {
+          edge: 'bottom',
+          fadeStart: 8,
+          height,
+          intensity: 30,
+          layers: 4,
+          style: { bottom: 0 },
+          tint: 'systemUltraThinMaterial',
+        }),
+        children,
+      ),
+  };
+});
+
 jest.mock('@/providers', () => ({
+  useAppMode: () => mockAppMode,
   useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
 }));
 
@@ -237,22 +314,24 @@ jest.mock('@/hooks/useRetailOrders', () => ({
 }));
 
 jest.mock('@/theme', () => ({
-  getCardSurfaceColor: jest.fn(() => '#FFFFFF'),
+  getCardSurfaceColor: jest.fn((mode: 'light' | 'dark', surface: string) =>
+    mode === 'dark' ? '#0C0C0E' : surface,
+  ),
   useAppTheme: () => ({
-    resolvedMode: 'light',
+    resolvedMode: mockResolvedMode,
     theme: {
       colors: {
-        background: '#F7F7F7',
+        background: mockResolvedMode === 'dark' ? '#000000' : '#F7F7F7',
         contrastContent: '#FFFFFF',
         contrastSurface: '#000000',
         danger: '#FF0000',
-        surface: '#FFFFFF',
-        surfaceMuted: '#F2F2F7',
+        surface: mockResolvedMode === 'dark' ? '#0C0C0E' : '#FEFFFF',
+        surfaceMuted: mockResolvedMode === 'dark' ? '#242426' : '#F2F2F7',
         textPrimary: '#111111',
         textSecondary: '#666666',
       },
       layout: { screenHorizontalPadding: 24, tabBarHeight: 64 },
-      radius: { md: 12, xl: 24 },
+      radius: { card: 20, md: 12, xl: 24 },
       sizes: { touchTargetMinimum: 44 },
       spacing: {
         lg: 20,
@@ -276,7 +355,7 @@ jest.mock('@/theme', () => ({
 }));
 
 jest.mock('@/utils/haptics', () => ({
-  triggerLightImpactHaptic: jest.fn(),
+  triggerLightImpactHaptic: () => mockLightImpactHaptic(),
   triggerNativeButtonHaptic: (...args: unknown[]) => mockNativeButtonHaptic(...args),
 }));
 
@@ -305,6 +384,10 @@ jest.mock('@/utils/data', () => ({
 
 function findNodes(renderer: ReactTestRenderer, type: string): ReactTestInstance[] {
   return renderer.root.findAll((node) => String(node.type) === type);
+}
+
+function findTestId(renderer: ReactTestRenderer, testID: string): ReactTestInstance[] {
+  return renderer.root.findAll((node) => node.props.testID === testID);
 }
 
 function findButton(renderer: ReactTestRenderer, label: string): ReactTestInstance {
@@ -380,6 +463,52 @@ function renderStep(step: RetailOrderFlowStep): ReactTestRenderer {
   return renderer;
 }
 
+function renderCombinedRegistrar(): ReactTestRenderer {
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(
+      createElement(
+        RetailOrderFlowProvider,
+        null,
+        createElement(FlowProbe),
+        createElement(RetailOrderCombinedRegistrarScreen),
+      ),
+    );
+  });
+  return renderer;
+}
+
+function updateCombinedRegistrar(renderer: ReactTestRenderer) {
+  act(() => {
+    renderer.update(
+      createElement(
+        RetailOrderFlowProvider,
+        null,
+        createElement(FlowProbe),
+        createElement(RetailOrderCombinedRegistrarScreen),
+      ),
+    );
+  });
+}
+
+function searchCombinedClient(renderer: ReactTestRenderer, query: string) {
+  const searchBar = findNodes(renderer, 'search-bar')[0];
+  act(() => {
+    searchBar.props.onFocus();
+    searchBar.props.onChangeText(query);
+  });
+}
+
+function selectCombinedClient(
+  renderer: ReactTestRenderer,
+  clientId = 'client-1',
+  query = 'Cliente Varejo',
+) {
+  searchCombinedClient(renderer, query);
+  const result = renderer.root.findByProps({ testID: `retail-client-result-${clientId}` });
+  act(() => result.props.onPress());
+}
+
 function renderRegistrarLauncher(): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
@@ -430,11 +559,14 @@ async function addProductAndPushDetails(renderer: ReactTestRenderer) {
 describe('RetailOrderRegistrarScreen wizard', () => {
   beforeEach(() => {
     mockPathname = '/registrar-pedido-varejo';
+    mockAppMode.mode = 'retail';
+    mockResolvedMode = 'light';
     observedFlow = undefined;
     mockRouter.dismissAll.mockClear();
     mockRouter.dismissTo.mockClear();
     mockRouter.push.mockClear();
     mockRouter.replace.mockClear();
+    mockLightImpactHaptic.mockClear();
     mockNativeButtonHaptic.mockClear();
     mockCreate.mockClear().mockResolvedValue('order-1');
     mockPrefetchForOrder.mockClear().mockResolvedValue(undefined);
@@ -452,30 +584,43 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     mockCatalog.products = products;
   });
 
-  it('centers the initial retail card and uses the confirm-sized native CTA', () => {
+  it('shows only the Registrar pedido action card and opens the combined wizard', () => {
     const renderer = renderRegistrarLauncher();
-    const card = findNodes(renderer, 'premium-card').find((node) =>
-      collectText(node).includes('Novo pedido'),
-    );
-    if (!card) throw new Error('Card inicial do Varejo não encontrado');
+    const cards = findNodes(renderer, 'premium-card');
 
-    expect(collectText(card)).toContain('Novo pedido');
-    expect(collectText(card)).not.toContain('Novo pedido Varejo');
-    expect(collectText(card)).not.toContain('Selecione cliente, produtos e condições da venda.');
-    expect(card.props.style).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          paddingHorizontal: 20,
-          paddingVertical: 16,
-        }),
-      ]),
-    );
+    expectRetailLargeTitle(renderer, 'Registrar');
+    expect(cards).toHaveLength(1);
+    expect(collectText(cards[0])).toContain('Registrar pedido');
+    expect(cards[0].props.accessibilityLabel).toBe('Abrir Registrar Pedido Varejo');
+    expect(StyleSheet.flatten(cards[0].props.style)).toMatchObject({
+      backgroundColor: '#FEFFFF',
+      borderRadius: 40,
+      padding: 20,
+      width: '100%',
+    });
+    expect(findNodes(renderer, 'native-dropdown')).toHaveLength(0);
+    expect(collectText(renderer.root)).not.toContain('Cliente');
+    expect(collectText(renderer.root)).not.toContain('Produtos');
 
-    const button = findButton(renderer, 'Novo pedido');
-    expectRetailPrimaryButton(button);
-
-    act(() => button.props.onPress());
+    act(() => cards[0].props.onPress());
+    expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
     expect(mockRouter.push).toHaveBeenLastCalledWith('/registrar-pedido-varejo');
+  });
+
+  it.each([
+    ['light', '#FEFFFF'],
+    ['dark', '#0C0C0E'],
+  ] as const)('uses the shared action-card surface in %s mode', (mode, surface) => {
+    mockResolvedMode = mode;
+    const renderer = renderRegistrarLauncher();
+    const [card] = findNodes(renderer, 'premium-card');
+
+    expect(StyleSheet.flatten(card.props.style)).toMatchObject({
+      backgroundColor: surface,
+      borderRadius: 40,
+      padding: 20,
+      width: '100%',
+    });
   });
 
   it('keeps the fixed native capsule hit shape on the Button label', () => {
@@ -557,6 +702,45 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     expect(mockNativeButtonHaptic).toHaveBeenCalledWith('light');
   });
 
+  it('keeps the opt-in disabled primary button visually enabled while blocking its action', () => {
+    const onPress = jest.fn();
+    let renderer!: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(
+        createElement(RetailOrderPrimaryButton, {
+          disabled: true,
+          label: 'Adicionar',
+          onPress,
+          preserveDisabledAppearance: true,
+        }),
+      );
+    });
+
+    let button = findNodes(renderer, 'native-button')[0];
+    expect(button.props.disabled).toBe(false);
+    expect(button.props.haptic).toBe('none');
+    act(() => button.props.onPress());
+    expect(onPress).not.toHaveBeenCalled();
+
+    act(() => {
+      renderer.update(
+        createElement(RetailOrderPrimaryButton, {
+          disabled: false,
+          label: 'Adicionar',
+          onPress,
+          preserveDisabledAppearance: true,
+        }),
+      );
+    });
+
+    button = findNodes(renderer, 'native-button')[0];
+    expect(button.props.disabled).toBe(false);
+    expect(button.props.haptic).toBe('light');
+    act(() => button.props.onPress());
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
   it('starts at Cliente without a NativeSheet and uses the native-stack page shell', () => {
     const renderer = renderStep('client');
     const premiumScreen = findNodes(renderer, 'premium-screen')[0];
@@ -602,8 +786,36 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     );
   });
 
-  it('preserves the safe redirect for an invalid deep entry', () => {
-    renderStep('details');
+  it('uses the shared Stack pipeline without a nested vertical ScrollView for Details and Summary', () => {
+    const screenSource = readFileSync(
+      resolve(process.cwd(), 'src/features/retail-orders/components/RetailOrderStepScreen.tsx'),
+      'utf8',
+    );
+
+    expect(screenSource).toContain("step === 'details' || step === 'summary'");
+    expect(screenSource).toContain('<ProgressiveCollapsibleScreen');
+    expect(screenSource).toContain('contentGap={0}');
+    expect(screenSource).toContain('contentTopInset={contentTopInset}');
+    expect(screenSource).toContain('nativeHeader');
+    expect(screenSource).not.toContain('nativeTabRoot');
+    expect(screenSource).not.toContain('<ScrollView');
+  });
+
+  it.each(['details', 'summary'] as const)(
+    'redirects an entry without a selected client from %s to the combined wizard',
+    (step) => {
+      renderStep(step);
+
+      expect(mockRouter.replace).toHaveBeenCalledWith('/registrar-pedido-varejo');
+    },
+  );
+
+  it('redirects Summary to the combined wizard when products are missing', () => {
+    const renderer = renderStep('client');
+    act(() => findNodes(renderer, 'native-dropdown')[0].props.onValueChange('client-1'));
+    mockRouter.replace.mockClear();
+
+    updateStep(renderer, 'summary');
 
     expect(mockRouter.replace).toHaveBeenCalledWith('/registrar-pedido-varejo');
   });
@@ -621,11 +833,385 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     );
   });
 
-  it('prefetches active product cost contexts when Produtos opens', () => {
-    mockPathname = '/registrar-pedido-varejo/produtos';
-    renderStep('products');
+  it('prefetches active product cost contexts when the combined Registrar Retail opens', () => {
+    mockPathname = '/registrar-pedido-varejo';
+    renderCombinedRegistrar();
 
     expect(mockPrefetchForOrder).toHaveBeenCalledWith(['product-1', 'product-2'], '2026-09-15');
+  });
+
+  it('renders Cliente and Produtos together with the Details footer above only the safe area', () => {
+    mockPathname = '/registrar-pedido-varejo';
+    const renderer = renderCombinedRegistrar();
+    const screen = findNodes(renderer, 'progressive-collapsible-screen')[0];
+    const cards = findNodes(renderer, 'premium-card');
+    const footer = findNodes(renderer, 'sticky-action-footer')[0];
+    const blur = findNodes(renderer, 'progressive-blur')[0];
+
+    expectRetailLargeTitle(renderer, 'Novo pedido');
+    expect(screen.props.compactTitle).toBe('Novo pedido');
+    expect(screen.props.nativeHeader).toBe(true);
+    expect(cards).toHaveLength(2);
+    expect(cards.map((card) => collectText(card).split(' ')[0])).toEqual(['Cliente', 'Produtos']);
+    expect(
+      findNodes(renderer, 'native-button').some((node) => node.props.label === 'Novo pedido'),
+    ).toBe(false);
+    expect(findNodes(renderer, 'search-bar')).toHaveLength(1);
+    expect(findNodes(renderer, 'search-bar')[0].props.placeholder).toBe('Buscar cliente');
+    expect(findNodes(renderer, 'native-dropdown')).toHaveLength(1);
+    expect(findNodes(renderer, 'native-dropdown')[0].props.disabled).toBe(false);
+    expect(screen.props.scrollViewProps.keyboardShouldPersistTaps).toBe('handled');
+    expect(collectText(renderer.root)).toContain('Novo cliente');
+    const continueButton = findButton(renderer, 'Continuar');
+    expect(continueButton.props.disabled).toBe(true);
+    expect(continueButton.props.gateDisabledAction).toBe(true);
+    expect(continueButton.props.haptic).toBe('none');
+    expect(footer.props.bottomOffset).toBeUndefined();
+    expect(footer.props.height).toBe(82);
+    expect(blur.props.height).toBe(82);
+    expect(screen.props.scrollContentContainerStyle.paddingBottom).toBe(106);
+    expect(screen.props.scrollContentContainerStyle.paddingHorizontal).toBe(0);
+    expect(blur.props.style.bottom).toBe(0);
+  });
+
+  it('filters active Retail clients locally, ignoring case and accents, and reports no matches', () => {
+    mockCatalog.clients = [
+      { ...mockCatalog.clients[0], clientId: 'client-andre-1', name: 'André Marques' },
+      { ...mockCatalog.clients[0], clientId: 'client-andre-2', name: 'André Silva' },
+      { ...mockCatalog.clients[0], clientId: 'client-cafe', name: 'Café Portugal' },
+    ];
+    const renderer = renderCombinedRegistrar();
+
+    expect(findNodes(renderer, 'search-bar')[0].props.placeholder).toBe('Buscar cliente');
+    expect(findTestId(renderer, 'retail-client-result-client-andre-1')).toHaveLength(0);
+
+    searchCombinedClient(renderer, '  ANDRE  ');
+    expect(collectText(renderer.root)).toContain('André Marques');
+    expect(collectText(renderer.root)).toContain('André Silva');
+    expect(collectText(renderer.root)).not.toContain('Café Portugal');
+
+    searchCombinedClient(renderer, 'cliente inexistente');
+    expect(collectText(renderer.root)).toContain('Nenhum cliente encontrado');
+  });
+
+  it('selects a searched client through the existing handler and reflects the selected name', () => {
+    mockCatalog.clients = [
+      { ...mockCatalog.clients[0], clientId: 'client-andre', name: 'André Marques' },
+    ];
+    const renderer = renderCombinedRegistrar();
+
+    selectCombinedClient(renderer, 'client-andre', 'andre');
+
+    expect(observedFlow?.draft.clientId).toBe('client-andre');
+    expect(observedFlow?.draft.deliveryAddressSnapshot).toBe('Rua Principal, 10');
+    expect(observedFlow?.draft.deliveryFee).toBe('12,00');
+    expect(findNodes(renderer, 'search-bar')[0].props.value).toBe('André Marques');
+    expect(findTestId(renderer, 'retail-client-result-client-andre')).toHaveLength(0);
+  });
+
+  it('clears only the selected client from the SearchBar and preserves product draft data', async () => {
+    mockCatalog.clients = [
+      { ...mockCatalog.clients[0], clientId: 'client-1', name: 'Cliente Varejo' },
+      {
+        ...mockCatalog.clients[0],
+        address: 'Rua Fernanda, 25',
+        clientId: 'client-2',
+        defaultDeliveryFee: 20,
+        name: 'Fernanda Rigatti',
+      },
+    ];
+    const renderer = renderCombinedRegistrar();
+    selectCombinedClient(renderer);
+
+    await act(async () => {
+      await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+    });
+    act(() => {
+      observedFlow?.updateLineQuantity('product-1', '3');
+    });
+
+    expect(findNodes(renderer, 'search-bar')[0].props.value).toBe('Cliente Varejo');
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    const preservedLineItems = [...observedFlow!.draft.lineItems];
+    const preservedTotals = observedFlow?.draftTotals;
+    const preservedCostErrors = { ...observedFlow!.productCostErrors };
+
+    act(() => findNodes(renderer, 'search-clear-button')[0].props.onPress());
+
+    expect(findNodes(renderer, 'search-bar')[0].props.value).toBe('');
+    expect(findNodes(renderer, 'search-bar')[0].props.placeholder).toBe('Buscar cliente');
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.deliveryAddressSnapshot).toBe('Rua Principal, 10');
+    expect(observedFlow?.draft.deliveryFee).toBe('12,00');
+    expect(observedFlow?.draft.lineItems).toEqual(preservedLineItems);
+    expect(observedFlow?.draft.lineItems).toEqual([{ productId: 'product-1', quantity: '3' }]);
+    expect(observedFlow?.draftTotals).toEqual(preservedTotals);
+    expect(observedFlow?.productCostErrors).toEqual(preservedCostErrors);
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+
+    searchCombinedClient(renderer, 'Fernanda');
+    act(() => findTestId(renderer, 'retail-client-result-client-2')[0].props.onPress());
+
+    expect(observedFlow?.draft.clientId).toBe('client-2');
+    expect(observedFlow?.draft.lineItems).toEqual(preservedLineItems);
+    expect(findNodes(renderer, 'search-bar')[0].props.value).toBe('Fernanda Rigatti');
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(false);
+  });
+
+  it('opens Retail client creation from the native toolbar using the Atacado symbol and label', () => {
+    const renderer = renderCombinedRegistrar();
+    const toolbarButton = findNodes(renderer, 'stack-toolbar-button')[0];
+
+    expect(toolbarButton.props.accessibilityLabel).toBe('Adicionar cliente');
+    expect(toolbarButton.props.separateBackground).toBe(false);
+    expect(findNodes(renderer, 'stack-toolbar-icon')[0].props.sf).toBe('person.badge.plus');
+    expect(collectText(renderer.root)).toContain('Novo cliente');
+    act(() => toolbarButton.props.onPress());
+    expect(mockRouter.push).toHaveBeenLastCalledWith('/registrar-pedido-varejo/novo-cliente');
+  });
+
+  it('keeps user-edited address and delivery fee when selecting a Retail client', () => {
+    mockCatalog.clients = [
+      { ...mockCatalog.clients[0], clientId: 'client-new', name: 'Ana Retail' },
+    ];
+    const renderer = renderCombinedRegistrar();
+    act(() => {
+      observedFlow?.updateDraft('deliveryAddressSnapshot', 'Endereço editado');
+      observedFlow?.updateDraft('deliveryFee', '28,00');
+    });
+
+    selectCombinedClient(renderer, 'client-new', 'ana');
+
+    expect(observedFlow?.draft.deliveryAddressSnapshot).toBe('Endereço editado');
+    expect(observedFlow?.draft.deliveryFee).toBe('28,00');
+  });
+
+  it.each([
+    ['light', '#FEFFFF'],
+    ['dark', '#0C0C0E'],
+  ] as const)('uses the semantic card surface in %s mode', (mode, expectedSurface) => {
+    mockPathname = '/registrar-pedido-varejo';
+    mockResolvedMode = mode;
+    const renderer = renderCombinedRegistrar();
+    const cards = findNodes(renderer, 'premium-card');
+
+    expect(cards).toHaveLength(2);
+    expect(StyleSheet.flatten(cards[0].props.style)?.backgroundColor).toBe(expectedSurface);
+    expect(StyleSheet.flatten(cards[1].props.style)?.backgroundColor).toBe(expectedSurface);
+  });
+
+  it.each([
+    ['light', '#F7F7F7'],
+    ['dark', '#242426'],
+  ] as const)(
+    'uses the expected added-product surface and card radius in %s mode',
+    async (mode, surface) => {
+      mockResolvedMode = mode;
+      const renderer = renderCombinedRegistrar();
+      await act(async () => {
+        await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+      });
+
+      const productContainer = findNodes(renderer, 'View').find((node) => {
+        const style = StyleSheet.flatten(node.props.style);
+        return style?.padding === 12 && style?.gap === 12;
+      });
+      const productStyle = StyleSheet.flatten(productContainer?.props.style);
+
+      expect(productContainer).toBeDefined();
+      expect(productStyle).toMatchObject({
+        backgroundColor: surface,
+        borderRadius: 20,
+      });
+      expect(collectText(productContainer!)).toContain('Cesta Café');
+      expect(findButton(renderer, 'Remover').props.accessibilityLabel).toBe('Remover Cesta Café');
+    },
+  );
+
+  it('uses the shared client/product handlers, blocks invalid quantity and navigates only after validation', async () => {
+    mockPathname = '/registrar-pedido-varejo';
+    const renderer = renderCombinedRegistrar();
+    selectCombinedClient(renderer);
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.deliveryAddressSnapshot).toBe('Rua Principal, 10');
+    expect(observedFlow?.draft.deliveryFee).toBe('12,00');
+
+    const productDropdown = findNodes(renderer, 'native-dropdown')[0];
+    expect(productDropdown.props.disabled).toBe(false);
+    await act(async () => {
+      await productDropdown.props.onValueChange('product-1');
+    });
+    await act(async () => {
+      await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+    });
+    expect(observedFlow?.draft.lineItems).toEqual([{ productId: 'product-1', quantity: '2' }]);
+    expect(findNodes(renderer, 'native-text-field')[0].props.value).toBe('2');
+
+    act(() => {
+      findNodes(renderer, 'native-text-field')[0].props.onChangeText('0');
+    });
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+    mockNativeButtonHaptic.mockClear();
+    act(() => findButton(renderer, 'Continuar').props.onPress());
+    expect(mockNativeButtonHaptic).not.toHaveBeenCalled();
+    expect(mockRouter.push).not.toHaveBeenCalledWith('/registrar-pedido-varejo/detalhes');
+
+    act(() => {
+      findNodes(renderer, 'native-text-field')[0].props.onChangeText('3');
+    });
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(false);
+    mockNativeButtonHaptic.mockClear();
+    await act(async () => {
+      findButton(renderer, 'Continuar').props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockPrepareForOrder).toHaveBeenCalledWith(['product-1'], {
+      referenceDate: '2026-09-15',
+      refresh: true,
+    });
+    expect(mockNativeButtonHaptic).toHaveBeenCalledWith('light');
+    expect(mockRouter.push).toHaveBeenLastCalledWith('/registrar-pedido-varejo/detalhes');
+
+    act(() => findButton(renderer, 'Remover').props.onPress());
+    expect(observedFlow?.draft.lineItems).toHaveLength(0);
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+  });
+
+  it('allows adding a product before selecting a client and preserves it after selection', async () => {
+    mockPathname = '/registrar-pedido-varejo';
+    const renderer = renderCombinedRegistrar();
+    const productDropdown = findNodes(renderer, 'native-dropdown')[0];
+
+    expect(productDropdown.props.disabled).toBe(false);
+    await act(async () => {
+      await productDropdown.props.onValueChange('product-1');
+    });
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toEqual([{ productId: 'product-1', quantity: '1' }]);
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+
+    selectCombinedClient(renderer);
+
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.lineItems).toEqual([{ productId: 'product-1', quantity: '1' }]);
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(false);
+  });
+
+  it('allows changing the selected client without removing products from the draft', async () => {
+    mockCatalog.clients = [
+      { ...mockCatalog.clients[0], clientId: 'client-1', name: 'Cliente Varejo' },
+      { ...mockCatalog.clients[0], clientId: 'client-2', name: 'Outro Cliente' },
+    ];
+    const renderer = renderCombinedRegistrar();
+    selectCombinedClient(renderer, 'client-1', 'Cliente');
+    await act(async () => {
+      await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+    });
+
+    selectCombinedClient(renderer, 'client-2', 'Outro');
+
+    expect(observedFlow?.draft.clientId).toBe('client-2');
+    expect(observedFlow?.draft.lineItems).toEqual([{ productId: 'product-1', quantity: '1' }]);
+  });
+
+  it('keeps the combined CTA blocked with no products or while product cost validation is pending/failed', async () => {
+    mockPathname = '/registrar-pedido-varejo';
+    mockCatalog.products = [];
+    const emptyRenderer = renderCombinedRegistrar();
+    selectCombinedClient(emptyRenderer);
+    expect(findButton(emptyRenderer, 'Continuar').props.disabled).toBe(true);
+    expect(collectText(emptyRenderer.root)).toContain('Cadastre um produto Varejo');
+    act(() => emptyRenderer.unmount());
+
+    mockCatalog.products = products;
+    let resolvePreparation!: (catalog: typeof mockOrderCatalog) => void;
+    mockPrepareForOrder.mockImplementationOnce(
+      () => new Promise<typeof mockOrderCatalog>((resolve) => (resolvePreparation = resolve)),
+    );
+    const renderer = renderCombinedRegistrar();
+    let addProduct!: Promise<void>;
+    await act(async () => {
+      addProduct = findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+      await Promise.resolve();
+    });
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toHaveLength(1);
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+    selectCombinedClient(renderer);
+    await act(async () => {
+      resolvePreparation(mockOrderCatalog);
+      await addProduct;
+    });
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(false);
+
+    mockPrepareForOrder.mockResolvedValueOnce({
+      ...mockOrderCatalog,
+      products: [{ ...products[0], costMode: undefined }, products[1]],
+    });
+    await act(async () => {
+      await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+    });
+    expect(findButton(renderer, 'Continuar').props.disabled).toBe(true);
+    expect(collectText(renderer.root)).toContain(
+      'Configure o modo de custo deste produto no Catálogo Varejo.',
+    );
+    expect(mockRouter.push).not.toHaveBeenCalledWith('/registrar-pedido-varejo/detalhes');
+  });
+
+  it('preserves the draft from Novo pedido through Details and back, then clears on exit', async () => {
+    mockPathname = '/registrar-pedido-varejo';
+    const renderer = renderCombinedRegistrar();
+    selectCombinedClient(renderer);
+    await act(async () => {
+      await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+    });
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.lineItems).toHaveLength(1);
+
+    mockPathname = '/registrar-pedido-varejo/novo-cliente';
+    updateCombinedRegistrar(renderer);
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.lineItems).toHaveLength(1);
+
+    mockPathname = '/registrar-pedido-varejo/detalhes';
+    updateCombinedRegistrar(renderer);
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.lineItems).toHaveLength(1);
+
+    mockPathname = '/registrar-pedido-varejo';
+    updateCombinedRegistrar(renderer);
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.lineItems).toHaveLength(1);
+
+    mockPathname = '/registrar';
+    updateCombinedRegistrar(renderer);
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toHaveLength(0);
+  });
+
+  it('clears a populated draft when AppMode changes from Retail to Wholesale', async () => {
+    mockPathname = '/registrar-pedido-varejo';
+    const renderer = renderCombinedRegistrar();
+    selectCombinedClient(renderer);
+    await act(async () => {
+      await findNodes(renderer, 'native-dropdown')[0].props.onValueChange('product-1');
+    });
+    expect(observedFlow?.draft.clientId).toBe('client-1');
+    expect(observedFlow?.draft.lineItems).toHaveLength(1);
+
+    mockAppMode.mode = 'wholesale';
+    updateCombinedRegistrar(renderer);
+    expect(observedFlow?.draft.clientId).toBe('');
+    expect(observedFlow?.draft.lineItems).toHaveLength(0);
+  });
+
+  it('does not prefetch product costs while idle on the Registrar tab', () => {
+    mockPathname = '/registrar';
+    renderCombinedRegistrar();
+
+    expect(mockPrefetchForOrder).not.toHaveBeenCalled();
   });
 
   it('keeps the Products Continue CTA undimmed and gates it until a valid product is added', async () => {
@@ -883,7 +1469,20 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     await selectClientAndPushProducts(renderer);
     await addProductAndPushDetails(renderer);
 
-    expect(findNodes(renderer, 'premium-screen')[0].props.overlayHeader.props.title).toBeNull();
+    expect(findNodes(renderer, 'premium-screen')).toHaveLength(0);
+    const screen = findNodes(renderer, 'progressive-collapsible-screen')[0];
+    expect(screen.props).toEqual(
+      expect.objectContaining({
+        compactTitle: 'Detalhes',
+        contentGap: 0,
+        contentTopInset: 74,
+        largeTitleContainerStyle: expect.objectContaining({ minHeight: 44 }),
+        nativeHeader: true,
+        scrollContentContainerStyle: { paddingBottom: 170 },
+        scrollViewProps: { keyboardShouldPersistTaps: 'handled' },
+      }),
+    );
+    expect(screen.props).not.toHaveProperty('nativeTabRoot');
     expectRetailLargeTitle(renderer, 'Detalhes');
     const detailCards = findNodes(renderer, 'premium-card');
     expect(detailCards).toHaveLength(4);
@@ -899,7 +1498,7 @@ describe('RetailOrderRegistrarScreen wizard', () => {
       expect(card.props.style).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ width: '100%' }),
-          expect.objectContaining({ backgroundColor: '#FFFFFF' }),
+          expect.objectContaining({ backgroundColor: '#FEFFFF' }),
         ]),
       );
     });
@@ -909,6 +1508,12 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     expect(findNodes(renderer, 'native-date-picker')).toHaveLength(2);
     expect(findNodes(renderer, 'native-text-field')).toHaveLength(7);
     expectRetailPrimaryButton(findButton(renderer, 'Ver resumo'));
+    const detailsFooter = findNodes(renderer, 'sticky-action-footer')[0];
+    expect(
+      detailsFooter.findAll(
+        (node) => String(node.type) === 'native-button' && node.props.label === 'Ver resumo',
+      ),
+    ).toHaveLength(1);
     const bottomBlur = findNodes(renderer, 'progressive-blur');
     expect(bottomBlur).toHaveLength(1);
     expect(bottomBlur[0].props).toEqual(
@@ -920,9 +1525,7 @@ describe('RetailOrderRegistrarScreen wizard', () => {
         style: { bottom: 0 },
       }),
     );
-    expect(
-      findNodes(renderer, 'premium-screen')[0].props.contentContainerStyle[1].paddingBottom,
-    ).toBe(170);
+    expect(screen.props.scrollContentContainerStyle.paddingBottom).toBe(170);
     expect(
       detailCards.some(
         (card) =>
@@ -946,11 +1549,31 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     });
     updateStep(renderer, 'summary');
 
+    expect(findNodes(renderer, 'premium-screen')).toHaveLength(0);
+    const summaryScreen = findNodes(renderer, 'progressive-collapsible-screen')[0];
+    expect(summaryScreen.props).toEqual(
+      expect.objectContaining({
+        compactTitle: 'Resumo',
+        contentGap: 0,
+        contentTopInset: 74,
+        nativeHeader: true,
+        scrollContentContainerStyle: { paddingBottom: 88 },
+      }),
+    );
+    expect(summaryScreen.props).not.toHaveProperty('nativeTabRoot');
     expect(collectText(renderer.root)).toContain('Cliente Varejo');
     expect(collectText(renderer.root)).toContain('Cesta Café');
     expect(collectText(renderer.root)).toContain('Subtotal dos produtos');
     expect(collectText(renderer.root)).toContain('Total cobrado');
     expect(collectText(renderer.root)).not.toContain('Não foi possível calcular o resumo');
+    const summaryCard = findNodes(renderer, 'premium-card').find(
+      (card) =>
+        card.findAll(
+          (node) =>
+            String(node.type) === 'native-button' && node.props.label === 'Finalizar pedido',
+        ).length > 0,
+    );
+    expect(summaryCard).toBeDefined();
   });
 
   it('finalizes from Summary without creating a payment, then resets and dismisses the wizard', async () => {
@@ -978,11 +1601,9 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     await act(async () => {
       findNodes(renderer, 'native-dialog')[0].props.actions[0].onPress();
     });
-    expect(mockRouter.dismissAll).toHaveBeenCalledTimes(1);
-    expect(mockRouter.dismissTo).not.toHaveBeenCalled();
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/registrar');
+    expect(mockRouter.dismissAll).not.toHaveBeenCalled();
     expect(mockRouter.replace).not.toHaveBeenCalledWith('/registrar-pedido-varejo');
-    expect(observedFlow?.draft.clientId).toBe('client-1');
-    expect(observedFlow?.draft.lineItems).toHaveLength(1);
     expect(collectText(renderer.root)).not.toContain('Pagamento inicial');
 
     mockPathname = '/registrar';

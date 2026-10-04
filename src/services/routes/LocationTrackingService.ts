@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
 import type {
+  RouteFinancialSummary,
   RouteTrackingRecord,
   RouteTrackingResult,
   RouteTrackingSession,
@@ -11,6 +12,10 @@ import type { RouteDistanceSummary } from './routeTrackingDistance';
 import { isExpoGoRuntime } from '@/platform/runtimeEnvironment';
 
 import { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
+import {
+  firestoreRouteFinancialLedgerDataSource,
+  type RouteFinancialLedgerMigrationResult,
+} from './FirestoreRouteFinancialLedgerDataSource';
 import {
   routeTrackingRepository,
   type LegacyRouteClaimResult,
@@ -136,6 +141,30 @@ export class LocationTrackingService {
     return routeTrackingRepository.getRouteHistory(date);
   }
 
+  public async getFinancialRouteSummaries(): Promise<RouteFinancialSummary[]> {
+    const session = this.requireSession();
+    return firestoreRouteFinancialLedgerDataSource.loadForFinance(session);
+  }
+
+  public async hydrateFinancialRouteSummariesFromCache(): Promise<RouteFinancialSummary[] | null> {
+    const session = routeTrackingRepository.getSessionContext();
+    return session
+      ? firestoreRouteFinancialLedgerDataSource.hydrateForFinanceFromCache(session)
+      : null;
+  }
+
+  public getMemoryFinancialRouteSummaries(): RouteFinancialSummary[] | null {
+    const session = routeTrackingRepository.getSessionContext();
+    return session ? firestoreRouteFinancialLedgerDataSource.getMemoryForFinance(session) : null;
+  }
+
+  public async migrateLocalRouteHistoryToLedger(): Promise<RouteFinancialLedgerMigrationResult> {
+    const session = this.requireSession();
+    const localHistory = await routeTrackingRepository.getRouteHistory(undefined, session);
+    this.assertCurrentSession(session);
+    return firestoreRouteFinancialLedgerDataSource.migrateLocalHistory(localHistory, session);
+  }
+
   public getLatestCompletedRoute(): Promise<RouteTrackingSession | null> {
     return routeTrackingRepository.getLatestCompletedRoute();
   }
@@ -152,8 +181,15 @@ export class LocationTrackingService {
     return routeTrackingRepository.getTotalDistanceForDate(date);
   }
 
-  public removeRouteSession(sessionId: string): Promise<boolean> {
-    return routeTrackingRepository.removeRouteSession(sessionId);
+  public async removeRouteSession(sessionId: string): Promise<boolean> {
+    const session = this.requireSession();
+    const localRoute = await routeTrackingRepository.getRouteSessionById(sessionId, session);
+    this.assertCurrentSession(session);
+    if (!localRoute) return false;
+
+    await firestoreRouteFinancialLedgerDataSource.markDeleted(sessionId, session);
+    this.assertCurrentSession(session);
+    return routeTrackingRepository.removeRouteSession(sessionId, session);
   }
 
   public getLegacyRouteHistoryStatus(): Promise<LegacyRouteHistoryStatus> {
@@ -273,7 +309,38 @@ export class LocationTrackingService {
       );
     }
 
-    return routeTrackingRepository.finishRoute(routeId, Date.now(), session);
+    const finishedRoute = await routeTrackingRepository.finishRoute(routeId, Date.now(), session);
+    if (!finishedRoute || !routeTrackingRepository.isSessionCurrent(session)) return finishedRoute;
+
+    let completedSummary: RouteFinancialSummary | null = null;
+    try {
+      const localSession = await routeTrackingRepository.getRouteSessionById(routeId, session);
+      if (!localSession || !routeTrackingRepository.isSessionCurrent(session)) return finishedRoute;
+      completedSummary = {
+        date: localSession.date,
+        distanceMeters: localSession.distanceMeters,
+        id: localSession.id,
+      };
+      const syncResult = await firestoreRouteFinancialLedgerDataSource.upsertIfAbsent(
+        completedSummary,
+        session,
+      );
+      if (syncResult === 'conflict' && __DEV__) {
+        console.warn('[RouteTracking] Ledger financeiro contém rota divergente.', routeId);
+      }
+    } catch (error) {
+      if (completedSummary && routeTrackingRepository.isSessionCurrent(session)) {
+        await firestoreRouteFinancialLedgerDataSource.queuePendingSummary(
+          completedSummary,
+          session,
+        );
+      }
+      if (__DEV__) {
+        console.warn('[RouteTracking] Falha ao sincronizar resumo financeiro da rota.', error);
+      }
+    }
+
+    return finishedRoute;
   }
 
   private requireSession(): RouteTrackingSessionContext {

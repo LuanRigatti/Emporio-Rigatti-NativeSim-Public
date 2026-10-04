@@ -91,6 +91,24 @@ describe('FinancialDailyDetailService', () => {
     expect(detail?.routeCount).toBe(1);
   });
 
+  it('deduplicates repeated GPS sessions by routeId for distance and routeCount', () => {
+    const [detail] = service.buildMonth(
+      {
+        dailyExpenses: {},
+        deliveries: [delivery('one', '2026-08-05', 100)],
+        monthlyExpenses: {},
+        routeSessions: [
+          route('same-route', '2026-08-05', 2_500),
+          route('same-route', '2026-08-05', 9_000),
+        ],
+      },
+      '2026-08',
+    );
+
+    expect(detail?.automaticKilometers).toBe(2.5);
+    expect(detail?.routeCount).toBe(1);
+  });
+
   it('does not mix dates or months when building a monthly series', () => {
     const details = service.buildMonth(
       {

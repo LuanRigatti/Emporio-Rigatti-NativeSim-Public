@@ -1,6 +1,7 @@
 import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
 
 import { assertFirestoreUid } from '@/services/database/firestorePaths';
+import { parseRouteFinancialLedgerRecord } from '@/services/routes/RouteFinancialLedger';
 
 import {
   firestoreBackupFileService,
@@ -8,7 +9,7 @@ import {
 } from './FirestoreBackupFileService';
 
 const BACKUP_VERSION = 1 as const;
-const SCHEMA_VERSION = 1 as const;
+const SCHEMA_VERSION = 2 as const;
 
 type FirestoreData = Readonly<Record<string, unknown>>;
 
@@ -33,6 +34,7 @@ export type FirestoreBackupSnapshot = {
   factoryReceipts: readonly FirestoreBackupReceipt[];
   dailyData: readonly FirestoreBackupDocument[];
   monthlyData: readonly FirestoreBackupDocument[];
+  routeFinancialLedger?: readonly FirestoreBackupDocument[];
   settings: FirestoreBackupSettings;
 };
 
@@ -43,6 +45,7 @@ export type FirestoreBackupCounts = {
   factoryPayments: number;
   dailyData: number;
   monthlyData: number;
+  routeFinancialLedger: number;
   settings: {
     factory: number;
     car: number;
@@ -52,7 +55,7 @@ export type FirestoreBackupCounts = {
 
 export type FirestoreBackupPayload = {
   backupVersion: typeof BACKUP_VERSION;
-  schemaVersion: typeof SCHEMA_VERSION;
+  schemaVersion: 1 | typeof SCHEMA_VERSION;
   exportedAt: string;
   uid: string;
   appData: {
@@ -67,6 +70,7 @@ export type FirestoreBackupPayload = {
     >;
     dailyData: Record<string, FirestoreData>;
     monthlyData: Record<string, FirestoreData>;
+    routeFinancialLedger?: Record<string, FirestoreData>;
     settings: FirestoreBackupSettings;
   };
   metadata: {
@@ -184,6 +188,7 @@ export function countFirestoreBackupSnapshot(
     ),
     dailyData: snapshot.dailyData.length,
     monthlyData: snapshot.monthlyData.length,
+    routeFinancialLedger: snapshot.routeFinancialLedger?.length ?? 0,
     settings: {
       factory: snapshot.settings.factory ? 1 : 0,
       car: snapshot.settings.car ? 1 : 0,
@@ -205,6 +210,7 @@ export function buildFirestoreBackupPayload(
       deliveries: documentsToMap(snapshot.deliveries),
       factoryReceipts: receiptsToMap(snapshot.factoryReceipts),
       monthlyData: documentsToMap(snapshot.monthlyData),
+      routeFinancialLedger: documentsToMap(snapshot.routeFinancialLedger ?? []),
       settings: snapshot.settings,
     },
     backupVersion: BACKUP_VERSION,
@@ -231,6 +237,7 @@ function countsFromPayload(payload: FirestoreBackupPayload): FirestoreBackupCoun
     ),
     dailyData: Object.keys(payload.appData.dailyData).length,
     monthlyData: Object.keys(payload.appData.monthlyData).length,
+    routeFinancialLedger: Object.keys(payload.appData.routeFinancialLedger ?? {}).length,
     settings: {
       factory: payload.appData.settings.factory ? 1 : 0,
       car: payload.appData.settings.car ? 1 : 0,
@@ -253,17 +260,27 @@ export async function readFirestoreBackupSnapshot(uid: string): Promise<Firestor
   const { getFirebaseFirestore } = await import('@/services/firebase/firestore');
   const firestore = getFirebaseFirestore();
   const userRoot = doc(firestore, 'users', uid);
-  const [clients, deliveries, factoryReceipts, dailyData, monthlyData, factory, car, company] =
-    await Promise.all([
-      getDocs(collection(userRoot, 'clients')),
-      getDocs(collection(userRoot, 'deliveries')),
-      getDocs(collection(userRoot, 'factoryReceipts')),
-      getDocs(collection(userRoot, 'dailyData')),
-      getDocs(collection(userRoot, 'monthlyData')),
-      getDoc(doc(userRoot, 'settings', 'factory')),
-      getDoc(doc(userRoot, 'settings', 'car')),
-      getDoc(doc(userRoot, 'settings', 'company')),
-    ]);
+  const [
+    clients,
+    deliveries,
+    factoryReceipts,
+    dailyData,
+    monthlyData,
+    routeFinancialLedger,
+    factory,
+    car,
+    company,
+  ] = await Promise.all([
+    getDocs(collection(userRoot, 'clients')),
+    getDocs(collection(userRoot, 'deliveries')),
+    getDocs(collection(userRoot, 'factoryReceipts')),
+    getDocs(collection(userRoot, 'dailyData')),
+    getDocs(collection(userRoot, 'monthlyData')),
+    getDocs(collection(userRoot, 'routeFinancialLedger')),
+    getDoc(doc(userRoot, 'settings', 'factory')),
+    getDoc(doc(userRoot, 'settings', 'car')),
+    getDoc(doc(userRoot, 'settings', 'company')),
+  ]);
 
   const mappedFactoryReceipts = await Promise.all(
     factoryReceipts.docs.map(async (receipt) => {
@@ -287,12 +304,26 @@ export async function readFirestoreBackupSnapshot(uid: string): Promise<Firestor
       id: document.id,
     }));
 
+  const mappedRouteFinancialLedger = routeFinancialLedger.docs.map((document) => {
+    const parsed = parseRouteFinancialLedgerRecord(document.data(), document.id);
+    if (!parsed) {
+      throw new Error(
+        `Registro financeiro de rota inválido em users/${uid}/routeFinancialLedger/${document.id}.`,
+      );
+    }
+    return {
+      data: serializeFirestoreDocument(parsed),
+      id: document.id,
+    };
+  });
+
   return {
     clients: mapDocuments(clients),
     dailyData: mapDocuments(dailyData),
     deliveries: mapDocuments(deliveries),
     factoryReceipts: mappedFactoryReceipts,
     monthlyData: mapDocuments(monthlyData),
+    routeFinancialLedger: mappedRouteFinancialLedger,
     settings: {
       car: car.exists() ? serializeFirestoreDocument(car.data() ?? {}) : null,
       company: company.exists() ? serializeFirestoreDocument(company.data() ?? {}) : null,

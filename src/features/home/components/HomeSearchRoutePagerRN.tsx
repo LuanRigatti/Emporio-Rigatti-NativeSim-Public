@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { getCardSurfaceColor, spacing, useAppTheme } from '@/theme';
+import { getInsetSurfaceColor, spacing, useAppTheme } from '@/theme';
 import { NativeTrackedRoutesMap } from '@/components/routes';
 import { locationTrackingService } from '@/services/routes';
 import type { RouteTrackingSession } from '@/types/routeTracking';
@@ -115,7 +115,7 @@ function RoutePreviewMapRN({
     <View
       pointerEvents={isLarge ? 'auto' : 'none'}
       style={{
-        backgroundColor: getCardSurfaceColor(resolvedMode, theme.colors.surface),
+        backgroundColor: getInsetSurfaceColor(resolvedMode, theme.colors.surface),
         borderRadius: theme.radius.xl + theme.spacing.xs,
         height: ROUTE_MAP_PREVIEW_HEIGHT,
         overflow: 'hidden',

@@ -151,6 +151,7 @@ function buildRestorePlan(
   const currentDeliveries = documentsToMap(current.deliveries);
   const currentDailyData = documentsToMap(current.dailyData);
   const currentMonthlyData = documentsToMap(current.monthlyData);
+  const currentRouteFinancialLedger = documentsToMap(current.routeFinancialLedger ?? []);
   const currentPayments = paymentsToMap(current);
   const currentReceipts = Object.fromEntries(
     current.factoryReceipts.map((receipt) => [receipt.id, receipt.data]),
@@ -197,6 +198,18 @@ function buildRestorePlan(
       ['users', uid, 'monthlyData', id],
       data,
       currentMonthlyData,
+      counters,
+    ),
+  );
+
+  Object.entries(payload.appData.routeFinancialLedger ?? {}).forEach(([id, data]) =>
+    addDocumentOperation(
+      operations,
+      'routeFinancialLedger',
+      id,
+      ['users', uid, 'routeFinancialLedger', id],
+      data,
+      currentRouteFinancialLedger,
       counters,
     ),
   );

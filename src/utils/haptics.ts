@@ -27,6 +27,7 @@ export function triggerNativeButtonHaptic(style: NativeButtonHaptic = 'none'): v
     light: Haptics.ImpactFeedbackStyle.Light,
     medium: Haptics.ImpactFeedbackStyle.Medium,
     heavy: Haptics.ImpactFeedbackStyle.Heavy,
+    soft: Haptics.ImpactFeedbackStyle.Soft,
   }[style];
 
   void Haptics.impactAsync(impactStyle).catch(() => undefined);

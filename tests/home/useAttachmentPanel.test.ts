@@ -99,7 +99,7 @@ describe('useAttachmentPanel opening lead', () => {
     expect(currentPanel().opening).toBe(true);
     expect(currentPanel().plusOut.set).toHaveBeenCalledWith({ type: 'spring', toValue: 1 });
     expect(currentPanel().open.set).not.toHaveBeenCalled();
-    expect(Haptics.impactAsync).toHaveBeenCalledTimes(1);
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
 
     act(() => jest.advanceTimersByTime(DURATION.plusLead - 1));
     expect(currentPanel().mode).toBe('closed');
@@ -117,6 +117,7 @@ describe('useAttachmentPanel opening lead', () => {
     expect(currentPanel().mode).toBe('menu');
     expect(currentPanel().opening).toBe(false);
     expect(currentPanel().open.set).toHaveBeenLastCalledWith({ type: 'spring', toValue: 1 });
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
   });
 
   it('keeps Photos available through the existing traditional attachment menu', () => {

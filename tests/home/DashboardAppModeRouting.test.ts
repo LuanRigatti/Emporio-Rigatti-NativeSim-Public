@@ -42,6 +42,16 @@ jest.mock('@/components/premium', () => ({
     const React = require('react') as typeof import('react');
     return React.createElement('premium-screen', null, children);
   },
+  ProgressiveCollapsibleScreen: ({
+    children,
+    largeTitle,
+  }: {
+    children?: ReactNode;
+    largeTitle?: ReactNode;
+  }) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('premium-screen', null, largeTitle, children);
+  },
 }));
 jest.mock('@/features/home/components/RetailHome', () => ({
   RetailHome: () => {

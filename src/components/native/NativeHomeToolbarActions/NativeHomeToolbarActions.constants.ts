@@ -1,4 +1,5 @@
 export const HOME_TOOLBAR_CONTROL_SIZE = 44;
+export const HOME_TOOLBAR_SEARCH_WIDTH = 94;
 export const HOME_TOOLBAR_AVATAR_SIZE = 34;
 export const HOME_TOOLBAR_HORIZONTAL_PADDING = 2;
 export const HOME_TOOLBAR_GAP = 4;

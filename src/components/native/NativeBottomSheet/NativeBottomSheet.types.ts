@@ -26,6 +26,7 @@ export type NativeBottomSheetProps = {
   glassSurface?: boolean;
   glassTint?: string;
   presentationBackgroundInteraction?: NativeSheetBackgroundInteraction;
+  presentationBackgroundColor?: string;
   presentationBackgroundMode?: 'native' | 'system' | 'transparent';
   visible: boolean;
   bucketPrice?: number;

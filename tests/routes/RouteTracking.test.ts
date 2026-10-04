@@ -11,6 +11,10 @@ import {
   summarizeRouteKilometersByDate,
 } from '@/services/routes/routeTrackingDistance';
 import { LocationTrackingService } from '@/services/routes/LocationTrackingService';
+import {
+  firestoreRouteFinancialLedgerDataSource,
+  getRouteFinancialLedgerPendingKey,
+} from '@/services/routes/FirestoreRouteFinancialLedgerDataSource';
 import { handleRouteLocationTask } from '@/services/routes/LocationTrackingTask';
 import {
   getRouteTrackingHistoryStorageKey,
@@ -55,6 +59,20 @@ jest.mock('expo-location', () => ({
 jest.mock('expo-task-manager', () => ({
   isAvailableAsync: jest.fn().mockResolvedValue(true),
   isTaskDefined: jest.fn().mockReturnValue(true),
+}));
+
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(),
+  doc: jest.fn(),
+  getDocsFromServer: jest.fn(async () => ({ docs: [] })),
+  runTransaction: jest.fn(async () => {
+    throw new Error('offline');
+  }),
+  serverTimestamp: jest.fn(() => 'server-timestamp'),
+}));
+
+jest.mock('@/services/firebase/firestore', () => ({
+  getFirebaseFirestore: jest.fn(() => ({})),
 }));
 
 const hasStartedLocationUpdatesAsync = jest.mocked(Location.hasStartedLocationUpdatesAsync);
@@ -129,11 +147,16 @@ describe('route tracking distance', () => {
 });
 
 describe('route tracking stop lifecycle', () => {
+  let warnSpy: jest.SpyInstance;
+
   beforeEach(async () => {
     await AsyncStorage.clear();
     routeTrackingRepository.setSessionUser(TEST_UID, 1);
     jest.clearAllMocks();
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
+
+  afterEach(() => warnSpy.mockRestore());
 
   async function createActiveRoute() {
     await routeTrackingRepository.createActiveRoute('route-1');
@@ -150,6 +173,24 @@ describe('route tracking stop lifecycle', () => {
     expect(hasStartedLocationUpdatesAsync).toHaveBeenCalledTimes(2);
     expect(result?.active).toBe(false);
     expect(await routeTrackingRepository.getActiveRoute()).toBeNull();
+  });
+
+  it('keeps a locally finalized route when its Firestore ledger sync fails', async () => {
+    const service = await createActiveRoute();
+    const sync = jest
+      .spyOn(firestoreRouteFinancialLedgerDataSource, 'upsertIfAbsent')
+      .mockRejectedValueOnce(new Error('offline'));
+    hasStartedLocationUpdatesAsync.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    const result = await service.stopRouteTracking('route-1');
+
+    expect(result?.active).toBe(false);
+    await expect(routeTrackingRepository.getRouteHistory()).resolves.toHaveLength(1);
+    expect(sync).toHaveBeenCalledTimes(1);
+    await expect(
+      AsyncStorage.getItem(getRouteFinancialLedgerPendingKey(TEST_UID)),
+    ).resolves.toContain('route-1');
+    sync.mockRestore();
   });
 
   it('keeps the route active when native stop fails', async () => {

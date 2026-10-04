@@ -1,12 +1,14 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Pressable, Text, TextInput, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import HomeSearchAttachmentsComposer from '@/features/home/components/HomeSearchAttachmentsComposer';
+import { triggerNativeButtonHaptic } from '@/utils/haptics';
 import {
   ATTACHMENT_CONTROL_GLASS_TINT,
   BOTTOM_BAR,
 } from '@/features/home/components/chatgpt-attachments/constants';
-import { triggerNativeButtonHaptic } from '@/utils/haptics';
+import type { LibraryPhoto } from '@/features/home/components/chatgpt-attachments/photos/use-photo-library';
 import {
   formatLocalDateAttachment,
   formatLocalDateAttachmentCompact,
@@ -24,7 +26,6 @@ let mockSetAttachmentPanelState:
   | ((state: { closing: boolean; mode: string; opening?: boolean; sheet: string }) => void)
   | undefined;
 let mockPanelDismissCount = 0;
-
 jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }));
 jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },
@@ -48,7 +49,10 @@ jest.mock('react-native-reanimated', () => {
     },
   };
 });
-jest.mock('@/utils/haptics', () => ({ triggerNativeButtonHaptic: jest.fn() }));
+jest.mock('@/utils/haptics', () => ({
+  triggerLightImpactHaptic: jest.fn(),
+  triggerNativeButtonHaptic: jest.fn(),
+}));
 jest.mock('@/features/home/components/chatgpt-attachments/glass', () => ({
   Glass: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
     mockReact.createElement('GlassMock', props, children),
@@ -88,31 +92,21 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/attachment-fl
 jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', () => ({
   Composer: ({
     dateAttachment,
-    modelIntensityDisabled,
-    modelIntensityExpanded,
-    modelIntensityLabel,
-    modelIntensityOriginHidden,
     onPlusTap,
-    onToggleModelIntensity,
-    onHoldMenuVisibilityChange,
     holdMenuEnabled,
     holdMenuPendingIds,
     recentPhotos,
+    onHoldPhotoSelect,
     onRemoveDateAttachment,
     onSubmit,
     value,
   }: {
     dateAttachment?: string;
-    modelIntensityDisabled: boolean;
-    modelIntensityExpanded: boolean;
-    modelIntensityLabel: string;
-    modelIntensityOriginHidden: boolean;
     onPlusTap: () => void;
-    onToggleModelIntensity: (originViewTag: number) => void;
-    onHoldMenuVisibilityChange: (visible: boolean) => void;
     holdMenuEnabled: boolean;
     holdMenuPendingIds: string[];
     recentPhotos: unknown[];
+    onHoldPhotoSelect: (photo: LibraryPhoto) => void;
     onRemoveDateAttachment: () => void;
     onSubmit: (value: string) => boolean;
     value: string;
@@ -121,16 +115,11 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
       'ComposerMock',
       {
         dateAttachment,
-        modelIntensityDisabled,
-        modelIntensityExpanded,
-        modelIntensityLabel,
-        modelIntensityOriginHidden,
         onPlusTap,
-        onToggleModelIntensity,
-        onHoldMenuVisibilityChange,
         holdMenuEnabled,
         holdMenuPendingIds,
         recentPhotos,
+        onHoldPhotoSelect,
         onRemoveDateAttachment,
         onSubmit,
         value,
@@ -143,26 +132,10 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
           value,
         }),
         mockReact.createElement(mockPressable, {
-          accessibilityLabel: 'Intensidade do modelo',
-          disabled: modelIntensityDisabled,
-          key: 'model-intensity',
-          onPress: () => onToggleModelIntensity(2468),
-          testID: 'composer-model-intensity-button',
+          key: 'send-action',
+          onPress: () => onSubmit(value),
+          testID: 'composer-send-button',
         }),
-        onHoldMenuVisibilityChange
-          ? mockReact.createElement(mockPressable, {
-              key: 'hold-menu-visible',
-              onPress: () => onHoldMenuVisibilityChange(true),
-              testID: 'mock-show-photo-hold-menu',
-            })
-          : null,
-        modelIntensityExpanded
-          ? mockReact.createElement(
-              mockView,
-              { key: 'model-intensity-expanded', testID: 'model-intensity-expanded' } as never,
-              modelIntensityLabel,
-            )
-          : null,
         dateAttachment
           ? mockReact.createElement(
               mockView,
@@ -185,71 +158,6 @@ jest.mock('@/features/home/components/chatgpt-attachments/composer/composer', ()
       ],
     ),
 }));
-jest.mock(
-  '@/features/home/components/chatgpt-attachments/composer/model-intensity-overlay',
-  () => ({
-    ModelIntensityOverlay: ({
-      active,
-      blocked,
-      mounted,
-      originViewTag,
-      selectedStep,
-      onDismissRequest,
-      onGeometryReady,
-      onInteractionCommitted,
-      onSelectedStepChange,
-      onTransitionComplete,
-    }: {
-      active: boolean;
-      blocked: boolean;
-      mounted: boolean;
-      originViewTag: number | null;
-      selectedStep: string;
-      onDismissRequest: () => void;
-      onGeometryReady: (event: { nativeEvent: { ready: boolean } }) => void;
-      onInteractionCommitted: (step: string) => void;
-      onSelectedStepChange: (step: string) => void;
-      onTransitionComplete: (expanded: boolean) => void;
-    }) =>
-      mounted && !blocked
-        ? mockReact.createElement(
-            mockView,
-            {
-              active,
-              mounted,
-              originViewTag,
-              selectedStep,
-              testID: 'model-intensity-overlay',
-            } as never,
-            mockReact.createElement(mockText, { testID: 'model-intensity-step' }, selectedStep),
-            mockReact.createElement(mockPressable, {
-              onPress: () => onSelectedStepChange('high'),
-              testID: 'mock-select-high-intensity',
-            }),
-            mockReact.createElement(mockPressable, {
-              onPress: () => onInteractionCommitted(selectedStep),
-              testID: 'mock-intensity-interaction-commit',
-            }),
-            mockReact.createElement(mockPressable, {
-              onPress: onDismissRequest,
-              testID: 'model-intensity-dismiss-target',
-            }),
-            mockReact.createElement(mockPressable, {
-              onPress: () => onGeometryReady({ nativeEvent: { ready: true } }),
-              testID: 'mock-intensity-geometry-ready',
-            }),
-            mockReact.createElement(mockPressable, {
-              onPress: onDismissRequest,
-              testID: 'mock-native-intensity-dismiss',
-            }),
-            mockReact.createElement(mockPressable, {
-              onPress: () => onTransitionComplete(false),
-              testID: 'mock-intensity-close-complete',
-            }),
-          )
-        : null,
-  }),
-);
 jest.mock('@/features/home/components/chatgpt-attachments/panel/attachment-menu', () => ({
   AttachmentMenu: ({ onSelect }: { onSelect: (action: string) => void }) =>
     mockReact.createElement(
@@ -436,6 +344,7 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
     onSubmit.mockClear();
     jest.mocked(triggerNativeButtonHaptic).mockClear();
     mockPanelDismissCount = 0;
+    mockSetAttachmentPanelState = undefined;
   });
 
   afterEach(() => {
@@ -501,6 +410,21 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it('does not add a haptic when the hold-menu photo is selected on release', () => {
+    mountComposer();
+    jest.mocked(Haptics.impactAsync).mockClear();
+    const photo: LibraryPhoto = { id: 'hold-photo-1', kind: 'photo' };
+    const composer = renderer.root.findByProps({ testID: 'composer' });
+
+    act(() => composer.props.onHoldPhotoSelect(photo));
+
+    expect(Haptics.impactAsync).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ testID: 'composer' }).props.holdMenuPendingIds).toContain(
+      photo.id,
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['active date mode', { closing: false, mode: 'date', sheet: 'date' }, true],
     ['closing date mode', { closing: true, mode: 'date', sheet: 'date' }, false],
@@ -548,113 +472,13 @@ describe('HomeSearchAttachmentsComposer temporal attachment', () => {
     expect(renderer.root.findByProps({ testID: 'composer' }).props.holdMenuEnabled).toBe(false);
   });
 
-  it('keeps intensity local to the composer, preserves the input, and never submits Search', () => {
+  it('keeps Search submit available', () => {
     mountComposer();
-    const composer = renderer.root.findByProps({ testID: 'composer' });
-    const searchInput = renderer.root.findByProps({ testID: 'search-text-input' });
+    act(() => renderer.root.findByProps({ testID: 'composer-send-button' }).props.onPress());
 
-    expect(composer.props.modelIntensityLabel).toBe('5.6 Medium');
-    act(() =>
-      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
-    );
-
-    expect(
-      renderer.root.findByProps({ testID: 'model-intensity-overlay' }).props.originViewTag,
-    ).toBe(2468);
-    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityOriginHidden).toBe(
-      false,
-    );
-    act(() =>
-      renderer.root.findByProps({ testID: 'mock-intensity-geometry-ready' }).props.onPress(),
-    );
-    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityOriginHidden).toBe(
-      true,
-    );
-    expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    act(() => renderer.root.findByProps({ testID: 'mock-select-high-intensity' }).props.onPress());
-    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityLabel).toBe(
-      '5.6 High',
-    );
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    act(() =>
-      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
-    );
-    expect(renderer.root.findByProps({ testID: 'model-intensity-overlay' }).props.active).toBe(
-      false,
-    );
-    act(() =>
-      renderer.root.findByProps({ testID: 'mock-intensity-close-complete' }).props.onPress(),
-    );
-    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
-
-    act(() =>
-      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
-    );
-    act(() => renderer.root.findByProps({ testID: 'composer' }).props.onPlusTap());
-    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
-    expect(renderer.root.findByProps({ accessibilityLabel: 'Câmera' })).toBeTruthy();
-    expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
-
-    act(() =>
-      renderer.root.findByProps({ testID: 'composer' }).props.onHoldMenuVisibilityChange(true),
-    );
-    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenLastCalledWith('Quanto eu faturei?', undefined);
   });
-
-  it('closes after the native scrub commit and unmounts only after collapse completion', () => {
-    mountComposer();
-    const searchInput = renderer.root.findByProps({ testID: 'search-text-input' });
-    act(() =>
-      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
-    );
-    act(() => renderer.root.findByProps({ testID: 'mock-select-high-intensity' }).props.onPress());
-    act(() =>
-      renderer.root.findByProps({ testID: 'mock-intensity-interaction-commit' }).props.onPress(),
-    );
-
-    const closingOverlay = renderer.root.findByProps({ testID: 'model-intensity-overlay' });
-    expect(closingOverlay.props.active).toBe(false);
-    expect(closingOverlay.props.mounted).toBe(true);
-    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityLabel).toBe(
-      '5.6 High',
-    );
-    expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    act(() =>
-      renderer.root.findByProps({ testID: 'mock-intensity-close-complete' }).props.onPress(),
-    );
-    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
-  });
-
-  it('closes on an outside dismissal request without committing or submitting and waits for collapse', () => {
-    mountComposer();
-    const searchInput = renderer.root.findByProps({ testID: 'search-text-input' });
-    act(() =>
-      renderer.root.findByProps({ testID: 'composer-model-intensity-button' }).props.onPress(),
-    );
-    act(() =>
-      renderer.root.findByProps({ testID: 'model-intensity-dismiss-target' }).props.onPress(),
-    );
-
-    const closingOverlay = renderer.root.findByProps({ testID: 'model-intensity-overlay' });
-    expect(closingOverlay.props.active).toBe(false);
-    expect(closingOverlay.props.mounted).toBe(true);
-    expect(renderer.root.findByProps({ testID: 'composer' }).props.modelIntensityLabel).toBe(
-      '5.6 Medium',
-    );
-    expect(renderer.root.findByProps({ testID: 'search-text-input' })).toBe(searchInput);
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    act(() =>
-      renderer.root.findByProps({ testID: 'mock-intensity-close-complete' }).props.onPress(),
-    );
-    expect(renderer.root.findAllByProps({ testID: 'model-intensity-overlay' })).toHaveLength(0);
-  });
-
   it('removes the date chip and includes the date in a submitted search before resetting it', () => {
     mountComposer();
     openCalendar();

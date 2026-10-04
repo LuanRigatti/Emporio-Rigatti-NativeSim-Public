@@ -2,9 +2,11 @@ import type { ReactNode } from 'react';
 import type { StyleProp, TextStyle, ViewProps, ViewStyle } from 'react-native';
 
 export type NativeGlassHeaderMode = 'transparent' | 'translucent' | 'floating';
+export type NativeGlassHeaderCollapsibleTitleRole = 'large' | 'compact';
 
 export type NativeGlassHeaderProps = {
   title: ReactNode;
+  collapsibleTitleRole?: NativeGlassHeaderCollapsibleTitleRole;
   subtitle?: string;
   largeTitle?: boolean;
   leftActions?: ReactNode;

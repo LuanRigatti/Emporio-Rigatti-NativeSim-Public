@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Keyboard, StyleSheet, Text, View, type ViewStyle } from 'react-native';
@@ -9,7 +10,7 @@ import {
   NativeTextField,
 } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
-import { GlassCard, PremiumScreen } from '@/components/premium';
+import { GlassCard, PremiumScreen, ProgressiveCollapsibleScreen } from '@/components/premium';
 import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { useFactorySettings } from '@/hooks/useFactorySettings';
 import {
@@ -20,7 +21,6 @@ import { getCardSurfaceColor, getLiquidGlassTint, useAppTheme } from '@/theme';
 import { formatPtBrDate, normalizeMoney, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
-import { PurchaseDetailsSheet } from './PurchaseDetailsSheet';
 import type { Purchase } from '../types';
 
 function parseQuantity(value: string): number {
@@ -41,6 +41,7 @@ export function FactoryPurchasesScreen({
   selectedMonth: number;
   selectedYear: number;
 }) {
+  const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
   const {
     currency: maskCurrency,
@@ -48,15 +49,12 @@ export function FactoryPurchasesScreen({
     enabled: testModeEnabled,
   } = useTestModePresentation();
   const { settings: factorySettings } = useFactorySettings();
-  const { addPayment, createPurchase, dataUnavailable, deletePurchase, purchaseById, purchases } =
-    useFactoryPurchases({
-      month: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
-      period: 'month',
-    });
+  const { createPurchase, dataUnavailable, deletePurchase, purchases } = useFactoryPurchases({
+    month: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`,
+    period: 'month',
+  });
   const [quantity, setQuantity] = useState('');
   const [purchaseDate, setPurchaseDate] = useState(new Date());
-  const [selectedPurchaseId, setSelectedPurchaseId] = useState<string | null>(null);
-  const [purchaseSheetVisible, setPurchaseSheetVisible] = useState(false);
   const [purchaseToDeleteId, setPurchaseToDeleteId] = useState<string | null>(null);
   const [blurQuantityField, setBlurQuantityField] = useState<(() => void) | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -72,9 +70,6 @@ export function FactoryPurchasesScreen({
     () => factoryPurchaseCalculationService.summarize(visiblePurchases),
     [visiblePurchases],
   );
-  const selectedPurchase = selectedPurchaseId
-    ? (purchaseById.get(selectedPurchaseId) ?? null)
-    : null;
   const handleQuantityBlurReady = useCallback((blur: () => void) => {
     setBlurQuantityField(() => blur);
   }, []);
@@ -110,164 +105,175 @@ export function FactoryPurchasesScreen({
     }
   };
 
+  const originalContentTopOffset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
+  const pageTitleBlock = (
+    <>
+      {pageTitle ? (
+        <View
+          style={[
+            styles.pageTitleBlock,
+            {
+              marginBottom: theme.spacing.xs,
+              marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
+            },
+          ]}
+        >
+          {pageTitle}
+        </View>
+      ) : null}
+    </>
+  );
+  const factoryContent = (
+    <>
+      {mode !== 'purchases' ? (
+        <GlassCard style={[styles.formCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+          <View style={styles.formHeadingRow}>
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              Registrar compra
+            </Text>
+            <NativeDatePicker
+              accessibilityLabel="Data da compra"
+              mode="date"
+              onChange={setPurchaseDate}
+              style="compact"
+              value={purchaseDate}
+            />
+          </View>
+          <View style={styles.formTopRow}>
+            <View style={styles.quantityField}>
+              <NativeTextField
+                accessibilityLabel="Quantidade de baldes"
+                keyboardType="number-pad"
+                onChangeText={setQuantity}
+                onBlurReady={handleQuantityBlurReady}
+                placeholder="Quantidade de baldes"
+                value={quantity}
+              />
+            </View>
+          </View>
+          {error ? (
+            <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
+          ) : null}
+          <View style={styles.totalRow}>
+            <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
+              Valor total estimado
+            </Text>
+            <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+              {maskCurrency(estimatedTotal)}
+            </Text>
+          </View>
+          <View style={styles.formAction}>
+            <NativeButton
+              accessibilityLabel="Registrar compra"
+              disabled={isRegistering || testModeEnabled}
+              glassTint={resolvedMode === 'dark' ? getLiquidGlassTint(resolvedMode) : undefined}
+              haptic="light"
+              label="Registrar"
+              onPress={() => void handleCreatePurchase()}
+              variant="primary"
+            />
+          </View>
+        </GlassCard>
+      ) : null}
+
+      {mode !== 'register' ? (
+        <>
+          <GlassCard
+            style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+          >
+            <SummaryMetric
+              label="Total pago"
+              value={dataUnavailable ? 'Indisponível' : maskCurrency(summary.totalPaid)}
+            />
+            <SummaryMetric
+              label="Valor em aberto"
+              value={dataUnavailable ? 'Indisponível' : maskCurrency(summary.openValue)}
+            />
+            <SummaryMetric
+              label="Total de baldes"
+              value={dataUnavailable ? 'Indisponível' : maskNumber(summary.totalBuckets)}
+            />
+          </GlassCard>
+
+          <View style={styles.purchasesTitle}>
+            <Text
+              style={[
+                theme.typography.footnote,
+                styles.purchasesTitleText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Compras efetuadas
+            </Text>
+          </View>
+          {dataUnavailable ? (
+            <Text
+              style={[
+                theme.typography.body,
+                styles.emptyStateText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Dados indisponíveis sem conexão.
+            </Text>
+          ) : visiblePurchases.length > 0 ? (
+            <View style={styles.purchaseList}>
+              {visiblePurchases.map((purchase) => (
+                <PurchaseRow
+                  key={purchase.id}
+                  onDelete={() => setPurchaseToDeleteId(purchase.id)}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/fabrica-compras/[purchaseId]',
+                      params: { purchaseId: purchase.id },
+                    });
+                  }}
+                  purchase={purchase}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text
+              style={[
+                theme.typography.body,
+                styles.emptyStateText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Nenhuma compra registrada.
+            </Text>
+          )}
+        </>
+      ) : null}
+    </>
+  );
   return (
     <>
-      <PremiumScreen
-        contentContainerStyle={styles.content}
-        overlayHeader={header}
-        overlayHeaderContentOffset={pageTitle ? theme.sizes.touchTargetMinimum : undefined}
-        overlayHeaderSpacing={pageTitle ? 0 : theme.spacing.md}
-        progressiveBlur
-        scrollViewProps={{ scrollEventThrottle: 16 }}
-      >
-        {pageTitle ? (
-          <View
-            style={[
-              styles.pageTitleBlock,
-              {
-                marginBottom: theme.spacing.xs,
-                marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-              },
-            ]}
-          >
-            {pageTitle}
-          </View>
-        ) : null}
-        {mode !== 'purchases' ? (
-          <GlassCard
-            style={[styles.formCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-          >
-            <View style={styles.formHeadingRow}>
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                Registrar compra
-              </Text>
-              <NativeDatePicker
-                accessibilityLabel="Data da compra"
-                mode="date"
-                onChange={setPurchaseDate}
-                style="compact"
-                value={purchaseDate}
-              />
-            </View>
-            <View style={styles.formTopRow}>
-              <View style={styles.quantityField}>
-                <NativeTextField
-                  accessibilityLabel="Quantidade de baldes"
-                  keyboardType="number-pad"
-                  onChangeText={setQuantity}
-                  onBlurReady={handleQuantityBlurReady}
-                  placeholder="Quantidade de baldes"
-                  value={quantity}
-                />
-              </View>
-            </View>
-            {error ? (
-              <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
-                {error}
-              </Text>
-            ) : null}
-            <View style={styles.totalRow}>
-              <Text style={[theme.typography.body, { color: theme.colors.textSecondary }]}>
-                Valor total estimado
-              </Text>
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {maskCurrency(estimatedTotal)}
-              </Text>
-            </View>
-            <View style={styles.formAction}>
-              <NativeButton
-                accessibilityLabel="Registrar compra"
-                disabled={isRegistering || testModeEnabled}
-                glassTint={resolvedMode === 'dark' ? getLiquidGlassTint(resolvedMode) : undefined}
-                haptic="light"
-                label="Registrar"
-                onPress={() => void handleCreatePurchase()}
-                variant="primary"
-              />
-            </View>
-          </GlassCard>
-        ) : null}
+      {pageTitle ? (
+        <ProgressiveCollapsibleScreen
+          compactTitle="Fábrica"
+          contentGap={14}
+          contentTopInset={originalContentTopOffset}
+          largeTitle={pageTitle}
+          largeTitleContainerStyle={{ marginBottom: theme.spacing.xs }}
+          nativeHeader
+          scrollContentContainerStyle={{ paddingBottom: 32 }}
+        >
+          {factoryContent}
+        </ProgressiveCollapsibleScreen>
+      ) : (
+        <PremiumScreen
+          contentContainerStyle={styles.content}
+          overlayHeader={header}
+          overlayHeaderSpacing={theme.spacing.md}
+          progressiveBlur
+          scrollViewProps={{ scrollEventThrottle: 16 }}
+        >
+          {pageTitleBlock}
+          {factoryContent}
+        </PremiumScreen>
+      )}
 
-        {mode !== 'register' ? (
-          <>
-            <GlassCard
-              style={[styles.summaryCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-            >
-              <SummaryMetric
-                label="Total pago"
-                value={dataUnavailable ? 'Indisponível' : maskCurrency(summary.totalPaid)}
-              />
-              <SummaryMetric
-                label="Valor em aberto"
-                value={dataUnavailable ? 'Indisponível' : maskCurrency(summary.openValue)}
-              />
-              <SummaryMetric
-                label="Total de baldes"
-                value={dataUnavailable ? 'Indisponível' : maskNumber(summary.totalBuckets)}
-              />
-            </GlassCard>
-
-            <View style={styles.purchasesTitle}>
-              <Text
-                style={[
-                  theme.typography.footnote,
-                  styles.purchasesTitleText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Compras efetuadas
-              </Text>
-            </View>
-            {dataUnavailable ? (
-              <Text
-                style={[
-                  theme.typography.body,
-                  styles.emptyStateText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Dados indisponíveis sem conexão.
-              </Text>
-            ) : visiblePurchases.length > 0 ? (
-              <View style={styles.purchaseList}>
-                {visiblePurchases.map((purchase) => (
-                  <PurchaseRow
-                    key={purchase.id}
-                    onDelete={() => setPurchaseToDeleteId(purchase.id)}
-                    onPress={() => {
-                      setSelectedPurchaseId(purchase.id);
-                      setPurchaseSheetVisible(true);
-                    }}
-                    purchase={purchase}
-                  />
-                ))}
-              </View>
-            ) : (
-              <Text
-                style={[
-                  theme.typography.body,
-                  styles.emptyStateText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Nenhuma compra registrada.
-              </Text>
-            )}
-          </>
-        ) : null}
-      </PremiumScreen>
-
-      <PurchaseDetailsSheet
-        onAddPayment={async (purchaseId, payment) => {
-          await addPayment(purchaseId, payment);
-        }}
-        onVisibleChange={(visible) => {
-          setPurchaseSheetVisible(visible);
-          if (!visible) setSelectedPurchaseId(null);
-        }}
-        purchase={selectedPurchase}
-        visible={purchaseSheetVisible}
-      />
       <ConfirmationDialog
         confirmLabel="Excluir"
         destructive
@@ -355,12 +361,12 @@ function PurchaseRow({
       <View style={[styles.purchaseActions, { marginTop: -theme.spacing.xs }]}>
         <NativeButton
           accessibilityLabel="Adicionar detalhes da compra"
+          backgroundColor={theme.colors.contrastSurface}
+          color={theme.colors.contrastContent}
           haptic="light"
           label="Adicionar"
           onPress={onPress}
-          variant="primary"
-          color={resolvedMode === 'light' ? '#000000' : undefined}
-          glassTint={getLiquidGlassTint(resolvedMode)}
+          variant="filled"
         />
       </View>
     </>

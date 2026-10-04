@@ -9,7 +9,7 @@ import {
   NativeSegmentedControl,
   renderNativeDateToolbarItems,
 } from '@/components/native';
-import { GlassCard, PremiumScreen } from '@/components/premium';
+import { GlassCard, ProgressiveCollapsibleScreen } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { todayIso } from '@/utils/data';
@@ -132,23 +132,6 @@ export function RetailOrderHistoryScreen() {
     [handleSelectDate, handleSelectWeek, selectedDate, viewMode, weekGroups],
   );
 
-  const filterHeader = (
-    <NativeGlassHeader
-      includeTopSafeArea
-      mode="transparent"
-      accessory={
-        <View
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-          style={{
-            height: theme.sizes.touchTargetMinimum + theme.spacing.sm,
-            marginTop: theme.spacing.xs,
-          }}
-        />
-      }
-      title=""
-    />
-  );
   const header = (
     <NativeGlassHeader
       includeTopSafeArea={false}
@@ -182,13 +165,8 @@ export function RetailOrderHistoryScreen() {
       deleteError={deleteError}
     />
   );
-  const dayContentChildren = (
-    <>
-      <View
-        style={[styles.header, { marginBottom: -theme.spacing.xs, marginTop: theme.spacing.xs }]}
-      >
-        {header}
-      </View>
+  const dayContent = (
+    <View style={[styles.contentContainer, { flexGrow: 1, paddingHorizontal: theme.spacing.md }]}>
       <View
         style={[
           styles.modeControl,
@@ -204,47 +182,31 @@ export function RetailOrderHistoryScreen() {
         />
       </View>
       {content}
-    </>
-  );
-  const dayContent = (
-    <View
-      style={{
-        flexGrow: 1,
-        paddingHorizontal: theme.spacing.md,
-        paddingTop:
-          insets.top +
-          theme.sizes.touchTargetMinimum * 2 +
-          theme.spacing.xs +
-          theme.spacing.sm -
-          theme.spacing.xxxl -
-          theme.spacing.xl * 2 -
-          theme.spacing.md -
-          theme.spacing.md -
-          theme.spacing.xxs +
-          theme.spacing.xs +
-          theme.spacing.xxs,
-      }}
-    >
-      {dayContentChildren}
     </View>
   );
 
   return (
     <View style={styles.root}>
       <Stack.Toolbar placement="right">{historyToolbarItems}</Stack.Toolbar>
-      <PremiumScreen
-        scrollable
-        contentContainerStyle={{ gap: theme.spacing.lg, paddingHorizontal: 0 }}
-        overlayHeader={filterHeader}
-        overlayHeaderUnderlay
-        progressiveBlur
-        progressiveBlurHeight={
-          insets.top + theme.sizes.touchTargetMinimum * 2 + theme.spacing.xs + theme.spacing.sm
-        }
-        progressiveBlurTopOffset={-theme.spacing.xl}
+      <ProgressiveCollapsibleScreen
+        compactTitle="Histórico"
+        contentGap={0}
+        contentTopInset={insets.top - theme.spacing.xxs}
+        largeTitle={header}
+        nativeTabRoot
+        largeTitleContainerStyle={{
+          marginBottom: -theme.spacing.xs,
+          marginTop: theme.spacing.xs,
+          paddingHorizontal: theme.spacing.md,
+          minHeight: 44,
+        }}
+        scrollContentContainerStyle={{
+          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg,
+          paddingHorizontal: 0,
+        }}
       >
-        <View style={styles.contentContainer}>{dayContent}</View>
-      </PremiumScreen>
+        {dayContent}
+      </ProgressiveCollapsibleScreen>
       <NativeDialog
         actions={[
           {
@@ -378,7 +340,6 @@ function RetailHistoryContent({
 
 const styles = StyleSheet.create({
   contentContainer: { position: 'relative' },
-  header: { minHeight: 44 },
   list: { width: '100%' },
   modeControl: { width: '100%' },
   periodSection: { width: '100%' },

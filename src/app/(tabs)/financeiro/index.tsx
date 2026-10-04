@@ -11,7 +11,7 @@ import {
   renderNativeDateToolbarItems,
 } from '@/components/native';
 import { FinancialSeriesChart } from '@/components/Charts';
-import { PremiumCard, PremiumScreen, SummaryCard } from '@/components/premium';
+import { PremiumCard, ProgressiveCollapsibleScreen, SummaryCard } from '@/components/premium';
 import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import {
@@ -23,17 +23,17 @@ import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
 import { useRetailCategories } from '@/hooks/useRetailCategories';
 import { useRetailFinance } from '@/hooks/useRetailFinance';
-import { useAppMode } from '@/providers';
+import { useAppMode, useAppSafeAreaInsets } from '@/providers';
 import { expenseQueryForWholesaleFinanceSelection } from '@/services/costs';
 import {
   financialCalculationService,
   formatWholesaleFinancePeriodLabel,
   wholesaleFinanceFiltersForSelection,
 } from '@/services/finance';
-import { routeTrackingRepository, summarizeRouteKilometersByDate } from '@/services/routes';
+import { locationTrackingService, summarizeRouteKilometersByDate } from '@/services/routes';
 import { retailFinanceViewForCategory, type RetailFinanceView } from '@/services/retail-finance';
 import type { WholesaleFinanceSelection } from '@/types/data';
-import type { RouteTrackingSession } from '@/types/routeTracking';
+import type { RouteFinancialSummary } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { todayIso } from '@/utils/data';
@@ -55,6 +55,7 @@ type WholesaleFinancePeriodKind = WholesaleFinanceSelection['kind'];
 function WholesaleFinanceScreen() {
   const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
   const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const isFocused = useIsFocused();
   const initialHistoryPeriod = getCurrentHistoryPeriod();
@@ -72,8 +73,8 @@ function WholesaleFinanceScreen() {
     faturamento: number | null;
     lucroLiquido: number | null;
   }>({ faturamento: null, lucroLiquido: null });
-  const initialRouteSessions = routeTrackingRepository.getMemoryRouteHistory();
-  const [routeSessions, setRouteSessions] = useState<RouteTrackingSession[]>(
+  const initialRouteSessions = locationTrackingService.getMemoryFinancialRouteSummaries();
+  const [routeSessions, setRouteSessions] = useState<RouteFinancialSummary[]>(
     () => initialRouteSessions ?? [],
   );
   const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
@@ -116,8 +117,8 @@ function WholesaleFinanceScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void routeTrackingRepository
-        .getRouteHistory()
+      void locationTrackingService
+        .getFinancialRouteSummaries()
         .then((sessions) => {
           if (active) {
             setRouteSessions(sessions);
@@ -125,8 +126,7 @@ function WholesaleFinanceScreen() {
           }
         })
         .catch(() => {
-          if (active) {
-            setRouteSessions([]);
+          if (active && locationTrackingService.getMemoryFinancialRouteSummaries() !== null) {
             setRoutesLoaded(true);
           }
         });
@@ -164,6 +164,7 @@ function WholesaleFinanceScreen() {
   const { fuelCostByDate, isReady: fuelCostsReady } = useFinancialFuelCosts(
     fuelExpenses,
     routeSessions,
+    { allowCachedInitialSettings: true },
   );
 
   const summaryFilters = useMemo(
@@ -272,6 +273,7 @@ function WholesaleFinanceScreen() {
     />
   );
   const canOpenMonthlyDetails = hasStableSnapshot && wholesaleSelection.kind === 'month';
+  const canOpenMonthlyNetProfitDetails = canOpenMonthlyDetails && routesLoaded && fuelCostsReady;
   const handleOpenFaturamento = () => {
     if (!canOpenMonthlyDetails) return;
     triggerLightImpactHaptic();
@@ -350,205 +352,215 @@ function WholesaleFinanceScreen() {
   ]);
 
   return (
-    <PremiumScreen
-      contentContainerStyle={[
-        styles.content,
-        {
-          marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2,
-        },
-      ]}
-      progressiveBlurHeight={
-        theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
-      }
-      progressiveBlurTopOffset={0}
-      progressiveBlur
-    >
+    <>
       <Stack.Toolbar placement="right">{financeToolbarItems}</Stack.Toolbar>
-      <View style={styles.header}>{header}</View>
-      <NativeRetailFinanceCategorySelector
-        accessibilityLabel="Período financeiro do Atacado"
-        fillAvailableWidth
-        items={WHOLESALE_FINANCE_PERIOD_ITEMS}
-        onChange={(nextKind) => {
-          if (WHOLESALE_FINANCE_PERIOD_ITEMS.some((item) => item.key === nextKind)) {
-            setPeriodKind(nextKind as WholesaleFinancePeriodKind);
-          }
+      <ProgressiveCollapsibleScreen
+        compactTitle="Finanças"
+        contentGap={24}
+        contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
+        largeTitle={<View style={styles.header}>{header}</View>}
+        nativeTabRoot
+        scrollContentContainerStyle={{
+          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg,
         }}
-        selectedKey={periodKind}
-        selectedVisualScale={1.06}
-      />
-      {summary ? (
-        <>
-          <PremiumCard
-            accessibilityLabel={canOpenMonthlyDetails ? 'Abrir detalhes do faturamento' : undefined}
-            onPress={canOpenMonthlyDetails ? handleOpenFaturamento : undefined}
-            preservePressableIdentity
-            style={[
-              styles.heroCard,
-              {
-                backgroundColor: financeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-              },
-            ]}
-          >
-            <View style={styles.heroHeader}>
-              <View style={styles.heroTitle}>
-                <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-                  FATURAMENTO
-                </Text>
-                {canOpenMonthlyDetails ? (
-                  <Ionicons
-                    color={theme.colors.textSecondary}
-                    name="chevron-forward-outline"
-                    size={theme.sizes.iconSmall}
-                  />
-                ) : null}
-              </View>
-              <FinancialTrendIndicator
-                comparison={comparison?.faturamento}
-                visible={comparison !== undefined}
-              />
-            </View>
-            <NativeAnimatedNumber
-              animationEnabled={faturamentoReady}
-              color={theme.colors.textPrimary}
-              text={
-                displayedFaturamentoValue !== null ? formatCurrency(displayedFaturamentoValue) : ''
-              }
-              value={displayedFaturamentoValue}
-            />
-          </PremiumCard>
-          <PremiumCard
-            accessibilityLabel={
-              canOpenMonthlyDetails ? 'Abrir detalhes do lucro líquido' : undefined
+      >
+        <NativeRetailFinanceCategorySelector
+          accessibilityLabel="Período financeiro do Atacado"
+          fillAvailableWidth
+          items={WHOLESALE_FINANCE_PERIOD_ITEMS}
+          onChange={(nextKind) => {
+            if (WHOLESALE_FINANCE_PERIOD_ITEMS.some((item) => item.key === nextKind)) {
+              setPeriodKind(nextKind as WholesaleFinancePeriodKind);
             }
-            onPress={canOpenMonthlyDetails ? handleOpenLucroLiquido : undefined}
-            preservePressableIdentity
-            style={[
-              styles.heroCard,
-              {
-                backgroundColor: financeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-              },
-            ]}
-          >
-            <View style={styles.heroHeader}>
-              <View style={styles.heroTitle}>
-                <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-                  LUCRO LÍQUIDO
-                </Text>
-                {canOpenMonthlyDetails ? (
-                  <Ionicons
-                    color={theme.colors.textSecondary}
-                    name="chevron-forward-outline"
-                    size={theme.sizes.iconSmall}
-                  />
-                ) : null}
-              </View>
-              <FinancialTrendIndicator
-                comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
-                visible={isNetProfitReady && comparison !== undefined}
-              />
-            </View>
-            <NativeAnimatedNumber
-              animationEnabled={lucroLiquidoReady}
-              color={theme.colors.textPrimary}
-              text={
-                displayedLucroLiquidoValue !== null
-                  ? formatCurrency(displayedLucroLiquidoValue)
-                  : ''
+          }}
+          selectionAnimationMode="slidingBubble"
+          selectedKey={periodKind}
+        />
+        {summary ? (
+          <>
+            <PremiumCard
+              accessibilityLabel={
+                canOpenMonthlyDetails ? 'Abrir detalhes do faturamento' : undefined
               }
-              value={displayedLucroLiquidoValue}
+              onPress={canOpenMonthlyDetails ? handleOpenFaturamento : undefined}
+              preservePressableIdentity
+              style={[
+                styles.heroCard,
+                {
+                  backgroundColor: financeCardSurface,
+                  borderRadius: theme.radius.xl + theme.spacing.md,
+                },
+              ]}
+            >
+              <View style={styles.heroHeader}>
+                <View style={styles.heroTitle}>
+                  <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                    FATURAMENTO
+                  </Text>
+                  {canOpenMonthlyDetails ? (
+                    <Ionicons
+                      color={theme.colors.textSecondary}
+                      name="chevron-forward-outline"
+                      size={theme.sizes.iconSmall}
+                    />
+                  ) : null}
+                </View>
+                <FinancialTrendIndicator
+                  comparison={comparison?.faturamento}
+                  visible={comparison !== undefined}
+                />
+              </View>
+              <NativeAnimatedNumber
+                animationEnabled={faturamentoReady}
+                color={theme.colors.textPrimary}
+                text={
+                  displayedFaturamentoValue !== null
+                    ? formatCurrency(displayedFaturamentoValue)
+                    : ''
+                }
+                value={displayedFaturamentoValue}
+              />
+            </PremiumCard>
+            <PremiumCard
+              accessibilityLabel={
+                canOpenMonthlyNetProfitDetails ? 'Abrir detalhes do lucro líquido' : undefined
+              }
+              onPress={canOpenMonthlyNetProfitDetails ? handleOpenLucroLiquido : undefined}
+              preservePressableIdentity
+              style={[
+                styles.heroCard,
+                {
+                  backgroundColor: financeCardSurface,
+                  borderRadius: theme.radius.xl + theme.spacing.md,
+                },
+              ]}
+            >
+              <View style={styles.heroHeader}>
+                <View style={styles.heroTitle}>
+                  <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                    LUCRO LÍQUIDO
+                  </Text>
+                  {canOpenMonthlyNetProfitDetails ? (
+                    <Ionicons
+                      color={theme.colors.textSecondary}
+                      name="chevron-forward-outline"
+                      size={theme.sizes.iconSmall}
+                    />
+                  ) : null}
+                </View>
+                <FinancialTrendIndicator
+                  comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
+                  visible={isNetProfitReady && comparison !== undefined}
+                />
+              </View>
+              <NativeAnimatedNumber
+                animationEnabled={lucroLiquidoReady}
+                color={theme.colors.textPrimary}
+                text={
+                  displayedLucroLiquidoValue !== null
+                    ? formatCurrency(displayedLucroLiquidoValue)
+                    : ''
+                }
+                value={displayedLucroLiquidoValue}
+              />
+            </PremiumCard>
+            <SummaryCard
+              rows={[
+                {
+                  label: 'Baldes vendidos',
+                  value: summary ? String(summary.quantidadeBaldes) : '',
+                },
+                { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
+                { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+                {
+                  label: 'A receber',
+                  value: summary ? formatCurrency(summary.valoresPendentes) : '',
+                },
+              ]}
+              style={{ backgroundColor: financeCardSurface }}
+              title="OPERAÇÃO"
             />
-          </PremiumCard>
-          <SummaryCard
-            rows={[
-              { label: 'Baldes vendidos', value: summary ? String(summary.quantidadeBaldes) : '' },
-              { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
-              { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
-              {
-                label: 'A receber',
-                value: summary ? formatCurrency(summary.valoresPendentes) : '',
-              },
-            ]}
-            style={{ backgroundColor: financeCardSurface }}
-            title="OPERAÇÃO"
-          />
-          <SummaryCard
-            rows={[
-              {
-                label: 'Custo dos baldes',
-                value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
-              },
-              {
-                label: 'Custo combustível',
-                value: isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
-              },
-              { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
-              { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
-              {
-                label: 'Custo médio de entrega',
-                value:
-                  isNetProfitReady && summary
-                    ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
-                    : '',
-              },
-            ]}
-            style={{ backgroundColor: financeCardSurface }}
-            title="CUSTOS"
-          />
-          <SummaryCard
-            rows={[
-              { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
-              {
-                label: 'A receber',
-                value: summary ? formatCurrency(summary.valoresPendentes) : '',
-              },
-              { label: 'Margem bruta', value: summary ? `${summary.margemBruta.toFixed(1)}%` : '' },
-              {
-                label: 'Margem líquida',
-                value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
-              },
-            ]}
-            style={{ backgroundColor: financeCardSurface }}
-            title="RECEBIDO/MARGENS"
-          />
-          <SummaryCard
-            rows={[
-              {
-                label: 'Venda p/ balde',
-                value: summary ? formatCurrency(summary.precoMedioBalde) : '',
-              },
-              {
-                label: 'Lucro p/ balde',
-                value:
-                  isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
-              },
-              {
-                label: 'Custo p/ balde',
-                value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
-              },
-            ]}
-            style={{ backgroundColor: financeCardSurface }}
-            title="POR BALDE"
-          />
-          {error ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              Dados exibidos do último cache válido. {error}
-            </Text>
-          ) : null}
-        </>
-      ) : loading ? (
-        <Loading label="Carregando Finanças Atacado..." />
-      ) : error ? (
-        <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
-      ) : null}
-    </PremiumScreen>
+            <SummaryCard
+              rows={[
+                {
+                  label: 'Custo dos baldes',
+                  value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
+                },
+                {
+                  label: 'Custo combustível',
+                  value:
+                    isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
+                },
+                { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
+                { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
+                {
+                  label: 'Custo médio de entrega',
+                  value:
+                    isNetProfitReady && summary
+                      ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
+                      : '',
+                },
+              ]}
+              style={{ backgroundColor: financeCardSurface }}
+              title="CUSTOS"
+            />
+            <SummaryCard
+              rows={[
+                { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+                {
+                  label: 'A receber',
+                  value: summary ? formatCurrency(summary.valoresPendentes) : '',
+                },
+                {
+                  label: 'Margem bruta',
+                  value: summary ? `${summary.margemBruta.toFixed(1)}%` : '',
+                },
+                {
+                  label: 'Margem líquida',
+                  value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
+                },
+              ]}
+              style={{ backgroundColor: financeCardSurface }}
+              title="RECEBIDO/MARGENS"
+            />
+            <SummaryCard
+              rows={[
+                {
+                  label: 'Venda p/ balde',
+                  value: summary ? formatCurrency(summary.precoMedioBalde) : '',
+                },
+                {
+                  label: 'Lucro p/ balde',
+                  value:
+                    isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
+                },
+                {
+                  label: 'Custo p/ balde',
+                  value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
+                },
+              ]}
+              style={{ backgroundColor: financeCardSurface }}
+              title="POR BALDE"
+            />
+            {error ? (
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                Dados exibidos do último cache válido. {error}
+              </Text>
+            ) : null}
+          </>
+        ) : loading ? (
+          <Loading label="Carregando Finanças Atacado..." />
+        ) : error ? (
+          <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
+        ) : null}
+      </ProgressiveCollapsibleScreen>
+    </>
   );
 }
 
 function RetailFinanceScreen() {
   const { resolvedMode, theme } = useAppTheme();
+  const insets = useAppSafeAreaInsets();
   const { month, year } = getCurrentHistoryPeriod();
   const isFocused = useIsFocused();
   const [selectedMonth, setSelectedMonth] = useState(month);
@@ -599,139 +611,146 @@ function RetailFinanceScreen() {
       }}
     />
   );
-
   return (
-    <PremiumScreen
-      contentContainerStyle={[
-        styles.content,
-        { marginTop: theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2 },
-      ]}
-      progressiveBlur
-      progressiveBlurHeight={
-        theme.spacing.xxxl + theme.spacing.xs * 2 + theme.spacing.xl + theme.spacing.sm
-      }
-      progressiveBlurTopOffset={0}
-    >
+    <>
       <Stack.Toolbar placement="right">{toolbarItems}</Stack.Toolbar>
-      <View style={styles.header}>{header}</View>
-      <NativeRetailFinanceCategorySelector
-        accessibilityLabel="Visão financeira do Varejo"
-        contentTrailingPadding={0}
-        itemHorizontalPadding={theme.spacing.xs / 2}
-        itemSpacing={theme.spacing.xxs / 4}
-        items={financeViews}
-        onChange={(nextView) => setView(nextView as RetailFinanceView)}
-        selectedKey={view}
-      />
-      {showRetailFinanceInitialization ? (
-        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-          Carregando Finanças Varejo...
-        </Text>
-      ) : error && !summary ? (
-        <PremiumCard style={{ backgroundColor: financeCardSurface, padding: 20 }}>
-          <Text style={[theme.typography.body, { color: theme.colors.danger }]}>{error}</Text>
-          <Text
-            onPress={() => void reload()}
-            style={[theme.typography.footnote, { color: theme.colors.textPrimary, marginTop: 12 }]}
-          >
-            Tentar novamente
+      <ProgressiveCollapsibleScreen
+        compactTitle="Finanças"
+        contentGap={24}
+        contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
+        largeTitle={<View style={styles.header}>{header}</View>}
+        nativeTabRoot
+        scrollContentContainerStyle={{
+          paddingBottom: theme.layout.tabBarHeight + insets.bottom + theme.spacing.lg,
+        }}
+      >
+        <NativeRetailFinanceCategorySelector
+          accessibilityLabel="Visão financeira do Varejo"
+          contentLeadingPadding={0}
+          contentTrailingPadding={0}
+          itemHorizontalPadding={theme.spacing.xs}
+          itemSpacing={theme.spacing.md}
+          items={financeViews}
+          onChange={(nextView) => setView(nextView as RetailFinanceView)}
+          selectionAnimationMode="slidingBubble"
+          selectedKey={view}
+        />
+        {showRetailFinanceInitialization ? (
+          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+            Carregando Finanças Varejo...
           </Text>
-        </PremiumCard>
-      ) : summary ? (
-        <>
-          <PremiumCard
-            style={[
-              styles.heroCard,
-              {
+        ) : error && !summary ? (
+          <PremiumCard style={{ backgroundColor: financeCardSurface, padding: 20 }}>
+            <Text style={[theme.typography.body, { color: theme.colors.danger }]}>{error}</Text>
+            <Text
+              onPress={() => void reload()}
+              style={[
+                theme.typography.footnote,
+                { color: theme.colors.textPrimary, marginTop: 12 },
+              ]}
+            >
+              Tentar novamente
+            </Text>
+          </PremiumCard>
+        ) : summary ? (
+          <>
+            <PremiumCard
+              style={[
+                styles.heroCard,
+                {
+                  backgroundColor: financeCardSurface,
+                  borderRadius: theme.radius.xl + theme.spacing.md,
+                },
+              ]}
+            >
+              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                RECEBIDO
+              </Text>
+              <NativeAnimatedNumber
+                animationEnabled={!refreshing}
+                color={theme.colors.textPrimary}
+                text={formatCurrency(summary.revenueReceived)}
+                value={summary.revenueReceived}
+              />
+            </PremiumCard>
+            <PremiumCard
+              style={[
+                styles.heroCard,
+                {
+                  backgroundColor: financeCardSurface,
+                  borderRadius: theme.radius.xl + theme.spacing.md,
+                },
+              ]}
+            >
+              <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
+                LUCRO DIRETO
+              </Text>
+              <NativeAnimatedNumber
+                animationEnabled={!refreshing}
+                color={theme.colors.textPrimary}
+                text={formatCurrency(summary.profit)}
+                value={summary.profit}
+              />
+            </PremiumCard>
+            <PremiumCard
+              style={{
                 backgroundColor: financeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-              },
-            ]}
-          >
-            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              RECEBIDO
-            </Text>
-            <NativeAnimatedNumber
-              animationEnabled={!refreshing}
-              color={theme.colors.textPrimary}
-              text={formatCurrency(summary.revenueReceived)}
-              value={summary.revenueReceived}
+                borderRadius: theme.radius.xl + theme.spacing.md,
+                padding: 16,
+              }}
+            >
+              <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
+                RECEITA POR PERÍODO
+              </Text>
+              <FinancialSeriesChart
+                accessibilityLabel="Série de receita recebida do Varejo"
+                color={theme.colors.primary}
+                points={summary.series}
+              />
+            </PremiumCard>
+            <SummaryCard
+              rows={[
+                {
+                  label: 'Receita dos produtos',
+                  value: formatCurrency(summary.productRevenueRecognized),
+                },
+                ...(view === 'general'
+                  ? [
+                      {
+                        label: 'Taxa de entrega',
+                        value: formatCurrency(summary.deliveryFeeRecognized),
+                      },
+                    ]
+                  : []),
+                {
+                  label: 'Custo dos produtos',
+                  value: formatCurrency(summary.productCostRecognized),
+                },
+                ...(view === 'general'
+                  ? [
+                      {
+                        label: 'Custo de entrega',
+                        value: formatCurrency(summary.deliveryCostRecognized),
+                      },
+                      { label: 'Taxas de pagamento', value: formatCurrency(summary.paymentFees) },
+                    ]
+                  : []),
+                { label: 'Margem', value: `${summary.margin.toFixed(1)}%` },
+                { label: 'Pedidos', value: String(summary.orderCount) },
+                { label: 'Unidades', value: String(summary.unitsSold) },
+              ]}
+              style={{ backgroundColor: financeCardSurface }}
+              title={selectedViewLabel}
             />
-          </PremiumCard>
-          <PremiumCard
-            style={[
-              styles.heroCard,
-              {
-                backgroundColor: financeCardSurface,
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-              },
-            ]}
-          >
-            <Text style={[theme.typography.caption, { color: theme.colors.textPrimary }]}>
-              LUCRO DIRETO
-            </Text>
-            <NativeAnimatedNumber
-              animationEnabled={!refreshing}
-              color={theme.colors.textPrimary}
-              text={formatCurrency(summary.profit)}
-              value={summary.profit}
-            />
-          </PremiumCard>
-          <PremiumCard
-            style={{
-              backgroundColor: financeCardSurface,
-              borderRadius: theme.radius.xl + theme.spacing.md,
-              padding: 16,
-            }}
-          >
-            <Text style={[theme.typography.caption, { color: theme.colors.textSecondary }]}>
-              RECEITA POR PERÍODO
-            </Text>
-            <FinancialSeriesChart
-              accessibilityLabel="Série de receita recebida do Varejo"
-              color={theme.colors.primary}
-              points={summary.series}
-            />
-          </PremiumCard>
-          <SummaryCard
-            rows={[
-              {
-                label: 'Receita dos produtos',
-                value: formatCurrency(summary.productRevenueRecognized),
-              },
-              ...(view === 'general'
-                ? [
-                    {
-                      label: 'Taxa de entrega',
-                      value: formatCurrency(summary.deliveryFeeRecognized),
-                    },
-                  ]
-                : []),
-              { label: 'Custo dos produtos', value: formatCurrency(summary.productCostRecognized) },
-              ...(view === 'general'
-                ? [
-                    {
-                      label: 'Custo de entrega',
-                      value: formatCurrency(summary.deliveryCostRecognized),
-                    },
-                    { label: 'Taxas de pagamento', value: formatCurrency(summary.paymentFees) },
-                  ]
-                : []),
-              { label: 'Margem', value: `${summary.margin.toFixed(1)}%` },
-              { label: 'Pedidos', value: String(summary.orderCount) },
-              { label: 'Unidades', value: String(summary.unitsSold) },
-            ]}
-            style={{ backgroundColor: financeCardSurface }}
-            title={selectedViewLabel}
-          />
-          {error ? (
-            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-              Dados exibidos do último cache válido. {error}
-            </Text>
-          ) : null}
-        </>
-      ) : null}
-    </PremiumScreen>
+            {error ? (
+              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+                Dados exibidos do último cache válido. {error}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+      </ProgressiveCollapsibleScreen>
+    </>
   );
 }
 
@@ -744,7 +763,6 @@ function formatCurrency(value: number): string {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 24 },
   header: { minHeight: 44 },
   heroCard: { gap: 8, padding: 24 },
   heroHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

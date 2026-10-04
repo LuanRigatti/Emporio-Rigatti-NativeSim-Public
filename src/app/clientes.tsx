@@ -5,12 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ListItem } from '@/components/lists';
 import { NativeGlassHeader } from '@/components/layout';
-import {
-  NativeCardContextMenu,
-  NativeClientFormSheet,
-  NativeGlassIconButton,
-  type NativeClientFormValues,
-} from '@/components/native';
+import { NativeCardContextMenu, NativeGlassIconButton } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
@@ -18,7 +13,6 @@ import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPayme
 import { useClients } from '@/hooks/useClients';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import type { ClientModel } from '@/types/data';
-import { normalizeMoney } from '@/utils/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
@@ -26,26 +20,10 @@ export default function ClientsRoute() {
   const { resolvedMode, theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
-  const { clients, error, loading, reload, removeCustomConfiguration, saveCustomClient } =
-    useClients();
-  const [formVisible, setFormVisible] = useState(false);
+  const { clients, error, loading, reload, removeCustomConfiguration } = useClients();
   const [clientToDelete, setClientToDelete] = useState<ClientModel | null>(null);
   const [deleteError, setDeleteError] = useState<string>();
   const [deleting, setDeleting] = useState(false);
-
-  const handleCreateClient = useCallback(
-    async ({ address, bucketPrice, name, usesBoleto, usesInvoice }: NativeClientFormValues) => {
-      if (testModeEnabled) return;
-      const price = normalizeMoney(bucketPrice);
-      if (!name.trim()) throw new Error('Informe o nome do cliente.');
-      if (price === undefined || price <= 0) {
-        throw new Error('Informe um preço maior que zero.');
-      }
-      if (!address.trim()) throw new Error('Informe o endereço do cliente.');
-      await saveCustomClient(name, price, address, usesInvoice, usesBoleto);
-    },
-    [saveCustomClient, testModeEnabled],
-  );
 
   const handleDeleteClient = useCallback(async () => {
     if (!clientToDelete || testModeEnabled) return;
@@ -68,8 +46,8 @@ export default function ClientsRoute() {
 
   const handleOpenCreate = useCallback(() => {
     triggerLightImpactHaptic();
-    setFormVisible(true);
-  }, []);
+    router.push('/clientes/novo');
+  }, [router]);
 
   const header = <NativeGlassHeader mode="transparent" title="Clientes" />;
   const clientCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
@@ -216,11 +194,6 @@ export default function ClientsRoute() {
           </View>
         )}
       </PremiumScreen>
-      <NativeClientFormSheet
-        onSubmit={handleCreateClient}
-        onVisibleChange={setFormVisible}
-        visible={formVisible}
-      />
       <ConfirmationDialog
         confirmLabel="Excluir cliente"
         destructive

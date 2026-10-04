@@ -1,8 +1,15 @@
 import Constants from 'expo-constants';
 
-export type AppVariant = 'default' | 'final';
+export type AppVariant = 'default' | 'final' | 'release';
 
 export function getAppVariant(): AppVariant {
+  if (
+    Constants.expoConfig?.extra?.appVariant === 'release' ||
+    Constants.expoConfig?.ios?.bundleIdentifier === 'com.pareact.mobile.release'
+  ) {
+    return 'release';
+  }
+
   if (
     Constants.expoConfig?.extra?.appVariant === 'final' ||
     Constants.expoConfig?.ios?.bundleIdentifier === 'com.pareact.mobile.final'
@@ -19,5 +26,8 @@ export function getAppScheme(): string {
     return configuredScheme;
   }
 
-  return getAppVariant() === 'final' ? 'pareact-final' : 'pareact';
+  const appVariant = getAppVariant();
+  if (appVariant === 'final') return 'pareact-final';
+  if (appVariant === 'release') return 'pareact-release';
+  return 'pareact';
 }

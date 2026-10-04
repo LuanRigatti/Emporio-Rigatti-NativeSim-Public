@@ -12,6 +12,7 @@ export type FirestoreBackupComparisonEntity =
   | 'payments'
   | 'dailyData'
   | 'monthlyData'
+  | 'routeFinancialLedger'
   | 'settings/factory'
   | 'settings/car'
   | 'settings/company';
@@ -45,6 +46,7 @@ const ENTITIES: readonly FirestoreBackupComparisonEntity[] = [
   'payments',
   'dailyData',
   'monthlyData',
+  'routeFinancialLedger',
   'settings/factory',
   'settings/car',
   'settings/company',
@@ -118,6 +120,9 @@ function payloadToSnapshot(payload: FirestoreBackupPayload): FirestoreBackupSnap
       })),
     })),
     monthlyData: Object.entries(payload.appData.monthlyData).map(([id, data]) => ({ id, data })),
+    routeFinancialLedger: Object.entries(payload.appData.routeFinancialLedger ?? {}).map(
+      ([id, data]) => ({ id, data }),
+    ),
     settings: payload.appData.settings,
   };
 }
@@ -197,6 +202,13 @@ export function compareFirestoreBackup(
     [
       'monthlyData',
       compareDocuments(documentsToMap(backup.monthlyData), documentsToMap(current.monthlyData)),
+    ],
+    [
+      'routeFinancialLedger',
+      compareDocuments(
+        documentsToMap(backup.routeFinancialLedger ?? []),
+        documentsToMap(current.routeFinancialLedger ?? []),
+      ),
     ],
     [
       'settings/factory',

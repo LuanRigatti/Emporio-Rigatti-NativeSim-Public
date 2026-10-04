@@ -1,11 +1,21 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Stack } from 'expo-router';
+import { View } from 'react-native';
 
-import { NativeHomeToolbarActions, NativeModeSheetContent, NativeSheet } from '@/components/native';
+import {
+  HOME_TOOLBAR_CONTROL_SIZE,
+  NativeHomeToolbarActions,
+  NativeModeSheetContent,
+  NativeSheet,
+} from '@/components/native';
+import { useHomeModeTransition } from '@/features/home/hooks/useHomeModeTransition';
 import { useAppMode } from '@/providers';
-import { registrarDeliveryDarkLiquidGlassTint, useAppTheme } from '@/theme';
+import { useAppTheme } from '@/theme';
 import type { AppMode } from '@/types/appMode';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+
+const DARK_MODE_MODE_SELECTOR_GLASS_TINT = 'rgba(28, 28, 30, 0.82)' as const;
+const LIGHT_MODE_MODE_SELECTOR_GLASS_TINT = 'rgba(242, 244, 245, 0.85)' as const;
 
 export type HomeModeSelectorController = {
   mode: AppMode;
@@ -17,14 +27,17 @@ export type HomeModeSelectorController = {
 };
 
 export function useHomeModeSelector(): HomeModeSelectorController {
-  const { mode, setMode } = useAppMode();
+  const appMode = useAppMode();
+  const { mode } = appMode;
+  const { isTransitioning, requestModeTransition } = useHomeModeTransition(appMode);
   const [modeSheetVisible, setModeSheetVisible] = useState(false);
   const pendingModeRef = useRef<AppMode | null>(null);
   const open = useCallback(() => {
+    if (isTransitioning) return;
     pendingModeRef.current = null;
     triggerLightImpactHaptic();
     setModeSheetVisible(true);
-  }, []);
+  }, [isTransitioning]);
   const onSelect = useCallback(
     (nextMode: AppMode) => {
       pendingModeRef.current = nextMode === mode ? null : nextMode;
@@ -36,8 +49,8 @@ export function useHomeModeSelector(): HomeModeSelectorController {
     const nextMode = pendingModeRef.current;
     pendingModeRef.current = null;
 
-    if (nextMode && nextMode !== mode) setMode(nextMode);
-  }, [mode, setMode]);
+    if (nextMode && nextMode !== mode) requestModeTransition(nextMode);
+  }, [mode, requestModeTransition]);
 
   return useMemo(
     () => ({
@@ -53,62 +66,52 @@ export function useHomeModeSelector(): HomeModeSelectorController {
 }
 
 type HomeToolbarProps = {
-  foregroundColor: string;
-  imageUri?: string | null;
-  name: string;
-  onProfilePress: () => void;
   onSearchPress?: () => void;
-  showSearch?: boolean;
   modeSelector: HomeModeSelectorController;
 };
 
-export function HomeToolbar({
-  foregroundColor,
-  imageUri,
-  name,
-  onProfilePress,
-  onSearchPress,
-  showSearch = false,
-  modeSelector,
-}: HomeToolbarProps) {
+export function HomeToolbar({ onSearchPress, modeSelector }: HomeToolbarProps) {
   const { mode } = modeSelector;
   const { resolvedMode } = useAppTheme();
-  const useDarkGlassSurface = resolvedMode === 'dark';
 
   return (
     <>
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.View>
-          <NativeHomeToolbarActions
-            accessibilityHint="Exibe os dados da conta e a opção de sair"
-            accessibilityLabel="Abrir perfil da conta"
-            foregroundColor={foregroundColor}
-            imageUri={imageUri}
-            name={name}
-            onProfilePress={onProfilePress}
-            showSearch={showSearch}
+        <Stack.Toolbar.View hidesSharedBackground>
+          <View
+            accessible={false}
+            collapsable={false}
+            pointerEvents="none"
+            style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_CONTROL_SIZE }}
+            testID="home-toolbar-item:leading-anchor:44x44"
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>
       {onSearchPress ? (
         <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Button
-            accessibilityLabel="Abrir Pesquisa"
-            onPress={onSearchPress}
-            separateBackground={false}
-          >
-            <Stack.Toolbar.Icon sf="magnifyingglass" />
-            <Stack.Toolbar.Label>PESQUISA</Stack.Toolbar.Label>
-          </Stack.Toolbar.Button>
+          <Stack.Toolbar.View>
+            <NativeHomeToolbarActions
+              mode="searchAction"
+              name=""
+              onSearchPress={onSearchPress}
+              searchAccessibilityHint="Abre a busca de produtos"
+              searchAccessibilityLabel="Busca"
+            />
+          </Stack.Toolbar.View>
         </Stack.Toolbar>
       ) : null}
       <NativeSheet
         accessibilityLabel="Modo de venda"
         detents={[{ fraction: 0.25 }]}
-        glassSurface={useDarkGlassSurface}
-        glassTint={useDarkGlassSurface ? registrarDeliveryDarkLiquidGlassTint : undefined}
+        glassSurface
+        glassTint={
+          resolvedMode === 'dark'
+            ? DARK_MODE_MODE_SELECTOR_GLASS_TINT
+            : LIGHT_MODE_MODE_SELECTOR_GLASS_TINT
+        }
         onDismiss={modeSelector.onDismiss}
         onVisibleChange={modeSelector.onVisibleChange}
+        presentationBackgroundInteraction="disabled"
         visible={modeSelector.visible}
       >
         <NativeModeSheetContent mode={mode} onSelect={modeSelector.onSelect} />

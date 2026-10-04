@@ -1,7 +1,8 @@
 import { Button, HStack, Host, Image, RNHostView, ZStack } from '@expo/ui/swift-ui';
 import {
-  accessibilityHint,
+  accessibilityHint as accessibilityHintModifier,
   accessibilityLabel,
+  accessibilityIdentifier,
   buttonStyle,
   contentShape,
   controlSize,
@@ -11,6 +12,8 @@ import {
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
 
+import { View } from 'react-native';
+
 import { Avatar } from '@/components/feedback';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
 
@@ -19,11 +22,13 @@ import {
   HOME_TOOLBAR_CONTROL_SIZE,
   HOME_TOOLBAR_GAP,
   HOME_TOOLBAR_HORIZONTAL_PADDING,
+  HOME_TOOLBAR_SEARCH_WIDTH,
   HOME_TOOLBAR_WIDTH,
 } from './NativeHomeToolbarActions.constants';
 import type { NativeHomeToolbarActionsProps } from './NativeHomeToolbarActions.types';
 
 export default function NativeHomeToolbarActionsSwiftUI({
+  mode = 'profileActions',
   accessibilityHint: profileHint,
   accessibilityLabel: profileLabel = 'Abrir perfil da conta',
   foregroundColor,
@@ -32,8 +37,41 @@ export default function NativeHomeToolbarActionsSwiftUI({
   onProfilePress,
   onSearchPress,
   searchAccessibilityLabel = 'Abrir Pesquisa',
+  searchAccessibilityHint = 'Abre a busca de produtos',
   showSearch = true,
 }: NativeHomeToolbarActionsProps) {
+  if (mode === 'searchAction') {
+    return (
+      <View
+        accessible={false}
+        collapsable={false}
+        style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_SEARCH_WIDTH }}
+        testID="home-toolbar-item:search:Busca:magnifyingglass:94x44"
+      >
+        <Host style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_SEARCH_WIDTH }}>
+          <Button
+            label="Busca"
+            modifiers={[
+              buttonStyle('plain'),
+              controlSize('regular'),
+              frame({
+                width: HOME_TOOLBAR_SEARCH_WIDTH,
+                height: HOME_TOOLBAR_CONTROL_SIZE,
+                alignment: 'center',
+              }),
+              contentShape(shapes.rectangle()),
+              accessibilityLabel(searchAccessibilityLabel),
+              accessibilityHintModifier(searchAccessibilityHint),
+              accessibilityIdentifier('home-search-toolbar'),
+            ]}
+            onPress={onSearchPress}
+            systemImage="magnifyingglass"
+          />
+        </Host>
+      </View>
+    );
+  }
+
   const toolbarWidth = showSearch ? HOME_TOOLBAR_WIDTH : HOME_TOOLBAR_CONTROL_SIZE;
   return (
     <Host style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: toolbarWidth }}>
@@ -60,12 +98,12 @@ export default function NativeHomeToolbarActionsSwiftUI({
               alignment: 'center',
             }),
             contentShape(shapes.rectangle()),
-            ...(profileHint ? [accessibilityHint(profileHint)] : []),
+            ...(profileHint ? [accessibilityHintModifier(profileHint)] : []),
             accessibilityLabel(profileLabel),
           ]}
           onPress={() => {
             triggerNativeButtonHaptic('light');
-            onProfilePress();
+            onProfilePress?.();
           }}
         >
           <ZStack

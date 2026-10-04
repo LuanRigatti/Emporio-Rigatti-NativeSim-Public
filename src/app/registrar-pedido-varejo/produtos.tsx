@@ -1,5 +1,5 @@
-import { RetailOrderStepScreen } from '@/features/retail-orders/components/RetailOrderStepScreen';
+import { Redirect } from 'expo-router';
 
 export default function RetailOrderProductsRoute() {
-  return <RetailOrderStepScreen step="products" />;
+  return <Redirect href="/registrar-pedido-varejo" />;
 }

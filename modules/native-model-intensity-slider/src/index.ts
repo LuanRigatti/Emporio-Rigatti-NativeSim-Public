@@ -1,6 +1,11 @@
 export {
+  cancelNativeSendGesture,
   default as NativeModelIntensitySlider,
+  NativeSendIntelligencePicker,
   nativeModelIntensitySliderAvailable,
+  registerNativeSendButton,
+  subscribeToNativeSendHoldEvents,
+  unregisterNativeSendButton,
 } from './NativeModelIntensitySlider';
 export type {
   ModelIntensityColorScheme,
@@ -10,5 +15,11 @@ export type {
   ModelIntensityStep,
   ModelIntensityStepChangeEvent,
   ModelIntensityTransitionEvent,
+  NativeSendHoldCompletionEvent,
+  NativeSendHoldEvent,
+  NativeSendHoldEventName,
+  NativeSendHoldListener,
+  NativeSendPickerHostDetachedEvent,
   NativeModelIntensitySliderProps,
+  NativeSendIntelligencePickerProps,
 } from './NativeModelIntensitySlider.types';

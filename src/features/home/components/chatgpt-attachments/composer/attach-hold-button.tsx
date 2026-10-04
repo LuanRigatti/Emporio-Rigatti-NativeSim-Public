@@ -18,6 +18,11 @@ import type {
   GestureUpdateEvent,
   PanGestureHandlerEventPayload,
 } from 'react-native-gesture-handler';
+import {
+  triggerLightImpactHaptic,
+  triggerNativeButtonHaptic,
+  triggerSelectionHaptic,
+} from '@/utils/haptics';
 import { useAppTheme } from '@/theme';
 import { AttachmentIcon } from '../AttachmentIcon';
 import { COMPOSER } from '../constants';
@@ -41,7 +46,6 @@ interface AttachHoldButtonProps {
   strip: SharedValue<number>;
   screenWidth: number;
   onPress: () => void;
-  onHoldMenuVisibilityChange?: (visible: boolean) => void;
   onPhotoSelect: (photo: LibraryPhoto) => void;
   onDockSettled: (photoId: string) => void;
 }
@@ -61,7 +65,6 @@ export const AttachHoldButton = memo(function AttachHoldButton({
   strip,
   screenWidth,
   onPress,
-  onHoldMenuVisibilityChange,
   onPhotoSelect,
   onDockSettled,
 }: AttachHoldButtonProps) {
@@ -84,19 +87,18 @@ export const AttachHoldButton = memo(function AttachHoldButton({
     if (tiles.length) void Image.prefetch(tiles.map((photo) => photo.id));
   }, [tiles]);
 
-  const mountMenu = useCallback(
-    (anchor: number) => {
-      setBandAnchorY(anchor);
-      setIsMenuMounted(true);
-      onHoldMenuVisibilityChange?.(true);
-    },
-    [onHoldMenuVisibilityChange],
-  );
+  const mountMenu = useCallback((anchor: number) => {
+    setBandAnchorY(anchor);
+    setIsMenuMounted(true);
+  }, []);
   const unmountMenu = useCallback(() => {
     setIsMenuMounted(false);
-    onHoldMenuVisibilityChange?.(false);
-  }, [onHoldMenuVisibilityChange]);
+  }, []);
   const handleTap = useCallback(() => onPress(), [onPress]);
+  const handleAccessibilityTap = useCallback(() => {
+    triggerLightImpactHaptic();
+    handleTap();
+  }, [handleTap]);
   const handleSelect = useCallback(
     (index: number) => {
       const photo = tiles[index];
@@ -165,6 +167,7 @@ export const AttachHoldButton = memo(function AttachHoldButton({
   const onHoldBegin = useCallback(
     (event: GestureStateChangeEvent<PanGestureHandlerEventPayload>) => {
       'worklet';
+      scheduleOnRN(triggerLightImpactHaptic);
       anchorX.set(event.absoluteX - event.x + BUTTON_RADIUS);
       anchorY.set(event.absoluteY - event.y + BUTTON_RADIUS);
       dockingIndex.set(-1);
@@ -179,6 +182,7 @@ export const AttachHoldButton = memo(function AttachHoldButton({
   const onHoldStart = useCallback(
     (_event: GestureStateChangeEvent<PanGestureHandlerEventPayload>) => {
       'worklet';
+      scheduleOnRN(triggerNativeButtonHaptic, 'medium');
       isOpen.set(true);
       open.set(withSpring(1, HOLD_MENU_ANIMATION.openSpring));
     },
@@ -189,7 +193,10 @@ export const AttachHoldButton = memo(function AttachHoldButton({
       'worklet';
       const tray = getHoldTrayMetrics(tiles.length, screenWidth, anchorY.get());
       const next = findHoldTileIndex(event.absoluteX, event.absoluteY, tiles.length, tray);
-      if (next !== hovered.get()) hovered.set(next);
+      if (next !== hovered.get()) {
+        hovered.set(next);
+        if (next >= 0) scheduleOnRN(triggerSelectionHaptic);
+      }
     },
     [anchorY, hovered, screenWidth, tiles.length],
   );
@@ -212,6 +219,7 @@ export const AttachHoldButton = memo(function AttachHoldButton({
     () =>
       createComposerPlusGesture({
         holdEnabled: holdEnabled && tiles.length > 0,
+        onTouchDown: triggerLightImpactHaptic,
         onTap: handleTap,
         onHoldBegin,
         onHoldStart,
@@ -236,7 +244,7 @@ export const AttachHoldButton = memo(function AttachHoldButton({
           accessibilityLabel="Adicionar anexo"
           accessibilityHint="Toque para abrir os anexos. Segure para escolher uma foto recente."
           hitSlop={HOLD_MENU_GESTURE.buttonHitSlop}
-          onAccessibilityTap={handleTap}
+          onAccessibilityTap={handleAccessibilityTap}
           collapsable={false}
           style={styles.button}
           testID="composer-plus-button"

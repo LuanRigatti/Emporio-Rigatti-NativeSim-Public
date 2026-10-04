@@ -15,6 +15,18 @@ export {
 } from './LocationTrackingService';
 export { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
 export { RouteTrackingRepository, routeTrackingRepository } from './RouteTrackingRepository';
+export {
+  FirestoreRouteFinancialLedgerDataSource,
+  ROUTE_FINANCIAL_LEDGER_COLLECTION,
+  ROUTE_FINANCIAL_LEDGER_SCHEMA_VERSION,
+  firestoreRouteFinancialLedgerDataSource,
+  getRouteFinancialLedgerCacheKey,
+  parseRouteFinancialLedgerRecord,
+} from './FirestoreRouteFinancialLedgerDataSource';
+export type {
+  RouteFinancialLedgerMigrationResult,
+  RouteFinancialLedgerRecord,
+} from './FirestoreRouteFinancialLedgerDataSource';
 export { appendValidLocationSamples, calculateDistanceMeters } from './routeTrackingMath';
 export { formatRouteDateKey, getRouteDateKey } from './routeTrackingDates';
 export {

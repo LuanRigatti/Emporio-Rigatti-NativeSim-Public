@@ -1,8 +1,22 @@
 import NativeModelIntensitySliderView from './NativeModelIntensitySliderView';
-import type { NativeModelIntensitySliderProps } from './NativeModelIntensitySlider.types';
+import NativeSendIntelligencePickerView from './NativeSendIntelligencePickerView';
+import type {
+  NativeModelIntensitySliderProps,
+  NativeSendIntelligencePickerProps,
+} from './NativeModelIntensitySlider.types';
 
-export { nativeModelIntensitySliderAvailable } from './NativeModelIntensitySliderView';
+export {
+  cancelNativeSendGesture,
+  nativeModelIntensitySliderAvailable,
+  registerNativeSendButton,
+  subscribeToNativeSendHoldEvents,
+  unregisterNativeSendButton,
+} from './NativeModelIntensitySliderView';
 
 export default function NativeModelIntensitySlider(props: NativeModelIntensitySliderProps) {
   return <NativeModelIntensitySliderView {...props} />;
+}
+
+export function NativeSendIntelligencePicker(props: NativeSendIntelligencePickerProps) {
+  return <NativeSendIntelligencePickerView {...props} />;
 }

@@ -16,7 +16,7 @@ describe('History delivery card presentation', () => {
     );
 
     expect(deliveryCardSource).toContain(
-      '<OpenPaymentClientIcon backgroundColor={theme.colors.background} />',
+      '<OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />',
     );
     expect(iconFallbackSource).toContain('backgroundColor ??');
   });

@@ -9,11 +9,22 @@ import {
   type CarSettings,
 } from '@/services/car';
 
-export function useCarSettings() {
+type UseCarSettingsOptions = {
+  allowCachedInitial?: boolean;
+  syncRemote?: boolean;
+};
+
+export function useCarSettings(options: UseCarSettingsOptions = {}) {
   const { user } = useAuth();
   const userId = user?.id;
-  const [settings, setSettings] = useState<CarSettings>({ ...EMPTY_CAR_SETTINGS });
-  const [isHydrated, setIsHydrated] = useState(false);
+  const allowCachedInitial = options.allowCachedInitial ?? false;
+  const syncRemote = options.syncRemote ?? true;
+  const cachedSettings = carSettingsStorage.getCached();
+  const useCachedSettings = allowCachedInitial && cachedSettings !== null;
+  const [settings, setSettings] = useState<CarSettings>(() =>
+    useCachedSettings ? cachedSettings : { ...EMPTY_CAR_SETTINGS },
+  );
+  const [isHydrated, setIsHydrated] = useState(() => useCachedSettings);
   const [remoteActive, setRemoteActive] = useState(false);
   const previousSettings = useRef<CarSettings | null>(null);
   const remoteUserId = useRef<string | undefined>(undefined);
@@ -22,6 +33,12 @@ export function useCarSettings() {
   useEffect(() => {
     let isMounted = true;
     skipRemoteSync.current = false;
+
+    if (useCachedSettings && !syncRemote) {
+      return () => {
+        isMounted = false;
+      };
+    }
 
     void (async () => {
       const storedSettings = await carSettingsStorage.load();
@@ -33,11 +50,12 @@ export function useCarSettings() {
       setIsHydrated(true);
       setRemoteActive(false);
 
-      if (ENABLE_FIRESTORE_CAR_SETTINGS && userId) {
+      if (syncRemote && ENABLE_FIRESTORE_CAR_SETTINGS && userId) {
         try {
           const remoteSettings = await firestoreCarSettingsDataSource.load(userId);
           if (!isMounted) return;
           if (remoteSettings) {
+            carSettingsStorage.setCached(remoteSettings);
             previousSettings.current = remoteSettings;
             setSettings(remoteSettings);
           }
@@ -55,7 +73,7 @@ export function useCarSettings() {
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+  }, [syncRemote, useCachedSettings, userId]);
 
   useEffect(() => {
     if (!isHydrated) return;

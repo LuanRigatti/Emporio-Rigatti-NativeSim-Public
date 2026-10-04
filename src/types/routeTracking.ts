@@ -31,6 +31,8 @@ export interface RouteTrackingSession {
   status: 'finalized';
 }
 
+export type RouteFinancialSummary = Pick<RouteTrackingSession, 'id' | 'date' | 'distanceMeters'>;
+
 export interface RouteTrackingResult {
   routeId: string;
   kilometers: number;

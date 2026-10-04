@@ -36,6 +36,23 @@ type FirestoreDeliveryDocument = {
 };
 
 type Listener = () => void;
+export type CompleteDeliveryDateSnapshot = {
+  uid: string;
+  date: string;
+  deliveries: readonly Delivery[];
+  completedAt: number;
+};
+export type DeliveryDateSnapshotEvent =
+  | { type: 'complete'; snapshot: CompleteDeliveryDateSnapshot }
+  | { type: 'invalidated'; uid: string; date: string };
+type DeliveryDateSnapshotListener = (event: DeliveryDateSnapshotEvent) => void;
+type CompleteDateCoverage = {
+  uid: string;
+  generation: number;
+  sessionVersion: number | undefined;
+  completedAt: number;
+  isFresh: boolean;
+};
 type FirestoreOps = typeof import('firebase/firestore');
 type HistoricalFetchResult = {
   deliveries: Delivery[];
@@ -160,6 +177,8 @@ export class FirestoreDeliveryDataSource {
   public isUsingLocalFallback = false;
   private readonly records = new Map<string, Delivery>();
   private readonly listeners = new Set<Listener>();
+  private readonly dateSnapshotListeners = new Set<DeliveryDateSnapshotListener>();
+  private readonly completeDates = new Map<string, CompleteDateCoverage>();
   private activeUid?: string;
   private sessionUid: string | null | undefined;
   private sessionGeneration = 0;
@@ -183,6 +202,61 @@ export class FirestoreDeliveryDataSource {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  public subscribeDateSnapshots = (listener: DeliveryDateSnapshotListener): (() => void) => {
+    this.dateSnapshotListeners.add(listener);
+    return () => this.dateSnapshotListeners.delete(listener);
+  };
+
+  public getCompleteDateSnapshot(
+    uid: string,
+    date: string,
+    sessionVersion?: number,
+  ): CompleteDeliveryDateSnapshot | null {
+    if (!this.isSessionRequestCurrent(uid, this.sessionGeneration, sessionVersion)) return null;
+    const completion = this.completeDates.get(
+      this.completeDateKey(uid, this.sessionGeneration, date),
+    );
+    if (
+      !completion ||
+      !completion.isFresh ||
+      completion.uid !== uid ||
+      completion.generation !== this.sessionGeneration ||
+      (sessionVersion !== undefined && completion.sessionVersion !== sessionVersion)
+    ) {
+      return null;
+    }
+    return {
+      uid,
+      date,
+      deliveries: [...this.records.values()].filter((delivery) => delivery.data === date),
+      completedAt: completion.completedAt,
+    };
+  }
+
+  public invalidateCompleteDateSnapshot(uid: string, date: string, sessionVersion?: number): void {
+    if (
+      (this.sessionUid !== undefined && this.sessionUid !== uid) ||
+      (this.activeUid !== undefined && this.activeUid !== uid) ||
+      (sessionVersion !== undefined && this.boundSessionVersion !== sessionVersion)
+    ) {
+      return;
+    }
+    const completion = this.completeDates.get(
+      this.completeDateKey(uid, this.sessionGeneration, date),
+    );
+    if (
+      !completion ||
+      completion.uid !== uid ||
+      completion.generation !== this.sessionGeneration ||
+      (sessionVersion !== undefined && completion.sessionVersion !== sessionVersion)
+    ) {
+      return;
+    }
+    if (!completion.isFresh) return;
+    completion.isFresh = false;
+    this.notifyDateSnapshotListeners({ type: 'invalidated', uid, date });
+  }
 
   public setSessionUser(userId?: string, sessionVersion?: number): void {
     const nextSessionUid = userId ?? null;
@@ -209,6 +283,7 @@ export class FirestoreDeliveryDataSource {
     this.mutationEpoch += 1;
     this.activeUid = userId;
     this.records.clear();
+    this.completeDates.clear();
     this.isUsingLocalFallback = false;
     this.stateVersion += 1;
     this.historicalApplyVersion = 0;
@@ -226,6 +301,7 @@ export class FirestoreDeliveryDataSource {
       this.sessionGeneration += 1;
       this.mutationEpoch += 1;
       this.records.clear();
+      this.completeDates.clear();
       this.stateVersion += 1;
       this.historicalApplyVersion = 0;
       this.hasCompleteHistoricalState = false;
@@ -371,6 +447,10 @@ export class FirestoreDeliveryDataSource {
     const existing = this.inFlightLoads.get(key);
     if (existing && !options.force) return existing;
 
+    if (filters.mode === 'today' && filters.date && this.isLiveActivityDateQuery(filters)) {
+      this.invalidateCompleteDateSnapshot(uid, filters.date, sessionVersion);
+    }
+
     const mutationEpoch = this.mutationEpoch;
     const historicalApplyVersion = this.historicalApplyVersion;
     const loadState = this.loadStates.get(key) ?? {
@@ -499,11 +579,29 @@ export class FirestoreDeliveryDataSource {
       const protectCompleteHistory =
         this.hasCompleteHistoricalState && this.historicalApplyVersion !== historicalApplyVersion;
       this.applyLoadedRecords(filters, loaded, fromCache, protectCompleteHistory);
+      const completeLiveActivityDateQuery =
+        !fromCache &&
+        !protectCompleteHistory &&
+        this.isCompleteDateQuery(filters) &&
+        filters.mode === 'today' &&
+        this.isLiveActivityDateQuery(filters);
+      if (completeLiveActivityDateQuery && filters.date) {
+        this.completeDates.set(this.completeDateKey(uid, sessionGeneration, filters.date), {
+          uid,
+          generation: sessionGeneration,
+          sessionVersion: this.boundSessionVersion,
+          completedAt: Date.now(),
+          isFresh: true,
+        });
+      }
       this.isUsingLocalFallback = false;
       this.lastAppliedSource = hadRemoteState || !fromCache ? 'remote' : 'cache';
       if (this.historicalDataState === 'unknown') this.historicalDataState = 'partial';
       this.stateVersion += 1;
       this.publish();
+      if (completeLiveActivityDateQuery && filters.date) {
+        this.publishCompleteDateSnapshot(uid, filters.date, sessionGeneration);
+      }
       const result = this.getCached(filters, uid);
       if (filters.date && !fromCache) {
         void this.persistDateCache({ uid, generation: sessionGeneration }, filters.date);
@@ -697,6 +795,69 @@ export class FirestoreDeliveryDataSource {
     );
   }
 
+  private isLiveActivityDateQuery(filters: DeliveryFilters): boolean {
+    return Object.keys(filters).every((key) => key === 'mode' || key === 'date');
+  }
+
+  private completeDateKey(uid: string, generation: number, date: string): string {
+    return JSON.stringify([uid, generation, date]);
+  }
+
+  private isDateComplete(uid: string, date: string, generation: number): boolean {
+    const completion = this.completeDates.get(this.completeDateKey(uid, generation, date));
+    return completion?.uid === uid && completion.generation === generation && completion.isFresh;
+  }
+
+  private publishCompleteDateSnapshot(uid: string, date: string, generation: number): void {
+    if (
+      !this.isDateComplete(uid, date, generation) ||
+      !this.isSessionRequestCurrent(uid, generation)
+    ) {
+      return;
+    }
+    const completion = this.completeDates.get(this.completeDateKey(uid, generation, date));
+    if (!completion) return;
+    this.notifyDateSnapshotListeners({
+      type: 'complete',
+      snapshot: {
+        uid,
+        date,
+        deliveries: [...this.records.values()].filter((delivery) => delivery.data === date),
+        completedAt: completion.completedAt,
+      },
+    });
+  }
+
+  private publishMutatedCompleteDates(
+    uid: string,
+    dates: readonly (string | undefined)[],
+    generation: number,
+  ): void {
+    for (const date of new Set(dates.filter((value): value is string => Boolean(value)))) {
+      if (!this.isDateComplete(uid, date, generation)) continue;
+      this.completeDates.set(this.completeDateKey(uid, generation, date), {
+        uid,
+        generation,
+        sessionVersion: this.boundSessionVersion,
+        completedAt: Date.now(),
+        isFresh: true,
+      });
+      this.publishCompleteDateSnapshot(uid, date, generation);
+    }
+  }
+
+  private notifyDateSnapshotListeners(event: DeliveryDateSnapshotEvent): void {
+    this.dateSnapshotListeners.forEach((listener) => {
+      try {
+        listener(event);
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('[LiveActivity] Falha ao notificar snapshot de entregas.', error);
+        }
+      }
+    });
+  }
+
   public async create(uid: string, draft: DeliveryDraft): Promise<Delivery> {
     const request = this.captureSessionRequest(uid);
     if (this.isUsingLocalFallback)
@@ -714,6 +875,7 @@ export class FirestoreDeliveryDataSource {
     const created = { ...delivery, id: reference.id };
     this.records.set(created.id, created);
     this.publish();
+    this.publishMutatedCompleteDates(request.uid, [created.data], request.generation);
     void this.persistDateCache(request, created.data);
     void financialPeriodSnapshotCache.invalidate(request.uid, created.data.slice(0, 7));
     void firestoreHistoricalDeliveryCache.invalidate(request.uid);
@@ -733,6 +895,12 @@ export class FirestoreDeliveryDataSource {
       { ...draft, id: deliveryId, clientId: draft.clientId ?? current.clientId },
       current,
     );
+    const currentDateWasComplete = this.isDateComplete(
+      request.uid,
+      current.data,
+      request.generation,
+    );
+    const nextDateWasComplete = this.isDateComplete(request.uid, delivery.data, request.generation);
     const { doc, setDoc, serverTimestamp } = await getFirestoreOps();
     await setDoc(
       doc(await collectionFor(request.uid), deliveryId),
@@ -745,6 +913,14 @@ export class FirestoreDeliveryDataSource {
     this.assertSessionRequestCurrent(request);
     this.records.set(deliveryId, delivery);
     this.publish();
+    this.publishMutatedCompleteDates(
+      request.uid,
+      [
+        currentDateWasComplete ? current.data : undefined,
+        nextDateWasComplete ? delivery.data : undefined,
+      ],
+      request.generation,
+    );
     void this.persistDateCache(request, current.data);
     if (current.data !== delivery.data) void this.persistDateCache(request, delivery.data);
     void financialPeriodSnapshotCache.invalidate(request.uid, delivery.data.slice(0, 7));
@@ -758,11 +934,16 @@ export class FirestoreDeliveryDataSource {
   public async remove(uid: string, deliveryId: string): Promise<void> {
     const request = this.captureSessionRequest(uid);
     const previous = this.records.get(deliveryId);
+    const previousDateWasComplete =
+      previous !== undefined && this.isDateComplete(request.uid, previous.data, request.generation);
     const { deleteDoc, doc } = await getFirestoreOps();
     await deleteDoc(doc(await collectionFor(request.uid), deliveryId));
     this.assertSessionRequestCurrent(request);
     this.records.delete(deliveryId);
     this.publish();
+    if (previousDateWasComplete && previous) {
+      this.publishMutatedCompleteDates(request.uid, [previous.data], request.generation);
+    }
     if (previous) void this.persistDateCache(request, previous.data);
     if (previous)
       void financialPeriodSnapshotCache.invalidate(request.uid, previous.data.slice(0, 7));

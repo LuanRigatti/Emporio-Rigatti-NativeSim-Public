@@ -13,6 +13,8 @@ export default function NativeDailyDataSheetFallback({
   initialValues,
   onSubmit,
   onVisibleChange,
+  presentationBackgroundColor,
+  presentationBackgroundInteraction,
   visible,
 }: NativeDailyDataSheetProps) {
   const { theme } = useAppTheme();
@@ -34,7 +36,13 @@ export default function NativeDailyDataSheetFallback({
   };
 
   return (
-    <NativeSheet onVisibleChange={onVisibleChange} title={'Dados Di\u00e1rios'} visible={visible}>
+    <NativeSheet
+      onVisibleChange={onVisibleChange}
+      presentationBackgroundColor={presentationBackgroundColor}
+      presentationBackgroundInteraction={presentationBackgroundInteraction}
+      title={'Dados Di\u00e1rios'}
+      visible={visible}
+    >
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>

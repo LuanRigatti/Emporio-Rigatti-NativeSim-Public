@@ -171,11 +171,54 @@ As seguintes abstrações já existentes e reutilizadas fazem parte do sistema v
 
 **Controles nativos e adaptadores:** `NativeButton`, `NativeToggle`, `NativeDropdown`, `NativePicker`, `NativeDatePicker`, `NativeBottomSheet`, `NativeSheet`, `NativeDialog`, `NativeSearchField`, `NativeAnimatedNumber`, `NativeCardContextMenu`, `NativeGlassHeader`, `NativeGlassBackButton`, `NativeGlassMenu`, `NativeDateToolbar`, `NativePeriodActionGroup`, `NativeTrackingStatusButton` e `NativeSwipeActionsList`.
 
-**Composições premium:** `PremiumCard`, `PremiumScreen`, `PremiumSection`, `PremiumMetric`, `SummaryCard`, `GlassSurface`, `GlassCard`, `GlassButton`, `GlassHeader`, `GlassSegmentedControl` e `GlassTabBar`.
+**Composições premium:** `PremiumCard`, `PremiumScreen`, `ProgressiveCollapsibleScreen`, `PremiumSection`, `PremiumMetric`, `SummaryCard`, `GlassSurface`, `GlassCard`, `GlassButton`, `GlassHeader`, `GlassSegmentedControl` e `GlassTabBar`.
 
 **Infraestrutura visual e mapas:** `ProgressiveBlur`, `NativeRouteMap` e `NativeTrackedRouteMap`.
 
 Essas abstrações devem ser reutilizadas antes da criação de uma composição específica de tela. Implementações nativas podem ter fallback seguro para Android, Web, Expo Go ou quando uma capability do dispositivo estiver indisponível.
+
+### Contratos de composição nativa
+
+- `NativeRetailFinanceCategorySelector` mantém `selectionAnimationMode="native"`
+  como padrão; consumidores que precisam da cápsula deslizante ativam
+  `selectionAnimationMode="slidingBubble"` explicitamente. Em
+  `fillAvailableWidth`, use uma única cápsula persistente atrás dos labels e
+  divida o container em `items.length` slots com `containerRelativeFrame`; a
+  cápsula ocupa um slot uniforme e acompanha o índice selecionado. A transição
+  é `easeInOut(0.22s)` e usa `easeOut(0.18s)` com Reduce Motion. O seletor
+  intrínseco/rolável do Varejo preserva sua geometria própria. Histórico Varejo
+  continua em `NativeSegmentedControl`.
+- `NativeBottomSheet` e `NativeDailyDataSheet` permitem configurar o background
+  da apresentação e a interação com o conteúdo atrás do sheet por consumidor.
+  Preserve o default compartilhado; use `presentationBackgroundInteraction="disabled"`
+  somente quando aquele sheet deve ter apresentação modal com dimming nativo.
+  Não simule o dimming com overlay React Native, opacity ou `BlurView`.
+- `ProgressiveCollapsibleScreen` é a composição atual de título grande + título
+  compacto fixo nas superfícies migradas. O componente é dono do
+  `Animated.ScrollView`, do `scrollY` Reanimated, do Progressive Blur e do fixed
+  compact header. O fixedHeader e o Progressive Blur compartilham a mesma
+  origem geométrica; cada consumidor pode informar offsets de conteúdo para
+  preservar a geometria baseline. Layers puramente visuais não capturam
+  gestures. `Stack.Toolbar`, toolbars nativas e acessórios permanecem fora do
+  pipeline.
+- Consumidores de `ProgressiveCollapsibleScreen` não devem recriar localmente
+  `onScroll`, thresholds, interpolações, máscaras, blur ou fixed header.
+- `nativeTabRoot` deve ser usado somente nas raízes de NativeTabs que ficam sob
+  o Root Stack nativo transparente. Nessas raízes, a origem é
+  `B = max(0, insets.top + 44 - 70)`, o pipeline fica em `B - 28 pt` e o
+  content inset recebe compensação equivalente. O compact title dessas
+  superfícies usa `18 pt`; não aplicar automaticamente esse ajuste ou tamanho
+  às Stack routes.
+- Na Home, o large AppMode title pode continuar SwiftUI/Host; o compact AppMode
+  title aprovado usa `HomeModeTitleCompactRN`, `AppText` e um `Pressable`
+  acessível reutilizando o handler atual. Não envolver um Button SwiftUI em
+  `Pressable` nem usar Host SwiftUI no compact slot da Home sem nova evidência
+  física. Esta exceção é específica da composição de títulos da Home e não deve
+  ser generalizada para outros controles SwiftUI.
+- `PremiumScreen.collapsibleTitle` é infraestrutura anterior mantida para
+  compatibilidade com consumidores remanescentes; não é o pipeline atual das
+  superfícies migradas. Sua remoção deve ocorrer em mudança separada, após
+  auditar todos os consumidores.
 
 ## Tokens e temas
 

@@ -80,9 +80,18 @@ describe('NativeSheet dismissal contract', () => {
     });
 
     const sheet = findNodes(renderer.root, 'swift-bottom-sheet')[0];
+    const group = findNodes(renderer.root, 'swift-group')[0];
 
     expect(sheet.props.onDismiss).toBe(onDismiss);
     expect(sheet.props.onIsPresentedChange).toBe(onVisibleChange);
+    expect(group.props.modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'presentationBackgroundInteraction',
+          args: ['enabled'],
+        }),
+      ]),
+    );
 
     act(() => sheet.props.onIsPresentedChange(false));
     expect(onDismiss).not.toHaveBeenCalled();
@@ -112,6 +121,41 @@ describe('NativeSheet dismissal contract', () => {
 
     expect(onVisibleChange).toHaveBeenCalledWith(false);
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports an opt-in solid modal surface without changing the shared default', () => {
+    let renderer!: ReturnType<typeof create>;
+
+    act(() => {
+      renderer = create(
+        createElement(
+          NativeSheetSwiftUI,
+          {
+            onVisibleChange: jest.fn(),
+            presentationBackgroundColor: '#F3F4F5',
+            presentationBackgroundInteraction: 'disabled',
+            visible: true,
+          } as unknown as NativeSheetProps,
+          createElement('content'),
+        ),
+      );
+    });
+
+    const group = findNodes(renderer.root, 'swift-group')[0];
+
+    expect(group.props.modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'presentationBackgroundInteraction',
+          args: ['disabled'],
+        }),
+        expect.objectContaining({
+          name: 'presentationBackground',
+          args: ['#F3F4F5'],
+        }),
+      ]),
+    );
+    expect(findNodes(renderer.root, 'swift-zstack')).toHaveLength(0);
   });
 
   it('applies an opt-in tinted glass surface without changing the sheet contract', () => {

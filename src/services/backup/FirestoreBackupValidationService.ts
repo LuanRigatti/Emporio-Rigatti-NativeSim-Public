@@ -118,9 +118,56 @@ function validMonth(value: unknown): boolean {
   return month >= 1 && month <= 12;
 }
 
+function validateRouteFinancialLedger(
+  value: unknown,
+  issues: FirestoreBackupValidationIssue[],
+): value is Record<string, Record<string, unknown>> {
+  const allowedKeys = new Set([
+    'routeId',
+    'date',
+    'distanceMeters',
+    'schemaVersion',
+    'status',
+    'createdAt',
+    'updatedAt',
+    'deletedAt',
+  ]);
+  return validateDocumentMap(value, 'routeFinancialLedger', issues, (data, path) => {
+    requireString(data, 'routeId', path, issues);
+    if (data.routeId !== path.slice('routeFinancialLedger.'.length)) {
+      addIssue(issues, 'invalid-record', 'routeId deve corresponder ao ID do documento.', path);
+    }
+    if (data.schemaVersion !== 1) {
+      addIssue(issues, 'invalid-record', 'Versão do ledger de rotas inválida.', path);
+    }
+    if (data.status !== 'active' && data.status !== 'deleted') {
+      addIssue(issues, 'invalid-record', 'Status do ledger de rotas inválido.', path);
+    }
+    if (Object.keys(data).some((key) => !allowedKeys.has(key))) {
+      addIssue(
+        issues,
+        'invalid-record',
+        'O ledger aceita somente resumo financeiro, sem dados GPS.',
+        path,
+      );
+    }
+    if (data.status === 'active' || data.date !== undefined) {
+      requireString(data, 'date', path, issues);
+      if (!validDate(data.date)) addIssue(issues, 'invalid-record', 'Data inválida.', path);
+    }
+    if (data.status === 'active' || data.distanceMeters !== undefined) {
+      requireNumber(data, 'distanceMeters', path, issues);
+      if (typeof data.distanceMeters === 'number' && data.distanceMeters < 0) {
+        addIssue(issues, 'invalid-record', 'Distância não pode ser negativa.', path);
+      }
+    }
+  });
+}
+
 function validateAppData(
   appData: unknown,
   issues: FirestoreBackupValidationIssue[],
+  schemaVersion: unknown,
 ): appData is FirestoreBackupPayload['appData'] {
   if (!isRecord(appData)) {
     addIssue(issues, 'invalid-structure', 'appData deve ser um objeto.');
@@ -157,6 +204,16 @@ function validateAppData(
       requireString(data, 'month', path, issues);
       if (!validMonth(data.month)) addIssue(issues, 'invalid-record', 'Mês inválido.', path);
     }) && valid;
+  if (schemaVersion === 2) {
+    valid = validateRouteFinancialLedger(appData.routeFinancialLedger, issues) && valid;
+  } else if (appData.routeFinancialLedger !== undefined) {
+    valid = false;
+    addIssue(
+      issues,
+      'invalid-structure',
+      'O schema v1 não pode conter a coleção routeFinancialLedger.',
+    );
+  }
 
   if (!isRecord(appData.factoryReceipts)) {
     valid = false;
@@ -208,6 +265,7 @@ function validateAppData(
 function validateCounts(
   payload: FirestoreBackupPayload,
   issues: FirestoreBackupValidationIssue[],
+  schemaVersion: unknown,
 ): void {
   if (!isRecord(payload.metadata) || !isRecord(payload.metadata.counts)) {
     addIssue(issues, 'invalid-structure', 'metadata.counts é obrigatório.');
@@ -227,9 +285,14 @@ function validateCounts(
       })),
     })),
     monthlyData: Object.entries(payload.appData.monthlyData).map(([id, data]) => ({ id, data })),
+    routeFinancialLedger: Object.entries(payload.appData.routeFinancialLedger ?? {}).map(
+      ([id, data]) => ({ id, data }),
+    ),
     settings: payload.appData.settings,
   };
-  const expected = countFirestoreBackupSnapshot(snapshot);
+  const fullExpected = countFirestoreBackupSnapshot(snapshot);
+  const { routeFinancialLedger: _routeFinancialLedgerCount, ...legacyExpected } = fullExpected;
+  const expected = schemaVersion === 1 ? legacyExpected : fullExpected;
   if (JSON.stringify(expected) !== JSON.stringify(payload.metadata.counts)) {
     addIssue(issues, 'invalid-structure', 'As contagens do metadata não correspondem ao arquivo.');
   }
@@ -285,11 +348,11 @@ export class FirestoreBackupValidationService {
 
     const backupVersion = parsed.backupVersion;
     const schemaVersion = parsed.schemaVersion;
-    const hasVersions = backupVersion === 1 && schemaVersion === 1;
+    const hasVersions = backupVersion === 1 && (schemaVersion === 1 || schemaVersion === 2);
     if (backupVersion !== 1) {
       addIssue(issues, 'unsupported-backup-version', 'backupVersion incompatível.');
     }
-    if (schemaVersion !== 1) {
+    if (schemaVersion !== 1 && schemaVersion !== 2) {
       addIssue(issues, 'unsupported-schema-version', 'schemaVersion incompatível.');
     }
 
@@ -301,8 +364,8 @@ export class FirestoreBackupValidationService {
     if (typeof parsed.exportedAt !== 'string' || !isRecord(parsed.appData)) {
       addIssue(issues, 'invalid-structure', 'exportedAt e appData são obrigatórios.');
     }
-    const appDataValid = validateAppData(parsed.appData, issues);
-    if (appDataValid) validateCounts(payload, issues);
+    const appDataValid = validateAppData(parsed.appData, issues, schemaVersion);
+    if (appDataValid) validateCounts(payload, issues, schemaVersion);
 
     let checksumValid = false;
     if (isRecord(parsed.metadata) && typeof parsed.metadata.checksumSha256 === 'string') {

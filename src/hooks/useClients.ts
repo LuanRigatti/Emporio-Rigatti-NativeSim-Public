@@ -7,7 +7,14 @@ import type { ClientModel } from '@/types/data';
 
 const EMPTY_CLIENT_QUERY: ClientCatalogQuery = {};
 
-export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
+export type UseClientsOptions = {
+  loadOnMount?: boolean;
+};
+
+export function useClients(
+  query: ClientCatalogQuery = EMPTY_CLIENT_QUERY,
+  { loadOnMount = true }: UseClientsOptions = {},
+) {
   const { sessionVersion, status: authStatus, user } = useAuth();
   const [loading, setLoading] = useState(
     clientDataSource.mode === 'firebase' &&
@@ -56,9 +63,10 @@ export function useClients(query: ClientCatalogQuery = EMPTY_CLIENT_QUERY) {
   );
 
   useEffect(() => {
+    if (!loadOnMount) return;
     const timer = setTimeout(() => void load(), 0);
     return () => clearTimeout(timer);
-  }, [load]);
+  }, [load, loadOnMount]);
 
   const { clientIdForName, includeHistorical, priceDate, search } = query;
   const clients = useMemo(() => {

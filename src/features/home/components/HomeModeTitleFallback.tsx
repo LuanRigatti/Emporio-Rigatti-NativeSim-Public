@@ -1,16 +1,17 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { useAppTheme } from '@/theme';
 
 export type HomeModeTitleProps = {
   accessibilityLabel: string;
+  compact?: boolean;
   label: string;
   onPress: () => void;
 };
 
 export default function HomeModeTitleFallback({
   accessibilityLabel,
+  compact = false,
   label,
   onPress,
 }: HomeModeTitleProps) {
@@ -35,11 +36,15 @@ export default function HomeModeTitleFallback({
     >
       <Text
         numberOfLines={1}
-        style={[theme.typography.largeTitle, styles.title, { color: theme.colors.textPrimary }]}
+        style={[
+          compact ? theme.typography.headline : theme.typography.largeTitle,
+          styles.title,
+          compact ? styles.compactTitle : undefined,
+          { color: theme.colors.textPrimary },
+        ]}
       >
         {label}
       </Text>
-      <Ionicons color={theme.colors.textSecondary} name="chevron-expand-outline" size={16} />
     </Pressable>
   );
 }
@@ -47,4 +52,5 @@ export default function HomeModeTitleFallback({
 const styles = StyleSheet.create({
   container: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   title: { fontFamily: 'System', fontSize: 36, fontWeight: '700' },
+  compactTitle: { fontSize: 17, fontWeight: '600' },
 });

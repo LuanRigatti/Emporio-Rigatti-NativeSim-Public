@@ -15,6 +15,7 @@ import type { DeliveryFilters } from '@/types/data';
 type UseFinancialDataOptions = {
   enabled?: boolean;
   displayMonth?: string;
+  skipRefreshWhenCached?: boolean;
 };
 
 type ResolvedFinancialSnapshot = {
@@ -383,6 +384,7 @@ export function useFinancialData(
   const userId = user?.id;
   const enabled = options.enabled ?? true;
   const displayMonth = options.displayMonth;
+  const skipRefreshWhenCached = options.skipRefreshWhenCached ?? false;
   const queryKey = JSON.stringify(query);
   const stableQuery = useMemo(() => JSON.parse(queryKey) as DailyMonthlyQuery, [queryKey]);
   const isAllTimeQuery = stableQuery.loadAll === true;
@@ -696,10 +698,11 @@ export function useFinancialData(
 
   useEffect(() => {
     if (!enabled) return;
+    if (skipRefreshWhenCached && (hasInitialCachedSnapshot || hasLocallyDerivedSnapshot)) return;
     void (async () => {
       await load();
     })();
-  }, [enabled, load]);
+  }, [enabled, hasInitialCachedSnapshot, hasLocallyDerivedSnapshot, load, skipRefreshWhenCached]);
 
   const reload = useCallback(() => load(true), [load]);
 

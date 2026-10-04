@@ -10,8 +10,8 @@ import {
   disabled as disabledModifier,
   frame,
   foregroundColor,
-  padding,
   foregroundStyle,
+  padding,
   shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
@@ -43,6 +43,7 @@ export default function NativeButtonSwiftUI({
   variant,
 }: NativeButtonProps) {
   const isFilledVariant = variant === 'filled' || variant === 'surface';
+  const usesPlainVariant = variant === 'plain';
   const usesFixedFilledFrame =
     variant === 'filled' && minWidth !== undefined && minHeight !== undefined;
   const contentWidth =
@@ -135,11 +136,18 @@ export default function NativeButtonSwiftUI({
         role={destructive ? 'destructive' : 'default'}
         modifiers={[
           buttonStyle(
-            isFilledVariant ? 'plain' : variant === 'primary' ? 'glassProminent' : 'glass',
+            isFilledVariant || usesPlainVariant
+              ? 'plain'
+              : variant === 'primary'
+                ? 'glassProminent'
+                : 'glass',
           ),
           ...(glassTint ? [tint(glassTint)] : []),
           controlSizeModifier(controlSize ?? 'regular'),
           ...(disabled && !gateDisabledAction ? [disabledModifier(true)] : []),
+          ...(usesPlainVariant
+            ? [padding({ horizontal: horizontalPadding ?? 16, vertical: verticalPadding })]
+            : []),
           ...(isFilledVariant && !usesFixedFilledFrame
             ? [
                 foregroundStyle(color ?? '#000000'),
@@ -151,7 +159,7 @@ export default function NativeButtonSwiftUI({
                 cornerRadius(999),
               ]
             : []),
-          ...(minWidth === undefined && horizontalPadding !== undefined
+          ...(minWidth === undefined && horizontalPadding !== undefined && !usesPlainVariant
             ? [padding({ horizontal: horizontalPadding })]
             : []),
           ...(hint ? [accessibilityHint(hint)] : []),

@@ -2,6 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement } from 'react';
 
 import { useClients } from '@/hooks/useClients';
+import { clientDataSource } from '@/services/clients';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -45,5 +46,29 @@ describe('useClients', () => {
     await act(async () => {
       renderer?.unmount();
     });
+  });
+
+  it('can skip only the initial load while keeping the canonical client save action available', async () => {
+    const loadSpy = jest.spyOn(clientDataSource, 'load').mockResolvedValue(undefined);
+    let current: ReturnType<typeof useClients> | undefined;
+
+    function Harness() {
+      current = useClients(undefined, { loadOnMount: false });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(loadSpy).not.toHaveBeenCalled();
+    expect(current?.saveCustomClient).toBeDefined();
+    if (!renderer) throw new Error('Renderer nao foi criado.');
+    await act(async () => {
+      renderer?.unmount();
+    });
+    loadSpy.mockRestore();
   });
 });

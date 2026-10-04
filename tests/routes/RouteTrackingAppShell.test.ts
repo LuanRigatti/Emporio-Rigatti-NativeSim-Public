@@ -31,7 +31,14 @@ const mockFactoryDataSource = {
   restore: jest.fn(() => Promise.resolve()),
   setSessionUser: jest.fn(),
 };
+const mockCostSettingsStorage = {
+  load: jest.fn(() => Promise.resolve()),
+};
+const mockCarSettingsStorage = {
+  load: jest.fn(() => Promise.resolve()),
+};
 const mockRouteService = {
+  hydrateFinancialRouteSummariesFromCache: jest.fn(() => Promise.resolve(null)),
   restoreActiveRouteAfterAppRestart: jest.fn(() => Promise.resolve(null)),
 };
 const mockFont = { loadAsync: jest.fn(() => Promise.resolve()) };
@@ -154,6 +161,8 @@ jest.mock('@/services/deliveries', () => ({ firestoreDeliveryDataSource: mockDel
 jest.mock('@/services/factory-purchases', () => ({
   firestoreFactoryReceiptDataSource: mockFactoryDataSource,
 }));
+jest.mock('@/services/car', () => ({ carSettingsStorage: mockCarSettingsStorage }));
+jest.mock('@/services/costs', () => ({ costSettingsStorage: mockCostSettingsStorage }));
 jest.mock('@/services/routes', () => {
   const actual = jest.requireActual(
     '@/services/routes/RouteTrackingRepository',
@@ -240,6 +249,9 @@ describe('real AppShell route preload', () => {
     expect(routeTrackingRepository.getMemoryRouteHistory()).toEqual([historyA]);
     expect(mockClientDataSource.hydrateFromCache).toHaveBeenCalledWith('uid-a');
     expect(mockDeliveryDataSource.hydrateFromCache).toHaveBeenCalledWith('uid-a');
+    expect(mockCostSettingsStorage.load).toHaveBeenCalledWith('uid-a');
+    expect(mockCarSettingsStorage.load).toHaveBeenCalledTimes(1);
+    expect(mockRouteService.hydrateFinancialRouteSummariesFromCache).toHaveBeenCalledTimes(1);
     expect(mockFactoryDataSource.restore).not.toHaveBeenCalled();
     expect(jest.mocked(AsyncStorage.getItem).mock.calls.map(([key]) => key)).toContain(
       getRouteTrackingHistoryStorageKey('uid-a'),

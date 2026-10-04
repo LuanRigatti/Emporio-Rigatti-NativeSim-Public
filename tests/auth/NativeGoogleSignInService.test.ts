@@ -26,13 +26,13 @@ const mockedConstants = Constants as unknown as {
   } | null;
 };
 
-const finalPlist = plist.parse(
-  readFileSync(resolve(__dirname, '../../GoogleService-Info.final.plist'), 'utf8'),
+const releasePlist = plist.parse(
+  readFileSync(resolve(__dirname, '../../GoogleService-Info.release.plist'), 'utf8'),
 );
-const finalClientId = finalPlist.CLIENT_ID;
+const releaseClientId = releasePlist.CLIENT_ID;
 
-if (typeof finalClientId !== 'string') {
-  throw new Error('GoogleService-Info.final.plist não contém CLIENT_ID.');
+if (typeof releaseClientId !== 'string') {
+  throw new Error('GoogleService-Info.release.plist não contém CLIENT_ID.');
 }
 
 describe('NativeGoogleSignInService', () => {
@@ -72,34 +72,34 @@ describe('NativeGoogleSignInService', () => {
     expect(GoogleSignin.configure).toHaveBeenCalledWith({ webClientId: 'web-client-id' });
   });
 
-  it('does not pass the Dev environment iOS client ID to Final Google Sign-In', async () => {
+  it('does not pass the Dev environment iOS client ID to Release Google Sign-In', async () => {
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = 'default-client-id';
     mockedConstants.expoConfig = {
       extra: {
-        appVariant: 'final',
-        googleIosClientId: finalClientId,
+        appVariant: 'release',
+        googleIosClientId: releaseClientId,
       },
-      ios: { bundleIdentifier: 'com.pareact.mobile.final' },
+      ios: { bundleIdentifier: 'com.pareact.mobile.release' },
     };
     jest.mocked(GoogleSignin.signIn).mockResolvedValue({
       type: 'success',
       data: {
-        idToken: 'final-google-id-token',
+        idToken: 'release-google-id-token',
         scopes: [],
         serverAuthCode: null,
         user: {
-          email: 'final@example.com',
+          email: 'release@example.com',
           familyName: null,
           givenName: null,
-          id: 'final-google-user',
-          name: 'Final User',
+          id: 'release-google-user',
+          name: 'Release User',
           photo: null,
         },
       },
     });
 
     await expect(signInWithNativeGoogle()).resolves.toEqual({
-      idToken: 'final-google-id-token',
+      idToken: 'release-google-id-token',
     });
     expect(GoogleSignin.configure).toHaveBeenCalledWith({ webClientId: 'web-client-id' });
   });

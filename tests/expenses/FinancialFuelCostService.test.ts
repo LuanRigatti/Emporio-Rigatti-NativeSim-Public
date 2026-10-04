@@ -125,4 +125,41 @@ describe('FinancialFuelCostService', () => {
     expect(Object.keys(result)).toEqual(['2026-09-06']);
     expect(result['2026-09-06']).toBeCloseTo((5.5 / 7.4) * 6, 8);
   });
+
+  it('preserves the stored fuel cost before the 2026-05-01 automatic-distance cutoff', () => {
+    const result = calculateFinancialFuelCostsByDate(
+      {
+        '2026-04-30': {
+          data: '2026-04-30',
+          gasolina: 42,
+          km: 3,
+          precoGasolina: 6,
+          tipoCombustivel: 'gasolina',
+        },
+      },
+      [route('2026-04-30')],
+      settings,
+      carSettings,
+    );
+
+    expect(result['2026-04-30']).toBe(42);
+  });
+
+  it('includes automatic ledger distance on and after 2026-05-01', () => {
+    const result = calculateFinancialFuelCostsByDate(
+      {
+        '2026-05-01': {
+          data: '2026-05-01',
+          km: 3,
+          precoGasolina: 6,
+          tipoCombustivel: 'gasolina',
+        },
+      },
+      [route('2026-05-01')],
+      settings,
+      carSettings,
+    );
+
+    expect(result['2026-05-01']).toBeCloseTo((5.5 / 7.4) * 6, 8);
+  });
 });

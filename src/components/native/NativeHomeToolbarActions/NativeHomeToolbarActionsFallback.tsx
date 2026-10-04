@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/feedback';
 import { GlassSurface } from '@/components/premium';
@@ -10,11 +10,13 @@ import {
   HOME_TOOLBAR_AVATAR_SIZE,
   HOME_TOOLBAR_CONTROL_SIZE,
   HOME_TOOLBAR_HORIZONTAL_PADDING,
+  HOME_TOOLBAR_SEARCH_WIDTH,
   HOME_TOOLBAR_WIDTH,
 } from './NativeHomeToolbarActions.constants';
 import type { NativeHomeToolbarActionsProps } from './NativeHomeToolbarActions.types';
 
 export default function NativeHomeToolbarActionsFallback({
+  mode = 'profileActions',
   accessibilityHint,
   accessibilityLabel = 'Abrir perfil da conta',
   foregroundColor,
@@ -23,10 +25,27 @@ export default function NativeHomeToolbarActionsFallback({
   onProfilePress,
   onSearchPress,
   searchAccessibilityLabel = 'Abrir Pesquisa',
+  searchAccessibilityHint = 'Abre a busca de produtos',
   showSearch = true,
 }: NativeHomeToolbarActionsProps) {
   const { theme } = useAppTheme();
   const toolbarWidth = showSearch ? HOME_TOOLBAR_WIDTH : HOME_TOOLBAR_CONTROL_SIZE;
+
+  if (mode === 'searchAction') {
+    return (
+      <Pressable
+        accessibilityHint={searchAccessibilityHint}
+        accessibilityLabel={searchAccessibilityLabel}
+        accessibilityRole="button"
+        onPress={onSearchPress}
+        style={styles.searchAction}
+        testID="home-toolbar-item:search:Busca:magnifyingglass:94x44"
+      >
+        <Ionicons color={theme.colors.textPrimary} name="search-outline" size={19} />
+        <Text style={[styles.searchLabel, { color: theme.colors.textPrimary }]}>Busca</Text>
+      </Pressable>
+    );
+  }
 
   return (
     <GlassSurface
@@ -48,7 +67,7 @@ export default function NativeHomeToolbarActionsFallback({
           accessibilityRole="button"
           onPress={() => {
             triggerNativeButtonHaptic('light');
-            onProfilePress();
+            onProfilePress?.();
           }}
           style={({ pressed }) => [styles.action, { opacity: pressed ? 0.72 : 1 }]}
         >
@@ -79,6 +98,17 @@ export default function NativeHomeToolbarActionsFallback({
 }
 
 const styles = StyleSheet.create({
+  searchAction: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    height: HOME_TOOLBAR_CONTROL_SIZE,
+    justifyContent: 'center',
+    width: HOME_TOOLBAR_SEARCH_WIDTH,
+  },
+  searchLabel: {
+    fontSize: 16,
+  },
   surface: {
     height: HOME_TOOLBAR_CONTROL_SIZE,
     overflow: 'hidden',

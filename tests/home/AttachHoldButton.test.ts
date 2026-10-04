@@ -2,6 +2,11 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Dimensions, View } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
+import {
+  triggerLightImpactHaptic,
+  triggerNativeButtonHaptic,
+  triggerSelectionHaptic,
+} from '@/utils/haptics';
 import { AttachHoldButton } from '@/features/home/components/chatgpt-attachments/composer/attach-hold-button';
 import {
   getHoldTileCenterX,
@@ -9,6 +14,12 @@ import {
 } from '@/features/home/components/chatgpt-attachments/composer/hold-menu';
 import { HOLD_MENU_GESTURE } from '@/features/home/components/chatgpt-attachments/composer/hold-menu.constants';
 import type { LibraryPhoto } from '@/features/home/components/chatgpt-attachments/photos/use-photo-library';
+
+jest.mock('@/utils/haptics', () => ({
+  triggerLightImpactHaptic: jest.fn(),
+  triggerNativeButtonHaptic: jest.fn(),
+  triggerSelectionHaptic: jest.fn(),
+}));
 
 const mockReact = React;
 const mockView = View;
@@ -23,6 +34,7 @@ interface MockGesture {
   enabled: (enabled: boolean) => MockGesture;
   hitSlop: (value: number) => MockGesture;
   activateAfterLongPress: (duration: number) => MockGesture;
+  onTouchesDown: (callback: (...args: never[]) => void) => MockGesture;
   onBegin: (callback: (...args: never[]) => void) => MockGesture;
   onStart: (callback: (...args: never[]) => void) => MockGesture;
   onUpdate: (callback: (...args: never[]) => void) => MockGesture;
@@ -46,6 +58,10 @@ jest.mock('react-native-gesture-handler', () => {
       },
       activateAfterLongPress(duration: number) {
         this.config.activateAfterLongPress = duration;
+        return this;
+      },
+      onTouchesDown(callback: (...args: never[]) => void) {
+        this.handlers.onTouchesDown = callback;
         return this;
       },
       onBegin(callback: (...args: never[]) => void) {
@@ -234,6 +250,9 @@ describe('AttachHoldButton photo hold menu integration', () => {
     onPress.mockReset();
     onPhotoSelect.mockReset();
     onDockSettled.mockReset();
+    jest.mocked(triggerLightImpactHaptic).mockClear();
+    jest.mocked(triggerNativeButtonHaptic).mockClear();
+    jest.mocked(triggerSelectionHaptic).mockClear();
   });
 
   afterEach(() => {
@@ -254,7 +273,11 @@ describe('AttachHoldButton photo hold menu integration', () => {
     expect(photoTiles()).toHaveLength(4);
 
     act(() => hold.handlers.onBegin?.(touch as never));
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).not.toHaveBeenCalled();
     act(() => hold.handlers.onStart?.(touch as never));
+    expect(triggerNativeButtonHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).toHaveBeenCalledWith('medium');
 
     expect(holdMenuIsVisible()).toBe(true);
     expect(photoTiles()).toHaveLength(4);
@@ -263,6 +286,7 @@ describe('AttachHoldButton photo hold menu integration', () => {
     const tray = getHoldTrayMetrics(4, width, 620);
     const drag = { absoluteX: getHoldTileCenterX(2, tray), absoluteY: tray.centerY };
     act(() => hold.handlers.onUpdate?.(drag as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(1);
     act(() => hold.handlers.onFinalize?.(drag as never, true as never));
 
     expect(onPhotoSelect).toHaveBeenCalledTimes(1);
@@ -275,6 +299,43 @@ describe('AttachHoldButton photo hold menu integration', () => {
 
     expect(onDockSettled).toHaveBeenCalledWith(photos[2].id);
     expect(holdMenuIsVisible()).toBe(false);
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits selection feedback only when the hovered index enters a valid tile', () => {
+    mount();
+    const [hold] = currentGestures();
+    const touch = { absoluteX: 40, absoluteY: 620, x: 25, y: 15 };
+    const tray = getHoldTrayMetrics(4, Dimensions.get('window').width, 620);
+    const tileCenter = (index: number) => ({
+      absoluteX: getHoldTileCenterX(index, tray),
+      absoluteY: tray.centerY,
+    });
+
+    act(() => hold.handlers.onBegin?.(touch as never));
+    act(() => hold.handlers.onStart?.(touch as never));
+
+    act(() => hold.handlers.onUpdate?.(tileCenter(0) as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(1);
+
+    act(() => hold.handlers.onUpdate?.(tileCenter(0) as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(1);
+
+    act(() => hold.handlers.onUpdate?.(tileCenter(1) as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(2);
+
+    act(() => hold.handlers.onUpdate?.({ absoluteX: -100, absoluteY: -100 } as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(2);
+
+    act(() => hold.handlers.onUpdate?.(tileCenter(1) as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(3);
+
+    act(() => hold.handlers.onFinalize?.(tileCenter(1) as never, true as never));
+    expect(triggerSelectionHaptic).toHaveBeenCalledTimes(3);
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).toHaveBeenCalledTimes(1);
   });
 
   it('cancels release outside a tile and clears the temporary menu state', () => {
@@ -302,6 +363,7 @@ describe('AttachHoldButton photo hold menu integration', () => {
 
     act(() => hold.handlers.onBegin?.(touch as never));
     expect(holdMenuIsVisible()).toBe(true);
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
 
     act(() => hold.handlers.onFinalize?.(touch as never, false as never));
     act(() => mockSpringCompletions[0]?.(true));
@@ -309,6 +371,65 @@ describe('AttachHoldButton photo hold menu integration', () => {
     expect(onPhotoSelect).not.toHaveBeenCalled();
     expect(onPress).not.toHaveBeenCalled();
     expect(holdMenuIsVisible()).toBe(false);
+    expect(triggerNativeButtonHaptic).not.toHaveBeenCalled();
+    expect(triggerSelectionHaptic).not.toHaveBeenCalled();
+  });
+
+  it('gives a short tap one touch-down Light without adding a second menu-open haptic', () => {
+    mount();
+    const [hold, tap] = currentGestures();
+    const touch = { absoluteX: 40, absoluteY: 620, x: 25, y: 15 };
+
+    act(() => hold.handlers.onBegin?.(touch as never));
+    act(() => tap.handlers.onEnd?.({} as never, true as never));
+
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).not.toHaveBeenCalled();
+    expect(triggerSelectionHaptic).not.toHaveBeenCalled();
+  });
+
+  it('keeps a single Light feedback for an accessibility tap', () => {
+    mount();
+    const button = renderer.root.findByProps({ testID: 'composer-plus-button' });
+
+    act(() => button.props.onAccessibilityTap());
+
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).not.toHaveBeenCalled();
+    expect(triggerSelectionHaptic).not.toHaveBeenCalled();
+  });
+
+  it('emits one Light on touch-down when the hold menu is disabled', () => {
+    mount(false);
+    const [, tap] = currentGestures();
+
+    act(() => tap.handlers.onTouchesDown?.({ numberOfTouches: 1 } as never));
+    act(() => tap.handlers.onEnd?.({} as never, true as never));
+
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(triggerNativeButtonHaptic).not.toHaveBeenCalled();
+    expect(triggerSelectionHaptic).not.toHaveBeenCalled();
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts each later hold with a fresh Light and Medium sequence', () => {
+    mount();
+    const [hold] = currentGestures();
+    const touch = { absoluteX: 40, absoluteY: 620, x: 25, y: 15 };
+
+    act(() => hold.handlers.onBegin?.(touch as never));
+    act(() => hold.handlers.onStart?.(touch as never));
+    act(() => hold.handlers.onFinalize?.(touch as never, false as never));
+    act(() => mockSpringCompletions[0]?.(true));
+
+    act(() => hold.handlers.onBegin?.(touch as never));
+    act(() => hold.handlers.onStart?.(touch as never));
+
+    expect(triggerLightImpactHaptic).toHaveBeenCalledTimes(2);
+    expect(triggerNativeButtonHaptic).toHaveBeenNthCalledWith(1, 'medium');
+    expect(triggerNativeButtonHaptic).toHaveBeenNthCalledWith(2, 'medium');
   });
 
   it('supports tap, close, hold selection, then another tap without stale state', () => {

@@ -1,14 +1,28 @@
 const fs = require('fs');
 const path = require('path');
+const { AndroidConfig, withSettingsGradle, withStringsXml } = require('expo/config-plugins');
 
 const androidMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
 const isFinalVariant = process.env.APP_VARIANT === 'final';
+const isReleaseVariant = process.env.APP_VARIANT === 'release';
+const isIsolatedIosVariant = isFinalVariant || isReleaseVariant;
 const appName = isFinalVariant ? 'Empório Rigatti Final' : 'Empório Rigatti';
-const appScheme = isFinalVariant ? 'pareact-final' : 'pareact';
-const appBundleIdentifier = isFinalVariant ? 'com.pareact.mobile.final' : 'com.pareact.mobile';
+const iosProjectName = 'emporiorigatti';
+const appScheme = isFinalVariant
+  ? 'pareact-final'
+  : isReleaseVariant
+    ? 'pareact-release'
+    : 'pareact';
+const appBundleIdentifier = isFinalVariant
+  ? 'com.pareact.mobile.final'
+  : isReleaseVariant
+    ? 'com.pareact.mobile.release'
+    : 'com.pareact.mobile';
 const googleServicesFile = isFinalVariant
   ? './GoogleService-Info.final.plist'
-  : './GoogleService-Info.plist';
+  : isReleaseVariant
+    ? './GoogleService-Info.release.plist'
+    : './GoogleService-Info.plist';
 
 function readPlistString(filePath, key) {
   if (!fs.existsSync(filePath)) return undefined;
@@ -25,17 +39,35 @@ const selectedGoogleReversedClientId = readPlistString(
   'REVERSED_CLIENT_ID',
 );
 const configuredScheme =
-  isFinalVariant && selectedGoogleReversedClientId
+  isIsolatedIosVariant && selectedGoogleReversedClientId
     ? [appScheme, selectedGoogleReversedClientId]
     : appScheme;
-const finalGoogleUrlSchemes =
-  isFinalVariant && selectedGoogleReversedClientId
+const isolatedVariantGoogleUrlSchemes =
+  isIsolatedIosVariant && selectedGoogleReversedClientId
     ? [appScheme, appBundleIdentifier, selectedGoogleReversedClientId]
     : undefined;
 
+function withAndroidNames(config) {
+  config = withStringsXml(config, (config) => {
+    config.modResults = AndroidConfig.Strings.setStringItem(
+      [AndroidConfig.Resources.buildResourceItem({ name: 'app_name', value: appName })],
+      config.modResults,
+    );
+    return config;
+  });
+
+  return withSettingsGradle(config, (config) => {
+    config.modResults.contents = AndroidConfig.Name.applyNameSettingsGradle(
+      { name: appName },
+      config.modResults.contents,
+    );
+    return config;
+  });
+}
+
 module.exports = {
   expo: {
-    name: appName,
+    name: iosProjectName,
     slug: 'emporio-rigatti',
     version: '1.0.0',
     orientation: 'portrait',
@@ -52,10 +84,11 @@ module.exports = {
       },
       supportsTablet: true,
       infoPlist: {
+        CFBundleDisplayName: appName,
         LSApplicationQueriesSchemes: ['comgooglemaps'],
-        ...(finalGoogleUrlSchemes
+        ...(isolatedVariantGoogleUrlSchemes
           ? {
-              CFBundleURLTypes: [{ CFBundleURLSchemes: finalGoogleUrlSchemes }],
+              CFBundleURLTypes: [{ CFBundleURLSchemes: isolatedVariantGoogleUrlSchemes }],
             }
           : {}),
       },
@@ -87,6 +120,7 @@ module.exports = {
         projectId: 'ef8d9f2e-7d9e-4333-8295-3ecd545db347',
       },
       ...(isFinalVariant ? { appVariant: 'final' } : {}),
+      ...(isReleaseVariant ? { appVariant: 'release' } : {}),
       ...(selectedGoogleIosClientId ? { googleIosClientId: selectedGoogleIosClientId } : {}),
     },
     plugins: [
@@ -98,8 +132,7 @@ module.exports = {
       [
         'expo-camera',
         {
-          cameraPermission:
-            'O Empório Rigatti usa a câmera para adicionar fotos à pesquisa.',
+          cameraPermission: 'O Empório Rigatti usa a câmera para adicionar fotos à pesquisa.',
           microphonePermission: false,
           recordAudioAndroid: false,
           barcodeScannerEnabled: false,
@@ -143,6 +176,7 @@ module.exports = {
           enableBackgroundRemoteNotifications: true,
         },
       ],
+      ['expo-widgets', { enablePushNotifications: false }],
       'expo-maps',
       [
         'expo-local-authentication',
@@ -150,6 +184,7 @@ module.exports = {
           faceIDPermission: 'O Face ID será usado para desbloquear o aplicativo com segurança.',
         },
       ],
+      withAndroidNames,
     ],
   },
 };

@@ -23,6 +23,18 @@ describe('FirestoreBackupService', () => {
       },
     ],
     monthlyData: [{ id: '2026-08', data: { month: '2026-08', luz: 20 } }],
+    routeFinancialLedger: [
+      {
+        id: 'route-1',
+        data: {
+          date: '2026-08-06',
+          distanceMeters: 12_400,
+          routeId: 'route-1',
+          schemaVersion: 1,
+          status: 'active',
+        },
+      },
+    ],
     settings: {
       car: { gasolineAutonomy: '10' },
       company: { tradeName: 'Empresa' },
@@ -47,8 +59,19 @@ describe('FirestoreBackupService', () => {
       factoryReceipts: 1,
       dailyData: 1,
       monthlyData: 1,
+      routeFinancialLedger: 1,
       settings: { car: 1, company: 1, factory: 1 },
     });
+    expect(payload.appData.routeFinancialLedger?.['route-1']).toEqual({
+      date: '2026-08-06',
+      distanceMeters: 12_400,
+      routeId: 'route-1',
+      schemaVersion: 1,
+      status: 'active',
+    });
+    expect(JSON.stringify(payload.appData.routeFinancialLedger)).not.toMatch(
+      /samples|coordinates|polyline/i,
+    );
   });
 
   it('serializes Firestore timestamps reversibly without converting them to strings', () => {

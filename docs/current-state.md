@@ -6,21 +6,283 @@ Este é o primeiro bloco a ser consultado por qualquer nova conversa ou agente
 de IA. Ele representa o estado operacional deste checkout; as seções posteriores
 preservam o histórico técnico e as decisões acumuladas.
 
-## Git
+## Manutenção do Expo SDK 57 — concluída (2026-10-03)
 
-- Branch atual: `ajustes-codex`.
-- HEAD local e `origin/ajustes-codex` estão em
-  `0dff9c693e8e82f7be2c3d83443931410adbfd80`
-  (`feat(retail): support historical costs and category delivery allocation`).
-- O checkpoint publicado não contém alterações locais de código. Esta revisão
-  documental pode deixar somente os documentos listados modificados até ser
-  publicada; operações futuras devem continuar seletivas.
+- A manutenção de dependências do Expo SDK 57 foi concluída e checkpointada
+  na branch `ajustes-codex`. `npx expo install --check` retorna zero
+  divergências. Consulte o Git para o HEAD e o estado de publicação atuais;
+  este snapshot não fixa o SHA do próprio documento.
+- Versões estruturais: Expo `57.0.26`; React Native `0.86.3`; Expo Router
+  `57.0.24`; expo-modules-core `57.0.20`; expo-modules-jsi `57.1.1`;
+  expo-modules-autolinking `57.0.13`; react-native-screens `4.26.2`;
+  @expo/ui `57.0.21`; expo-glass-effect `57.0.4`.
+- Navegação: @react-navigation/native `7.5.0`, core `7.23.0`, elements
+  `2.9.44` e react-native-drawer-layout `4.2.11`.
+- Módulos nativos relevantes: expo-location `57.0.20`,
+  expo-task-manager `57.0.21`, expo-notifications `57.0.21`,
+  expo-maps `57.0.3`, expo-splash-screen `57.0.9`,
+  expo-file-system `57.0.7`, expo-camera `57.0.6`,
+  expo-media-library `57.0.5`, expo-document-picker `57.0.3`,
+  expo-sharing `57.0.22`, expo-haptics `57.0.3`,
+  expo-local-authentication `57.0.3`, expo-blur `57.0.3`,
+  expo-font `57.0.4`, expo-linear-gradient `57.0.2`,
+  expo-image `57.0.5`, expo-crypto `57.0.3`, expo-web-browser
+  `57.0.3` e expo-dev-client `57.0.19`. O Dev Launcher está em
+  `57.0.20` e o Dev Menu em `57.0.18`.
+- O usuário executou uma build iOS Simulator pelo perfil EAS
+  `cloud-simulator`; a compilação terminou com sucesso e o app foi aberto
+  no Appetize sem Metro. Esse resultado valida a build de simulador e o smoke
+  test realizado, mas não substitui a validação de uma Development Build com
+  Metro ou em iPhone físico.
+- O smoke test no Appetize não observou regressão funcional ou visual evidente
+  em startup/splash, navegação, NativeTabs, Native Stack, push/pop, swipe-back,
+  toolbar/Search/Avatar, títulos Atacado/Varejo, sheets/BottomSheet,
+  Liquid Glass/UI e mapas/fluxos acessíveis no simulador.
+- Permanecem preservados o coordinator nativo da toolbar compartilhada em
+  `plugins/withRNScreensHideBottomBarWhenPushed.js`, o large title da Home
+  com `Host matchContents` e
+  `ignoreSafeArea={isHomeLargeTitle ? 'container' : undefined}`, o patch do
+  BottomSheet com `.ignoresSafeArea(.container, edges: .bottom)`, o patch
+  versionado de expo-backdrop e NativeTabs/Native Stack/Stack.Toolbar.
 
-## Checkpoint operacional publicado — 2026-09-21
+### Validação ainda pendente em iPhone físico
 
-Este bloco resume o estado funcional confirmado nos commits publicados mais
-recentes. O código/Git atual continua sendo a fonte da verdade em caso de
+A Development Build instalada anteriormente no iPhone foi compilada antes
+desta manutenção e não valida as novas versões nativas. Uma nova Development
+Build para iPhone e Metro continua necessária. Permanecem pendentes no aparelho:
+
+- localização em background por período prolongado e transição de permissão
+  When In Use para Always;
+- retomada/restauração real do tracking após suspensão ou encerramento do app;
+- APNs e push remoto;
+- Face ID;
+- câmera e fototeca;
+- haptics físicos;
+- lifecycle real de suspensão/encerramento do iOS;
+- inicialização do Dev Client, conexão/reload do Metro e Dev Menu na nova build.
+
+### Baselines automatizados conhecidos
+
+As falhas abaixo já eram conhecidas na manutenção e não foram classificadas
+como regressões do update:
+
+- react-native-worklets/loadUnpackers;
+- ExpoModulesCoreJSLogger / `Cannot log after tests are done`;
+- mock de `@/theme` sem `getInsetSurfaceColor` em
+  RetailOrderPaymentSheet;
+- divergências de `useFinancialData`;
+- flags em FirebaseActivationGate/FirebaseReadinessGate;
+- seleção de MockAuthDataSource;
+- expectativa textual antiga em PremiumScreenCollapsibleTitle;
+- asserções textuais de RegistrarWholesaleIconPresentation;
+- Firebase ESM em DailyDataDataSource.
+
+Essas falhas permanecem sem correção nesta rodada.
+
+## Atualização funcional validada no iPhone — 2026-09-29
+
+### Seletor de categorias de Finanças iOS
+
+- Atacado e Varejo usam o seletor SwiftUI de categorias dentro do fluxo rolável
+  React Native. Seu `Host` mantém `ignoreSafeArea="all"` para que a composição
+  SwiftUI/Liquid Glass acompanhe o scroll e saia da viewport junto do conteúdo.
+- A validação física confirmou que, sem essa configuração, o frame do Host
+  acompanhava o scroll enquanto a representação SwiftUI ficava retida; com
+  `ignoreSafeArea="all"`, o desacoplamento desapareceu.
+- A alteração é TSX e usa a API já disponível no `@expo/ui` instalado; não exige
+  nova Development Build.
+
+## Seletor de períodos — estado publicado em 2026-10-02
+
+- `NativeRetailFinanceCategorySelectorSwiftUI.ios.tsx` mantém o modo `native`
+  como padrão e permite ativar explicitamente `slidingBubble` por consumidor.
+  Finanças Atacado, Finanças Varejo e Histórico Atacado optam por esse modo;
+  Histórico Varejo continua usando `NativeSegmentedControl`.
+- No caminho `fillAvailableWidth`, os slots e a cápsula usam
+  `containerRelativeFrame` com `count: items.length`; a cápsula persistente tem
+  a largura de um slot e sua posição deriva do índice selecionado, inclusive
+  quando `scrollable={false}`. A animação usa `easeInOut(0.22s)` e Reduce Motion
+  usa `easeOut(0.18s)`.
+- A publicação passou TypeScript, ESLint direcionado, Prettier e os testes
+  direcionados de Finanças e Histórico. A validação visual física da animação
+  do Histórico Atacado foi confirmada no iPhone. A alteração é TS/TSX e pode ser
+  conferida por Metro/Fast Refresh; não exige nova Development Build.
+
+## Snapshot operacional validado no working tree — 2026-09-27
+
+Este bloco registra o estado funcional validado no working tree a partir do
+HEAD de referência do snapshot base acima. A migração foi publicada depois em
+`2fc6bfe`; o código/Git atual continua sendo a fonte da verdade em caso de
 divergência com seções históricas deste documento.
+
+### Finanças Atacado — primeiro carregamento do Lucro Líquido (2026-09-28)
+
+- No cold start, o bootstrap autenticado hidrata dos caches locais existentes as
+  configurações de custos, as configurações do veículo e o resumo financeiro das
+  rotas antes de liberar a tela raiz.
+- Finanças inicia com os resumos de rota já disponíveis em memória e permite que
+  o cálculo do combustível use as configurações em cache. Assim, o card
+  `Lucro Líquido` pode apresentar o valor no primeiro frame, junto de
+  `Faturamento`.
+- A ausência de snapshot local de rotas permanece como dado ainda não carregado;
+  não vira lista vazia considerada completa. A revalidação remota existente
+  continua, sem leitura Firestore adicional. Fórmulas e demais cards não mudam.
+
+### Variantes iOS — estado confirmado em 2026-09-28
+
+- Dev/standard usa `com.pareact.mobile`. O profile `development` não define
+  `APP_VARIANT`, e `cloud-simulator` define `APP_VARIANT=standard`; ambos caem
+  na configuração padrão do `app.config.js`.
+- O Release usa `com.pareact.mobile.release`. O profile EAS `production` fixa
+  `APP_VARIANT=release` no ambiente `production`; `app.config.js` seleciona
+  `GoogleService-Info.release.plist`, `Empório Rigatti` e o scheme
+  `pareact-release`. `src/config/appVariant.ts` reconhece a variante para
+  Google Sign-In, navegação raiz e notificações.
+- O Firebase iOS app `Empório Rigatti Release`
+  (`1:83092109834:ios:c5754801f9d9ebda163df3`) foi registrado no projeto
+  existente `venda-e-faturamento`, para o bundle
+  `com.pareact.mobile.release`. Seu plist foi obtido do Firebase e confirma
+  `PROJECT_ID=venda-e-faturamento`; o plist `.final` não é reutilizado.
+- Dev/standard permanece em `com.pareact.mobile` e
+  `GoogleService-Info.plist`. A variante `.final` e seu plist/script permanecem
+  como configuração legada separada; não são selecionados pelo profile
+  `production`. As referências `.final` nas seções históricas abaixo descrevem
+  esse estado legado e foram preservadas.
+
+### Pesquisa e composer
+
+- `/pesquisa` usa `HomeSearchAttachmentsComposer` com `TextInput` e
+  `OverKeyboardView` de `react-native-keyboard-controller`. O tap no `+`
+  preserva o menu tradicional Câmera/Fotos/Data/Arquivos; o long press usa um
+  gesto exclusivo e abre o `PhotoHoldMenu` com até quatro fotos recentes,
+  permitindo hover por arraste e seleção no release. O hold não abre a grade
+  completa nem o `AttachmentPanel`.
+- O loading da busca usa `NativeThinkingOrb` no estado `searching`, por meio do
+  módulo Expo local `native-thinking-orb`, com fallback `ActivityIndicator`.
+  Os fontes incorporados mantêm a licença MIT e `THIRD_PARTY_NOTICES.md`.
+- O controle de intensidade usa o módulo Expo/SwiftUI local
+  `native-model-intensity-slider`. O arraste visual é contínuo e nativo; os
+  steps semânticos permanecem discretos. Soltar aplica snap e atualiza o step,
+  mas não fecha o overlay. O fechamento é separado e ocorre por dismiss
+  externo, pedido nativo/Escape, toggle explícito ou exclusividade com os
+  attachments/fotos. O parser, a busca e o submit não são controlados pelo
+  slider.
+- Os dois hosts SwiftUI dos intensity pickers podem estar em
+  `UIRemoteKeyboardWindow`, enquanto os botões de origem ficam na `UIWindow` do
+  app. `IntensityCoordinateConverter` converte pela coordinate space da tela
+  entre as janelas, após validar compatibilidade geométrica do display; não
+  exige identidade entre objetos `UIScreen` e continua rejeitando displays
+  geometricamente incompatíveis.
+- `expo-backdrop@0.1.1` permanece compatível com `expo-blur` por patch-package
+  versionado que renomeia somente a classe Swift interna do backdrop; a API JS
+  e o nome de módulo exposto permanecem preservados. Como o patch altera código
+  nativo iOS, sua inclusão exige uma nova Development Build.
+
+### Toolbar da Home
+
+- O `(tabs)` preserva uma única `UINavigationBar`/`Stack.Toolbar` compartilhada
+  no Stack raiz e o coordinator nativo de sincronização entre tabs. NativeTabs,
+  Native Stack, navegação e morph Liquid Glass não foram substituídos por uma
+  toolbar React Native.
+- A Home mantém um `Stack.Toolbar.View` real de `44×44 pt` no slot esquerdo,
+  neutro e não interativo, com `hidesSharedBackground`. Ele é uma âncora de
+  materialização necessária ao reveal inicial nativo; um `Spacer`/fixed-space
+  de mesma largura não preservou esse efeito, e a âncora oculta o background
+  compartilhado para não desenhar uma cápsula vazia.
+- No Atacado, o slot direito usa `NativeHomeToolbarActions` com ação nativa
+  SwiftUI `plain` para `magnifyingglass` + `Busca`, mantendo o shared background
+  como única superfície e navegando para `/pesquisa`. No Varejo, Search não é
+  renderizada. O perfil não fica mais na Home: Configurações usa o mesmo
+  `HomeProfileSheetProvider` e Profile Sheet no slot direito.
+- O usuário validou fisicamente no iPhone o estado atual das toolbars, do
+  NativeTabs e do pipeline de títulos. Esta migração não altera código nativo,
+  configuração ou config plugin e não requer nova iOS Development Build.
+
+### Apresentação dos Bottom Sheets
+
+- `NativeBottomSheet` e `NativeDailyDataSheet` aceitam configuração por
+  consumidor para a cor nativa da apresentação e
+  `presentationBackgroundInteraction`. O default compartilhado continua
+  `enabled`; não se deve habilitar dimming globalmente.
+- Modo de venda, Perfil, Registrar Entrega e Dados Diários optam pela superfície
+  sólida nativa (`#F3F4F5` no Light Mode e `#1C1C1E` no Dark Mode) e por
+  `presentationBackgroundInteraction="disabled"`, deixando o iOS escurecer a
+  tela atrás do sheet. Os controles e materiais internos continuam
+  independentes da superfície externa.
+- O Bottom Sheet de Detalhes da compra da Fábrica não faz parte desse conjunto
+  de mudanças e mantém a composição que consta no código atual.
+
+### ProgressiveCollapsibleScreen
+
+- `ProgressiveCollapsibleScreen` é a abstração compartilhada canônica das
+  superfícies migradas. Ela compõe título grande no conteúdo, fixed compact
+  header, `Animated.ScrollView` com um único `scrollY` Reanimated e Progressive
+  Blur usando `AnimatedBlurView`, `MaskedView`, `LinearGradient` e
+  `easeGradient`.
+- O pipeline base mantém offset estrutural `T - 28 pt` com compensação `+28 pt`
+  no content top inset, Progressive Blur de `150 pt`, fixedHeader de `100 pt`,
+  thresholds do upstream, `ScrollView` com `flex: 1`, content container com
+  `flexGrow: 1`, `alwaysBounceVertical` no iOS e layers visuais que não capturam
+  gestures. `fixedHeader` e Progressive Blur compartilham a mesma origem
+  geométrica. A dependência usada pelo gradiente de easing é
+  `react-native-easing-gradient@1.1.1`.
+- As Stack routes usam a adaptação `nativeHeader` para o header nativo. As
+  raízes da NativeTabs usam `nativeTabRoot`, cuja origem dinâmica é
+  `B = max(0, insets.top + 44 - 70)`: o pipeline usa `B - 28 pt` e o content top
+  inset recebe a compensação correspondente. Assim, fixedHeader e Progressive
+  Blur movem juntos enquanto o título grande, o primeiro conteúdo/cards e as
+  toolbars mantêm suas posições.
+- Compact titles das Tab roots usam `18 pt`; as Stack routes continuam no
+  sizing padrão de `17 pt`.
+- Superfícies migradas e validadas: Home Atacado/Varejo, Finanças
+  Atacado/Varejo, Registrar principal, Registrar → Dados Diários, Histórico
+  Atacado/Varejo, Configurações, Pesquisa, Em aberto, Registrar Entrega,
+  Documentos e Fábrica.
+- Na Home, o large AppMode title continua SwiftUI/Host. O compact title usa
+  `HomeModeTitleCompactRN`, React Native com `AppText` e `Pressable` acessível,
+  reutilizando `modeSelector.open`; Atacado e Varejo compartilham a solução. O
+  compact slot não usa Host SwiftUI nem `compactTitleAboveBlur`.
+- O usuário confirmou no iPhone large/compact title, morph, Progressive Blur,
+  scroll, interação, toolbars, Back/swipe-back, NativeTabs, altura vertical e
+  tipografia de `18 pt` nas Tab roots, além do tap no compact title da Home e da
+  troca Atacado/Varejo.
+- O opt-in `nativeTabRoot` do Registrar Varejo está implementado e foi validado
+  fisicamente no iPhone após a correção. O usuário aprovou o alinhamento e o
+  tamanho de `18 pt` do compact title, o morph/Progressive Blur e o scroll, com
+  large title e primeiro conteúdo preservados.
+- A implementação desta migração é TS/TSX e não exige nova Development Build.
+
+### Pipeline legado de título colapsável
+
+- `PremiumScreen.collapsibleTitle` não é o pipeline atual das superfícies acima.
+  A API e o contexto de `NativeGlassHeader` permanecem por compatibilidade com
+  o fallback legado de `RegistrarDeliveryScreen`; a rota `/registrar-entrega`
+  usa `ProgressiveCollapsibleScreen`. `RegistrarDailyDataScreen` também usa
+  `ProgressiveCollapsibleScreen` com `nativeHeader` e tamanho Stack padrão de
+  `17 pt`; a migração foi validada fisicamente no iPhone. A remoção estrutural
+  do legado exige tarefa separada.
+
+### Builds de simulator e validação pendente
+
+- `eas.json` contém o profile `cloud-simulator`, separado do profile de
+  simulator de desenvolvimento: usa `ios.simulator: true`,
+  `developmentClient: false`, ambiente `preview` e `APP_VARIANT=standard`.
+  `app.config.js` seleciona a configuração padrão Empório Rigatti. Comando:
+  `eas build --platform ios --profile cloud-simulator`.
+- O profile está configurado, mas não há confirmação de execução em EAS,
+  Appetize ou Sauce Labs neste checkpoint.
+- As revisões recentes do `native-model-intensity-slider` alteraram Swift e
+  requerem uma nova iOS Development Build para validar o estado final. Não
+  considerar essa validação concluída apenas com testes TypeScript.
+- A validação física final do pipeline de títulos descrito acima foi confirmada
+  pelo usuário no iPhone; ela não substitui validações futuras de mudanças
+  nativas não relacionadas a esta migração.
+
+## Baseline funcional Retail — 2026-09-21
+
+Os itens abaixo registram decisões de domínio e comportamento Retail já
+confirmadas naquele checkpoint. Eles permanecem úteis quando não forem
+contraditos pelo snapshot operacional acima.
 
 ### Custos e composição Retail
 
@@ -68,7 +330,7 @@ divergência com seções históricas deste documento.
   pagamento `posted`; `discount`, `deliveryFee` e alterações comerciais
   continuam protegidos, e `completed`/`cancelled` permanecem somente leitura.
 
-### Validação e publicação
+### Validação do baseline de 2026-09-21
 
 - TypeScript, ESLint direcionado, Prettier direcionado, 35 suítes/235 testes e
   `git diff --check` passaram antes da publicação.
@@ -157,12 +419,19 @@ publicação do checkpoint 5C.2A-2.
 - `orderDate` é a data comercial usada para agrupar o Histórico Varejo por Dia,
   Semana e Mês. `deliveryDate` permanece a data de entrega, e timestamps de
   criação/atualização são técnicos.
-- O wizard Registrar Varejo usa o Root Native Stack nas cinco rotas
-  `/registrar-pedido-varejo`, `/registrar-pedido-varejo/produtos`,
+- A aba Registrar Varejo mantém o card `Registrar pedido`, que abre
+  `/registrar-pedido-varejo`. Essa rota reúne busca local de clientes ativos e
+  seleção de produtos; itens podem ser adicionados antes do cliente. Limpar a
+  seleção remove somente `clientId` e preserva produtos e os demais campos do
+  draft.
+- O Root Native Stack mantém `/registrar-pedido-varejo` como página combinada,
+  `/registrar-pedido-varejo/novo-cliente` como cadastro auxiliar e as etapas
   `/registrar-pedido-varejo/detalhes`, `/registrar-pedido-varejo/resumo` e
-  `/registrar-pedido-varejo/pagamento`, sem navigator aninhado. O
-  `RetailOrderFlowProvider` compartilha o draft; Back, morph, push/pop e
-  swipe-back permanecem nativos.
+  `/registrar-pedido-varejo/pagamento`. A rota antiga `/produtos` redireciona
+  para a página combinada. `RetailOrderFlowProvider` preserva o draft dentro
+  desse fluxo, inclusive ao abrir o cadastro auxiliar, e o limpa ao sair do
+  prefixo ou mudar para Atacado; Back, morph, push/pop e swipe-back permanecem
+  nativos.
 - O detalhe de pedido usa a rota Root `/pedido-varejo/[orderId]`, recebe apenas
   `orderId` e mantém o domínio Retail isolado de Delivery.
 
@@ -223,6 +492,10 @@ publicação do checkpoint 5C.2A-2.
 
 ## Aplicativo
 
+- `expo.name`/nome interno do projeto iOS: `emporiorigatti`. O nome exibido é
+  independente e vem de `CFBundleDisplayName`: `Empório Rigatti` na variante
+  padrão e `Empório Rigatti Final` na variante Final. Slug, EAS projectId e
+  bundle identifiers são configurações separadas.
 - Nome exibido da variante padrão: `Empório Rigatti`.
 - Variante Final: `Empório Rigatti Final`, com `APP_VARIANT=final`, bundle ID
   `com.pareact.mobile.final`, scheme `pareact-final` e
@@ -234,12 +507,12 @@ publicação do checkpoint 5C.2A-2.
 - `bundleIdentifier`: `com.pareact.mobile`.
 - Alvo principal: iOS Development Build.
 
-## Snapshot funcional auditado — fechamento atual
+## Snapshot funcional histórico — fechamento anterior
 
-Este bloco é a fonte resumida do estado atual do código para o fechamento em
-`ajustes-codex`. O código e o histórico local foram auditados; artefatos de
-apresentação e instrumentação temporária foram removidos. A correção descrita
-abaixo é a referência operacional após a publicação deste commit.
+Este bloco preserva uma auditoria anterior do checkout. Ele não representa o
+estado operacional atual para Pesquisa, Bottom Sheets ou títulos; consulte o
+Snapshot operacional de 2026-09-26 no topo. As descrições abaixo permanecem
+como histórico técnico e não devem substituir a inspeção do código/Git atual.
 
 ### Cold start offline, sessão e sincronização
 
@@ -493,7 +766,7 @@ abaixo é a referência operacional após a publicação deste commit.
 - A instrumentação temporária de lifecycle da Pesquisa foi removida; não há
   contadores, listeners ou helpers de diagnóstico desse fluxo.
 
-## Estado nativo atual
+## Estado nativo registrado no snapshot histórico
 
 ### VALIDADO NO NATIVESIM IOS — 2026-09-17
 
@@ -599,7 +872,7 @@ somente por causa do antigo keyboard accessory.
   Liquid Glass compartilhados, além de `NativeSegmentedControl`.
 - Widgets, App Groups, Live Activities e Dynamic Island não foram adicionados.
 
-## Estado funcional recente
+## Estado funcional registrado no snapshot histórico
 
 - Home Search: rota `/pesquisa` dedicada, parser fast path somente para
   consultas válidas, caminho semântico Apple Intelligence, prewarm, suporte
@@ -652,7 +925,7 @@ somente por causa do antigo keyboard accessory.
 - Localização/GPS: tracking, histórico e mapa preservados; montagem pesada do
   mapa ocorre após `transitionEnd`.
 
-## Validações no iPhone
+## Validações no iPhone registradas no snapshot histórico
 
 ### VALIDADO NO IPHONE
 
@@ -700,7 +973,7 @@ somente por causa do antigo keyboard accessory.
 - Avisos de normalização LF/CRLF podem aparecer em `git diff --check` e no
   Prettier/ESLint sem representar mudança funcional do app.
 
-## Trabalho atual
+## Trabalho registrado no snapshot histórico
 
 Nenhuma tarefa ativa registrada.
 

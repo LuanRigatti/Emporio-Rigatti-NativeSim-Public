@@ -1,8 +1,7 @@
-import { HStack, Host, Image, Text } from '@expo/ui/swift-ui';
-import { font, foregroundColor, offset } from '@expo/ui/swift-ui/modifiers';
+import { Host, Text } from '@expo/ui/swift-ui';
+import { font, foregroundColor } from '@expo/ui/swift-ui/modifiers';
 import { useCallback, useState } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
-import type { SFSymbol } from 'sf-symbols-typescript';
 
 import { useAppTheme } from '@/theme';
 
@@ -14,12 +13,14 @@ const PRESS_OUT_DURATION = 150;
 
 export default function HomeModeTitleSwiftUI({
   accessibilityLabel: accessibilityText,
+  compact = false,
   label,
   onPress,
 }: HomeModeTitleProps) {
   const { reduceMotionEnabled, theme } = useAppTheme();
   const [scale] = useState(() => new Animated.Value(1));
-  const titleFont = font({ size: 36, weight: 'bold' });
+  const isHomeLargeTitle = !compact && (label === 'Atacado' || label === 'Varejo');
+  const titleFont = font({ size: compact ? 17 : 36, weight: compact ? 'semibold' : 'bold' });
   const animatePressed = useCallback(
     (pressed: boolean) => {
       Animated.timing(scale, {
@@ -41,16 +42,8 @@ export default function HomeModeTitleSwiftUI({
         onPressIn={() => animatePressed(true)}
         onPressOut={() => animatePressed(false)}
       >
-        <Host matchContents>
-          <HStack alignment="center" spacing={6}>
-            <Text modifiers={[titleFont, foregroundColor(theme.colors.textPrimary)]}>{label}</Text>
-            <Image
-              color={theme.colors.textSecondary}
-              modifiers={[offset({ y: 3 })]}
-              size={15}
-              systemName={'chevron.up.chevron.down' as SFSymbol}
-            />
-          </HStack>
+        <Host matchContents ignoreSafeArea={isHomeLargeTitle ? 'container' : undefined}>
+          <Text modifiers={[titleFont, foregroundColor(theme.colors.textPrimary)]}>{label}</Text>
         </Host>
       </Pressable>
     </Animated.View>

@@ -5,9 +5,12 @@ import type {
   FinancialSummary,
   MonthlyExpenses,
 } from '@/types/data';
-import type { RouteTrackingSession } from '@/types/routeTracking';
+import type { RouteFinancialSummary } from '@/types/routeTracking';
 import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
-import { summarizeRouteKilometersByDate } from '@/services/routes/routeTrackingDistance';
+import {
+  deduplicateRouteFinancialSummaries,
+  summarizeRouteKilometersByDate,
+} from '@/services/routes/routeTrackingDistance';
 
 import { financialCalculationService } from './FinancialCalculationService';
 
@@ -27,7 +30,7 @@ export type FinancialDailyDetailInput = {
   dailyExpenses: DailyExpenses;
   fuelCostByDate?: Readonly<Record<string, number>>;
   monthlyExpenses: MonthlyExpenses;
-  routeSessions: readonly RouteTrackingSession[];
+  routeSessions: readonly RouteFinancialSummary[];
   today?: Date;
 };
 
@@ -63,7 +66,8 @@ export class FinancialDailyDetailService {
       const normalized = dateOf(date);
       if (normalized.startsWith(month)) allDates.add(normalized);
     });
-    input.routeSessions.forEach((session) => {
+    const uniqueRouteSessions = deduplicateRouteFinancialSummaries(input.routeSessions);
+    uniqueRouteSessions.forEach((session) => {
       if (dateOf(session.date).startsWith(month)) allDates.add(dateOf(session.date));
     });
     const dates = deliveryDates.size > 0 ? deliveryDates : allDates;
@@ -72,7 +76,7 @@ export class FinancialDailyDetailService {
       .sort((left, right) => left.localeCompare(right))
       .map((date) => {
         const expense = expenseForDate(input.dailyExpenses, date);
-        const routeSessions = input.routeSessions.filter(
+        const routeSessions = uniqueRouteSessions.filter(
           (session) => dateOf(session.date) === date,
         );
         const automaticKilometers = automaticKilometersByDate[date] ?? 0;

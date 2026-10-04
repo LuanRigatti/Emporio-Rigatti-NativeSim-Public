@@ -1,10 +1,12 @@
-import { Button, HStack, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Divider, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Fragment } from 'react';
+import type { SFSymbol } from 'sf-symbols-typescript';
 import {
   accessibilityLabel,
   accessibilityValue,
   background,
-  buttonBorderShape,
   buttonStyle,
+  contentShape,
   foregroundStyle,
   frame,
   offset,
@@ -22,16 +24,12 @@ import {
 import { roundedFont } from '../nativeTypography';
 
 export default function NativeModeSheetContent({ mode, onSelect }: NativeModeSheetContentProps) {
-  const { resolvedMode, theme } = useAppTheme();
-  const capsuleSurface =
-    resolvedMode === 'dark' ? theme.colors.contrastSurface : theme.colors.selectionSurface;
-  const capsuleContent =
-    resolvedMode === 'dark' ? theme.colors.contrastContent : theme.colors.selectionContent;
+  const { theme } = useAppTheme();
 
   return (
     <VStack
       alignment="leading"
-      spacing={0}
+      spacing={spacing.xxl}
       modifiers={[
         frame({ maxWidth: Infinity, alignment: 'topLeading' }),
         padding({ horizontal: spacing.md, top: spacing.xs, bottom: spacing.md }),
@@ -43,53 +41,80 @@ export default function NativeModeSheetContent({ mode, onSelect }: NativeModeShe
           foregroundStyle(theme.colors.textPrimary),
           frame({ maxWidth: Infinity, alignment: 'center' }),
           padding({ bottom: spacing.sm }),
-          offset({ y: 28 }),
+          offset({ y: 24 }),
         ]}
       >
         Modo de venda
       </Text>
 
-      <HStack
-        alignment="center"
-        spacing={20}
+      <VStack
+        alignment="leading"
+        spacing={0}
         modifiers={[
-          padding({ top: 64, horizontal: spacing.sm }),
-          frame({ maxWidth: Infinity, alignment: 'center' }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+          background(
+            theme.colors.surfaceElevated,
+            shapes.roundedRectangle({
+              cornerRadius: theme.radius.xl,
+              roundedCornerStyle: 'continuous',
+            }),
+          ),
         ]}
       >
-        {NATIVE_MODE_OPTIONS.map((option) => {
+        {NATIVE_MODE_OPTIONS.map((option, index) => {
           const selected = option.mode === mode;
+          const systemImages =
+            option.mode === 'wholesale'
+              ? { active: 'shippingbox.fill', inactive: 'shippingbox' }
+              : { active: 'bag.fill', inactive: 'bag' };
+          const systemImage = (selected ? systemImages.active : systemImages.inactive) as SFSymbol;
 
           return (
-            <Button
-              key={option.mode}
-              modifiers={[
-                buttonStyle('plain'),
-                buttonBorderShape('capsule'),
-                frame({ maxWidth: Infinity, minHeight: 44 }),
-                padding({ horizontal: spacing.md, vertical: spacing.xs }),
-                background(capsuleSurface, shapes.capsule()),
-                foregroundStyle(capsuleContent),
-                accessibilityLabel(option.title),
-                accessibilityValue(selected ? 'Selecionado' : 'Não selecionado'),
-              ]}
-              onPress={() => {
-                if (!selected) triggerLightImpactHaptic();
-                onSelect(option.mode);
-              }}
-            >
-              <Text
+            <Fragment key={option.mode}>
+              <Button
                 modifiers={[
-                  roundedFont({ size: 20, weight: 'semibold' }),
-                  foregroundStyle(capsuleContent),
+                  buttonStyle('plain'),
+                  frame({ maxWidth: Infinity, minHeight: 56, alignment: 'leading' }),
+                  contentShape(shapes.rectangle()),
+                  accessibilityLabel(option.title),
+                  accessibilityValue(selected ? 'Selecionado' : 'Não selecionado'),
                 ]}
+                onPress={() => {
+                  if (!selected) triggerLightImpactHaptic();
+                  onSelect(option.mode);
+                }}
               >
-                {option.title}
-              </Text>
-            </Button>
+                <HStack
+                  alignment="center"
+                  spacing={spacing.sm}
+                  modifiers={[
+                    frame({ maxWidth: Infinity, minHeight: 56, alignment: 'leading' }),
+                    padding({ horizontal: spacing.md }),
+                  ]}
+                >
+                  <Image
+                    color={selected ? theme.colors.contrastSurface : theme.colors.textSecondary}
+                    size={20}
+                    systemName={systemImage}
+                  />
+                  <Text
+                    modifiers={[
+                      roundedFont({ size: 17, weight: 'regular' }),
+                      foregroundStyle(theme.colors.textPrimary),
+                    ]}
+                  >
+                    {option.title}
+                  </Text>
+                  <Spacer />
+                </HStack>
+              </Button>
+              {index < NATIVE_MODE_OPTIONS.length - 1 ? (
+                <Divider modifiers={[padding({ leading: spacing.xxxl, trailing: spacing.md })]} />
+              ) : null}
+            </Fragment>
           );
         })}
-      </HStack>
+      </VStack>
     </VStack>
   );
 }

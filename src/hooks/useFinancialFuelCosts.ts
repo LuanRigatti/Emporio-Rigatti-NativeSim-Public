@@ -4,19 +4,31 @@ import { useCarSettings } from '@/hooks/useCarSettings';
 import { useCostSettings } from '@/hooks/useCostSettings';
 import { calculateFinancialFuelCostsByDate, type FinancialFuelSettings } from '@/services/expenses';
 import type { DailyExpenses } from '@/types/data';
-import type { RouteTrackingSession } from '@/types/routeTracking';
+import type { RouteFinancialSummary } from '@/types/routeTracking';
+
+type UseFinancialFuelCostsOptions = {
+  allowCachedInitialSettings?: boolean;
+  syncRemoteSettings?: boolean;
+};
 
 export function useFinancialFuelCosts(
   dailyExpenses: DailyExpenses,
-  routeSessions: readonly RouteTrackingSession[],
+  routeSessions: readonly RouteFinancialSummary[],
+  options: UseFinancialFuelCostsOptions = {},
 ) {
   const {
     getDailyDates,
     getLatestDailyValue,
     getValues,
     isHydrated: costSettingsReady,
-  } = useCostSettings();
-  const { isHydrated: carSettingsReady, settings: carSettings } = useCarSettings();
+  } = useCostSettings({
+    allowCachedInitial: options.allowCachedInitialSettings,
+    syncRemote: options.syncRemoteSettings,
+  });
+  const { isHydrated: carSettingsReady, settings: carSettings } = useCarSettings({
+    allowCachedInitial: options.allowCachedInitialSettings,
+    syncRemote: options.syncRemoteSettings,
+  });
 
   const settings = useMemo<FinancialFuelSettings>(
     () => ({

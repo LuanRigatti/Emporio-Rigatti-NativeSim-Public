@@ -1,7 +1,34 @@
 import MaskedView from '@react-native-masked-view/masked-view';
 import { BlurView, type BlurTint } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { ReactNode } from 'react';
 import { StyleSheet, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+
+type ProgressiveBlurMaskProps = {
+  children: ReactNode;
+  colors: readonly [ColorValue, ColorValue, ColorValue, ColorValue, ColorValue];
+  locations: readonly [number, number, number, number, number];
+  style?: StyleProp<ViewStyle>;
+};
+
+export function ProgressiveBlurMask({
+  children,
+  colors,
+  locations,
+  style,
+}: ProgressiveBlurMaskProps) {
+  return (
+    <MaskedView
+      pointerEvents="none"
+      style={style}
+      maskElement={
+        <LinearGradient colors={colors} locations={locations} style={StyleSheet.absoluteFill} />
+      }
+    >
+      {children}
+    </MaskedView>
+  );
+}
 
 export type ProgressiveBlurProps = {
   height: number;
@@ -57,20 +84,14 @@ export function ProgressiveBlur({
             : ['transparent', 'transparent', 'rgba(0, 0, 0, 0.18)', '#000000', '#000000'];
 
         return (
-          <MaskedView
+          <ProgressiveBlurMask
             key={index}
-            pointerEvents="none"
             style={StyleSheet.absoluteFill}
-            maskElement={
-              <LinearGradient
-                colors={maskColors}
-                locations={maskLocations}
-                style={StyleSheet.absoluteFill}
-              />
-            }
+            colors={maskColors}
+            locations={maskLocations}
           >
             <BlurView intensity={layerIntensity} tint={tint} style={StyleSheet.absoluteFill} />
-          </MaskedView>
+          </ProgressiveBlurMask>
         );
       })}
       {overlayColors ? (

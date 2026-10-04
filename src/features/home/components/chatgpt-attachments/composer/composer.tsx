@@ -1,8 +1,6 @@
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useState } from 'react';
 import {
-  findNodeHandle,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +18,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useAppTheme } from '@/theme';
-import { triggerSelectionHaptic } from '@/utils/haptics';
 import { AttachmentIcon } from '../AttachmentIcon';
 import { COLORS, COMPOSER, COMPOSER_STRIP_HEIGHT, DURATION, GUTTER } from '../constants';
 import { Glass } from '../glass';
@@ -95,12 +92,6 @@ export interface ComposerProps {
   onSubmit?: (value: string) => void;
   onRemoveDateAttachment?: () => void;
   onPlusTap: () => void;
-  onToggleModelIntensity: (originViewTag: number) => void;
-  modelIntensityOriginHidden: boolean;
-  onHoldMenuVisibilityChange?: (visible: boolean) => void;
-  modelIntensityExpanded: boolean;
-  modelIntensityLabel: string;
-  modelIntensityDisabled?: boolean;
   holdMenuEnabled: boolean;
   onHoldPhotoSelect: (photo: LibraryPhoto) => void;
   onHoldPhotoDockSettled: (photoId: string) => void;
@@ -129,12 +120,6 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
     onSubmit,
     onRemoveDateAttachment,
     onPlusTap,
-    onToggleModelIntensity,
-    modelIntensityOriginHidden,
-    onHoldMenuVisibilityChange,
-    modelIntensityExpanded,
-    modelIntensityLabel,
-    modelIntensityDisabled = false,
     holdMenuEnabled,
     onHoldPhotoSelect,
     onHoldPhotoDockSettled,
@@ -143,7 +128,6 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
   ref,
 ) {
   const { resolvedMode, theme } = useAppTheme();
-  const intensityActionRef = useRef<View>(null);
   const hasAttachments = attachments.length > 0;
   const foreground = resolvedMode === 'dark' ? COLORS.text : theme.colors.textPrimary;
   const placeholderColor =
@@ -231,7 +215,6 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
           strip={strip}
           screenWidth={screenWidth}
           onPress={onPlusTap}
-          onHoldMenuVisibilityChange={onHoldMenuVisibilityChange}
           onPhotoSelect={onHoldPhotoSelect}
           onDockSettled={onHoldPhotoDockSettled}
         />
@@ -261,40 +244,11 @@ export const Composer = forwardRef<TextInputType, ComposerProps>(function Compos
         />
 
         <Pressable
-          ref={intensityActionRef}
-          collapsable={false}
-          accessibilityRole="button"
-          accessibilityLabel={
-            modelIntensityExpanded ? 'Fechar intensidade do modelo' : 'Intensidade do modelo'
-          }
-          accessibilityHint="Abre o controle visual de intensidade do modelo."
-          accessibilityState={{
-            disabled: modelIntensityDisabled,
-            expanded: modelIntensityExpanded,
-          }}
-          accessibilityValue={{ text: modelIntensityLabel }}
-          disabled={modelIntensityDisabled}
-          onPress={() => {
-            triggerSelectionHaptic();
-            const originViewTag = intensityActionRef.current
-              ? findNodeHandle(intensityActionRef.current)
-              : null;
-            if (typeof originViewTag === 'number') onToggleModelIntensity(originViewTag);
-          }}
-          style={[
-            styles.intensityAction,
-            modelIntensityOriginHidden && styles.intensityActionHidden,
-          ]}
-          testID="composer-model-intensity-button"
-        >
-          <Ionicons name="options-outline" size={18} color={foreground} />
-        </Pressable>
-
-        <Pressable
           accessibilityRole="button"
           accessibilityLabel="Pesquisar"
           onPress={() => onSubmit?.(value)}
           style={[styles.action, { backgroundColor: theme.colors.contrastSurface }]}
+          testID="composer-send-button"
         >
           <AttachmentIcon name="arrow-up" size={18} color={theme.colors.contrastContent} />
         </Pressable>
@@ -444,15 +398,5 @@ const styles = StyleSheet.create({
     borderRadius: COMPOSER.actionSize / 2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  intensityAction: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  intensityActionHidden: {
-    opacity: 0,
   },
 });

@@ -15,11 +15,26 @@
         "simulator": true
       }
     },
+    "cloud-simulator": {
+      "extends": "preview",
+      "environment": "preview",
+      "developmentClient": false,
+      "env": {
+        "APP_VARIANT": "standard"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
     "preview": {
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "environment": "production",
+      "env": {
+        "APP_VARIANT": "release"
+      }
     }
   },
   "submit": {

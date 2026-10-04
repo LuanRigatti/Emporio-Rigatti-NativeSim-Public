@@ -19,7 +19,7 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 - TypeScript
 - Expo Router
 - expo-router/unstable-native-tabs
-- @expo/ui 0.2.0-beta.9
+- @expo/ui 57.0.21
 - Development Build para iOS
 
 ## Documentação do Expo
@@ -47,6 +47,15 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - Utilizar expo-router/unstable-native-tabs.
 - Não migrar para React Navigation.
 - Preservar a arquitetura existente.
+- Em telas runtime do Expo Router, importar hooks de foco como `useIsFocused`
+  pelo export `expo-router`; para APIs compatíveis reexportadas pelo Router,
+  usar a subpath oficial `expo-router/react-navigation` (por exemplo,
+  `usePreventRemove`). Não ampliar essa regra para migração em massa de módulos
+  legados ou imports somente de tipos sem antes auditar seu uso/reachability.
+- Preservar o `Stack.Toolbar` compartilhado e sua sincronização nativa. Na Home,
+  o anchor leading real de `44×44 pt` com `hidesSharedBackground` faz parte do
+  lifecycle do reveal inicial; não o substituir por fixed-space nem simular a
+  toolbar com componentes RN.
 - `AppModeProvider` é a fonte do modo atual (`wholesale`/Atacado ou
   `retail`/Varejo). O modo influencia as entradas e telas de Home, Registrar,
   Histórico, Catálogo e Finanças; os dados, serviços e regras dos dois domínios
@@ -55,7 +64,8 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 ## Retail Orders
 
 - O Histórico usa uma entrada compartilhada e roteia por `AppMode`: Atacado permanece em `HistoryScreen`/Delivery; Varejo usa `RetailOrderHistoryScreen`/`RetailOrder`. As coleções e serviços dos dois domínios não devem ser misturados.
-- O wizard Registrar Varejo participa do Root Native Stack nas rotas `/registrar-pedido-varejo`, `/registrar-pedido-varejo/produtos`, `/registrar-pedido-varejo/detalhes`, `/registrar-pedido-varejo/resumo` e `/registrar-pedido-varejo/pagamento`. Não criar Stack aninhado para esse fluxo; Back, morph, push/pop e swipe-back permanecem nativos, e `RetailOrderFlowProvider` compartilha o draft.
+- A aba Registrar Varejo mantém a entrada simples `Registrar pedido`; ela e o atalho da Home abrem `/registrar-pedido-varejo`, uma única página do Root Native Stack que combina busca local de clientes ativos e seleção de produtos. A busca normaliza caixa e acentos. Produtos podem ser adicionados antes da escolha do cliente; limpar a seleção remove somente `clientId` e preserva os produtos e demais campos do draft.
+- `RetailOrderFlowProvider` é a única fonte do draft e mantém-no nas rotas `/registrar-pedido-varejo`, `/registrar-pedido-varejo/novo-cliente`, `/registrar-pedido-varejo/detalhes`, `/registrar-pedido-varejo/resumo` e `/registrar-pedido-varejo/pagamento`; sair do prefixo ou mudar para Atacado limpa o fluxo. O cadastro auxiliar usa o domínio e datasource de clientes Retail e retorna por Back sem perder o pedido. `/registrar-pedido-varejo/produtos` é apenas um redirect de compatibilidade para a página combinada. Não criar Stack aninhado; Back, morph, push/pop e swipe-back permanecem nativos.
 - O detalhe Retail usa a rota Root `/pedido-varejo/[orderId]` e recebe somente `orderId`. Deve priorizar snapshot/cache disponível, revalidar sem apagar o conteúdo visível e carregar pagamentos apenas do pedido atual; não deve acessar Delivery no ramo Retail.
 - `calculateRetailOrderFinancials` é a única fonte das fórmulas e dos status financeiros. Somente pagamentos `posted` entram nos totais; `voided` pode ser exibido para auditoria, mas não altera o valor pago. Pagamentos posteriores referenciam o mesmo `orderId`; pedidos cancelados bloqueiam novos pagamentos e pedidos completed podem recebê-los.
 - O resumo financeiro do Histórico Retail usa cache isolado por UID, `sessionVersion`, `orderId` e assinatura financeira, com prewarm local, cache-first/stale-while-revalidate e concorrência limitada, restrito aos pedidos visíveis. `updateForOrder()` atualiza somente o pedido afetado a partir do snapshot local completo, publica aos listeners e não faz leitura Firestore nem `clear` global; respostas obsoletas são descartadas.
@@ -110,6 +120,7 @@ Toda funcionalidade nativa deve possuir fallback seguro.
 - AsyncStorage/local storage permanece apenas como cache, fallback local ou preferência específica do dispositivo; o histórico GPS é a exceção local-only mantida pelo `RouteTrackingRepository`.
 - Finanças, Estoque, gráficos e índices são derivados em memória; não criar uma segunda fonte de verdade para eles.
 - O cold start autenticado deve liberar a aplicação usando somente o estado local necessário e os caches disponíveis; leituras Firestore de dados de negócio, inclusive da Fábrica, não podem ser requisito do gate visual. A sincronização remota ocorre depois que a UI está disponível.
+- Para o primeiro cálculo do Lucro Líquido de Finanças Atacado, o bootstrap pode pré-hidratar dos caches locais existentes Cost Settings, Car Settings e resumos do ledger financeiro de rotas. Finanças consome o resumo de rota já aquecido em memória e os custos em cache; ausência de snapshot de rota não equivale a um resultado vazio completo. A revalidação usa o fluxo remoto existente, sem uma segunda leitura Firestore nem uma persistência paralela para valores financeiros derivados.
 - Toda operação assíncrona vinculada a dados deve capturar UID e geração/sessionVersion no início e descartar respostas ou mutações obsoletas após logout, troca de UID ou nova sessão com o mesmo UID.
 - Em Cost Settings, mutações remotas do mesmo UID + registro devem ser serializadas na mesma fila para create/update/delete; gravações usam patches/merge não destrutivos e preservam campos remotos não editados.
 - `metadata.fromCache` não confirma uma leitura remota completa: respostas vazias/parciais devem preservar cache válido, e histórico parcial nunca deve ser tratado como histórico global completo.
@@ -130,6 +141,23 @@ Sempre preferir:
 - buttonStyle("glassProminent")
 - controlSize
 - tint
+
+O seletor de categorias de Finanças (`NativeRetailFinanceCategorySelectorSwiftUI.ios.tsx`)
+mantém `ignoreSafeArea="all"` no `Host`. A composição do conteúdo SwiftUI/Liquid
+Glass no incidente original de scroll React Native dependia dessa configuração
+para acompanhar o scroll no iOS; a correção foi confirmada em iPhone físico.
+Preserve a configuração mesmo com o estilo sólido atual do seletor; removê-la
+exige nova validação física.
+
+O seletor também aceita `selectionAnimationMode` (`native` por padrão ou
+`slidingBubble`) para preservar animações distintas por consumidor. Finanças
+Atacado/Varejo e Histórico Atacado optam explicitamente por `slidingBubble`;
+Histórico Varejo mantém `NativeSegmentedControl`. No caminho Atacado
+`fillAvailableWidth`, a cápsula de seleção é única e persistente, atrás dos
+labels; slots iguais são derivados de `items.length` por
+`containerRelativeFrame`, inclusive sem `ScrollView`. Mantenha a animação em
+`easeInOut(0.22s)` e use `easeOut(0.18s)` com Reduce Motion. Não altere a
+geometria aprovada de Finanças ao ajustar outro consumidor.
 
 Evitar simulações usando Pressable, Animated.View, BlurView ou GlassSurface quando existir um componente SwiftUI equivalente.
 
@@ -176,7 +204,6 @@ Priorizar:
 # Limitações Conhecidas
 
 - Permanecer no Expo SDK 57.
-- @expo/ui 0.2.0-beta.9 utiliza ContextMenu no lugar de Menu.
 - Evitar wrappers com overflow:hidden ao redor de componentes SwiftUI.
 - Não envolver Button SwiftUI com Pressable.
 - O overpayment de pagamentos Retail é validado contra a leitura corrente, sem transação Firestore; concorrência multi-device continua sendo uma limitação conhecida.

@@ -40,7 +40,7 @@ export function OpenPaymentClientCards({
         },
       ]}
     >
-      <OpenPaymentClientIcon />
+      <OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />
       <View style={styles.clientInfo}>
         <Text
           style={[
@@ -53,7 +53,9 @@ export function OpenPaymentClientCards({
         >
           {client.nome}
         </Text>
-        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>Cliente</Text>
+        <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+          Cliente
+        </Text>
       </View>
       <Text
         style={[

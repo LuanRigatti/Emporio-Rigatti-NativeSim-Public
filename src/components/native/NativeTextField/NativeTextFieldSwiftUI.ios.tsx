@@ -17,7 +17,12 @@ export default function NativeTextFieldSwiftUI({
   placeholder,
   value,
 }: NativeTextFieldProps) {
-  const swiftKeyboardType = keyboardType === 'email-address' ? 'email-address' : 'default';
+  const swiftKeyboardType =
+    keyboardType === 'email-address'
+      ? 'email-address'
+      : keyboardType === 'decimal-pad'
+        ? 'decimal-pad'
+        : 'default';
   const text = useNativeState(value);
   const textFieldRef = useRef<TextFieldRef>(null);
 

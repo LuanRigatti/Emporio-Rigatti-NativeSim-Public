@@ -7,7 +7,7 @@ import { IOSConfig } from 'expo/config-plugins';
 import Constants from 'expo-constants';
 import type { ExpoConfig } from '@expo/config-types';
 
-import { getAppVariant } from '@/config/appVariant';
+import { getAppScheme, getAppVariant } from '@/config/appVariant';
 import { getGoogleClientIds } from '@/services/auth/googleConfig';
 
 jest.mock('expo-constants', () => ({
@@ -19,6 +19,7 @@ const mockedConstants = Constants as unknown as {
   expoConfig: {
     extra?: { appVariant?: string; googleIosClientId?: string };
     ios?: { bundleIdentifier?: string };
+    scheme?: string | string[];
   } | null;
 };
 
@@ -37,7 +38,7 @@ function readPlistString(fileName: string, key: string): string {
   return value;
 }
 
-function resolveExpoConfig(variant?: 'final'): ExpoConfig {
+function resolveExpoConfig(variant?: 'final' | 'release'): ExpoConfig {
   const previousVariant = process.env.APP_VARIANT;
 
   if (variant) {
@@ -67,21 +68,21 @@ function resolveExpoConfig(variant?: 'final'): ExpoConfig {
 function resolveGoogleInfoPlist(config: ExpoConfig) {
   const withExpoSchemes = IOSConfig.Scheme.setScheme(config, {});
 
-  return IOSConfig.Google.setGoogleConfig(
-    config,
-    withExpoSchemes,
-    { projectRoot } as Parameters<typeof IOSConfig.Google.setGoogleConfig>[2],
-  );
+  return IOSConfig.Google.setGoogleConfig(config, withExpoSchemes, { projectRoot } as Parameters<
+    typeof IOSConfig.Google.setGoogleConfig
+  >[2]);
 }
 
 const defaultClientId = readPlistString('GoogleService-Info.plist', 'CLIENT_ID');
-const defaultReversedClientId = readPlistString(
-  'GoogleService-Info.plist',
-  'REVERSED_CLIENT_ID',
-);
+const defaultReversedClientId = readPlistString('GoogleService-Info.plist', 'REVERSED_CLIENT_ID');
 const finalClientId = readPlistString('GoogleService-Info.final.plist', 'CLIENT_ID');
 const finalReversedClientId = readPlistString(
   'GoogleService-Info.final.plist',
+  'REVERSED_CLIENT_ID',
+);
+const releaseClientId = readPlistString('GoogleService-Info.release.plist', 'CLIENT_ID');
+const releaseReversedClientId = readPlistString(
+  'GoogleService-Info.release.plist',
   'REVERSED_CLIENT_ID',
 );
 
@@ -98,14 +99,13 @@ describe('getGoogleClientIds', () => {
     const infoPlist = resolveGoogleInfoPlist(config);
     const schemes = IOSConfig.Scheme.getSchemesFromPlist(infoPlist);
 
-    expect(config.name).toBe('Empório Rigatti');
+    expect(config.name).toBe('emporiorigatti');
+    expect(config.ios?.infoPlist?.CFBundleDisplayName).toBe('Empório Rigatti');
     expect(config.ios?.bundleIdentifier).toBe('com.pareact.mobile');
     expect(config.scheme).toBe('pareact');
     expect(config.ios?.googleServicesFile).toBe('./GoogleService-Info.plist');
     expect(config.extra?.googleIosClientId).toBe(defaultClientId);
-    expect(schemes).toEqual(
-      expect.arrayContaining(['pareact', defaultReversedClientId]),
-    );
+    expect(schemes).toEqual(expect.arrayContaining(['pareact', defaultReversedClientId]));
     expect(defaultClientId).toBe(
       '83092109834-qgnbt884kefr1r2rmmt9i601v2u5t1oh.apps.googleusercontent.com',
     );
@@ -116,18 +116,41 @@ describe('getGoogleClientIds', () => {
     const infoPlist = resolveGoogleInfoPlist(config);
     const schemes = IOSConfig.Scheme.getSchemesFromPlist(infoPlist);
 
-    expect(config.name).toBe('Empório Rigatti Final');
+    expect(config.name).toBe('emporiorigatti');
+    expect(config.ios?.infoPlist?.CFBundleDisplayName).toBe('Empório Rigatti Final');
     expect(config.ios?.bundleIdentifier).toBe('com.pareact.mobile.final');
     expect(config.ios?.googleServicesFile).toBe('./GoogleService-Info.final.plist');
     expect(config.scheme).toEqual(['pareact-final', finalReversedClientId]);
     expect(config.extra?.appVariant).toBe('final');
     expect(config.extra?.googleIosClientId).toBe(finalClientId);
-    expect(schemes).toEqual(
-      expect.arrayContaining(['pareact-final', finalReversedClientId]),
-    );
+    expect(schemes).toEqual(expect.arrayContaining(['pareact-final', finalReversedClientId]));
     expect(infoPlist.CFBundleURLTypes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ CFBundleURLSchemes: expect.arrayContaining([finalReversedClientId]) }),
+        expect.objectContaining({
+          CFBundleURLSchemes: expect.arrayContaining([finalReversedClientId]),
+        }),
+      ]),
+    );
+  });
+
+  it('resolves the Release client ID from its registered plist and generates its URL schemes', () => {
+    const config = resolveExpoConfig('release');
+    const infoPlist = resolveGoogleInfoPlist(config);
+    const schemes = IOSConfig.Scheme.getSchemesFromPlist(infoPlist);
+
+    expect(config.name).toBe('emporiorigatti');
+    expect(config.ios?.infoPlist?.CFBundleDisplayName).toBe('Empório Rigatti');
+    expect(config.ios?.bundleIdentifier).toBe('com.pareact.mobile.release');
+    expect(config.ios?.googleServicesFile).toBe('./GoogleService-Info.release.plist');
+    expect(config.scheme).toEqual(['pareact-release', releaseReversedClientId]);
+    expect(config.extra?.appVariant).toBe('release');
+    expect(config.extra?.googleIosClientId).toBe(releaseClientId);
+    expect(schemes).toEqual(expect.arrayContaining(['pareact-release', releaseReversedClientId]));
+    expect(infoPlist.CFBundleURLTypes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          CFBundleURLSchemes: expect.arrayContaining([releaseReversedClientId]),
+        }),
       ]),
     );
   });
@@ -143,6 +166,19 @@ describe('getGoogleClientIds', () => {
     };
 
     expect(getGoogleClientIds().iosClientId).toBe(finalClientId);
+  });
+
+  it('does not allow the .env.local default client to override Release', () => {
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = defaultClientId;
+    mockedConstants.expoConfig = {
+      extra: {
+        appVariant: 'release',
+        googleIosClientId: releaseClientId,
+      },
+      ios: { bundleIdentifier: 'com.pareact.mobile.release' },
+    };
+
+    expect(getGoogleClientIds().iosClientId).toBe(releaseClientId);
   });
 
   it('identifies Final by bundle ID even without the extra marker', () => {
@@ -161,5 +197,33 @@ describe('getGoogleClientIds', () => {
     };
 
     expect(getGoogleClientIds().iosClientId).toBeUndefined();
+  });
+
+  it('identifies Release by bundle ID even without the extra marker', () => {
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID = defaultClientId;
+    mockedConstants.expoConfig = {
+      extra: { googleIosClientId: releaseClientId },
+      ios: { bundleIdentifier: 'com.pareact.mobile.release' },
+    };
+
+    expect(getAppVariant()).toBe('release');
+    expect(getGoogleClientIds().iosClientId).toBe(releaseClientId);
+
+    mockedConstants.expoConfig = {
+      extra: {},
+      ios: { bundleIdentifier: 'com.pareact.mobile.release' },
+    };
+
+    expect(getGoogleClientIds().iosClientId).toBeUndefined();
+  });
+
+  it('uses the Release app scheme when Expo exposes the scheme list for Google Sign-In', () => {
+    mockedConstants.expoConfig = {
+      extra: { appVariant: 'release' },
+      ios: { bundleIdentifier: 'com.pareact.mobile.release' },
+      scheme: ['pareact-release', releaseReversedClientId],
+    };
+
+    expect(getAppScheme()).toBe('pareact-release');
   });
 });

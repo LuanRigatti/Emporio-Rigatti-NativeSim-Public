@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 
+import { HomeProfileSheetProvider } from '@/features/home/profile/HomeProfileSheetProvider';
 import { useAppTheme } from '@/theme';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
@@ -21,7 +22,11 @@ function icon(
 }
 
 export default function PrototypeTabsLayout() {
-  return <TabsNavigator />;
+  return (
+    <HomeProfileSheetProvider>
+      <TabsNavigator />
+    </HomeProfileSheetProvider>
+  );
 }
 
 function TabsNavigator() {

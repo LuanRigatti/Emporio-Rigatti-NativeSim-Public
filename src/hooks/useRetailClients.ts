@@ -6,7 +6,14 @@ import type { RetailClient, RetailClientDraft, RetailClientPatch } from '@/types
 
 const EMPTY_QUERY: RetailClientQuery = {};
 
-export function useRetailClients(query: RetailClientQuery = EMPTY_QUERY) {
+type UseRetailClientsOptions = {
+  loadOnMount?: boolean;
+};
+
+export function useRetailClients(
+  query: RetailClientQuery = EMPTY_QUERY,
+  { loadOnMount = true }: UseRetailClientsOptions = {},
+) {
   const { sessionVersion, status: authStatus, user } = useAuth();
   const [loading, setLoading] = useState(Boolean(user));
   const [refreshing, setRefreshing] = useState(false);
@@ -49,8 +56,9 @@ export function useRetailClients(query: RetailClientQuery = EMPTY_QUERY) {
   );
 
   useEffect(() => {
+    if (!loadOnMount) return;
     void Promise.resolve().then(() => load());
-  }, [load]);
+  }, [load, loadOnMount]);
 
   const clients = retailClientDataSource.list(query, userId, sessionVersion);
 

@@ -115,6 +115,10 @@ export class CostSettingsStorage {
     return settings ? cloneSettings(settings) : null;
   }
 
+  public setCached(settings: CostSettings, scope = COST_SETTINGS_DEFAULT_SCOPE): void {
+    this.cachedSettings.set(scope, cloneSettings(settings));
+  }
+
   public load(
     scope = COST_SETTINGS_DEFAULT_SCOPE,
     options?: CostSettingsOperationOptions,

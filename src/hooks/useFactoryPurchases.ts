@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { useAuth } from '@/providers';
 import { factoryReceiptQueryService } from '@/services/finance';
@@ -10,7 +10,50 @@ import {
   type CreatePurchaseInput,
 } from '@/services/factory-purchases';
 
+const factoryPurchaseSourceListeners = new Set<() => void>();
+let factoryPurchaseSourceVersion = 0;
+let unsubscribeFactoryPurchaseSource: (() => void) | undefined;
+
+function subscribeToFactoryPurchaseSource(onChange: () => void): () => void {
+  factoryPurchaseSourceListeners.add(onChange);
+
+  if (!unsubscribeFactoryPurchaseSource) {
+    unsubscribeFactoryPurchaseSource = factoryReceiptDataSource.subscribe(() => {
+      factoryPurchaseSourceVersion += 1;
+      factoryPurchaseSourceListeners.forEach((listener) => listener());
+    });
+  }
+
+  return () => {
+    factoryPurchaseSourceListeners.delete(onChange);
+    if (factoryPurchaseSourceListeners.size === 0) {
+      unsubscribeFactoryPurchaseSource?.();
+      unsubscribeFactoryPurchaseSource = undefined;
+    }
+  };
+}
+
+function getFactoryPurchaseSourceVersion(): number {
+  return factoryPurchaseSourceVersion;
+}
+
+function useFactoryPurchaseSourceVersion(): number {
+  return useSyncExternalStore(
+    subscribeToFactoryPurchaseSource,
+    getFactoryPurchaseSourceVersion,
+    getFactoryPurchaseSourceVersion,
+  );
+}
+
+export function useAddFactoryPurchasePayment() {
+  return useCallback(async (purchaseId: string, payment: { date: string; amount: number }) => {
+    const receipt = await factoryReceiptDataSource.addPayment(purchaseId, payment);
+    return factoryReceiptToPurchase(receipt);
+  }, []);
+}
+
 export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' }) {
+  const addPayment = useAddFactoryPurchasePayment();
   const { sessionVersion, status: authStatus, user } = useAuth();
   const { endDate, month, period, startDate } = filters;
   const stableFilters = useMemo(
@@ -23,13 +66,7 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     [endDate, month, period, startDate],
   );
 
-  const [sourceVersion, setSourceVersion] = useState(0);
-
-  useEffect(() => {
-    return factoryReceiptDataSource.subscribe(() => {
-      setSourceVersion((v) => v + 1);
-    });
-  }, []);
+  const sourceVersion = useFactoryPurchaseSourceVersion();
 
   const receipts = useMemo(
     () =>
@@ -70,14 +107,6 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
     return factoryReceiptToPurchase(receipt);
   }, []);
 
-  const addPayment = useCallback(
-    async (purchaseId: string, payment: { date: string; amount: number }) => {
-      const receipt = await factoryReceiptDataSource.addPayment(purchaseId, payment);
-      return factoryReceiptToPurchase(receipt);
-    },
-    [],
-  );
-
   const deletePurchase = useCallback(async (purchaseId: string) => {
     await factoryReceiptDataSource.deleteReceipt(purchaseId);
   }, []);
@@ -108,4 +137,17 @@ export function useFactoryPurchases(filters: FactoryFilters = { period: 'all' })
       loadedFilterKey !== filterKey,
     dataUnavailable: factoryReceiptDataSource.isDataUnavailable === true,
   };
+}
+
+export function useFactoryPurchaseById(purchaseId?: string) {
+  const { sessionVersion, user } = useAuth();
+  useFactoryPurchaseSourceVersion();
+
+  if (!purchaseId) return null;
+
+  const receipt = factoryReceiptDataSource
+    .getReceipts(user?.id, sessionVersion)
+    .find((item) => item.id === purchaseId);
+
+  return receipt ? factoryReceiptToPurchase(receipt) : null;
 }

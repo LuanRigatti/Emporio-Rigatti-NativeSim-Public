@@ -34,8 +34,9 @@ O usuário não deve precisar solicitar manualmente a leitura desses documentos.
 
 #### Mem0
 
-- Fazer uma única consulta obrigatória ao Direct MCP remoto do Mem0 durante o bootstrap inicial, sempre no escopo `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
+- Fazer a consulta inicial obrigatória ao Direct MCP remoto do Mem0 durante o bootstrap, sempre no escopo `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`. O `app_id` é o identificador estável do escopo Mem0 do projeto e não deve ser alterado por renomeação da pasta ou repositório.
 - Preferir `mcp__mem0__get_memories` ou a ferramenta equivalente que retorne o conjunto atual de memórias desse escopo.
+- Na chamada inicial, solicitar o maior `page_size` suportado que seja adequado e usar o `count` retornado como total do escopo. Se `next` indicar páginas restantes, percorrê-las até não haver próxima página; não tratar uma página parcial como conjunto completo. Se a resposta não fornecer `count`, determinar o total pela enumeração completa das páginas, sem chamada separada só para contar.
 - Reutilizar a resposta dessa consulta para obter o total real de memórias, carregar o conteúdo disponível e usar as memórias como contexto técnico durável da sessão.
 - Não fazer uma chamada para contar e outra para buscar as mesmas memórias; não usar `search_memories` para descobrir a quantidade.
 - Não usar `doctor`, não executar uma segunda retrieval apenas para verificar se existe algo novo e não consultar o Mem0 novamente em cada prompt.
@@ -50,6 +51,15 @@ O usuário não deve precisar solicitar manualmente a leitura desses documentos.
 - Usar `Context Ready` somente quando os três documentos tiverem sido carregados e o conjunto Mem0 exigido pelo bootstrap estiver completo. Se algum documento falhar mas o Mem0 estiver disponível, não bloquear a tarefa e usar `Context Partial | docs=<docs carregados>/3 | mem0_loaded=<memórias carregadas>/<total de memórias> | mem0_calls=<número real> | context=partial`.
 - Se o Mem0 falhar, não bloquear a tarefa e usar a linha `Mem0 Unavailable | user=Luan Rigatti | app=LuanRigatti-pwa-ios-2026 | branch=<branch atual> | memories=?` seguida de `Context Partial | docs=<docs carregados>/3 | mem0_loaded=? | mem0_calls=<número real> | context=docs-only`.
 - O status é somente observabilidade: não fazer chamadas, retrievals ou releituras adicionais para produzi-lo ou atualizá-lo, e não repetir nenhuma das duas linhas nos prompts seguintes da sessão.
+
+#### Caveman
+
+- No primeiro prompt de cada nova conversa deste projeto, ativar e aplicar a skill `caveman` no nível `lite` antes de responder. Usar a `SKILL.md` da skill disponível na sessão atual; não depender de um caminho fixo.
+- Manter o estilo `lite` nas respostas seguintes da conversa. Se o usuário pedir `normal mode` ou `stop caveman`, desativar o estilo e mantê-lo desativado até o fim da conversa.
+- Na primeira resposta, exibir uma única vez, imediatamente depois das linhas de status do Mem0 e do contexto: `Caveman Active | skill=caveman | level=lite`.
+- Essa linha de status é uma exceção explícita à instrução da skill para não anunciar o estilo.
+- Só exibir `Caveman Active` depois de carregar e aplicar a skill. Se ela não estiver disponível ou não puder ser carregada, exibir: `Caveman Unavailable | skill=caveman | level=lite`.
+- Não repetir a linha de status nem executar novamente a ativação nos prompts seguintes da mesma conversa.
 
 ### Retrieval
 

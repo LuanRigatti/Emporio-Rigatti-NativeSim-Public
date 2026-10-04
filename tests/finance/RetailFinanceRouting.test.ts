@@ -5,6 +5,12 @@ import { createElement, type ComponentType, type ReactNode } from 'react';
 
 const mockAppMode = { mode: 'wholesale' as 'wholesale' | 'retail' };
 const mockIsFocused = { value: true };
+const mockFuelCostsState = { isReady: false };
+let mockFocusEffectCallback: (() => void | (() => void)) | undefined;
+const mockUseFocusEffect = jest.fn((callback: () => void | (() => void)) => {
+  mockFocusEffectCallback = callback;
+});
+const mockGetFinancialRouteSummaries = jest.fn(async () => []);
 const mockCreateElement = (
   type: string,
   props: Record<string, unknown> | null,
@@ -44,8 +50,8 @@ const mockNativePeriodSelector = jest.fn(
     itemHorizontalPadding,
     itemSpacing,
     onChange,
+    selectionAnimationMode,
     selectedKey,
-    selectedVisualScale,
   }: {
     items: readonly { key: string; label: string }[];
     onChange: (key: string) => void;
@@ -55,7 +61,7 @@ const mockNativePeriodSelector = jest.fn(
     fillAvailableWidth?: boolean;
     itemHorizontalPadding?: number;
     itemSpacing?: number;
-    selectedVisualScale?: number;
+    selectionAnimationMode?: 'native' | 'slidingBubble';
   }) =>
     mockCreateElement('period-selector', {
       contentLeadingPadding,
@@ -65,8 +71,8 @@ const mockNativePeriodSelector = jest.fn(
       itemHorizontalPadding,
       itemSpacing,
       onChange,
+      selectionAnimationMode,
       selectedKey,
-      selectedVisualScale,
     }),
 );
 const mockRenderNativeDateToolbarItems = jest.fn(() => null);
@@ -115,7 +121,7 @@ jest.mock('expo-router', () => ({
   Stack: {
     Toolbar: mockToolbar,
   },
-  useFocusEffect: jest.fn(),
+  useFocusEffect: mockUseFocusEffect,
   useIsFocused: () => mockIsFocused.value,
   useRouter: () => ({ push: mockRouterPush }),
 }));
@@ -150,6 +156,13 @@ jest.mock('@/components/premium', () => ({
     ),
   PremiumScreen: ({ children }: { children?: ReactNode }) =>
     mockCreateElement('premium-screen', null, children),
+  ProgressiveCollapsibleScreen: ({
+    children,
+    largeTitle,
+  }: {
+    children?: ReactNode;
+    largeTitle?: ReactNode;
+  }) => mockCreateElement('premium-screen', null, largeTitle, children),
   SummaryCard: () => null,
 }));
 jest.mock('@/features/finance', () => ({
@@ -168,13 +181,19 @@ jest.mock('@/hooks/useFinancialData', () => ({
   useFinancialData: mockFinancialData,
 }));
 jest.mock('@/hooks/useFinancialFuelCosts', () => ({
-  useFinancialFuelCosts: () => ({ fuelCostByDate: {}, isReady: false }),
+  useFinancialFuelCosts: () => ({
+    fuelCostByDate: {},
+    isReady: mockFuelCostsState.isReady,
+  }),
 }));
 jest.mock('@/hooks/useRetailCategories', () => ({
   useRetailCategories: () => ({ categories: [] }),
 }));
 jest.mock('@/hooks/useRetailFinance', () => ({ useRetailFinance: mockRetailFinance }));
-jest.mock('@/providers', () => ({ useAppMode: () => mockAppMode }));
+jest.mock('@/providers', () => ({
+  useAppMode: () => mockAppMode,
+  useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 59 }),
+}));
 jest.mock('@/services/costs', () => ({
   expenseQueryForFinancialSelection: jest.fn(),
   expenseQueryForWholesaleFinanceSelection: mockExpenseQueryForWholesaleFinanceSelection,
@@ -200,6 +219,10 @@ jest.mock('@/services/finance', () => ({
   ),
 }));
 jest.mock('@/services/routes', () => ({
+  locationTrackingService: {
+    getFinancialRouteSummaries: mockGetFinancialRouteSummaries,
+    getMemoryFinancialRouteSummaries: jest.fn(() => null),
+  },
   routeTrackingRepository: {
     getMemoryRouteHistory: () => [],
     getRouteHistory: jest.fn(async () => []),
@@ -217,9 +240,10 @@ jest.mock('@/theme', () => ({
     resolvedMode: 'light',
     theme: {
       colors: { primary: '#000', surface: '#fff', textPrimary: '#000', textSecondary: '#666' },
+      layout: { tabBarHeight: 80 },
       radius: { xl: 24 },
       sizes: { iconSmall: 12 },
-      spacing: { md: 16, sm: 8, xl: 20, xxl: 24, xs: 4, xxs: 2, xxxl: 32 },
+      spacing: { lg: 20, md: 16, sm: 8, xl: 20, xxl: 24, xs: 4, xxs: 2, xxxl: 32 },
       typography: { body: {}, caption: {}, footnote: {} },
     },
   }),
@@ -232,6 +256,10 @@ describe('Financeiro AppMode routing', () => {
   beforeEach(() => {
     mockAppMode.mode = 'wholesale';
     mockIsFocused.value = true;
+    mockFuelCostsState.isReady = false;
+    mockFocusEffectCallback = undefined;
+    mockUseFocusEffect.mockClear();
+    mockGetFinancialRouteSummaries.mockReset().mockResolvedValue([]);
     mockRetailFinanceState.error = undefined;
     mockRetailFinanceState.loading = false;
     mockRetailFinanceState.refreshing = false;
@@ -290,8 +318,9 @@ describe('Financeiro AppMode routing', () => {
     expect(selector.props.contentLeadingPadding).toBeUndefined();
     expect(selector.props.contentTrailingPadding).toBeUndefined();
     expect(selector.props.fillAvailableWidth).toBe(true);
+    expect(selector.props.selectionAnimationMode).toBe('slidingBubble');
     expect(selector.props.itemSpacing).toBeUndefined();
-    expect(selector.props.selectedVisualScale).toBe(1.06);
+    expect(selector.props).not.toHaveProperty('selectedVisualScale');
     expect(mockExpenseQueryForWholesaleFinanceSelection).toHaveBeenCalledWith({
       kind: 'month',
       month: '2026-09',
@@ -316,7 +345,9 @@ describe('Financeiro AppMode routing', () => {
 
     const renderer = renderRoute();
     expect(
-      renderer.root.findAll((node) => String(node.type) === 'premium-card-pressable'),
+      renderer.root.findAll((node) =>
+        ['premium-card-pressable', 'premium-card-static'].includes(String(node.type)),
+      ),
     ).toHaveLength(2);
 
     mockFinancialDataState.loading = true;
@@ -327,11 +358,13 @@ describe('Financeiro AppMode routing', () => {
       renderer.root.findAll((node) => node.props.children === 'Carregando Finanças Atacado...'),
     ).toHaveLength(0);
     expect(
-      renderer.root.findAll((node) => String(node.type) === 'premium-card-pressable'),
+      renderer.root.findAll((node) =>
+        ['premium-card-pressable', 'premium-card-static'].includes(String(node.type)),
+      ),
     ).toHaveLength(2);
   });
 
-  it('keeps hero card identity while monthly detail interactivity changes', () => {
+  it('keeps hero card identity while monthly detail interactivity changes', async () => {
     mockFinancialDataState.snapshot = {
       clientesCustom: {},
       entregas: [],
@@ -347,7 +380,19 @@ describe('Financeiro AppMode routing', () => {
       margemLiquida: 0,
     });
 
+    mockFuelCostsState.isReady = true;
     const renderer = renderRoute();
+    const initialCards = renderer.root.findAll(
+      (node) => String(node.type) === 'premium-card-pressable',
+    );
+    expect(initialCards).toHaveLength(2);
+    expect(typeof initialCards[0].props.onPress).toBe('function');
+    expect(initialCards[1].props.onPress).toBeUndefined();
+
+    await act(async () => {
+      mockFocusEffectCallback?.();
+      await Promise.resolve();
+    });
     const monthlyCards = renderer.root.findAll(
       (node) => String(node.type) === 'premium-card-pressable',
     );
@@ -471,11 +516,18 @@ describe('Financeiro AppMode routing', () => {
     ).not.toHaveProperty('fillAvailableWidth', true);
     expect(
       renderer.root.findAll((node) => String(node.type) === 'period-selector')[0].props
-        .selectedVisualScale,
-    ).toBeUndefined();
+        .selectionAnimationMode,
+    ).toBe('slidingBubble');
+    expect(
+      renderer.root.findAll((node) => String(node.type) === 'period-selector')[0].props,
+    ).not.toHaveProperty('selectedVisualScale');
     expect(
       renderer.root.findAll((node) => String(node.type) === 'period-selector')[0].props.itemSpacing,
-    ).toBe(0.5);
+    ).toBe(16);
+    expect(
+      renderer.root.findAll((node) => String(node.type) === 'period-selector')[0].props
+        .contentLeadingPadding,
+    ).toBe(0);
     expect(
       renderer.root.findAll((node) => String(node.type) === 'period-selector')[0].props
         .contentTrailingPadding,
@@ -483,7 +535,7 @@ describe('Financeiro AppMode routing', () => {
     expect(
       renderer.root.findAll((node) => String(node.type) === 'period-selector')[0].props
         .itemHorizontalPadding,
-    ).toBe(2);
+    ).toBe(4);
   });
 
   it('renders the Retail initialization state instead of a blank content area during focus transition', () => {

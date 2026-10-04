@@ -8,13 +8,33 @@ import { SettingsScreen } from '@/features/settings/components/SettingsScreen';
 const mockPush = jest.fn();
 const mockAppMode = { mode: 'wholesale' as 'wholesale' | 'retail' };
 
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
+jest.mock('@/features/home/profile/HomeProfileSheetProvider', () => ({
+  useHomeProfileSheet: () => ({ openProfileSheet: jest.fn() }),
 }));
+
+jest.mock('expo-router', () => {
+  const React = require('react') as typeof import('react');
+  function Toolbar({ children }: { children?: ReactNode }) {
+    return React.createElement('toolbar', null, children);
+  }
+  function ToolbarView({ children }: { children?: ReactNode }) {
+    return React.createElement('toolbar-view', null, children);
+  }
+  return {
+    Stack: { Toolbar: Object.assign(Toolbar, { View: ToolbarView }) },
+    useRouter: () => ({ push: mockPush }),
+  };
+});
 jest.mock('@/components/layout', () => ({
   NativeGlassHeader: (props: Record<string, unknown>) => {
     const React = require('react') as typeof import('react');
     return React.createElement('native-header', props);
+  },
+}));
+jest.mock('@/components/native', () => ({
+  NativeHomeToolbarActions: (props: Record<string, unknown>) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('native-home-toolbar-actions', props);
   },
 }));
 jest.mock('@/components/premium', () => ({
@@ -25,6 +45,16 @@ jest.mock('@/components/premium', () => ({
   PremiumScreen: ({ children }: { children?: ReactNode }) => {
     const React = require('react') as typeof import('react');
     return React.createElement('premium-screen', null, children);
+  },
+  ProgressiveCollapsibleScreen: ({
+    children,
+    largeTitle,
+  }: {
+    children?: ReactNode;
+    largeTitle?: ReactNode;
+  }) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('premium-screen', null, largeTitle, children);
   },
 }));
 jest.mock('@/features/settings/components/SettingItem', () => ({
@@ -41,6 +71,8 @@ jest.mock('@/features/settings/components/SettingsSection', () => ({
 }));
 jest.mock('@/providers', () => ({
   useAppMode: () => mockAppMode,
+  useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 59 }),
+  useAuth: () => ({ user: null }),
 }));
 jest.mock('@/theme', () => ({
   getCardSurfaceColor: () => '#FFFFFF',
@@ -48,8 +80,9 @@ jest.mock('@/theme', () => ({
     resolvedMode: 'light',
     theme: {
       colors: { surface: '#FFFFFF' },
+      layout: { tabBarHeight: 80 },
       radius: { xl: 22 },
-      spacing: { md: 16, sm: 12, xl: 24, xs: 8, xxxl: 40 },
+      spacing: { lg: 20, md: 16, sm: 12, xl: 24, xs: 8, xxxl: 40 },
     },
   }),
 }));

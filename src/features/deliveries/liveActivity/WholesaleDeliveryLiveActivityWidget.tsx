@@ -1,4 +1,4 @@
-import { HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
+import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import { font, imageScale, monospacedDigit, padding } from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
@@ -22,22 +22,26 @@ function WholesaleDeliveryLiveActivity(
       <VStack modifiers={[padding({ all: 14 })]}>
         <HStack>
           <Image systemName="shippingbox.fill" />
-          <Text modifiers={[font({ weight: 'semibold' })]}>Atacado</Text>
-          <Text>{dateLabel}</Text>
-        </HStack>
-        <HStack>
-          <VStack>
-            <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
-            <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
-              {props.bucketCount}
-            </Text>
+          <Spacer minLength={0} />
+          <VStack spacing={0}>
+            <Text modifiers={[font({ weight: 'semibold' })]}>Atacado</Text>
+            <Text modifiers={[font({ textStyle: 'caption' })]}>{dateLabel}</Text>
           </VStack>
-          <VStack>
-            <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
-            <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
-              {props.deliveryCount}
-            </Text>
-          </VStack>
+          <Spacer minLength={0} />
+          <HStack>
+            <VStack spacing={0}>
+              <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
+              <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
+                {props.bucketCount}
+              </Text>
+            </VStack>
+            <VStack spacing={0}>
+              <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
+              <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
+                {props.deliveryCount}
+              </Text>
+            </VStack>
+          </HStack>
         </HStack>
         {props.isObsolete || environment.isStale ? (
           <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>
@@ -57,28 +61,42 @@ function WholesaleDeliveryLiveActivity(
       </HStack>
     ),
     minimal: <Image systemName="shippingbox.fill" />,
-    expandedCenter: <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>,
+    expandedCenter: (
+      <VStack spacing={0}>
+        <Spacer minLength={0} />
+        <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>
+        <Spacer minLength={0} />
+      </VStack>
+    ),
     expandedLeading: (
-      <HStack>
-        <Image systemName="shippingbox.fill" />
-        <VStack spacing={0}>
-          <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
-          <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
-            {props.bucketCount}
-          </Text>
-        </VStack>
-      </HStack>
+      <VStack spacing={0}>
+        <Spacer minLength={0} />
+        <HStack>
+          <Image systemName="shippingbox.fill" />
+          <VStack spacing={0}>
+            <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
+            <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
+              {props.bucketCount}
+            </Text>
+          </VStack>
+        </HStack>
+        <Spacer minLength={0} />
+      </VStack>
     ),
     expandedTrailing: (
-      <HStack>
-        <VStack spacing={0}>
-          <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
-          <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
-            {props.deliveryCount}
-          </Text>
-        </VStack>
-        <Image systemName="checklist" />
-      </HStack>
+      <VStack spacing={0}>
+        <Spacer minLength={0} />
+        <HStack>
+          <VStack spacing={0}>
+            <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
+            <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
+              {props.deliveryCount}
+            </Text>
+          </VStack>
+          <Image systemName="checklist" />
+        </HStack>
+        <Spacer minLength={0} />
+      </VStack>
     ),
   };
 }

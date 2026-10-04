@@ -115,6 +115,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -215,7 +217,14 @@ jobs:
         run: |
           set -euo pipefail
           if [ '${{ inputs.configuration }}' = 'release' ]; then
-            echo "namespace=keychain-signed-v2-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            # Bump the namespace/schema for workflow changes to prebuild, signing, or Release Xcode settings.
+            APP_REVISION_SHA=$(git rev-list -1 HEAD -- . \
+              ':(exclude).github/workflows/native-sim.yml' \
+              ':(exclude).github/native-sim/gate.cjs')
+            [ -n "$APP_REVISION_SHA" ] || { echo 'Could not resolve app cache revision'; exit 1; }
+            echo "Current workflow SHA: $GITHUB_SHA"
+            echo "App cache revision: $APP_REVISION_SHA"
+            echo "namespace=keychain-signed-v2-${APP_REVISION_SHA}" >> "$GITHUB_OUTPUT"
           else
             echo 'namespace=v1' >> "$GITHUB_OUTPUT"
           fi

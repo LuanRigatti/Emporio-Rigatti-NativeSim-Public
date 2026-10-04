@@ -52,30 +52,34 @@ function WholesaleDeliveryLiveActivity(
     ),
     compactTrailing: (
       <HStack>
-        <Image systemName="box.truck.fill" modifiers={[imageScale('small')]} />
+        <Image systemName="checklist" modifiers={[imageScale('small')]} />
         <Text modifiers={[monospacedDigit()]}>{props.deliveryCount}</Text>
       </HStack>
     ),
     minimal: <Image systemName="shippingbox.fill" />,
+    expandedCenter: <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>,
     expandedLeading: (
-      <VStack modifiers={[padding({ all: 8 })]}>
+      <HStack>
         <Image systemName="shippingbox.fill" />
-        <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
-        <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
-          {props.bucketCount}
-        </Text>
-      </VStack>
+        <VStack spacing={0}>
+          <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
+          <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
+            {props.bucketCount}
+          </Text>
+        </VStack>
+      </HStack>
     ),
     expandedTrailing: (
-      <VStack modifiers={[padding({ all: 8 })]}>
-        <Image systemName="box.truck.fill" />
-        <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
-        <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
-          {props.deliveryCount}
-        </Text>
-      </VStack>
+      <HStack>
+        <VStack spacing={0}>
+          <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
+          <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
+            {props.deliveryCount}
+          </Text>
+        </VStack>
+        <Image systemName="checklist" />
+      </HStack>
     ),
-    expandedBottom: <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>,
   };
 }
 

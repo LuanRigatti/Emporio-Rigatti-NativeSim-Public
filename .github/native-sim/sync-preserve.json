@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "preserve": [
+    ".github/workflows/native-sim.yml",
+    ".github/native-sim/gate.cjs",
+    ".github/native-sim/sync-source.cjs",
+    ".github/native-sim/sync-preserve.json",
+    ".github/native-sim/sync-source.test.cjs",
+    "build/native-sim-derived-data/**"
+  ]
+}

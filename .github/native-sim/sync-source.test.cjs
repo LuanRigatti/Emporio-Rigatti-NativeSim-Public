@@ -322,6 +322,61 @@ test('credential-like content blocks the mirror without printing the matched val
   assert.deepEqual(readRepoFiles(fixture.destinationRoot), beforeFiles);
 });
 
+test('the audited mocked Google idToken fixture does not block its exact source test file', (t) => {
+  const fixtureToken = ['release-google-', 'id-', 'token'].join('');
+  const mockTestSource = [
+    'jest.mocked(GoogleSignin.signIn).mockResolvedValue({',
+    `  data: { idToken: '${fixtureToken}' },`,
+    '});',
+    `expect(result).toEqual({ idToken: '${fixtureToken}' });`,
+  ].join('\n');
+  const fixture = createFixture(
+    t,
+    { 'tests/auth/NativeGoogleSignInService.test.ts': mockTestSource },
+    { 'app.txt': 'old\n' },
+  );
+
+  assert.doesNotThrow(() => runSync(fixture, { dryRun: true }));
+});
+
+test('a different credential-shaped idToken in the same test file remains blocked', (t) => {
+  const syntheticToken = [
+    'eyJhbGciOiJub25l',
+    'In0.eyJzdWIiOiJ0ZXN0In0.',
+    'syntheticSignatureValue',
+  ].join('');
+  const mockTestSource = [
+    'jest.mocked(GoogleSignin.signIn).mockResolvedValue({',
+    `  data: { idToken: '${syntheticToken}' },`,
+    '});',
+  ].join('\n');
+  const fixture = createFixture(
+    t,
+    { 'tests/auth/NativeGoogleSignInService.test.ts': mockTestSource },
+    { 'app.txt': 'old\n' },
+  );
+
+  assert.throws(
+    () => runSync(fixture, { dryRun: true }),
+    /Sensitive source content blocked \(embedded credential value\)/,
+  );
+});
+
+test('the audited fixture is not exempted from other files under tests', (t) => {
+  const fixtureToken = ['release-google-', 'id-', 'token'].join('');
+  const mockTestSource = `const idToken = '${fixtureToken}';`;
+  const fixture = createFixture(
+    t,
+    { 'tests/auth/AnotherGoogleSignIn.test.ts': mockTestSource },
+    { 'app.txt': 'old\n' },
+  );
+
+  assert.throws(
+    () => runSync(fixture, { dryRun: true }),
+    /Sensitive source content blocked \(embedded credential value\)/,
+  );
+});
+
 test('JSON token values are detected and never included in the error message', (t) => {
   const fixture = createFixture(
     t,

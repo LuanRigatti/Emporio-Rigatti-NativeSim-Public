@@ -64,6 +64,13 @@ const SENSITIVE_CONTENT = [
   },
 ];
 
+const SAFE_TEST_CREDENTIAL_FIXTURES = new Map([
+  [
+    'tests/auth/NativeGoogleSignInService.test.ts',
+    { field: 'idToken', value: 'release-google-id-token' },
+  ],
+]);
+
 function fail(message) {
   throw new Error(message);
 }
@@ -373,13 +380,27 @@ function sensitiveContentReason(buffer) {
   return null;
 }
 
+function contentForSensitiveScan(relativePath, buffer) {
+  const normalizedPath = relativePath.replace(/\\/g, '/');
+  const fixture = SAFE_TEST_CREDENTIAL_FIXTURES.get(normalizedPath);
+  if (!fixture) return buffer;
+
+  const fieldPattern = new RegExp(`\\b(${fixture.field}\\s*:\\s*)([\"'])([^\"']*)\\2`, 'g');
+  const text = buffer
+    .toString('latin1')
+    .replace(fieldPattern, (match, prefix, quote, value) =>
+      value === fixture.value ? `${prefix}${quote}EXAMPLE${quote}` : match,
+    );
+  return Buffer.from(text, 'latin1');
+}
+
 function assertSafePath(relativePath, context) {
   const reason = sensitivePathReason(relativePath);
   if (reason) fail(`Sensitive ${context} blocked (${reason}): ${relativePath}.`);
 }
 
 function assertSafeContent(relativePath, buffer, context) {
-  const reason = sensitiveContentReason(buffer);
+  const reason = sensitiveContentReason(contentForSensitiveScan(relativePath, buffer));
   if (reason)
     fail(
       `Sensitive ${context} blocked (${reason}): ${relativePath}. Matched content was not printed.`,

@@ -293,7 +293,7 @@ jobs:
           # which is the difference between a choppy and a smooth tunnel stream.
           # max-dimension cuts pixels quadratically, saving encode CPU and bytes.
           ARGS=(
-            --detach --quiet
+            --quiet
             --allow-any-host-when-insecure
             --port "$PREVIEW_PORT"
             --max-dimension '${{ inputs.max_dimension }}'
@@ -362,7 +362,8 @@ jobs:
             )
           fi
 
-          npx --yes @expo/serve-sim@0.5.0 "${ARGS[@]}" | tee serve-sim.json
+          nohup npx --yes @expo/serve-sim@0.5.0 "${ARGS[@]}" > serve-sim.log 2>&1 &
+          disown
 
           # /readyz blocks until the simulator and the native capture session are up.
           for _ in $(seq 1 90); do
@@ -373,6 +374,7 @@ jobs:
             sleep 2
           done
           echo "serve-sim never became ready"
+          cat serve-sim.log || true
           curl -sS "http://127.0.0.1:$PREVIEW_PORT/healthz" || true
           exit 1
 

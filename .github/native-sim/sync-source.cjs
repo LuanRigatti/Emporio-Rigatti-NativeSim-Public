@@ -15,6 +15,7 @@ const REQUIRED_PRESERVE_RULES = [
   '.github/native-sim/sync-source.cjs',
   '.github/native-sim/sync-preserve.json',
 ];
+const SAFE_ENV_TEMPLATES = new Set(['.env.example', '.env.sample', '.env.template']);
 
 const SENSITIVE_PATHS = [
   { pattern: /(^|\/)\.env(?:\.[^/]*)?$/i, label: 'environment file' },
@@ -354,7 +355,11 @@ function collectDestinationEntries(destinationRoot) {
 }
 
 function sensitivePathReason(relativePath) {
+  const normalizedPath = relativePath.replace(/\\/g, '/');
+  const basename = normalizedPath.slice(normalizedPath.lastIndexOf('/') + 1).toLowerCase();
+
   for (const item of SENSITIVE_PATHS) {
+    if (item.label === 'environment file' && SAFE_ENV_TEMPLATES.has(basename)) continue;
     if (item.pattern.test(relativePath)) return item.label;
   }
   return null;

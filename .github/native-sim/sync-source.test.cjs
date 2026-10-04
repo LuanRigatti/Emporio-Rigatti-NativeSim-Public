@@ -14,6 +14,7 @@ const {
   parseGithubIdentity,
   sanitizeRemote,
   sensitiveContentReason,
+  sensitivePathReason,
   synchronize,
   verifyMirror,
 } = require('./sync-source.cjs');
@@ -243,6 +244,60 @@ test('a sensitive source path blocks the mirror before destination writes', (t) 
   assert.throws(
     () => runSync(fixture),
     /Sensitive source path blocked \(environment file\): \.env\.local/,
+  );
+  assert.deepEqual(readRepoFiles(fixture.destinationRoot), beforeFiles);
+});
+
+test('only the three explicit environment template names bypass the environment-path rule', () => {
+  for (const template of ['.env.example', '.env.sample', '.env.template']) {
+    assert.equal(sensitivePathReason(`config/${template}`), null, template);
+  }
+
+  for (const environmentFile of [
+    '.env',
+    '.env.local',
+    '.env.development',
+    '.env.production',
+    '.env.test',
+    '.env.example.local',
+    '.env.sample.production',
+    '.env.template.local',
+  ]) {
+    assert.equal(sensitivePathReason(environmentFile), 'environment file', environmentFile);
+  }
+});
+
+test('safe environment templates are mirrored while still passing content inspection', (t) => {
+  const sourceTemplates = {
+    '.env.example': 'EXPO_PUBLIC_API_KEY=YOUR_API_KEY\n',
+    '.env.sample': 'DATABASE_URL=https://example.invalid\n',
+    '.env.template': 'SERVICE_TOKEN=REPLACE_WITH_TOKEN\n',
+  };
+  const fixture = createFixture(t, sourceTemplates, { 'app.txt': 'old\n' });
+
+  const result = runSync(fixture);
+
+  assert.deepEqual(result.plan.added, Object.keys(sourceTemplates));
+  for (const [relativePath, expectedContent] of Object.entries(sourceTemplates)) {
+    assert.equal(
+      fs.readFileSync(path.join(fixture.destinationRoot, relativePath), 'utf8'),
+      expectedContent,
+    );
+  }
+});
+
+test('an allowed environment template containing sensitive material still blocks the mirror', (t) => {
+  const privateKeyMarker = ['-----BEGIN ', 'PRIVATE KEY-----'].join('');
+  const fixture = createFixture(
+    t,
+    { '.env.example': `PRIVATE_KEY=${privateKeyMarker}\n` },
+    { 'app.txt': 'old\n' },
+  );
+  const beforeFiles = readRepoFiles(fixture.destinationRoot);
+
+  assert.throws(
+    () => runSync(fixture),
+    /Sensitive source content blocked \(private-key material\): \.env\.example/,
   );
   assert.deepEqual(readRepoFiles(fixture.destinationRoot), beforeFiles);
 });

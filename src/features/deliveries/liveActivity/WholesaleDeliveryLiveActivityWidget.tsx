@@ -1,5 +1,12 @@
-import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { font, imageScale, monospacedDigit, padding } from '@expo/ui/swift-ui/modifiers';
+import { Divider, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import {
+  font,
+  imageScale,
+  monospacedDigit,
+  offset,
+  opacity,
+  padding,
+} from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
 import type { LiveActivityContent } from './LiveActivityContracts';
@@ -20,15 +27,15 @@ function WholesaleDeliveryLiveActivity(
   return {
     banner: (
       <VStack modifiers={[padding({ all: 14 })]}>
-        <HStack>
+        <HStack spacing={10}>
           <Image systemName="shippingbox.fill" />
-          <Spacer minLength={0} />
+          <Divider modifiers={[opacity(0.45)]} />
           <VStack spacing={0}>
             <Text modifiers={[font({ weight: 'semibold' })]}>Atacado</Text>
             <Text modifiers={[font({ textStyle: 'caption' })]}>{dateLabel}</Text>
           </VStack>
-          <Spacer minLength={0} />
-          <HStack>
+          <Divider modifiers={[opacity(0.45)]} />
+          <HStack spacing={10}>
             <VStack spacing={0}>
               <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
               <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
@@ -64,7 +71,7 @@ function WholesaleDeliveryLiveActivity(
     expandedCenter: (
       <VStack spacing={0}>
         <Spacer minLength={0} />
-        <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>
+        <Text modifiers={[font({ textStyle: 'caption' }), offset({ y: 9 })]}>{freshnessLabel}</Text>
         <Spacer minLength={0} />
       </VStack>
     ),

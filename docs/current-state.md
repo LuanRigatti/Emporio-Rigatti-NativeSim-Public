@@ -6,17 +6,6 @@ Este é o primeiro bloco a ser consultado por qualquer nova conversa ou agente
 de IA. Ele representa o estado operacional deste checkout; as seções posteriores
 preservam o histórico técnico e as decisões acumuladas.
 
-## Entrada rápida para validação
-
-- A tela de Login mostra `Entrada rápida` somente quando
-  `EXPO_PUBLIC_QUICK_LOGIN_EMAIL` e `EXPO_PUBLIC_QUICK_LOGIN_PASSWORD` estão
-  configuradas. O fluxo usa o Firebase Auth Email/Password existente e a sessão
-  Firebase normal; o código lê as credenciais do ambiente e não hardcoda os
-  valores da conta.
-- Como variáveis `EXPO_PUBLIC_*` são incorporadas ao bundle cliente, use somente
-  uma conta Firebase dedicada a testes. Os valores não devem ser commitados; o
-  `.env.example` mantém ambos vazios.
-
 ## Manutenção do Expo SDK 57 — concluída (2026-10-03)
 
 - A manutenção de dependências do Expo SDK 57 foi concluída e checkpointada

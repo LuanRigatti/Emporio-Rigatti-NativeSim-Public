@@ -1,12 +1,5 @@
 import { Divider, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import {
-  font,
-  imageScale,
-  monospacedDigit,
-  offset,
-  opacity,
-  padding,
-} from '@expo/ui/swift-ui/modifiers';
+import { font, imageScale, monospacedDigit, opacity, padding } from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
 import type { LiveActivityContent } from './LiveActivityContracts';
@@ -70,8 +63,8 @@ function WholesaleDeliveryLiveActivity(
     minimal: <Image systemName="shippingbox.fill" />,
     expandedCenter: (
       <VStack spacing={0}>
-        <Spacer minLength={0} />
-        <Text modifiers={[font({ textStyle: 'caption' }), offset({ y: 9 })]}>{freshnessLabel}</Text>
+        <Spacer minLength={8} />
+        <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>
         <Spacer minLength={0} />
       </VStack>
     ),

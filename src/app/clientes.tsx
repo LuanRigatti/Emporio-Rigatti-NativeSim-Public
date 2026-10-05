@@ -7,6 +7,7 @@ import { ListItem } from '@/components/lists';
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeCardContextMenu, NativeGlassIconButton } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
+import { EmptyState } from '@/components/feedback';
 import { PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
 import OpenPaymentClientIcon from '@/features/open-payments/components/OpenPaymentClientIcon';
@@ -90,6 +91,12 @@ export default function ClientsRoute() {
               systemImage="arrow.clockwise"
             />
           </View>
+        ) : clients.length === 0 ? (
+          <EmptyState
+            description="Toque em + para cadastrar o primeiro cliente."
+            style={{ marginTop: theme.spacing.xl }}
+            title="Nenhum cliente cadastrado"
+          />
         ) : (
           <View style={{ marginTop: theme.spacing.xl }}>
             <PremiumCard

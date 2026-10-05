@@ -148,6 +148,69 @@ describe('useCostSettings local-first session flow', () => {
     await act(async () => renderer?.unmount());
   });
 
+  it('keeps an empty result in loading state until Firestore confirms it', async () => {
+    const remote = deferred<CostSettings>();
+    mockLocalLoad.mockResolvedValue(settings({}));
+    mockRemoteLoad.mockReturnValue(remote.promise);
+
+    let current: ReturnType<typeof useCostSettings> | undefined;
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness, { onRender: (value) => (current = value) }));
+      await settle();
+    });
+
+    expect(current?.isHydrated).toBe(true);
+    expect(current?.remoteStatus).toBe('loading');
+
+    await act(async () => {
+      remote.resolve(settings({}));
+      await settle();
+    });
+
+    expect(current?.remoteStatus).toBe('ready');
+    await act(async () => renderer?.unmount());
+  });
+
+  it('keeps locally hydrated data available while remote confirmation is pending', async () => {
+    const remote = deferred<CostSettings>();
+    const local = settings({ '2026-09-02': { kilometers: '15' } });
+    mockLocalLoad.mockResolvedValue(local);
+    mockRemoteLoad.mockReturnValue(remote.promise);
+
+    let current: ReturnType<typeof useCostSettings> | undefined;
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness, { onRender: (value) => (current = value) }));
+      await settle();
+    });
+
+    expect(current?.remoteStatus).toBe('loading');
+    expect(current?.getValues('day', '2026-09-02').kilometers).toBe('15');
+
+    await act(async () => {
+      remote.resolve(settings({}));
+      await settle();
+    });
+    await act(async () => renderer?.unmount());
+  });
+
+  it('reports remote failure separately from a confirmed empty snapshot', async () => {
+    mockLocalLoad.mockResolvedValue(settings({}));
+    mockRemoteLoad.mockRejectedValue(new Error('offline'));
+
+    let current: ReturnType<typeof useCostSettings> | undefined;
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness, { onRender: (value) => (current = value) }));
+      await settle();
+    });
+
+    expect(current?.remoteStatus).toBe('failed');
+    expect(current?.getValues('day', '2026-09-02').kilometers).toBe('');
+    await act(async () => renderer?.unmount());
+  });
+
   it('updates and persists locally before remote hydration finishes', async () => {
     const remote = deferred<CostSettings>();
     mockLocalLoad.mockResolvedValue(settings({ '2026-09-02': { kilometers: '10' } }));

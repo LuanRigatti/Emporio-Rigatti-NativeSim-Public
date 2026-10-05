@@ -401,6 +401,7 @@ export function useCostSettings(options: UseCostSettingsOptions = {}) {
     getLatestDailyValue,
     getValues,
     isHydrated,
+    remoteStatus,
     setFieldValue,
     updateField,
   };

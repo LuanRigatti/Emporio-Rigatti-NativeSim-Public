@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
+import { ErrorState, InlineError, Loading } from '@/components/feedback';
 import {
   NativeCardContextMenu,
   NativeDailyDataSheet,
@@ -203,8 +204,15 @@ export function RegistrarDailyDataScreen() {
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const { enabled: testModeEnabled, text: maskText } = useTestModePresentation();
   const [isDeleting, setIsDeleting] = useState(false);
-  const { addFieldValue, deleteDailyData, getLatestDailyValue, getValues, setFieldValue } =
-    useCostSettings();
+  const {
+    addFieldValue,
+    deleteDailyData,
+    getLatestDailyValue,
+    getValues,
+    isHydrated,
+    remoteStatus,
+    setFieldValue,
+  } = useCostSettings();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [dailySheetInitialValues, setDailySheetInitialValues] = useState(EMPTY_DAILY_DATA_VALUES);
   const dailyDate = todayIso();
@@ -224,6 +232,13 @@ export function RegistrarDailyDataScreen() {
       ),
     [dailyValues, totalKilometers],
   );
+  const dailyDataViewState = hasDailyData
+    ? 'populated'
+    : !isHydrated || remoteStatus === 'loading'
+      ? 'loading'
+      : remoteStatus === 'failed'
+        ? 'error'
+        : 'empty';
   const dailyDataCardMinHeight =
     theme.spacing.lg * 2 +
     theme.typography.caption.lineHeight +
@@ -341,8 +356,8 @@ export function RegistrarDailyDataScreen() {
                   borderRadius: hasDailyData
                     ? theme.radius.xl + theme.spacing.sm
                     : theme.radius.xl + theme.spacing.lg,
-                  height: dailyDataCardMinHeight,
-                  minHeight: dailyDataCardMinHeight,
+                  height: hasDailyData ? dailyDataCardMinHeight : undefined,
+                  minHeight: hasDailyData ? dailyDataCardMinHeight : undefined,
                   overflow: 'hidden',
                   width: '100%',
                 },
@@ -372,7 +387,7 @@ export function RegistrarDailyDataScreen() {
                     borderRadius: hasDailyData
                       ? theme.radius.xl + theme.spacing.sm
                       : theme.radius.xl + theme.spacing.lg,
-                    height: dailyDataCardMinHeight,
+                    height: hasDailyData ? dailyDataCardMinHeight : undefined,
                   },
                 ]}
                 preview={dailyDataPreview}
@@ -394,13 +409,27 @@ export function RegistrarDailyDataScreen() {
                         {renderDailyDataContent()}
                       </View>
                     </Animated.View>
+                  ) : dailyDataViewState === 'loading' ? (
+                    <View style={styles.emptyStateCard}>
+                      <Loading
+                        label="Carregando dados de hoje..."
+                        style={{
+                          paddingHorizontal: theme.spacing.lg,
+                          paddingVertical: theme.spacing.md,
+                        }}
+                      />
+                    </View>
+                  ) : dailyDataViewState === 'error' ? (
+                    <View style={[styles.emptyStateCard, { padding: theme.spacing.md }]}>
+                      <InlineError message="Não foi possível confirmar os dados de hoje." />
+                    </View>
                   ) : (
                     <View
                       style={[
                         styles.emptyStateCard,
                         {
-                          minHeight: dailyDataCardMinHeight,
-                          paddingVertical: theme.spacing.xxl * 2,
+                          paddingHorizontal: theme.spacing.lg,
+                          paddingVertical: theme.spacing.md,
                         },
                       ]}
                     >
@@ -486,6 +515,9 @@ export function RegistrarDeliveryScreen({
   const {
     allDeliveries: sourceDeliveries,
     create,
+    error: deliveryError,
+    loading: deliveriesLoading,
+    reload: reloadDeliveries,
     remove: removeDelivery,
   } = useDeliveries({
     mode: 'today',
@@ -569,7 +601,15 @@ export function RegistrarDeliveryScreen({
         {maskQuantity(totalBuckets)}
       </Text>
     ) : undefined;
-  const emptyDeliveryCardMinHeight = theme.spacing.xxl * 4 + theme.typography.body.lineHeight;
+  const hasTodayDeliveries = todayDeliveries.length > 0;
+  const deliveryViewState = hasTodayDeliveries
+    ? 'populated'
+    : deliveriesLoading
+      ? 'loading'
+      : deliveryError
+        ? 'error'
+        : 'empty';
+  const deliveryStateCardHeight = theme.spacing.md * 2 + theme.typography.body.lineHeight;
   const stickyActionFooterHeight = 58 + insets.bottom + theme.spacing.md + theme.spacing.sm;
   const deliveryRowHeight =
     theme.spacing.sm * 2 +
@@ -578,11 +618,10 @@ export function RegistrarDeliveryScreen({
       theme.typography.body.lineHeight,
       theme.typography.callout.lineHeight + theme.typography.footnote.lineHeight + 2,
     );
-  const deliveryCardHeight =
-    todayDeliveries.length === 0
-      ? emptyDeliveryCardMinHeight
-      : todayDeliveries.length * deliveryRowHeight +
-        Math.max(0, todayDeliveries.length - 1) * theme.spacing.xs;
+  const deliveryCardHeight = !hasTodayDeliveries
+    ? deliveryStateCardHeight
+    : todayDeliveries.length * deliveryRowHeight +
+      Math.max(0, todayDeliveries.length - 1) * theme.spacing.xs;
   const deliveryCardHeightValue = useDerivedValue(
     () =>
       withTiming(deliveryCardHeight, {
@@ -671,7 +710,7 @@ export function RegistrarDeliveryScreen({
           searchFocused={clientSearchFocused}
         />
       ) : null}
-      {!inlineClientSelection && todayDeliveries.length > 0 ? (
+      {!inlineClientSelection && hasTodayDeliveries ? (
         <>
           {!showLargeTitle ? (
             <View
@@ -793,7 +832,7 @@ export function RegistrarDeliveryScreen({
             </View>
           </Animated.View>
         </>
-      ) : inlineClientSelection ? null : (
+      ) : inlineClientSelection ? null : deliveryViewState === 'loading' ? (
         <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
           <PremiumCard
             style={[
@@ -801,11 +840,35 @@ export function RegistrarDeliveryScreen({
               {
                 borderRadius: theme.radius.xl + theme.spacing.lg,
                 height: '100%',
-                paddingVertical: theme.spacing.xxl * 2,
+                padding: 0,
               },
             ]}
           >
-            <View style={styles.emptyStateCard}>
+            <Loading label="Carregando entregas..." style={{ paddingVertical: theme.spacing.md }} />
+          </PremiumCard>
+        </Animated.View>
+      ) : deliveryViewState === 'error' ? (
+        <Animated.View style={styles.fullWidth}>
+          <ErrorState
+            description={deliveryError}
+            onRetry={() => void reloadDeliveries()}
+            style={{ padding: theme.spacing.md }}
+            title="Não foi possível carregar entregas"
+          />
+        </Animated.View>
+      ) : (
+        <Animated.View style={[styles.fullWidth, deliveryCardAnimatedStyle]}>
+          <PremiumCard
+            style={[
+              styles.emptyDeliveryCard,
+              {
+                borderRadius: theme.radius.xl + theme.spacing.lg,
+                height: '100%',
+                padding: 0,
+              },
+            ]}
+          >
+            <View style={[styles.emptyStateCard, { paddingVertical: theme.spacing.md }]}>
               <Text
                 style={[
                   theme.typography.body,

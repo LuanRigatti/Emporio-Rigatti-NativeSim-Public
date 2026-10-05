@@ -7,6 +7,7 @@ import type { Delivery } from '@/types/data';
 
 const mockUseDeliveries = jest.fn();
 const mockUseClients = jest.fn();
+const mockUseCostSettings = jest.fn();
 const mockRouterPush = jest.fn();
 const mockResolvedMode: { value: 'dark' | 'light' } = { value: 'light' };
 const mockRegistrarDeliveryController = {
@@ -71,8 +72,8 @@ jest.mock('react-native-reanimated', () => ({
   FadeIn: { duration: jest.fn(() => ({ delay: jest.fn() })) },
   FadeOut: { duration: jest.fn(() => ({ delay: jest.fn() })) },
   LinearTransition: { duration: jest.fn() },
-  useAnimatedStyle: jest.fn(() => ({})),
-  useDerivedValue: jest.fn(() => ({ value: 0 })),
+  useAnimatedStyle: jest.fn((getStyle: () => unknown) => getStyle()),
+  useDerivedValue: jest.fn((getValue: () => unknown) => ({ value: getValue() })),
   withTiming: jest.fn((value: number) => value),
   createAnimatedComponent: (Component: unknown) => Component,
 }));
@@ -90,6 +91,15 @@ jest.mock('@/components/native', () => ({
   NativeDailyDataSheet: () => null,
   NativeGlassIconButton: () => null,
 }));
+
+jest.mock('@/components/feedback', () => {
+  const React = require('react') as typeof import('react');
+  return {
+    ErrorState: (props: Record<string, unknown>) => React.createElement('error-state', props),
+    InlineError: (props: Record<string, unknown>) => React.createElement('inline-error', props),
+    Loading: (props: Record<string, unknown>) => React.createElement('loading-state', props),
+  };
+});
 
 jest.mock('@/components/premium', () => ({
   AnimatedPressable: ({
@@ -253,7 +263,18 @@ jest.mock('@/features/retail-orders/components/RetailOrderRegistrarScreen', () =
 
 jest.mock('@/hooks/useClients', () => ({ useClients: () => mockUseClients() }));
 jest.mock('@/hooks/useDeliveries', () => ({ useDeliveries: mockUseDeliveries }));
-jest.mock('@/hooks/useCostSettings', () => ({ useCostSettings: jest.fn() }));
+jest.mock('@/hooks/useCostSettings', () => ({ useCostSettings: mockUseCostSettings }));
+jest.mock('@/features/deliveries/liveActivity/LiveActivityCoordinator', () => ({
+  wholesaleDeliveryLiveActivityCoordinator: { toggleFromToolbar: jest.fn() },
+}));
+jest.mock('@/features/deliveries/liveActivity/useLiveActivityCoordinator', () => ({
+  useLiveActivityCoordinatorState: () => ({
+    canStart: false,
+    isActive: false,
+    isBusy: false,
+    supported: false,
+  }),
+}));
 jest.mock('@/providers', () => ({
   useAppMode: () => ({ mode: 'wholesale' }),
   useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
@@ -273,6 +294,7 @@ jest.mock('@/theme', () => ({
         borderStrong: '#D1D5DB',
         contrastContent: '#FFFFFF',
         contrastSurface: '#000000',
+        separator: '#D1D5DB',
         selectionContent: '#FFFFFF',
         selectionSurface: '#000000',
         danger: '#FF0000',
@@ -283,10 +305,12 @@ jest.mock('@/theme', () => ({
       },
       layout: { screenHorizontalPadding: 24, tabBarHeight: 0 },
       radius: { card: 20, lg: 16, pill: 999, xl: 24 },
+      shadows: { card: {}, none: {} },
       sizes: { iconMedium: 24, touchTargetMinimum: 44 },
       spacing: { lg: 20, md: 16, sm: 8, xl: 24, xs: 4, xxl: 32, xxs: 2 },
       typography: {
         body: { lineHeight: 20 },
+        caption: { lineHeight: 14 },
         callout: { lineHeight: 18 },
         footnote: { lineHeight: 14 },
         headline: { fontWeight: '600', lineHeight: 22 },
@@ -297,7 +321,7 @@ jest.mock('@/theme', () => ({
 
 jest.mock('@/utils/data', () => ({
   formatCurrency: (value: number) => String(value),
-  normalizeMoney: jest.fn(),
+  normalizeMoney: (value: string) => Number(value.replace(',', '.')),
   todayIso: () => '2026-09-23',
 }));
 
@@ -322,12 +346,14 @@ jest.mock('@/utils/presentation/testModeValues', () => ({
   }),
 }));
 
-const { RegistrarDeliveryScreen } = require('@/app/(tabs)/registrar/index') as {
-  RegistrarDeliveryScreen: ComponentType<{
-    inlineClientSelection?: boolean;
-    showLargeTitle?: boolean;
-  }>;
-};
+const { RegistrarDailyDataScreen, RegistrarDeliveryScreen } =
+  require('@/app/(tabs)/registrar/index') as {
+    RegistrarDailyDataScreen: ComponentType;
+    RegistrarDeliveryScreen: ComponentType<{
+      inlineClientSelection?: boolean;
+      showLargeTitle?: boolean;
+    }>;
+  };
 
 function delivery(id: string, quantidade: number): Delivery {
   return {
@@ -341,17 +367,57 @@ function delivery(id: string, quantidade: number): Delivery {
   };
 }
 
-function renderScreen(deliveries: Delivery[]): ReactTestRenderer {
+function renderScreen(
+  deliveries: Delivery[],
+  state: { error?: string; loading?: boolean } = {},
+): ReactTestRenderer {
   mockUseDeliveries.mockReturnValue({
     allDeliveries: deliveries,
     create: jest.fn(),
     remove: jest.fn(),
+    reload: jest.fn(),
+    loading: false,
+    error: undefined,
+    ...state,
   });
   mockUseClients.mockReturnValue({ clients: [] });
 
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(createElement(RegistrarDeliveryScreen, { showLargeTitle: true }));
+  });
+  return renderer;
+}
+
+function renderDailyData(
+  state: {
+    isHydrated?: boolean;
+    remoteStatus?: 'disabled' | 'loading' | 'ready' | 'failed';
+    values?: Record<string, string>;
+  } = {},
+): ReactTestRenderer {
+  const values = state.values ?? {
+    estar: '',
+    fuel: '',
+    fuelPrice: '',
+    fuelType: '',
+    kilometers: '',
+    light: '',
+    other: '',
+  };
+  mockUseCostSettings.mockReturnValue({
+    addFieldValue: jest.fn(),
+    deleteDailyData: jest.fn(),
+    getLatestDailyValue: jest.fn(() => '6,59'),
+    getValues: jest.fn(() => values),
+    isHydrated: state.isHydrated ?? true,
+    remoteStatus: state.remoteStatus ?? 'ready',
+    setFieldValue: jest.fn(),
+  });
+
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(createElement(RegistrarDailyDataScreen));
   });
   return renderer;
 }
@@ -382,6 +448,24 @@ describe('Registrar Atacado delivery bucket total', () => {
     mockResolvedMode.value = 'light';
     jest.requireMock('@/utils/haptics').triggerLightImpactHaptic.mockClear();
     mockUseDeliveries.mockClear();
+    mockUseCostSettings.mockReset();
+    mockUseCostSettings.mockReturnValue({
+      addFieldValue: jest.fn(),
+      deleteDailyData: jest.fn(),
+      getLatestDailyValue: jest.fn(() => '6,59'),
+      getValues: jest.fn(() => ({
+        estar: '',
+        fuel: '',
+        fuelPrice: '',
+        fuelType: '',
+        kilometers: '',
+        light: '',
+        other: '',
+      })),
+      isHydrated: true,
+      remoteStatus: 'ready',
+      setFieldValue: jest.fn(),
+    });
     mockUseClients.mockReset();
     mockUseClients.mockReturnValue({ clients: [] });
     mockRegistrarDeliveryController.clientItems = [];
@@ -397,6 +481,96 @@ describe('Registrar Atacado delivery bucket total', () => {
 
     expect(header.props.title).toBe('Entregas');
     expect(header.findAllByType(Text)).toHaveLength(0);
+  });
+
+  it('shows loading instead of an empty message while deliveries are loading', () => {
+    const renderer = renderScreen([], { loading: true });
+
+    const loading = renderer.root.find((node) => String(node.type) === 'loading-state');
+    expect(loading.props.label).toBe('Carregando entregas...');
+    expect(
+      renderer.root
+        .findAllByType(Text)
+        .some((node) => node.props.children === 'Nenhuma entrega hoje'),
+    ).toBe(false);
+  });
+
+  it('renders a compact empty delivery card after a successful empty load', () => {
+    const renderer = renderScreen([]);
+    const emptyText = renderer.root
+      .findAllByType(Text)
+      .find((node) => node.props.children === 'Nenhuma entrega hoje');
+    const animatedCard = renderer.root.find((node) => {
+      if (String(node.type) !== 'animated-view') return false;
+      return StyleSheet.flatten(node.props.style)?.height === 52;
+    });
+
+    expect(emptyText).toBeDefined();
+    expect(animatedCard).toBeDefined();
+  });
+
+  it('renders a retryable error instead of an empty delivery state', () => {
+    const renderer = renderScreen([], { error: 'Falha de conexão' });
+    const errorState = renderer.root.find((node) => String(node.type) === 'error-state');
+
+    expect(errorState.props.title).toBe('Não foi possível carregar entregas');
+    expect(errorState.props.description).toBe('Falha de conexão');
+    expect(typeof errorState.props.onRetry).toBe('function');
+    expect(
+      renderer.root
+        .findAllByType(Text)
+        .some((node) => node.props.children === 'Nenhuma entrega hoje'),
+    ).toBe(false);
+  });
+
+  it('keeps valid daily data visible while remote refresh is still loading', () => {
+    const renderer = renderDailyData({
+      remoteStatus: 'loading',
+      values: { estar: '', fuelPrice: '6,59', kilometers: '15', other: '' },
+    });
+
+    expect(
+      renderer.root.findAllByType(Text).some((node) => node.props.children === 'Nenhum dado hoje'),
+    ).toBe(false);
+    expect(renderer.root.findAllByType(Text).some((node) => node.props.children === '15 km')).toBe(
+      true,
+    );
+  });
+
+  it('shows daily loading until local hydration and remote confirmation are complete', () => {
+    const renderer = renderDailyData({ isHydrated: false, remoteStatus: 'loading' });
+
+    expect(renderer.root.find((node) => String(node.type) === 'loading-state').props.label).toBe(
+      'Carregando dados de hoje...',
+    );
+    expect(
+      renderer.root.findAllByType(Text).some((node) => node.props.children === 'Nenhum dado hoje'),
+    ).toBe(false);
+  });
+
+  it('shows the daily empty state compactly only after the remote load succeeds', () => {
+    const renderer = renderDailyData({ remoteStatus: 'ready' });
+    const contextWrapper = renderer.root.findAllByType(View).find((node) => {
+      const style = StyleSheet.flatten(node.props.style);
+      return style?.overflow === 'hidden' && style.backgroundColor === '#FFFFFF';
+    });
+
+    expect(
+      renderer.root.findAllByType(Text).some((node) => node.props.children === 'Nenhum dado hoje'),
+    ).toBe(true);
+    expect(StyleSheet.flatten(contextWrapper?.props.style)?.height).toBeUndefined();
+    expect(StyleSheet.flatten(contextWrapper?.props.style)?.minHeight).toBeUndefined();
+  });
+
+  it('shows daily unavailability rather than empty when remote loading fails', () => {
+    const renderer = renderDailyData({ remoteStatus: 'failed' });
+
+    expect(renderer.root.find((node) => String(node.type) === 'inline-error').props.message).toBe(
+      'Não foi possível confirmar os dados de hoje.',
+    );
+    expect(
+      renderer.root.findAllByType(Text).some((node) => node.props.children === 'Nenhum dado hoje'),
+    ).toBe(false);
   });
 
   it('shows the singular label for a single visible bucket', () => {
@@ -690,7 +864,10 @@ describe('Registrar Atacado delivery bucket total', () => {
     });
 
     expect(renderer.root.findAll((node) => String(node.type) === 'toolbar-menu')).toHaveLength(0);
-    const toolbarAction = renderer.root.find((node) => String(node.type) === 'toolbar-button');
+    const toolbarAction = renderer.root.find(
+      (node) =>
+        String(node.type) === 'toolbar-button' && node.props.accessibilityLabel === 'Novo cliente',
+    );
     expect(toolbarAction.props.accessibilityLabel).toBe('Novo cliente');
     expect(toolbarAction.find((node) => String(node.type) === 'toolbar-icon').props.sf).toBe(
       'person.badge.plus',

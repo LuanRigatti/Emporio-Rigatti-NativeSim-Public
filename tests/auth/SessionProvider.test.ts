@@ -16,6 +16,9 @@ type AuthListener = (user: AuthUser | null) => void;
 class DeferredAuthDataSource implements AuthDataSource {
   private currentUser: AuthUser | null = null;
   private listener: AuthListener | null = null;
+  public readonly quickLogin = jest.fn<Promise<AuthUser>, []>();
+  public readonly googleNativeSignIn = jest.fn<Promise<AuthUser>, []>();
+  public readonly signOutCall = jest.fn<Promise<void>, []>();
 
   public getCurrentUser(): AuthUser | null {
     return this.currentUser;
@@ -32,8 +35,15 @@ class DeferredAuthDataSource implements AuthDataSource {
     return Promise.reject(new Error('Not used in test.'));
   }
 
+  public signInWithQuickLogin(): Promise<AuthUser> {
+    return this.quickLogin().then((user) => {
+      this.emit(user);
+      return user;
+    });
+  }
+
   public signInWithGoogleNative(): Promise<AuthUser> {
-    return Promise.reject(new Error('Not used in test.'));
+    return this.googleNativeSignIn();
   }
 
   public signInWithGooglePopup(): Promise<AuthUser> {
@@ -49,7 +59,7 @@ class DeferredAuthDataSource implements AuthDataSource {
   }
 
   public signOut(): Promise<void> {
-    return Promise.resolve();
+    return this.signOutCall().then(() => this.emit(null));
   }
 
   public emit(user: AuthUser | null): void {
@@ -229,6 +239,118 @@ describe('SessionProvider startup resolution', () => {
       restoredUser.id,
       secondLoginVersion,
     );
+    act(() => renderer!.unmount());
+  });
+
+  it('uses the fixed Firebase test UID as the ordinary session UID across logout and relogin', async () => {
+    const source = new DeferredAuthDataSource();
+    const fixedTestUser: AuthUser = {
+      displayName: 'Conta de teste',
+      email: 'quick-test@example.com',
+      id: 'fixed-test-account-uid',
+      phoneNumber: null,
+      photoUrl: null,
+    };
+    source.quickLogin.mockResolvedValue(fixedTestUser);
+    let currentUserId: string | null | undefined;
+    let sessionVersion = 0;
+    let signInWithQuickLogin: (() => Promise<void>) | undefined;
+    let signOut: (() => Promise<void>) | undefined;
+    const clientBinding = { setSessionUser: jest.fn() };
+
+    function Harness() {
+      const session = useSession();
+      currentUserId = session.user?.id ?? null;
+      sessionVersion = session.sessionVersion;
+      signInWithQuickLogin = session.signInWithQuickLogin;
+      signOut = session.signOut;
+      useEffect(() => {
+        clientBinding.setSessionUser(session.user?.id, session.sessionVersion);
+      }, [session.sessionVersion, session.user?.id]);
+      return null;
+    }
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(SessionProvider, { dataSource: source }, createElement(Harness)),
+      );
+    });
+
+    await act(async () => {
+      source.emit(null);
+      await Promise.resolve();
+    });
+    const unauthenticatedVersion = sessionVersion;
+
+    await act(async () => {
+      await signInWithQuickLogin?.();
+    });
+    const firstLoginUserId = currentUserId;
+    const firstLoginVersion = sessionVersion;
+
+    expect(source.quickLogin).toHaveBeenCalledTimes(1);
+    expect(firstLoginUserId).toBe(fixedTestUser.id);
+    expect(firstLoginVersion).toBeGreaterThan(unauthenticatedVersion);
+    expect(clientBinding.setSessionUser).toHaveBeenLastCalledWith(
+      fixedTestUser.id,
+      firstLoginVersion,
+    );
+
+    source.signOutCall.mockResolvedValue(undefined);
+    await act(async () => {
+      await signOut?.();
+    });
+
+    expect(source.signOutCall).toHaveBeenCalledTimes(1);
+    expect(source.googleNativeSignIn).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await signInWithQuickLogin?.();
+    });
+
+    expect(source.quickLogin).toHaveBeenCalledTimes(2);
+    expect(currentUserId).toBe(fixedTestUser.id);
+    expect(sessionVersion).toBeGreaterThan(firstLoginVersion);
+    expect(clientBinding.setSessionUser).toHaveBeenLastCalledWith(fixedTestUser.id, sessionVersion);
+    act(() => renderer!.unmount());
+  });
+
+  it('preserves an existing authenticated session when quick login fails', async () => {
+    const source = new DeferredAuthDataSource();
+    source.quickLogin.mockRejectedValue({ code: 'auth/operation-not-allowed' });
+    let currentUserId: string | null | undefined;
+    let currentStatus: ReturnType<typeof useSession>['status'] | undefined;
+    let signInWithQuickLogin: (() => Promise<void>) | undefined;
+
+    function Harness() {
+      const session = useSession();
+      currentUserId = session.user?.id ?? null;
+      currentStatus = session.status;
+      signInWithQuickLogin = session.signInWithQuickLogin;
+      return null;
+    }
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(SessionProvider, { dataSource: source }, createElement(Harness)),
+      );
+    });
+
+    await act(async () => {
+      source.emit(restoredUser);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await signInWithQuickLogin?.().catch(() => undefined);
+    });
+
+    expect(currentUserId).toBe(restoredUser.id);
+    expect(currentStatus).toBe('authenticated');
+    expect(source.signOutCall).not.toHaveBeenCalled();
+    expect(source.googleNativeSignIn).not.toHaveBeenCalled();
     act(() => renderer!.unmount());
   });
 });

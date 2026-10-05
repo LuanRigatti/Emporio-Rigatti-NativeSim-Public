@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassSurface } from '@/components/premium';
 import { AppLogo } from '@/components/branding/AppLogo';
+import { hasQuickLoginCredentials } from '@/config/quickLoginConfig';
 import { useSession } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -16,9 +17,11 @@ export type LoginScreenProps = {
 
 export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   const insets = useSafeAreaInsets();
-  const { signInWithGoogleNative } = useSession();
+  const { signInWithQuickLogin, signInWithGoogleNative } = useSession();
   const { theme } = useAppTheme();
-  const [isLoading, setIsLoading] = useState(false);
+  const quickLoginConfigured = hasQuickLoginCredentials();
+  const [activeLogin, setActiveLogin] = useState<'quick-login' | 'google' | null>(null);
+  const [quickLoginError, setQuickLoginError] = useState<string | null>(null);
   const isMounted = useRef(true);
   const hasSubmittedRef = useRef(false);
 
@@ -29,11 +32,12 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   }, []);
 
   const handleGooglePress = useCallback(async () => {
-    if (isLoading || hasSubmittedRef.current) return;
+    if (activeLogin || hasSubmittedRef.current) return;
 
     hasSubmittedRef.current = true;
     triggerLightImpactHaptic();
-    setIsLoading(true);
+    setQuickLoginError(null);
+    setActiveLogin('google');
     try {
       await signInWithGoogleNative();
 
@@ -44,10 +48,43 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       hasSubmittedRef.current = false;
     } finally {
       if (isMounted.current) {
-        setIsLoading(false);
+        setActiveLogin(null);
       }
     }
-  }, [isLoading, onAuthenticated, signInWithGoogleNative]);
+  }, [activeLogin, onAuthenticated, signInWithGoogleNative]);
+
+  const handleQuickLoginPress = useCallback(async () => {
+    if (activeLogin || hasSubmittedRef.current) return;
+
+    hasSubmittedRef.current = true;
+    triggerLightImpactHaptic();
+    setQuickLoginError(null);
+    setActiveLogin('quick-login');
+    try {
+      await signInWithQuickLogin();
+
+      if (isMounted.current) {
+        onAuthenticated();
+      }
+    } catch (authError) {
+      hasSubmittedRef.current = false;
+      if (isMounted.current) {
+        setQuickLoginError(
+          authError instanceof Error
+            ? authError.message
+            : 'Não foi possível iniciar a entrada rápida. Tente novamente.',
+        );
+      }
+    } finally {
+      if (isMounted.current) {
+        setActiveLogin(null);
+      }
+    }
+  }, [activeLogin, onAuthenticated, signInWithQuickLogin]);
+
+  const isGoogleLoading = activeLogin === 'google';
+  const isQuickLoginLoading = activeLogin === 'quick-login';
+  const isAnyLoginLoading = activeLogin !== null;
 
   return (
     <View
@@ -69,10 +106,11 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           <GlassSurface interactive style={styles.buttonSurface}>
             <Pressable
               accessibilityHint="Autentica com uma conta Google usando Firebase"
-              accessibilityLabel={isLoading ? 'Entrando' : 'Login com Google'}
+              accessibilityLabel={isGoogleLoading ? 'Entrando' : 'Login com Google'}
               accessibilityRole="button"
-              accessibilityState={{ busy: isLoading, disabled: isLoading }}
-              disabled={isLoading}
+              accessibilityState={{ busy: isGoogleLoading, disabled: isAnyLoginLoading }}
+              disabled={isAnyLoginLoading}
+              testID="login-google-button"
               onPress={handleGooglePress}
               style={({ pressed }) => [
                 styles.googleButton,
@@ -80,19 +118,55 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
                   backgroundColor: pressed ? theme.colors.glassBorder : 'transparent',
                   borderRadius: theme.radius.pill,
                   minHeight: theme.sizes.touchTargetMinimum,
-                  opacity: isLoading ? theme.opacities.disabled : 1,
+                  opacity: isAnyLoginLoading ? theme.opacities.disabled : 1,
                 },
               ]}
             >
               <GoogleMark size={20} />
               <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {isLoading ? 'Entrando...' : 'Login com Google'}
+                {isGoogleLoading ? 'Entrando...' : 'Login com Google'}
               </Text>
-              {isLoading ? (
+              {isGoogleLoading ? (
                 <ActivityIndicator color={theme.colors.textSecondary} size="small" />
               ) : null}
             </Pressable>
           </GlassSurface>
+
+          {quickLoginConfigured ? (
+            <GlassSurface interactive style={styles.buttonSurface}>
+              <Pressable
+                accessibilityHint="Entra com a conta Firebase de teste configurada"
+                accessibilityLabel={isQuickLoginLoading ? 'Entrando' : 'Entrada rápida'}
+                accessibilityRole="button"
+                accessibilityState={{ busy: isQuickLoginLoading, disabled: isAnyLoginLoading }}
+                disabled={isAnyLoginLoading}
+                onPress={handleQuickLoginPress}
+                style={({ pressed }) => [
+                  styles.quickLoginButton,
+                  {
+                    backgroundColor: pressed ? theme.colors.glassBorder : 'transparent',
+                    borderRadius: theme.radius.pill,
+                    minHeight: theme.sizes.touchTargetMinimum,
+                    opacity: isAnyLoginLoading ? theme.opacities.disabled : 1,
+                  },
+                ]}
+                testID="login-quick-entry-button"
+              >
+                <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+                  {isQuickLoginLoading ? 'Entrando...' : 'Entrada rápida'}
+                </Text>
+                {isQuickLoginLoading ? (
+                  <ActivityIndicator color={theme.colors.textSecondary} size="small" />
+                ) : null}
+              </Pressable>
+            </GlassSurface>
+          ) : null}
+
+          {quickLoginConfigured && quickLoginError ? (
+            <Text accessibilityRole="alert" style={[styles.error, { color: theme.colors.danger }]}>
+              {quickLoginError}
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>
@@ -119,6 +193,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     alignItems: 'center',
+    gap: 12,
     marginTop: 16,
     width: '100%',
   },
@@ -132,5 +207,16 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'center',
     paddingHorizontal: 20,
+  },
+  quickLoginButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  error: {
+    maxWidth: 420,
+    textAlign: 'center',
   },
 });

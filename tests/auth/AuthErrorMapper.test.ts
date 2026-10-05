@@ -37,6 +37,26 @@ describe('mapAuthError', () => {
     );
 
     expect(result.code).toBe('configuration');
-    expect(result.message).toBe('Configuracao do Firebase incompleta. Verifique o arquivo de ambiente.');
+    expect(result.message).toBe(
+      'Configuracao do Firebase incompleta. Verifique o arquivo de ambiente.',
+    );
+  });
+
+  it('explains when Email/Password is disabled for quick login', () => {
+    const result = mapAuthError({ code: 'auth/operation-not-allowed' }, 'quick-login');
+
+    expect(result.code).toBe('configuration');
+    expect(result.message).toContain('Ative Email/Password no Firebase Console.');
+  });
+
+  it('does not expose Firebase credential details for quick login failures', () => {
+    const result = mapAuthError(
+      { code: 'auth/invalid-credential', message: 'private provider detail' },
+      'quick-login',
+    );
+
+    expect(result.code).toBe('invalid-credentials');
+    expect(result.message).toContain('conta de teste');
+    expect(result.message).not.toContain('private provider detail');
   });
 });

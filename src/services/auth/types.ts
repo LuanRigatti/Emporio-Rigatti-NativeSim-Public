@@ -7,6 +7,7 @@ export type AuthStateListener = (user: AuthUser | null) => void;
 export interface AuthServiceContract {
   getCurrentUser(): AuthUser | null;
   subscribe(listener: AuthStateListener, onError?: (error: unknown) => void): () => void;
+  signInWithQuickLogin(): Promise<AuthUser>;
   signIn(email: string, password: string): Promise<AuthUser>;
   signInWithGoogleNative(): Promise<AuthUser>;
   signInWithGooglePopup(): Promise<AuthUser>;

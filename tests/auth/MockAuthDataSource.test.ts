@@ -42,6 +42,13 @@ describe('MockAuthDataSource', () => {
     expect(updates).toEqual(['mock-user-1']);
   });
 
+  it('does not fabricate a Firebase identity for quick login in mock mode', async () => {
+    const source = new MockAuthDataSource(0, storage());
+
+    await expect(source.signInWithQuickLogin()).rejects.toMatchObject({ code: 'configuration' });
+    expect(source.getCurrentUser()).toBeNull();
+  });
+
   it('restores the persisted session and removes it on logout', async () => {
     const firstStorage = storage();
     const firstSource = new MockAuthDataSource(0, firstStorage);

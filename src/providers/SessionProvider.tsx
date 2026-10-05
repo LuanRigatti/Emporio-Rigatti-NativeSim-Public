@@ -23,6 +23,7 @@ export interface SessionContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithQuickLogin: () => Promise<void>;
   signInWithGoogleNative: () => Promise<void>;
   signInWithGooglePopup: () => Promise<void>;
   signInWithGoogleCredential: (idToken: string, accessToken?: string) => Promise<void>;
@@ -124,7 +125,10 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   }, [commitSession, dataSource]);
 
   const runAuthentication = useCallback(
-    async (operation: () => Promise<AuthUser>, operationType: 'email' | 'google') => {
+    async (
+      operation: () => Promise<AuthUser>,
+      operationType: 'quick-login' | 'email' | 'google',
+    ) => {
       setOperationLoading(true);
       setError(null);
       try {
@@ -135,14 +139,24 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
           authError instanceof AuthUserFacingError
             ? authError
             : mapAuthError(authError, operationType);
-        commitSession(null, 'unauthenticated');
+        if (operationType === 'quick-login') {
+          let currentUser: AuthUser | null = user;
+          try {
+            currentUser = dataSource.getCurrentUser();
+          } catch {
+            // Keep an already-known session if Auth cannot be read during the failed attempt.
+          }
+          commitSession(currentUser, currentUser ? 'authenticated' : 'unauthenticated');
+        } else {
+          commitSession(null, 'unauthenticated');
+        }
         setError(mapped.message);
         throw mapped;
       } finally {
         setOperationLoading(false);
       }
     },
-    [commitSession],
+    [commitSession, dataSource, user],
   );
 
   const signIn = useCallback(
@@ -151,6 +165,10 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     },
     [dataSource, runAuthentication],
   );
+
+  const signInWithQuickLogin = useCallback(async () => {
+    await runAuthentication(() => dataSource.signInWithQuickLogin(), 'quick-login');
+  }, [dataSource, runAuthentication]);
 
   const signInWithGooglePopup = useCallback(async () => {
     await runAuthentication(() => dataSource.signInWithGooglePopup(), 'google');
@@ -230,6 +248,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       isAuthenticated: Boolean(user),
       isLoading: status === 'loading' || operationLoading,
       signIn,
+      signInWithQuickLogin,
       signInWithGoogleNative,
       signInWithGoogleCredential,
       signInWithGoogleMock,
@@ -247,6 +266,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       error,
       operationLoading,
       signIn,
+      signInWithQuickLogin,
       signInWithGoogleNative,
       signInWithGoogleCredential,
       signInWithGoogleMock,

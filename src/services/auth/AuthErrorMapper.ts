@@ -47,7 +47,7 @@ function isNetworkError(code: string, message: string): boolean {
 
 export function mapAuthError(
   error: unknown,
-  operation: 'email' | 'google' | 'session' | 'logout' | 'profile',
+  operation: 'email' | 'google' | 'quick-login' | 'session' | 'logout' | 'profile',
 ): AuthUserFacingError {
   const code = readCode(error);
   const message = readMessage(error);
@@ -116,6 +116,33 @@ export function mapAuthError(
     return new AuthUserFacingError(
       'network',
       'Aguardando conexão com o servidor... Tente novamente.',
+      error,
+    );
+  }
+
+  if (operation === 'quick-login') {
+    if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
+      return new AuthUserFacingError(
+        'configuration',
+        'Entrada rápida indisponível. Ative Email/Password no Firebase Console.',
+        error,
+      );
+    }
+    if (
+      code === 'auth/invalid-credential' ||
+      code === 'auth/invalid-email' ||
+      code === 'auth/user-not-found' ||
+      code === 'auth/wrong-password'
+    ) {
+      return new AuthUserFacingError(
+        'invalid-credentials',
+        'Não foi possível acessar a conta de teste. Verifique sua configuração e tente novamente.',
+        error,
+      );
+    }
+    return new AuthUserFacingError(
+      'unknown',
+      'Não foi possível iniciar a entrada rápida. Verifique a conta de teste e tente novamente.',
       error,
     );
   }

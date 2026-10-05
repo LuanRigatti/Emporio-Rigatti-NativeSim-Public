@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { AuthUserFacingError } from './AuthErrorMapper';
 import type { AuthDataSource, AuthStateListener, AuthUser } from './types';
 
 export const MOCK_AUTH_SESSION_STORAGE_KEY = '@pareact/mock-auth-session-v1';
@@ -75,6 +76,13 @@ export class MockAuthDataSource implements AuthDataSource {
     const user = { ...MOCK_USER, email: email.trim() || MOCK_USER.email };
     this.setUser(user);
     return user;
+  }
+
+  public async signInWithQuickLogin(): Promise<AuthUser> {
+    throw new AuthUserFacingError(
+      'configuration',
+      'Entrada rápida exige Firebase Auth e a conta de teste configurada.',
+    );
   }
 
   public async signInWithGooglePopup(): Promise<AuthUser> {

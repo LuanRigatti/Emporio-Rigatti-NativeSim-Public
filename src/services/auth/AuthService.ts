@@ -1,5 +1,6 @@
 import type { AuthRepository } from '@/repositories/auth';
 import { firebaseAuthRepository } from '@/repositories/auth';
+import { getQuickLoginCredentials } from '@/config/quickLoginConfig';
 import { connectivityService } from '@/services/connectivity';
 
 import { AuthUserFacingError, mapAuthError } from './AuthErrorMapper';
@@ -46,6 +47,40 @@ export class AuthService implements AuthServiceContract {
       return user;
     } catch (error) {
       throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'email');
+    }
+  }
+
+  public async signInWithQuickLogin(): Promise<AuthUser> {
+    const credentials = getQuickLoginCredentials();
+    if (!credentials) {
+      throw new AuthUserFacingError(
+        'configuration',
+        'Entrada rápida não configurada. Defina EXPO_PUBLIC_QUICK_LOGIN_EMAIL e EXPO_PUBLIC_QUICK_LOGIN_PASSWORD.',
+      );
+    }
+
+    try {
+      if (this.repository.getCurrentUser()) {
+        throw new AuthUserFacingError(
+          'configuration',
+          'Saia da conta atual antes de usar Entrada rápida.',
+        );
+      }
+
+      const connectivity = await connectivityService.getCurrentState();
+      if (connectivity.isConnected === false) {
+        throw new AuthUserFacingError(
+          'network',
+          'Aguardando conexão com o servidor... Tente novamente.',
+        );
+      }
+
+      return await this.repository.signInWithEmailAndPassword(
+        credentials.email,
+        credentials.password,
+      );
+    } catch (error) {
+      throw error instanceof AuthUserFacingError ? error : mapAuthError(error, 'quick-login');
     }
   }
 

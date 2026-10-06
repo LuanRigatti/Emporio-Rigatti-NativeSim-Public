@@ -1,5 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { NativeCardContextMenu } from '@/components/native';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
@@ -26,7 +30,7 @@ export function HistoryCompactDeliveryCard({
     theme.sizes.touchTargetMinimum,
     theme.typography.footnote.lineHeight * 2 + theme.spacing.xxs * 2,
   );
-  const card = (preview: boolean) => (
+  const card = (preview: boolean, geometryStyle?: ContextMenuCardGeometryStyle) => (
     <View
       accessible
       accessibilityLabel={`${delivery.cliente}, ${maskQuantity(delivery.quantidadeBaldes)}`}
@@ -39,6 +43,7 @@ export function HistoryCompactDeliveryCard({
           paddingHorizontal: theme.spacing.md,
           paddingVertical: theme.spacing.xxs,
         },
+        geometryStyle,
       ]}
     >
       <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -57,55 +62,60 @@ export function HistoryCompactDeliveryCard({
   );
 
   return (
-    <View
-      style={[
-        styles.shadow,
-        {
-          borderRadius: radius,
-          height: cardHeight,
-        },
-        resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
-      ]}
-    >
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: cardSurface,
-            borderRadius: radius,
-            height: cardHeight,
-          },
-        ]}
-      >
-        <NativeCardContextMenu
-          actions={[
-            ...(delivery.status === 'pendente' && onMarkDelivered
-              ? [
-                  {
-                    disabled: testModeEnabled,
-                    id: `complete-history-delivery-${delivery.id}`,
-                    onPress: onMarkDelivered,
-                    systemImage: 'checkmark.circle.fill' as const,
-                    title: 'Concluída',
-                  },
-                ]
-              : []),
+    <MeasuredContextMenuGeometry>
+      {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+        <View
+          onLayout={onLayout}
+          style={[
+            styles.shadow,
             {
-              destructive: true,
-              disabled: testModeEnabled,
-              id: `delete-history-delivery-${delivery.id}`,
-              onPress: onDelete,
-              systemImage: 'trash',
-              title: 'Excluir',
+              borderRadius: radius,
+              height: cardHeight,
             },
+            resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
           ]}
-          preview={card(true)}
-          style={[styles.contextMenu, { borderRadius: radius }]}
         >
-          {card(false)}
-        </NativeCardContextMenu>
-      </View>
-    </View>
+          <View
+            style={[
+              styles.container,
+              {
+                backgroundColor: cardSurface,
+                borderRadius: radius,
+                height: cardHeight,
+              },
+            ]}
+          >
+            <NativeCardContextMenu
+              actions={[
+                ...(delivery.status === 'pendente' && onMarkDelivered
+                  ? [
+                      {
+                        disabled: testModeEnabled,
+                        id: `complete-history-delivery-${delivery.id}`,
+                        onPress: onMarkDelivered,
+                        systemImage: 'checkmark.circle.fill' as const,
+                        title: 'Concluída',
+                      },
+                    ]
+                  : []),
+                {
+                  destructive: true,
+                  disabled: testModeEnabled,
+                  id: `delete-history-delivery-${delivery.id}`,
+                  onPress: onDelete,
+                  systemImage: 'trash',
+                  title: 'Excluir',
+                },
+              ]}
+              preview={card(true, previewFrameStyle)}
+              style={[styles.contextMenu, { borderRadius: radius }]}
+            >
+              {card(false, triggerWidthStyle)}
+            </NativeCardContextMenu>
+          </View>
+        </View>
+      )}
+    </MeasuredContextMenuGeometry>
   );
 }
 

@@ -10,6 +10,7 @@ import { useAppTheme } from '@/theme';
 import type { RetailOrderHistoryFinancialViewState } from '@/hooks/useRetailOrderHistory';
 
 type RetailOrderHistoryCardProps = {
+  availableWidth: number;
   order: RetailOrder;
   financialState?: RetailOrderHistoryFinancialViewState;
   onPress?: AnimatedPressableProps['onPress'];
@@ -18,6 +19,7 @@ type RetailOrderHistoryCardProps = {
 };
 
 export function RetailOrderHistoryCard({
+  availableWidth,
   onPress,
   onDelete,
   deleteDisabled = false,
@@ -35,21 +37,29 @@ export function RetailOrderHistoryCard({
     .map((lineItem) => `${lineItem.quantity}× ${lineItem.productNameSnapshot}`)
     .join(' · ');
 
-  const card = (
+  const card = () => (
     <PremiumCard
       accessibilityLabel={`Abrir detalhes do pedido de ${order.clientNameSnapshot} em ${formatPtBrDate(order.orderDate)}`}
       onPress={onPress}
-      style={[
-        styles.card,
-        { borderRadius: theme.radius.xl + theme.spacing.md, gap: theme.spacing.sm },
-      ]}
+      style={{
+        borderRadius: theme.radius.xl + theme.spacing.md,
+        gap: theme.spacing.sm,
+        width: availableWidth,
+      }}
     >
       <View style={[styles.header, { gap: theme.spacing.xs }]}>
         <View style={styles.clientCopy}>
-          <Text style={[theme.typography.title3, { color: theme.colors.textPrimary }]}>
+          <Text
+            style={[theme.typography.title3, { color: theme.colors.textPrimary, flexShrink: 1 }]}
+          >
             {order.clientNameSnapshot}
           </Text>
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[
+              theme.typography.footnote,
+              { color: theme.colors.textSecondary, flexShrink: 1 },
+            ]}
+          >
             Pedido em {formatPtBrDate(order.orderDate)}
             {order.deliveryDate !== order.orderDate
               ? ` · Entrega em ${formatPtBrDate(order.deliveryDate)}`
@@ -101,10 +111,10 @@ export function RetailOrderHistoryCard({
     </PremiumCard>
   );
 
-  if (!onDelete) return card;
+  if (!onDelete) return card();
 
   return (
-    <View style={[styles.contextContainer, { borderRadius: theme.radius.xl + theme.spacing.md }]}>
+    <View style={{ borderRadius: theme.radius.xl + theme.spacing.md, width: availableWidth }}>
       <NativeCardContextMenu
         actions={[
           {
@@ -116,10 +126,10 @@ export function RetailOrderHistoryCard({
             title: 'Excluir',
           },
         ]}
-        preview={card}
-        style={{ borderRadius: theme.radius.xl + theme.spacing.md, width: '100%' }}
+        preview={card()}
+        style={{ borderRadius: theme.radius.xl + theme.spacing.md, width: availableWidth }}
       >
-        <View style={styles.contextContent}>{card}</View>
+        <View style={{ width: availableWidth }}>{card()}</View>
       </NativeCardContextMenu>
     </View>
   );
@@ -180,11 +190,13 @@ function financialStatusTone(summary: RetailOrderFinancialSummary): 'success' | 
 }
 
 const styles = StyleSheet.create({
-  card: { width: '100%' },
-  clientCopy: { flex: 1 },
-  contextContainer: { width: '100%' },
-  contextContent: { width: '100%' },
+  clientCopy: { flex: 1, minWidth: 0 },
   financials: { width: '100%' },
-  header: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
+  header: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
 });

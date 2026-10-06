@@ -22,6 +22,12 @@ export default function RegistrarLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: true }} />
+      <Stack.Screen name="entrega">
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
+      <Stack.Screen name="dados">
+        <Stack.Screen.BackButton displayMode="minimal" />
+      </Stack.Screen>
     </Stack>
   );
 }

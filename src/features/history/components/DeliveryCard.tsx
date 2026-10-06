@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useCallback, useState } from 'react';
+import { StyleSheet, Text, View, type LayoutChangeEvent, type ViewStyle } from 'react-native';
 
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
@@ -30,6 +31,7 @@ export function DeliveryCard({
   onMarkDelivered,
   onToggleStatus,
 }: DeliveryCardProps) {
+  const [previewSize, setPreviewSize] = useState<{ height: number; width: number } | null>(null);
   const { resolvedMode, theme } = useAppTheme();
   const cardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const {
@@ -38,6 +40,20 @@ export function DeliveryCard({
     text: maskText,
   } = useTestModePresentation();
   const cardRadius = theme.radius.xl + theme.spacing.sm;
+  const handleCardLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height, width } = event.nativeEvent.layout;
+    if (width <= 0 || height <= 0) return;
+
+    setPreviewSize((current) =>
+      current?.width === width && current.height === height ? current : { height, width },
+    );
+  }, []);
+  const measuredPreviewSize: ViewStyle | undefined = previewSize
+    ? { height: previewSize.height, width: previewSize.width }
+    : undefined;
+  const measuredTriggerWidth: ViewStyle | undefined = previewSize
+    ? { width: previewSize.width }
+    : undefined;
   const content = (
     <View style={styles.cardRow}>
       <OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />
@@ -104,7 +120,7 @@ export function DeliveryCard({
   };
 
   return onDelete ? (
-    <View style={[styles.contextContainer, contextCardStyle]}>
+    <View onLayout={handleCardLayout} style={[styles.contextContainer, contextCardStyle]}>
       <NativeCardContextMenu
         actions={[
           ...(delivery.status === 'pendente' && onMarkDelivered
@@ -130,10 +146,16 @@ export function DeliveryCard({
         matchContents={{ horizontal: true, vertical: false }}
         style={[styles.contextMenu, { borderRadius: cardRadius }]}
         preview={
-          <View style={[styles.card, contextCardStyle, { overflow: 'hidden' }]}>{content}</View>
+          <View
+            style={[styles.card, contextCardStyle, { overflow: 'hidden' }, measuredPreviewSize]}
+          >
+            {content}
+          </View>
         }
       >
-        <View style={[styles.card, { backgroundColor: 'transparent' }]}>{content}</View>
+        <View style={[styles.card, { backgroundColor: 'transparent' }, measuredTriggerWidth]}>
+          {content}
+        </View>
       </NativeCardContextMenu>
     </View>
   ) : (

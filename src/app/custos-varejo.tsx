@@ -10,6 +10,10 @@ import {
   NativeRetailCostItemFormSheet,
   type NativeRetailCostItemFormValues,
 } from '@/components/native';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { ConfirmationDialog } from '@/components/overlays';
 import { EmptyState, ErrorState, Loading, PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
@@ -131,7 +135,10 @@ export default function RetailCostsRoute() {
               {items.length ? (
                 <SettingsSection>
                   {items.map((item) => {
-                    const renderRow = (preview = false) => (
+                    const renderRow = (
+                      preview = false,
+                      geometryStyle?: ContextMenuCardGeometryStyle,
+                    ) => (
                       <View
                         style={[
                           styles.row,
@@ -142,6 +149,7 @@ export default function RetailCostsRoute() {
                             overflow: preview ? 'hidden' : undefined,
                             width: '100%',
                           },
+                          geometryStyle,
                         ]}
                       >
                         <ListItem
@@ -178,40 +186,48 @@ export default function RetailCostsRoute() {
                       </View>
                     );
                     return (
-                      <View
-                        key={item.costItemId}
-                        style={{
-                          backgroundColor: cardSurface,
-                          borderRadius: cardRadius,
-                          height: rowHeight,
-                          overflow: 'hidden',
-                          width: '100%',
-                        }}
-                      >
-                        <NativeCardContextMenu
-                          actions={[
-                            {
-                              id: 'edit-cost-item',
-                              onPress: () => openEdit(item),
-                              systemImage: 'pencil',
-                              title: 'Editar item de custo',
-                            },
-                            {
-                              destructive: true,
-                              disabled: testModeEnabled,
-                              id: 'disable-cost-item',
-                              onPress: () => setItemToDisable(item),
-                              systemImage: 'nosign',
-                              title: 'Desativar item',
-                            },
-                          ]}
-                          matchContents={{ horizontal: true, vertical: false }}
-                          preview={renderRow(true)}
-                          style={{ borderRadius: cardRadius, height: rowHeight, width: '100%' }}
-                        >
-                          {renderRow()}
-                        </NativeCardContextMenu>
-                      </View>
+                      <MeasuredContextMenuGeometry key={item.costItemId}>
+                        {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                          <View
+                            onLayout={onLayout}
+                            style={{
+                              backgroundColor: cardSurface,
+                              borderRadius: cardRadius,
+                              height: rowHeight,
+                              overflow: 'hidden',
+                              width: '100%',
+                            }}
+                          >
+                            <NativeCardContextMenu
+                              actions={[
+                                {
+                                  id: 'edit-cost-item',
+                                  onPress: () => openEdit(item),
+                                  systemImage: 'pencil',
+                                  title: 'Editar item de custo',
+                                },
+                                {
+                                  destructive: true,
+                                  disabled: testModeEnabled,
+                                  id: 'disable-cost-item',
+                                  onPress: () => setItemToDisable(item),
+                                  systemImage: 'nosign',
+                                  title: 'Desativar item',
+                                },
+                              ]}
+                              matchContents={{ horizontal: true, vertical: false }}
+                              preview={renderRow(true, previewFrameStyle)}
+                              style={{
+                                borderRadius: cardRadius,
+                                height: rowHeight,
+                                width: '100%',
+                              }}
+                            >
+                              {renderRow(false, triggerWidthStyle)}
+                            </NativeCardContextMenu>
+                          </View>
+                        )}
+                      </MeasuredContextMenuGeometry>
                     );
                   })}
                 </SettingsSection>

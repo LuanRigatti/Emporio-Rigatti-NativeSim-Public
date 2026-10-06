@@ -4,6 +4,10 @@ import { AppState, Pressable, StyleSheet, Text, View, type ViewStyle } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { NativeCardContextMenu, NativeTrackingStatusButton } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
 import { TextButton } from '@/components/buttons';
@@ -513,55 +517,61 @@ function RouteHistoryCard({
       </View>
     </>
   );
-  const routePreview = (
-    <View style={[styles.historyCard, routeCardStyle, { overflow: 'hidden' }]}>
+  const routePreview = (geometryStyle?: ContextMenuCardGeometryStyle) => (
+    <View style={[styles.historyCard, routeCardStyle, { overflow: 'hidden' }, geometryStyle]}>
       {renderRouteCardContent()}
     </View>
   );
 
   return (
-    <View
-      style={[
-        styles.routeContextContainer,
-        routeCardStyle,
-        resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated,
-      ]}
-    >
-      <NativeCardContextMenu
-        actions={[
-          {
-            destructive: true,
-            disabled: testModeEnabled,
-            id: 'delete-route',
-            onPress: onDelete,
-            systemImage: 'trash',
-            title: 'Excluir rota',
-          },
-        ]}
-        preview={routePreview}
-        style={{ borderRadius: theme.radius.xl + theme.spacing.xs, width: '100%' }}
-      >
+    <MeasuredContextMenuGeometry>
+      {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
         <View
+          onLayout={onLayout}
           style={[
-            styles.historyCard,
-            {
-              backgroundColor: 'transparent',
-              borderRadius: theme.radius.xl + theme.spacing.xs,
-              width: '100%',
-            },
+            styles.routeContextContainer,
+            routeCardStyle,
+            resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated,
           ]}
         >
-          <Pressable
-            accessibilityLabel="Abrir detalhes da rota"
-            accessibilityRole="button"
-            onPress={onPress}
-            style={{ width: '100%' }}
+          <NativeCardContextMenu
+            actions={[
+              {
+                destructive: true,
+                disabled: testModeEnabled,
+                id: 'delete-route',
+                onPress: onDelete,
+                systemImage: 'trash',
+                title: 'Excluir rota',
+              },
+            ]}
+            preview={routePreview(previewFrameStyle)}
+            style={{ borderRadius: theme.radius.xl + theme.spacing.xs, width: '100%' }}
           >
-            {renderRouteCardContent()}
-          </Pressable>
+            <View
+              style={[
+                styles.historyCard,
+                {
+                  backgroundColor: 'transparent',
+                  borderRadius: theme.radius.xl + theme.spacing.xs,
+                  width: '100%',
+                },
+                triggerWidthStyle,
+              ]}
+            >
+              <Pressable
+                accessibilityLabel="Abrir detalhes da rota"
+                accessibilityRole="button"
+                onPress={onPress}
+                style={{ width: '100%' }}
+              >
+                {renderRouteCardContent()}
+              </Pressable>
+            </View>
+          </NativeCardContextMenu>
         </View>
-      </NativeCardContextMenu>
-    </View>
+      )}
+    </MeasuredContextMenuGeometry>
   );
 }
 

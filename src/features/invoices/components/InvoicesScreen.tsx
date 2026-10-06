@@ -3,6 +3,10 @@ import { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/native';
 import { GlassCard, PremiumScreen, ProgressiveCollapsibleScreen } from '@/components/premium';
 import { useClients } from '@/hooks/useClients';
@@ -237,7 +241,10 @@ function DocumentTypeCard({
               </Text>
               <View style={[styles.documentItemGroup, { gap: theme.spacing.xs }]}>
                 {group.items.map((item) => {
-                  const renderDocumentItemRow = (preview = false) => (
+                  const renderDocumentItemRow = (
+                    preview = false,
+                    geometryStyle?: ContextMenuCardGeometryStyle,
+                  ) => (
                     <View
                       style={[
                         styles.documentItemRow,
@@ -252,6 +259,7 @@ function DocumentTypeCard({
                           paddingVertical: theme.spacing.sm,
                           width: '100%',
                         },
+                        geometryStyle,
                       ]}
                     >
                       <OpenPaymentClientIcon
@@ -291,29 +299,36 @@ function DocumentTypeCard({
                   );
 
                   return (
-                    <View key={item.id} style={{ height: documentItemRowHeight, width: '100%' }}>
-                      <NativeCardContextMenu
-                        actions={[
-                          {
-                            id: 'emit-document',
-                            disabled: testModeEnabled,
-                            onPress: () => onDelete(item.id),
-                            systemImage: 'checkmark.seal.fill',
-                            title: 'Emitido',
-                          },
-                        ]}
-                        preview={renderDocumentItemRow(true)}
-                        style={[
-                          styles.contextMenu,
-                          {
-                            borderRadius: theme.radius.xl + theme.spacing.sm,
-                            height: '100%',
-                          },
-                        ]}
-                      >
-                        {renderDocumentItemRow()}
-                      </NativeCardContextMenu>
-                    </View>
+                    <MeasuredContextMenuGeometry key={item.id}>
+                      {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                        <View
+                          onLayout={onLayout}
+                          style={{ height: documentItemRowHeight, width: '100%' }}
+                        >
+                          <NativeCardContextMenu
+                            actions={[
+                              {
+                                id: 'emit-document',
+                                disabled: testModeEnabled,
+                                onPress: () => onDelete(item.id),
+                                systemImage: 'checkmark.seal.fill',
+                                title: 'Emitido',
+                              },
+                            ]}
+                            preview={renderDocumentItemRow(true, previewFrameStyle)}
+                            style={[
+                              styles.contextMenu,
+                              {
+                                borderRadius: theme.radius.xl + theme.spacing.sm,
+                                height: '100%',
+                              },
+                            ]}
+                          >
+                            {renderDocumentItemRow(false, triggerWidthStyle)}
+                          </NativeCardContextMenu>
+                        </View>
+                      )}
+                    </MeasuredContextMenuGeometry>
                   );
                 })}
               </View>

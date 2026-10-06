@@ -1,0 +1,8 @@
+{
+  "name": "native-toolbar-readiness",
+  "version": "0.1.0",
+  "description": "Native readiness event for the shared Home toolbar.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

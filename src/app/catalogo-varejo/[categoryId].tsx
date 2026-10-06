@@ -6,6 +6,10 @@ import { TextButton } from '@/components/buttons';
 import { ListItem } from '@/components/lists';
 import { NativeCardContextMenu } from '@/components/native';
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { ConfirmationDialog } from '@/components/overlays';
 import { EmptyState, ErrorState, Loading, PremiumCard, PremiumScreen } from '@/components/premium';
 import { useRetailCategories } from '@/hooks/useRetailCategories';
@@ -147,7 +151,10 @@ export default function RetailCategoryProductsRoute() {
                   const costActionLabel = hasCostConfiguration
                     ? 'Editar custo'
                     : 'Configurar custo';
-                  const renderRow = (preview = false) => (
+                  const renderRow = (
+                    preview = false,
+                    geometryStyle?: ContextMenuCardGeometryStyle,
+                  ) => (
                     <View
                       style={[
                         styles.row,
@@ -158,6 +165,7 @@ export default function RetailCategoryProductsRoute() {
                           overflow: preview ? 'hidden' : undefined,
                           width: '100%',
                         },
+                        geometryStyle,
                       ]}
                     >
                       <ListItem
@@ -190,73 +198,84 @@ export default function RetailCategoryProductsRoute() {
                     </View>
                   );
                   return (
-                    <View
-                      key={product.productId}
-                      style={{
-                        backgroundColor: cardSurface,
-                        borderRadius: cardRadius,
-                        height: rowHeight,
-                        overflow: 'hidden',
-                        width: '100%',
-                      }}
-                    >
-                      <NativeCardContextMenu
-                        actions={[
-                          {
-                            id: 'configure-product-cost',
-                            onPress: () => openEdit(product),
-                            systemImage: 'dollarsign.circle',
-                            title: 'Configurar custo',
-                          },
-                          {
-                            id: 'edit-product-composition',
-                            onPress: () => openEdit(product),
-                            systemImage: 'square.stack.3d.up',
-                            title: 'Editar composição',
-                          },
-                          {
-                            id: 'edit-product',
-                            onPress: () => openEdit(product),
-                            systemImage: 'pencil',
-                            title: 'Editar produto',
-                          },
-                          {
-                            destructive: true,
-                            disabled: testModeEnabled,
-                            id: 'disable-product',
-                            onPress: () => setProductToDisable(product),
-                            systemImage: 'nosign',
-                            title: 'Desativar produto',
-                          },
-                        ]}
-                        matchContents={{ horizontal: true, vertical: false }}
-                        preview={renderRow(true)}
-                        style={{ borderRadius: cardRadius, height: rowHeight, width: '100%' }}
-                      >
-                        {renderRow()}
-                      </NativeCardContextMenu>
-                      <View
-                        style={[
-                          styles.costActionRow,
-                          {
-                            borderTopColor: theme.colors.separator,
-                            paddingHorizontal: theme.spacing.sm,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}
+                    <MeasuredContextMenuGeometry key={product.productId}>
+                      {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                        <View
+                          onLayout={onLayout}
+                          style={{
+                            backgroundColor: cardSurface,
+                            borderRadius: cardRadius,
+                            height: rowHeight,
+                            overflow: 'hidden',
+                            width: '100%',
+                          }}
                         >
-                          {costStatus}
-                        </Text>
-                        <TextButton
-                          accessibilityLabel={`${costActionLabel} de ${product.productName}`}
-                          label={costActionLabel}
-                          onPress={() => openEdit(product)}
-                          size="small"
-                        />
-                      </View>
-                    </View>
+                          <NativeCardContextMenu
+                            actions={[
+                              {
+                                id: 'configure-product-cost',
+                                onPress: () => openEdit(product),
+                                systemImage: 'dollarsign.circle',
+                                title: 'Configurar custo',
+                              },
+                              {
+                                id: 'edit-product-composition',
+                                onPress: () => openEdit(product),
+                                systemImage: 'square.stack.3d.up',
+                                title: 'Editar composição',
+                              },
+                              {
+                                id: 'edit-product',
+                                onPress: () => openEdit(product),
+                                systemImage: 'pencil',
+                                title: 'Editar produto',
+                              },
+                              {
+                                destructive: true,
+                                disabled: testModeEnabled,
+                                id: 'disable-product',
+                                onPress: () => setProductToDisable(product),
+                                systemImage: 'nosign',
+                                title: 'Desativar produto',
+                              },
+                            ]}
+                            matchContents={{ horizontal: true, vertical: false }}
+                            preview={renderRow(true, previewFrameStyle)}
+                            style={{
+                              borderRadius: cardRadius,
+                              height: rowHeight,
+                              width: '100%',
+                            }}
+                          >
+                            {renderRow(false, triggerWidthStyle)}
+                          </NativeCardContextMenu>
+                          <View
+                            style={[
+                              styles.costActionRow,
+                              {
+                                borderTopColor: theme.colors.separator,
+                                paddingHorizontal: theme.spacing.sm,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                theme.typography.footnote,
+                                { color: theme.colors.textSecondary },
+                              ]}
+                            >
+                              {costStatus}
+                            </Text>
+                            <TextButton
+                              accessibilityLabel={`${costActionLabel} de ${product.productName}`}
+                              label={costActionLabel}
+                              onPress={() => openEdit(product)}
+                              size="small"
+                            />
+                          </View>
+                        </View>
+                      )}
+                    </MeasuredContextMenuGeometry>
                   );
                 })
               ) : (

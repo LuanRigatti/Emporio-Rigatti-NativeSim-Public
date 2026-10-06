@@ -5,6 +5,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ListItem } from '@/components/lists';
 import { NativeCardContextMenu, NativeRetailCategoryFormSheet } from '@/components/native';
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { ConfirmationDialog } from '@/components/overlays';
 import { EmptyState, ErrorState, Loading, PremiumCard, PremiumScreen } from '@/components/premium';
 import { SettingsSection } from '@/features/settings/components/SettingsSection';
@@ -160,7 +164,10 @@ export default function RetailCatalogRoute() {
                     const activeProducts = products.some(
                       (product) => product.categoryId === category.categoryId && product.active,
                     );
-                    const renderRow = (preview = false) => (
+                    const renderRow = (
+                      preview = false,
+                      geometryStyle?: ContextMenuCardGeometryStyle,
+                    ) => (
                       <View
                         style={[
                           styles.row,
@@ -171,6 +178,7 @@ export default function RetailCatalogRoute() {
                             overflow: preview ? 'hidden' : undefined,
                             width: '100%',
                           },
+                          geometryStyle,
                         ]}
                       >
                         <ListItem
@@ -206,43 +214,51 @@ export default function RetailCatalogRoute() {
                       </View>
                     );
                     return (
-                      <View
-                        key={category.categoryId}
-                        style={{
-                          backgroundColor: cardSurface,
-                          borderRadius: cardRadius,
-                          height: rowHeight,
-                          overflow: 'hidden',
-                          width: '100%',
-                        }}
-                      >
-                        <NativeCardContextMenu
-                          actions={[
-                            {
-                              id: 'edit-category',
-                              onPress: () => openEdit(category),
-                              systemImage: 'pencil',
-                              title: 'Editar categoria',
-                            },
-                            {
-                              disabled:
-                                testModeEnabled ||
-                                productsLoading ||
-                                Boolean(productsError) ||
-                                activeProducts,
-                              id: 'disable-category',
-                              onPress: () => setCategoryToDisable(category),
-                              systemImage: 'nosign',
-                              title: 'Desativar categoria',
-                            },
-                          ]}
-                          matchContents={{ horizontal: true, vertical: false }}
-                          preview={renderRow(true)}
-                          style={{ borderRadius: cardRadius, height: rowHeight, width: '100%' }}
-                        >
-                          {renderRow()}
-                        </NativeCardContextMenu>
-                      </View>
+                      <MeasuredContextMenuGeometry key={category.categoryId}>
+                        {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                          <View
+                            onLayout={onLayout}
+                            style={{
+                              backgroundColor: cardSurface,
+                              borderRadius: cardRadius,
+                              height: rowHeight,
+                              overflow: 'hidden',
+                              width: '100%',
+                            }}
+                          >
+                            <NativeCardContextMenu
+                              actions={[
+                                {
+                                  id: 'edit-category',
+                                  onPress: () => openEdit(category),
+                                  systemImage: 'pencil',
+                                  title: 'Editar categoria',
+                                },
+                                {
+                                  disabled:
+                                    testModeEnabled ||
+                                    productsLoading ||
+                                    Boolean(productsError) ||
+                                    activeProducts,
+                                  id: 'disable-category',
+                                  onPress: () => setCategoryToDisable(category),
+                                  systemImage: 'nosign',
+                                  title: 'Desativar categoria',
+                                },
+                              ]}
+                              matchContents={{ horizontal: true, vertical: false }}
+                              preview={renderRow(true, previewFrameStyle)}
+                              style={{
+                                borderRadius: cardRadius,
+                                height: rowHeight,
+                                width: '100%',
+                              }}
+                            >
+                              {renderRow(false, triggerWidthStyle)}
+                            </NativeCardContextMenu>
+                          </View>
+                        )}
+                      </MeasuredContextMenuGeometry>
                     );
                   })}
                 </SettingsSection>

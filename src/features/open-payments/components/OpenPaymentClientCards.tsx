@@ -1,5 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { NativeCardContextMenu } from '@/components/native';
 import { GlassCard } from '@/components/premium';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
@@ -25,7 +29,11 @@ export function OpenPaymentClientCards({
   const { currency: maskCurrency } = useTestModePresentation();
   const cardMinHeight = 54 + theme.spacing.sm * 2;
 
-  const renderRow = (client: OpenPaymentClientCard, preview = false) => (
+  const renderRow = (
+    client: OpenPaymentClientCard,
+    preview = false,
+    geometryStyle?: ContextMenuCardGeometryStyle,
+  ) => (
     <View
       style={[
         styles.card,
@@ -38,6 +46,7 @@ export function OpenPaymentClientCards({
           minHeight: cardMinHeight,
           width: '100%',
         },
+        geometryStyle,
       ]}
     >
       <OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />
@@ -87,30 +96,34 @@ export function OpenPaymentClientCards({
     >
       <View style={[styles.cards, { gap: theme.spacing.xs }]}>
         {clients.map((client) => (
-          <View key={client.nome} style={{ height: cardMinHeight, width: '100%' }}>
-            <NativeCardContextMenu
-              actions={client.deliveries.map((delivery) => ({
-                id: `complete-payment-${delivery.id}`,
-                disabled: testModeEnabled,
-                onPress: () => onMarkAsPaid(delivery.id),
-                systemImage: 'checkmark.circle.fill' as const,
-                title:
-                  client.deliveries.length === 1
-                    ? 'Pago'
-                    : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
-              }))}
-              preview={renderRow(client, true)}
-              style={[
-                styles.contextMenu,
-                {
-                  borderRadius: theme.radius.xl + theme.spacing.sm,
-                  height: '100%',
-                },
-              ]}
-            >
-              {renderRow(client)}
-            </NativeCardContextMenu>
-          </View>
+          <MeasuredContextMenuGeometry key={client.nome}>
+            {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+              <View onLayout={onLayout} style={{ height: cardMinHeight, width: '100%' }}>
+                <NativeCardContextMenu
+                  actions={client.deliveries.map((delivery) => ({
+                    id: `complete-payment-${delivery.id}`,
+                    disabled: testModeEnabled,
+                    onPress: () => onMarkAsPaid(delivery.id),
+                    systemImage: 'checkmark.circle.fill' as const,
+                    title:
+                      client.deliveries.length === 1
+                        ? 'Pago'
+                        : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
+                  }))}
+                  preview={renderRow(client, true, previewFrameStyle)}
+                  style={[
+                    styles.contextMenu,
+                    {
+                      borderRadius: theme.radius.xl + theme.spacing.sm,
+                      height: '100%',
+                    },
+                  ]}
+                >
+                  {renderRow(client, false, triggerWidthStyle)}
+                </NativeCardContextMenu>
+              </View>
+            )}
+          </MeasuredContextMenuGeometry>
         ))}
       </View>
     </GlassCard>

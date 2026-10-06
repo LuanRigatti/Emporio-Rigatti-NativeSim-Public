@@ -26,15 +26,17 @@ describe('Document and open payment client rows', () => {
     expect(openPaymentClientCardsSource).toContain(historyIcon);
   });
 
-  it('keeps invoice rows transparent inside the grouped card and preserves context actions', () => {
+  it('measures the invoice card wrapper without adding a surface around the row', () => {
     const itemWrapperStyle = invoicesScreenSource.match(
-      /<View\s+key=\{item\.id\}\s+style=\{\{([\s\S]*?)\}\}>\s*<NativeCardContextMenu/,
+      /<MeasuredContextMenuGeometry\s+key=\{item\.id\}>[\s\S]*?<View\s+onLayout=\{onLayout\}\s+style=\{\{([\s\S]*?)\}\}\s*>/,
     )?.[1];
 
     expect(itemWrapperStyle).toBeDefined();
     expect(itemWrapperStyle).toContain('height: documentItemRowHeight');
     expect(itemWrapperStyle).toContain("width: '100%'");
     expect(itemWrapperStyle).not.toMatch(/backgroundColor|borderRadius|overflow/);
+    expect(invoicesScreenSource).toContain('renderDocumentItemRow(true, previewFrameStyle)');
+    expect(invoicesScreenSource).toContain('renderDocumentItemRow(false, triggerWidthStyle)');
     expect(invoicesScreenSource).toContain('backgroundColor: preview');
     expect(invoicesScreenSource).toContain("title: 'Emitido'");
     expect(invoicesScreenSource).toContain("systemImage: 'checkmark.seal.fill'");

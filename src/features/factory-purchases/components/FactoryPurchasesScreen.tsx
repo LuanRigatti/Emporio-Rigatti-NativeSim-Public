@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Keyboard, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
+import { MeasuredContextMenuGeometry } from '@/components/layout/MeasuredContextMenuGeometry';
 import {
   NativeButton,
   NativeCardContextMenu,
@@ -378,51 +379,57 @@ function PurchaseRow({
         resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.elevated,
       ]}
     >
-      <View style={[styles.contextContainer, purchaseCardStyle]}>
-        <NativeCardContextMenu
-          actions={[
-            {
-              destructive: true,
-              disabled: testModeEnabled,
-              id: 'delete-factory-purchase',
-              onPress: onDelete,
-              systemImage: 'trash',
-              title: 'Excluir',
-            },
-          ]}
-          style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
-          preview={
-            <View
-              style={[
-                styles.purchaseCard,
-                purchaseCardStyle,
+      <MeasuredContextMenuGeometry>
+        {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+          <View onLayout={onLayout} style={[styles.contextContainer, purchaseCardStyle]}>
+            <NativeCardContextMenu
+              actions={[
                 {
-                  overflow: 'hidden',
-                  padding: theme.spacing.lg,
-                  paddingBottom: theme.spacing.sm,
+                  destructive: true,
+                  disabled: testModeEnabled,
+                  id: 'delete-factory-purchase',
+                  onPress: onDelete,
+                  systemImage: 'trash',
+                  title: 'Excluir',
                 },
               ]}
+              style={[styles.contextMenu, { borderRadius: theme.radius.xl + theme.spacing.sm }]}
+              preview={
+                <View
+                  style={[
+                    styles.purchaseCard,
+                    purchaseCardStyle,
+                    {
+                      overflow: 'hidden',
+                      padding: theme.spacing.lg,
+                      paddingBottom: theme.spacing.sm,
+                    },
+                    previewFrameStyle,
+                  ]}
+                >
+                  {renderPurchaseContent()}
+                </View>
+              }
             >
-              {renderPurchaseContent()}
-            </View>
-          }
-        >
-          <View
-            style={[
-              styles.purchaseCard,
-              {
-                backgroundColor: 'transparent',
-                borderRadius: theme.radius.xl + theme.spacing.sm,
-                padding: theme.spacing.lg,
-                paddingBottom: theme.spacing.sm,
-                width: '100%',
-              },
-            ]}
-          >
-            {renderPurchaseContent()}
+              <View
+                style={[
+                  styles.purchaseCard,
+                  {
+                    backgroundColor: 'transparent',
+                    borderRadius: theme.radius.xl + theme.spacing.sm,
+                    padding: theme.spacing.lg,
+                    paddingBottom: theme.spacing.sm,
+                    width: '100%',
+                  },
+                  triggerWidthStyle,
+                ]}
+              >
+                {renderPurchaseContent()}
+              </View>
+            </NativeCardContextMenu>
           </View>
-        </NativeCardContextMenu>
-      </View>
+        )}
+      </MeasuredContextMenuGeometry>
     </View>
   );
 }

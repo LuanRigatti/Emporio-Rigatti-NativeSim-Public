@@ -5,6 +5,10 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ListItem } from '@/components/lists';
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { NativeCardContextMenu, NativeGlassIconButton } from '@/components/native';
 import { ConfirmationDialog } from '@/components/overlays';
 import { EmptyState } from '@/components/feedback';
@@ -107,7 +111,10 @@ export default function ClientsRoute() {
             >
               <SettingsSection>
                 {clients.map((client) => {
-                  const renderClientRow = (preview = false) => (
+                  const renderClientRow = (
+                    preview = false,
+                    geometryStyle?: ContextMenuCardGeometryStyle,
+                  ) => (
                     <View
                       style={[
                         styles.clientRow,
@@ -119,6 +126,7 @@ export default function ClientsRoute() {
                           width: '100%',
                         },
                         preview ? styles.clientPreviewInset : undefined,
+                        geometryStyle,
                       ]}
                     >
                       <ListItem
@@ -157,43 +165,47 @@ export default function ClientsRoute() {
                   );
 
                   return (
-                    <View
-                      key={client.clientId}
-                      style={[
-                        styles.clientContextContainer,
-                        {
-                          backgroundColor: clientCardSurface,
-                          borderRadius: clientCardRadius,
-                          height: clientRowHeight,
-                          overflow: 'hidden',
-                          width: '100%',
-                        },
-                      ]}
-                    >
-                      <NativeCardContextMenu
-                        actions={[
-                          {
-                            destructive: true,
-                            disabled: testModeEnabled,
-                            id: 'delete-client',
-                            onPress: () => {
-                              setDeleteError(undefined);
-                              setClientToDelete(client);
+                    <MeasuredContextMenuGeometry key={client.clientId}>
+                      {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                        <View
+                          onLayout={onLayout}
+                          style={[
+                            styles.clientContextContainer,
+                            {
+                              backgroundColor: clientCardSurface,
+                              borderRadius: clientCardRadius,
+                              height: clientRowHeight,
+                              overflow: 'hidden',
+                              width: '100%',
                             },
-                            systemImage: 'trash',
-                            title: 'Excluir cliente',
-                          },
-                        ]}
-                        matchContents={{ horizontal: true, vertical: false }}
-                        preview={renderClientRow(true)}
-                        style={[
-                          styles.clientContextMenu,
-                          { borderRadius: clientCardRadius, height: clientRowHeight },
-                        ]}
-                      >
-                        {renderClientRow()}
-                      </NativeCardContextMenu>
-                    </View>
+                          ]}
+                        >
+                          <NativeCardContextMenu
+                            actions={[
+                              {
+                                destructive: true,
+                                disabled: testModeEnabled,
+                                id: 'delete-client',
+                                onPress: () => {
+                                  setDeleteError(undefined);
+                                  setClientToDelete(client);
+                                },
+                                systemImage: 'trash',
+                                title: 'Excluir cliente',
+                              },
+                            ]}
+                            matchContents={{ horizontal: true, vertical: false }}
+                            preview={renderClientRow(true, previewFrameStyle)}
+                            style={[
+                              styles.clientContextMenu,
+                              { borderRadius: clientCardRadius, height: clientRowHeight },
+                            ]}
+                          >
+                            {renderClientRow(false, triggerWidthStyle)}
+                          </NativeCardContextMenu>
+                        </View>
+                      )}
+                    </MeasuredContextMenuGeometry>
                   );
                 })}
               </SettingsSection>

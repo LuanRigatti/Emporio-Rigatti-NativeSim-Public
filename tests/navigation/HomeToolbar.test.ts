@@ -187,8 +187,8 @@ describe('HomeToolbar', () => {
     const profileModeStart = nativeActionsSource.indexOf('const toolbarWidth', searchModeStart);
     const searchModeSource = nativeActionsSource.slice(searchModeStart, profileModeStart);
 
-    expect(homeToolbarSource).toContain('<Stack.Toolbar.View hidesSharedBackground>');
-    expect(homeToolbarSource).toContain('home-toolbar-item:leading-anchor:44x44');
+    expect(homeToolbarSource).not.toContain('leading-anchor');
+    expect(homeToolbarSource).not.toContain('<Stack.Toolbar placement="left">');
     expect(homeToolbarSource).toContain('mode="searchAction"');
     expect(homeToolbarSource).not.toContain('<Stack.Toolbar.Button');
     expect(searchModeSource).toContain('width: HOME_TOOLBAR_SEARCH_WIDTH');
@@ -344,30 +344,25 @@ describe('HomeToolbar', () => {
     expect(mockSetMode).not.toHaveBeenCalled();
   });
 
-  it('reserves a neutral 44-point real custom view in the Home left toolbar', () => {
+  it('does not install a Home leading custom item that can morph into the native BackButton', () => {
     const renderer = renderToolbar();
     const toolbars = findNodes(renderer.root, 'toolbar');
-    const leftToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'left');
+    const homeToolbarSource = readFileSync('src/components/navigation/HomeToolbar.tsx', 'utf8');
 
-    expect(leftToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
-    expect(findNodes(leftToolbar!, 'toolbar-view')[0].props.hidesSharedBackground).toBe(true);
-    expect(findNodes(leftToolbar!, 'native-home-toolbar-actions')).toHaveLength(0);
-    expect(readFileSync('src/components/navigation/HomeToolbar.tsx', 'utf8')).toContain(
-      'width: HOME_TOOLBAR_CONTROL_SIZE',
-    );
+    expect(toolbars.map((toolbar) => toolbar.props.placement)).toEqual(['right']);
+    expect(homeToolbarSource).not.toContain('home-toolbar-item:leading-anchor');
+    expect(homeToolbarSource).not.toContain('placement="left"');
   });
 
-  it('renders a neutral left custom view and the search action on the right', () => {
+  it('keeps Search on the right as the only Home toolbar item', () => {
     const renderer = renderToolbar();
     const toolbars = findNodes(renderer.root, 'toolbar');
 
-    expect(toolbars).toHaveLength(2);
-    const leftToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'left');
-    const rightToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'right');
+    expect(toolbars).toHaveLength(1);
+    const rightToolbar = toolbars[0];
 
-    expect(leftToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
+    expect(rightToolbar.props.placement).toBe('right');
     expect(rightToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
-    expect(findNodes(leftToolbar!, 'native-home-toolbar-actions')).toHaveLength(0);
     expect(findNodes(rightToolbar!, 'native-home-toolbar-actions')[0].props.mode).toBe(
       'searchAction',
     );

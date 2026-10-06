@@ -38,6 +38,30 @@ describe('RetailOrderHistoryScreen presentation contract', () => {
     expect(historySource).not.toContain('loading || refreshing');
   });
 
+  it('measures the persistent card viewport before mounting Retail history content', () => {
+    expect(historySource).toContain(
+      'const [availableWidth, setAvailableWidth] = useState<number | null>(null)',
+    );
+    expect(historySource).toContain('const handleHistoryContentLayout = useCallback');
+    expect(historySource).toContain('const width = event.nativeEvent.layout.width;');
+    expect(historySource).toContain('onLayout={handleHistoryContentLayout}');
+    expect(historySource).toContain('availableWidth === null ? null :');
+    expect(historySource).toContain('availableWidth={availableWidth}');
+  });
+
+  it('supplies one container width to cards regardless of subtitle length', () => {
+    const cardSource = readFileSync(
+      resolve(process.cwd(), 'src/features/retail-orders/components/RetailOrderHistoryCard.tsx'),
+      'utf8',
+    );
+
+    expect(historySource).toContain('availableWidth={availableWidth}');
+    expect(cardSource).toContain('width: availableWidth');
+    expect(cardSource).toContain('Pedido em {formatPtBrDate(order.orderDate)}');
+    expect(cardSource).toContain('` · Entrega em ${formatPtBrDate(order.deliveryDate)}`');
+    expect(cardSource.match(/card\(\)/g)).toHaveLength(3);
+  });
+
   it('delegates the initial load to focus revalidation without a duplicate hook load', () => {
     expect(historyHookSource).not.toContain('void Promise.resolve().then(() => load());');
     expect(historySource).toContain('void reload();');

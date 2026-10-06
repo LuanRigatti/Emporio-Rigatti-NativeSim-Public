@@ -4,8 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
-import { useInitialCacheHydration, useSession, useTestMode } from '@/providers';
+import { useAppMode, useInitialCacheHydration, useSession, useTestMode } from '@/providers';
 import { useAppTheme } from '@/theme';
+import {
+  logHomeToolbarSplashHide,
+  waitForHomeToolbarReadiness,
+} from '@/platform/nativeToolbarReadiness';
 
 import SplashVisual from './components/SplashVisual';
 
@@ -14,6 +18,7 @@ export function SplashGate() {
   const { isAuthenticated, isLoading: sessionLoading, user } = useSession();
   const isCacheHydrated = useInitialCacheHydration();
   const { isReady: testModeReady } = useTestMode();
+  const { isReady: appModeReady, mode: appMode } = useAppMode();
   const { isReady: themeReady, reduceMotionEnabled, resolvedMode } = useAppTheme();
   const {
     error: biometricError,
@@ -39,6 +44,7 @@ export function SplashGate() {
       !overlayReady ||
       !isCacheHydrated ||
       !testModeReady ||
+      (isAuthenticated && !appModeReady) ||
       sessionLoading ||
       (isAuthenticated && !biometricReady) ||
       hideStartedRef.current
@@ -47,6 +53,23 @@ export function SplashGate() {
     }
 
     hideStartedRef.current = true;
+
+    if (isAuthenticated) {
+      navigationStartedRef.current = true;
+      const toolbarReadiness = waitForHomeToolbarReadiness(appMode);
+      router.replace(destinationHref);
+      void toolbarReadiness
+        .then(async () => {
+          logHomeToolbarSplashHide(appMode);
+          try {
+            await SplashScreen.hideAsync();
+          } catch {
+            SplashScreen.hide();
+          }
+        })
+        .catch(() => undefined);
+      return;
+    }
 
     void SplashScreen.hideAsync()
       .catch(() => {
@@ -57,10 +80,14 @@ export function SplashGate() {
       });
   }, [
     biometricReady,
+    appMode,
+    appModeReady,
+    destinationHref,
     isAuthenticated,
     isCacheHydrated,
     testModeReady,
     overlayReady,
+    router,
     sessionLoading,
     themeReady,
   ]);

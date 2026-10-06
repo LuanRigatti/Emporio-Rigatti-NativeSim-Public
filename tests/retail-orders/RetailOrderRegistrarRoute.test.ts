@@ -57,7 +57,7 @@ describe('RetailOrderRegistrarRoute', () => {
     const stack = renderer.root.findAll((node) => String(node.type) === 'stack')[0];
     const screens = renderer.root.findAll((node) => String(node.type) === 'stack-screen');
 
-    expect(screens.map((screen) => screen.props.name)).toEqual(['index']);
+    expect(screens.map((screen) => screen.props.name)).toEqual(['index', 'entrega', 'dados']);
     expect(stack.props.screenOptions).toEqual(
       expect.objectContaining({
         headerShown: true,
@@ -68,9 +68,16 @@ describe('RetailOrderRegistrarRoute', () => {
     expect(screens[0].props.options).toEqual(
       expect.objectContaining({ gestureEnabled: false, headerShown: true }),
     );
-    expect(renderer.root.findAll((node) => String(node.type) === 'stack-back-button')).toHaveLength(
-      0,
-    );
+    expect(
+      screens
+        .slice(1)
+        .map(
+          (screen) =>
+            screen.findAll((node) => String(node.type) === 'stack-back-button')[0]?.props
+              .displayMode,
+        ),
+    ).toEqual(['minimal', 'minimal']);
+    expect(screens.slice(1).every((screen) => screen.props.options === undefined)).toBe(true);
   });
 
   it('registers the combined wizard entry, later steps, and legacy redirect in the Root Stack', () => {

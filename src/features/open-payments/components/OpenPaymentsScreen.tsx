@@ -3,6 +3,10 @@ import { Fragment, useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { NativeCardContextMenu, NativeGlassBackButton } from '@/components/native';
 import { GlassCard, PremiumScreen } from '@/components/premium';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -35,8 +39,12 @@ function toOpenPaymentItem(delivery: Delivery): OpenPaymentPreview {
 export function OpenPaymentsScreen() {
   const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
-  const { currency: maskCurrency, enabled: testModeEnabled, quantity: maskQuantity, text: maskText } =
-    useTestModePresentation();
+  const {
+    currency: maskCurrency,
+    enabled: testModeEnabled,
+    quantity: maskQuantity,
+    text: maskText,
+  } = useTestModePresentation();
   const {
     deliveries,
     editMany,
@@ -53,7 +61,11 @@ export function OpenPaymentsScreen() {
     () => paymentItems.reduce((total, item) => total + parseCurrency(item.amount), 0),
     [paymentItems],
   );
-  const renderPaymentRow = (item: OpenPaymentPreview, preview = false) => (
+  const renderPaymentRow = (
+    item: OpenPaymentPreview,
+    preview = false,
+    geometryStyle?: ContextMenuCardGeometryStyle,
+  ) => (
     <View
       style={[
         styles.cardContent,
@@ -66,6 +78,7 @@ export function OpenPaymentsScreen() {
           borderRadius: theme.radius.xl + theme.spacing.md,
           padding: theme.spacing.md,
         },
+        geometryStyle,
       ]}
     >
       <View style={styles.clientInfo}>
@@ -144,24 +157,30 @@ export function OpenPaymentsScreen() {
                 <View style={styles.dayItems}>
                   {group.items.map((item, index) => (
                     <Fragment key={item.id}>
-                      <NativeCardContextMenu
-                        actions={[
-                          {
-                            id: `complete-payment-${item.id}`,
-                            disabled: testModeEnabled,
-                            onPress: () => handlePaymentSwipe(item.id),
-                            systemImage: 'checkmark.circle.fill' as const,
-                            title: 'Pago',
-                          },
-                        ]}
-                        style={[
-                          styles.contextMenu,
-                          { borderRadius: theme.radius.xl + theme.spacing.md },
-                        ]}
-                        preview={renderPaymentRow(item, true)}
-                      >
-                        {renderPaymentRow(item)}
-                      </NativeCardContextMenu>
+                      <MeasuredContextMenuGeometry>
+                        {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                          <View onLayout={onLayout} style={styles.contextMenuRow}>
+                            <NativeCardContextMenu
+                              actions={[
+                                {
+                                  id: `complete-payment-${item.id}`,
+                                  disabled: testModeEnabled,
+                                  onPress: () => handlePaymentSwipe(item.id),
+                                  systemImage: 'checkmark.circle.fill' as const,
+                                  title: 'Pago',
+                                },
+                              ]}
+                              style={[
+                                styles.contextMenu,
+                                { borderRadius: theme.radius.xl + theme.spacing.md },
+                              ]}
+                              preview={renderPaymentRow(item, true, previewFrameStyle)}
+                            >
+                              {renderPaymentRow(item, false, triggerWidthStyle)}
+                            </NativeCardContextMenu>
+                          </View>
+                        )}
+                      </MeasuredContextMenuGeometry>
                       {index < group.items.length - 1 ? (
                         <View style={[styles.dividerSlot, { height: theme.spacing.lg }]}>
                           <View
@@ -218,6 +237,7 @@ const styles = StyleSheet.create({
   },
   clientInfo: { gap: 2 },
   contextMenu: { width: '100%' },
+  contextMenuRow: { width: '100%' },
   dateGroup: { gap: 10 },
   dayItems: { width: '100%' },
   groupTitle: { marginLeft: 12 },

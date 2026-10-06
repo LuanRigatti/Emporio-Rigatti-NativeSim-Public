@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 
 import { EmptyState, ErrorState, InlineError, Loading } from '@/components/feedback';
@@ -48,6 +48,7 @@ export function RetailOrderHistoryScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [viewMode, setViewMode] = useState<RetailHistoryViewMode>('day');
+  const [availableWidth, setAvailableWidth] = useState<number | null>(null);
   const { error, loading, orders, reload, remoteComplete, refreshKey, remove } =
     useRetailOrderHistory();
   const [deleteDialogOrderId, setDeleteDialogOrderId] = useState<string>();
@@ -89,6 +90,12 @@ export function RetailOrderHistoryScreen() {
   const handleSelectViewMode = useCallback((index: number) => {
     const nextMode = RETAIL_HISTORY_VIEW_MODES[index];
     if (nextMode) setViewMode(nextMode);
+  }, []);
+  const handleHistoryContentLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
+    if (width <= 0) return;
+
+    setAvailableWidth((current) => (current === width ? current : width));
   }, []);
   const handleOpenOrder = useCallback(
     (orderId: string) => {
@@ -147,24 +154,26 @@ export function RetailOrderHistoryScreen() {
     />
   );
 
-  const content = (
-    <RetailHistoryContent
-      error={error}
-      financialStates={financialStates}
-      loading={loading}
-      onOrderDelete={handleRequestDelete}
-      onOrderPress={handleOpenOrder}
-      onRetry={reload}
-      orders={orders}
-      remoteComplete={remoteComplete}
-      selectedRange={selectedRange}
-      theme={theme}
-      viewMode={viewMode}
-      deletingOrderId={deletingOrderId}
-      deleteDialogOrderId={deleteDialogOrderId}
-      deleteError={deleteError}
-    />
-  );
+  const content =
+    availableWidth === null ? null : (
+      <RetailHistoryContent
+        availableWidth={availableWidth}
+        error={error}
+        financialStates={financialStates}
+        loading={loading}
+        onOrderDelete={handleRequestDelete}
+        onOrderPress={handleOpenOrder}
+        onRetry={reload}
+        orders={orders}
+        remoteComplete={remoteComplete}
+        selectedRange={selectedRange}
+        theme={theme}
+        viewMode={viewMode}
+        deletingOrderId={deletingOrderId}
+        deleteDialogOrderId={deleteDialogOrderId}
+        deleteError={deleteError}
+      />
+    );
   const dayContent = (
     <View style={[styles.contentContainer, { flexGrow: 1, paddingHorizontal: theme.spacing.md }]}>
       <View
@@ -181,7 +190,9 @@ export function RetailOrderHistoryScreen() {
           style={{ alignSelf: 'center', height: 63, width: '97%' }}
         />
       </View>
-      {content}
+      <View onLayout={handleHistoryContentLayout} style={styles.historyCardsViewport}>
+        {content}
+      </View>
     </View>
   );
 
@@ -227,6 +238,7 @@ export function RetailOrderHistoryScreen() {
 }
 
 function RetailHistoryContent({
+  availableWidth,
   error,
   financialStates,
   loading,
@@ -242,6 +254,7 @@ function RetailHistoryContent({
   deleteDialogOrderId,
   deleteError,
 }: {
+  availableWidth: number;
   error?: string;
   financialStates: Record<string, RetailOrderHistoryFinancialViewState>;
   loading: boolean;
@@ -293,6 +306,7 @@ function RetailHistoryContent({
     <View style={[styles.list, { gap: theme.spacing.sm }]}>
       {items.map((order) => (
         <RetailOrderHistoryCard
+          availableWidth={availableWidth}
           financialState={financialStates[order.orderId]}
           key={order.orderId}
           deleteDisabled={deletingOrderId !== undefined || deleteDialogOrderId !== undefined}
@@ -340,6 +354,7 @@ function RetailHistoryContent({
 
 const styles = StyleSheet.create({
   contentContainer: { position: 'relative' },
+  historyCardsViewport: { width: '100%' },
   list: { width: '100%' },
   modeControl: { width: '100%' },
   periodSection: { width: '100%' },

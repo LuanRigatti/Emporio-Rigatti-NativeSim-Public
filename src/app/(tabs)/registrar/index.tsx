@@ -13,6 +13,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
+import {
+  MeasuredContextMenuGeometry,
+  type ContextMenuCardGeometryStyle,
+} from '@/components/layout/MeasuredContextMenuGeometry';
 import { ErrorState, InlineError, Loading } from '@/components/feedback';
 import {
   NativeCardContextMenu,
@@ -309,7 +313,7 @@ export function RegistrarDailyDataScreen() {
       </View>
     </>
   );
-  const dailyDataPreview = (
+  const dailyDataPreview = (geometryStyle?: ContextMenuCardGeometryStyle) => (
     <View
       style={[
         styles.dailyDataCard,
@@ -320,6 +324,7 @@ export function RegistrarDailyDataScreen() {
           padding: theme.spacing.lg,
           width: '100%',
         },
+        geometryStyle,
       ]}
     >
       {renderDailyDataContent()}
@@ -348,104 +353,109 @@ export function RegistrarDailyDataScreen() {
           style={[styles.dailyDataList, { gap: theme.spacing.sm, paddingTop: theme.spacing.md }]}
         >
           <Animated.View style={styles.fullWidth}>
-            <View
-              style={[
-                styles.dailyDataContextWrapper,
-                {
-                  backgroundColor: registrarCardSurface,
-                  borderRadius: hasDailyData
-                    ? theme.radius.xl + theme.spacing.sm
-                    : theme.radius.xl + theme.spacing.lg,
-                  height: hasDailyData ? dailyDataCardMinHeight : undefined,
-                  minHeight: hasDailyData ? dailyDataCardMinHeight : undefined,
-                  overflow: 'hidden',
-                  width: '100%',
-                },
-                resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
-              ]}
-            >
-              <NativeCardContextMenu
-                actions={
-                  hasDailyData
-                    ? [
-                        {
-                          destructive: true,
-                          disabled: isDeleting,
-                          id: 'delete-daily-data',
-                          onPress: () => {
-                            void handleDeleteDailyData();
-                          },
-                          systemImage: 'trash',
-                          title: 'Excluir',
-                        },
-                      ]
-                    : []
-                }
-                style={[
-                  styles.dailyDataContextWrapper,
-                  {
-                    borderRadius: hasDailyData
-                      ? theme.radius.xl + theme.spacing.sm
-                      : theme.radius.xl + theme.spacing.lg,
-                    height: hasDailyData ? dailyDataCardMinHeight : undefined,
-                  },
-                ]}
-                preview={dailyDataPreview}
-              >
-                <Animated.View style={styles.fullWidth}>
-                  {hasDailyData ? (
-                    <Animated.View entering={FadeIn.duration(theme.animations.duration.fast)}>
-                      <View
-                        style={[
-                          styles.dailyDataCard,
-                          {
-                            backgroundColor: 'transparent',
-                            borderRadius: theme.radius.xl + theme.spacing.sm,
-                            padding: theme.spacing.lg,
-                            width: '100%',
-                          },
-                        ]}
-                      >
-                        {renderDailyDataContent()}
-                      </View>
+            <MeasuredContextMenuGeometry>
+              {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                <View
+                  onLayout={onLayout}
+                  style={[
+                    styles.dailyDataContextWrapper,
+                    {
+                      backgroundColor: registrarCardSurface,
+                      borderRadius: hasDailyData
+                        ? theme.radius.xl + theme.spacing.sm
+                        : theme.radius.xl + theme.spacing.lg,
+                      height: hasDailyData ? dailyDataCardMinHeight : undefined,
+                      minHeight: hasDailyData ? dailyDataCardMinHeight : undefined,
+                      overflow: 'hidden',
+                      width: '100%',
+                    },
+                    resolvedMode === 'dark' ? theme.shadows.none : theme.shadows.card,
+                  ]}
+                >
+                  <NativeCardContextMenu
+                    actions={
+                      hasDailyData
+                        ? [
+                            {
+                              destructive: true,
+                              disabled: isDeleting,
+                              id: 'delete-daily-data',
+                              onPress: () => {
+                                void handleDeleteDailyData();
+                              },
+                              systemImage: 'trash',
+                              title: 'Excluir',
+                            },
+                          ]
+                        : []
+                    }
+                    style={[
+                      styles.dailyDataContextWrapper,
+                      {
+                        borderRadius: hasDailyData
+                          ? theme.radius.xl + theme.spacing.sm
+                          : theme.radius.xl + theme.spacing.lg,
+                        height: hasDailyData ? dailyDataCardMinHeight : undefined,
+                      },
+                    ]}
+                    preview={dailyDataPreview(previewFrameStyle)}
+                  >
+                    <Animated.View style={[styles.fullWidth, triggerWidthStyle]}>
+                      {hasDailyData ? (
+                        <Animated.View entering={FadeIn.duration(theme.animations.duration.fast)}>
+                          <View
+                            style={[
+                              styles.dailyDataCard,
+                              {
+                                backgroundColor: 'transparent',
+                                borderRadius: theme.radius.xl + theme.spacing.sm,
+                                padding: theme.spacing.lg,
+                                width: '100%',
+                              },
+                            ]}
+                          >
+                            {renderDailyDataContent()}
+                          </View>
+                        </Animated.View>
+                      ) : dailyDataViewState === 'loading' ? (
+                        <View style={styles.emptyStateCard}>
+                          <Loading
+                            label="Carregando dados de hoje..."
+                            style={{
+                              paddingHorizontal: theme.spacing.lg,
+                              paddingVertical: theme.spacing.md,
+                            }}
+                          />
+                        </View>
+                      ) : dailyDataViewState === 'error' ? (
+                        <View style={[styles.emptyStateCard, { padding: theme.spacing.md }]}>
+                          <InlineError message="Não foi possível confirmar os dados de hoje." />
+                        </View>
+                      ) : (
+                        <View
+                          style={[
+                            styles.emptyStateCard,
+                            {
+                              paddingHorizontal: theme.spacing.lg,
+                              paddingVertical: theme.spacing.md,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              theme.typography.body,
+                              { color: theme.colors.textSecondary, textAlign: 'center' },
+                            ]}
+                          >
+                            Nenhum dado hoje
+                          </Text>
+                        </View>
+                      )}
                     </Animated.View>
-                  ) : dailyDataViewState === 'loading' ? (
-                    <View style={styles.emptyStateCard}>
-                      <Loading
-                        label="Carregando dados de hoje..."
-                        style={{
-                          paddingHorizontal: theme.spacing.lg,
-                          paddingVertical: theme.spacing.md,
-                        }}
-                      />
-                    </View>
-                  ) : dailyDataViewState === 'error' ? (
-                    <View style={[styles.emptyStateCard, { padding: theme.spacing.md }]}>
-                      <InlineError message="Não foi possível confirmar os dados de hoje." />
-                    </View>
-                  ) : (
-                    <View
-                      style={[
-                        styles.emptyStateCard,
-                        {
-                          paddingHorizontal: theme.spacing.lg,
-                          paddingVertical: theme.spacing.md,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          theme.typography.body,
-                          { color: theme.colors.textSecondary, textAlign: 'center' },
-                        ]}
-                      >
-                        Nenhum dado hoje
-                      </Text>
-                    </View>
-                  )}
-                </Animated.View>
-              </NativeCardContextMenu>
-            </View>
+                  </NativeCardContextMenu>
+                </View>
+              )}
+            </MeasuredContextMenuGeometry>
           </Animated.View>
         </View>
       </ProgressiveCollapsibleScreen>
@@ -803,30 +813,38 @@ export function RegistrarDeliveryScreen({
                 ];
 
                 return (
-                  <Animated.View
-                    entering={FadeIn.duration(deliveryItemTransitionDuration)}
-                    exiting={FadeOut.duration(deliveryItemTransitionDuration)}
-                    key={delivery.id}
-                    layout={deliveryItemLayoutTransition}
-                    style={styles.fullWidth}
-                  >
-                    <NativeCardContextMenu
-                      actions={rowActions}
-                      matchContents={{ horizontal: true, vertical: false }}
-                      preview={
-                        <PremiumCard style={cardStyle}>{renderDeliveryItemRow(true)}</PremiumCard>
-                      }
-                      style={[
-                        styles.deliveryContextMenu,
-                        {
-                          borderRadius: theme.radius.xl + theme.spacing.sm,
-                          height: deliveryRowHeight,
-                        },
-                      ]}
-                    >
-                      <PremiumCard style={cardStyle}>{rowContent}</PremiumCard>
-                    </NativeCardContextMenu>
-                  </Animated.View>
+                  <MeasuredContextMenuGeometry key={delivery.id}>
+                    {({ onLayout, previewFrameStyle, triggerWidthStyle }) => (
+                      <Animated.View
+                        entering={FadeIn.duration(deliveryItemTransitionDuration)}
+                        exiting={FadeOut.duration(deliveryItemTransitionDuration)}
+                        layout={deliveryItemLayoutTransition}
+                        onLayout={onLayout}
+                        style={styles.fullWidth}
+                      >
+                        <NativeCardContextMenu
+                          actions={rowActions}
+                          matchContents={{ horizontal: true, vertical: false }}
+                          preview={
+                            <PremiumCard style={[cardStyle, previewFrameStyle]}>
+                              {renderDeliveryItemRow(true)}
+                            </PremiumCard>
+                          }
+                          style={[
+                            styles.deliveryContextMenu,
+                            {
+                              borderRadius: theme.radius.xl + theme.spacing.sm,
+                              height: deliveryRowHeight,
+                            },
+                          ]}
+                        >
+                          <PremiumCard style={[cardStyle, triggerWidthStyle]}>
+                            {rowContent}
+                          </PremiumCard>
+                        </NativeCardContextMenu>
+                      </Animated.View>
+                    )}
+                  </MeasuredContextMenuGeometry>
                 );
               })}
             </View>

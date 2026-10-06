@@ -124,10 +124,9 @@ static id RNSFindAccessibleToolbarElement(UIView *view, NSString *identifier)
   if ([view.accessibilityIdentifier isEqualToString:identifier]) return view;
   if ([view respondsToSelector:@selector(accessibilityElementCount)] &&
       [view respondsToSelector:@selector(accessibilityElementAtIndex:)]) {
-    id<UIAccessibilityContainer> container = (id<UIAccessibilityContainer>)view;
-    NSInteger count = [container accessibilityElementCount];
+    NSInteger count = ((NSInteger (*)(id, SEL))objc_msgSend)(view, @selector(accessibilityElementCount));
     for (NSInteger index = 0; index < count; index++) {
-      id element = [container accessibilityElementAtIndex:index];
+      id element = ((id (*)(id, SEL, NSInteger))objc_msgSend)(view, @selector(accessibilityElementAtIndex:), index);
       if ([element conformsToProtocol:@protocol(UIAccessibilityIdentification)] &&
           [[(id<UIAccessibilityIdentification>)element accessibilityIdentifier] isEqualToString:identifier]) {
         return element;

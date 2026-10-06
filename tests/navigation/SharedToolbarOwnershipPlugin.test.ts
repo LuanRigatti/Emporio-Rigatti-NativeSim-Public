@@ -67,6 +67,16 @@ describe('shared toolbar ownership config plugin', () => {
         join(temporaryRoot, 'ios/tabs/host/RNSTabBarController.mm'),
         'utf8',
       );
+      expect(tabController).not.toContain('id<UIAccessibilityContainer>');
+      expect(tabController).toContain(
+        '((NSInteger (*)(id, SEL))objc_msgSend)(view, @selector(accessibilityElementCount))',
+      );
+      expect(tabController).toContain(
+        '((id (*)(id, SEL, NSInteger))objc_msgSend)(view, @selector(accessibilityElementAtIndex:), index)',
+      );
+      expect(tabController).toContain(
+        '[view respondsToSelector:@selector(accessibilityElementCount)]',
+      );
       const prepareMethodStart = tabController.indexOf(
         '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason',
       );

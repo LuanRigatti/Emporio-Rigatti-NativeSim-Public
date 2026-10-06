@@ -1171,9 +1171,9 @@ static void RNSSynchronizeSharedTabToolbar(UIViewController *viewController, UIN
     `  if (navctr == nil) {
     return;
   }
-  RNSTabBarController *toolbarTabsController = RNSFindToolbarTabsControllerForNavigationController(navctr);
+  RNSTabBarController *prePopToolbarTabsController = RNSFindToolbarTabsControllerForNavigationController(navctr);
   BOOL preservePreparedSharedToolbarItems =
-      [toolbarTabsController consumeSharedToolbarPrePopPreparationForViewController:vc];`,
+      [prePopToolbarTabsController consumeSharedToolbarPrePopPreparationForViewController:vc];`,
     PATCH_MARKERS.prePopHeaderPreservation,
   );
   patchFile(

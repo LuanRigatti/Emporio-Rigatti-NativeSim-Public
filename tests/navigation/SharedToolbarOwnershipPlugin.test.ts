@@ -19,6 +19,15 @@ const patchedFiles = [
   'ios/tabs/host/RNSTabBarController.mm',
 ];
 
+function countStaticFunctionDefinitions(source: string, name: string) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const definitionPattern = new RegExp(
+    `\\bstatic\\s+[^;{}]*\\b${escapedName}\\s*\\([^;{}]*\\)\\s*\\{`,
+    'g',
+  );
+  return [...source.matchAll(definitionPattern)].length;
+}
+
 describe('shared toolbar ownership config plugin', () => {
   it('applies nested-root suppression and remains idempotent on a clean react-native-screens source copy', () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), 'emporio-rns-toolbar-'));
@@ -30,10 +39,16 @@ describe('shared toolbar ownership config plugin', () => {
         copyFileSync(join(reactNativeScreensRoot, relativePath), destination);
       }
 
+      const pristineSources = patchedFiles.map((relativePath) =>
+        readFileSync(join(temporaryRoot, relativePath), 'utf8'),
+      );
       plugin.__patchRNScreensForTesting(temporaryRoot);
       const firstApplication = patchedFiles.map((relativePath) =>
         readFileSync(join(temporaryRoot, relativePath), 'utf8'),
       );
+      for (const [index, pristineSource] of pristineSources.entries()) {
+        expect(firstApplication[index]).not.toBe(pristineSource);
+      }
       plugin.__patchRNScreensForTesting(temporaryRoot);
       const secondApplication = patchedFiles.map((relativePath) =>
         readFileSync(join(temporaryRoot, relativePath), 'utf8'),
@@ -47,6 +62,26 @@ describe('shared toolbar ownership config plugin', () => {
       );
       expect(headerConfig).toContain(
         'RNSShouldSuppressNestedRootNavigationBar(vc, navctr, &toolbarTabsController)',
+      );
+      const updateMethodStart = headerConfig.indexOf(
+        '+ (void)updateViewController:(UIViewController *)vc',
+      );
+      const updateMethodEnd = headerConfig.indexOf(
+        '\n- (void)configureBackItem:',
+        updateMethodStart,
+      );
+      expect(updateMethodStart).toBeGreaterThanOrEqual(0);
+      expect(updateMethodEnd).toBeGreaterThan(updateMethodStart);
+      const updateMethod = headerConfig.slice(updateMethodStart, updateMethodEnd);
+      const toolbarControllerDeclarations = [
+        ...updateMethod.matchAll(/\bRNSTabBarController\s*\*\s*(\w+)\s*=/g),
+      ].map((match) => match[1]);
+      expect(toolbarControllerDeclarations).toEqual([
+        'prePopToolbarTabsController',
+        'toolbarTabsController',
+      ]);
+      expect(updateMethod).toContain(
+        '[prePopToolbarTabsController consumeSharedToolbarPrePopPreparationForViewController:vc]',
       );
       expect(headerConfig).toContain(
         'navigationController.viewControllers.firstObject != viewController',
@@ -67,7 +102,53 @@ describe('shared toolbar ownership config plugin', () => {
         join(temporaryRoot, 'ios/tabs/host/RNSTabBarController.mm'),
         'utf8',
       );
+      const helperDefinitionsByFile: Record<string, string[]> = {
+        'ios/tabs/host/RNSTabBarController.mm': [
+          'RNSFindHomeToolbarSemanticIdentifier',
+          'RNSHomeToolbarItemSemanticSignature',
+          'RNSHomeToolbarItemArraysAreSemanticallyEqual',
+          'RNSHomeToolbarItemSetsAreSemanticallyEqual',
+          'RNSHomeToolbarItemArraysHaveSameInstances',
+          'RNSAuditSemanticIdentifier',
+          'RNSAuditToolbarItemRole',
+          'RNSAuditToolbarRoles',
+          'RNSAuditNavigationBarRoles',
+          'RNSAuditToolbarItemDetails',
+          'RNSViewControllerContainsToolbarTabsController',
+          'RNSAuditToolbarItemViewIsReady',
+          'RNSFindAccessibleToolbarElement',
+          'RNSAccessibleToolbarElementIsVisibleInWindow',
+          'RNSFindReadyToolbarItemForRole',
+          'RNSMaybePublishHomeToolbarReadiness',
+          'RNSSharedToolbarArraysAreSemanticallyEqual',
+          'RNSSharedToolbarSnapshotsAreSemanticallyEqual',
+          'RNSNullableStringsEqual',
+          'RNSRetainSafeSharedToolbarItemInstances',
+          'RNSSharedToolbarItemsNeedAttachment',
+          'RNSFindNestedNavigationController',
+        ],
+        'ios/RNSScreenStackHeaderConfig.mm': [
+          'RNSFindTabBarControllerInViewController',
+          'RNSFindToolbarTabsControllerForNavigationController',
+          'RNSShouldSuppressNestedRootNavigationBar',
+          'RNSLogNestedRootBarSuppression',
+          'RNSSynchronizeSharedTabToolbar',
+        ],
+        'ios/RNSScreenStack.mm': [
+          'RNSFindSharedToolbarTabsController',
+          'RNSPrepareSharedToolbarBeforeRootPop',
+          'RNSMarkSharedToolbarRootDidShow',
+        ],
+      };
+      for (const [relativePath, helperNames] of Object.entries(helperDefinitionsByFile)) {
+        const generatedSource = readFileSync(join(temporaryRoot, relativePath), 'utf8');
+        for (const helperName of helperNames) {
+          expect(countStaticFunctionDefinitions(generatedSource, helperName)).toBe(1);
+        }
+      }
       expect(tabController).not.toContain('id<UIAccessibilityContainer>');
+      expect(tabController).toContain('#import <objc/message.h>');
+      expect(tabController).toContain('#import <objc/runtime.h>');
       expect(tabController).toContain(
         '((NSInteger (*)(id, SEL))objc_msgSend)(view, @selector(accessibilityElementCount))',
       );
@@ -76,6 +157,9 @@ describe('shared toolbar ownership config plugin', () => {
       );
       expect(tabController).toContain(
         '[view respondsToSelector:@selector(accessibilityElementCount)]',
+      );
+      expect(tabController).toContain(
+        '[view respondsToSelector:@selector(accessibilityElementAtIndex:)]',
       );
       const prepareMethodStart = tabController.indexOf(
         '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason',

@@ -1091,6 +1091,7 @@ jobs:
           APP_URL: ${{ inputs.app_url }}
           APP_RELEASE_ASSET: ${{ inputs.app_release_asset }}
           APP_RELEASE_TAG: native-sim-build
+          NATIVE_SIM_RELEASE_TOKEN: ${{ inputs.app_release_asset != '' && secrets.NATIVE_SIM_RELEASE_TOKEN || '' }}
         run: |
           set -euo pipefail
           [ -n "$APP_URL" ] || [ -n "$APP_RELEASE_ASSET" ] \
@@ -1099,11 +1100,11 @@ jobs:
           mkdir -p build/prebuilt && cd build/prebuilt
 
           if [ -n "$APP_RELEASE_ASSET" ]; then
-            # Hosted on this repo's own release. The job token is already scoped
-            # here, so a private repo costs no extra credential and a draft
-            # release is not downloadable by the public.
+            # Draft release assets require a PAT; scope it to this gh invocation.
+            [ -n "${NATIVE_SIM_RELEASE_TOKEN:-}" ] \
+              || { echo "::error::NATIVE_SIM_RELEASE_TOKEN is required to download draft release assets"; exit 1; }
             echo "Downloading $APP_RELEASE_ASSET from release $APP_RELEASE_TAG"
-            gh release download "$APP_RELEASE_TAG" \
+            GH_TOKEN="$NATIVE_SIM_RELEASE_TOKEN" gh release download "$APP_RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --pattern "$APP_RELEASE_ASSET" \
               --output download.bin \

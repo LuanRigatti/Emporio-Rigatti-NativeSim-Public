@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Stack } from 'expo-router';
+import { View } from 'react-native';
 
-import { NativeHomeToolbarActions, NativeModeSheetContent, NativeSheet } from '@/components/native';
+import {
+  HOME_TOOLBAR_CONTROL_SIZE,
+  NativeHomeToolbarActions,
+  NativeModeSheetContent,
+  NativeSheet,
+} from '@/components/native';
 import { useHomeModeTransition } from '@/features/home/hooks/useHomeModeTransition';
 import { useAppMode } from '@/providers';
-import { setExpectedHomeToolbarComposition } from '@/platform/nativeToolbarReadiness';
 import { useAppTheme } from '@/theme';
 import type { AppMode } from '@/types/appMode';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
@@ -69,12 +74,19 @@ export function HomeToolbar({ onSearchPress, modeSelector }: HomeToolbarProps) {
   const { mode } = modeSelector;
   const { resolvedMode } = useAppTheme();
 
-  useEffect(() => {
-    setExpectedHomeToolbarComposition(mode);
-  }, [mode]);
-
   return (
     <>
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.View hidesSharedBackground>
+          <View
+            accessible={false}
+            collapsable={false}
+            pointerEvents="none"
+            style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_CONTROL_SIZE }}
+            testID="home-toolbar-item:leading-anchor:44x44"
+          />
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
       {onSearchPress ? (
         <Stack.Toolbar placement="right">
           <Stack.Toolbar.View>

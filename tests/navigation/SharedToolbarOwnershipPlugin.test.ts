@@ -1,283 +1,344 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
-const reactNativeScreensRoot = dirname(require.resolve('react-native-screens/package.json'));
-const plugin = jest.requireActual('../../plugins/withRNScreensHideBottomBarWhenPushed') as {
-  __patchRNScreensForTesting: (screensRoot: string) => void;
-};
-
-const patchedFiles = [
+const projectRoot = process.cwd();
+const screensSourceRoot = join(projectRoot, 'node_modules', 'react-native-screens');
+const fixtureFiles = [
   'src/fabric/ScreenNativeComponent.ts',
   'ios/RNSScreen.h',
   'ios/RNSScreen.mm',
-  'ios/RNSScreenStackHeaderConfig.mm',
   'ios/RNSScreenStack.mm',
-  'ios/RNSBarButtonItem.h',
-  'ios/RNSBarButtonItem.mm',
+  'ios/RNSScreenStackHeaderConfig.mm',
   'ios/tabs/host/RNSTabBarController.h',
   'ios/tabs/host/RNSTabBarController.mm',
 ];
 
-function countStaticFunctionDefinitions(source: string, name: string) {
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const definitionPattern = new RegExp(
-    `\\bstatic\\s+[^;{}]*\\b${escapedName}\\s*\\([^;{}]*\\)\\s*\\{`,
-    'g',
-  );
-  return [...source.matchAll(definitionPattern)].length;
+function sectionBetween(source: string, startMarker: string, endMarker: string): string {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (start < 0 || end < 0) {
+    throw new Error(`Could not locate generated section: ${startMarker}`);
+  }
+  return source.slice(start, end);
 }
 
 describe('shared toolbar ownership config plugin', () => {
-  it('applies nested-root suppression and remains idempotent on a clean react-native-screens source copy', () => {
-    const temporaryRoot = mkdtempSync(join(tmpdir(), 'emporio-rns-toolbar-'));
+  let fixtureRoot = '';
+  let generatedController = '';
+  let generatedStack = '';
+  let generatedHeaderConfig = '';
+  let runDangerousMod: ((config: Record<string, unknown>) => Record<string, unknown>) | undefined;
 
-    try {
-      for (const relativePath of patchedFiles) {
-        const destination = join(temporaryRoot, relativePath);
-        mkdirSync(dirname(destination), { recursive: true });
-        copyFileSync(join(reactNativeScreensRoot, relativePath), destination);
-      }
+  beforeAll(() => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), 'emporio-toolbar-plugin-'));
+    const fixtureScreensRoot = join(fixtureRoot, 'node_modules', 'react-native-screens');
 
-      const pristineSources = patchedFiles.map((relativePath) =>
-        readFileSync(join(temporaryRoot, relativePath), 'utf8'),
-      );
-      plugin.__patchRNScreensForTesting(temporaryRoot);
-      const firstApplication = patchedFiles.map((relativePath) =>
-        readFileSync(join(temporaryRoot, relativePath), 'utf8'),
-      );
-      for (const [index, pristineSource] of pristineSources.entries()) {
-        expect(firstApplication[index]).not.toBe(pristineSource);
-      }
-      plugin.__patchRNScreensForTesting(temporaryRoot);
-      const secondApplication = patchedFiles.map((relativePath) =>
-        readFileSync(join(temporaryRoot, relativePath), 'utf8'),
-      );
-
-      expect(secondApplication).toEqual(firstApplication);
-
-      const headerConfig = readFileSync(
-        join(temporaryRoot, 'ios/RNSScreenStackHeaderConfig.mm'),
-        'utf8',
-      );
-      expect(headerConfig).toContain(
-        'RNSShouldSuppressNestedRootNavigationBar(vc, navctr, &toolbarTabsController)',
-      );
-      const updateMethodStart = headerConfig.indexOf(
-        '+ (void)updateViewController:(UIViewController *)vc',
-      );
-      const updateMethodEnd = headerConfig.indexOf(
-        '\n- (void)configureBackItem:',
-        updateMethodStart,
-      );
-      expect(updateMethodStart).toBeGreaterThanOrEqual(0);
-      expect(updateMethodEnd).toBeGreaterThan(updateMethodStart);
-      const updateMethod = headerConfig.slice(updateMethodStart, updateMethodEnd);
-      const toolbarControllerDeclarations = [
-        ...updateMethod.matchAll(/\bRNSTabBarController\s*\*\s*(\w+)\s*=/g),
-      ].map((match) => match[1]);
-      expect(toolbarControllerDeclarations).toEqual([
-        'prePopToolbarTabsController',
-        'toolbarTabsController',
-      ]);
-      expect(updateMethod).toContain(
-        '[prePopToolbarTabsController consumeSharedToolbarPrePopPreparationForViewController:vc]',
-      );
-      expect(headerConfig).toContain(
-        'navigationController.viewControllers.firstObject != viewController',
-      );
-      expect(headerConfig).toContain('sharedNavigationController == navigationController');
-      expect(headerConfig).toMatch(
-        /if \(RNSShouldSuppressNestedRootNavigationBar\(vc, navctr, &toolbarTabsController\)\) \{\s*\[navctr setNavigationBarHidden:YES animated:NO\];[\s\S]*?\} else \{\s*\[navctr setNavigationBarHidden:NO animated:animated\];\s*\}/,
-      );
-
-      const toolbarItemsApplied = headerConfig.indexOf('navitem.leftBarButtonItems =');
-      const nestedRootDecision = headerConfig.indexOf(
-        'RNSShouldSuppressNestedRootNavigationBar(vc, navctr, &toolbarTabsController)',
-      );
-      expect(toolbarItemsApplied).toBeGreaterThanOrEqual(0);
-      expect(nestedRootDecision).toBeGreaterThan(toolbarItemsApplied);
-
-      const tabController = readFileSync(
-        join(temporaryRoot, 'ios/tabs/host/RNSTabBarController.mm'),
-        'utf8',
-      );
-      const helperDefinitionsByFile: Record<string, string[]> = {
-        'ios/tabs/host/RNSTabBarController.mm': [
-          'RNSFindHomeToolbarSemanticIdentifier',
-          'RNSHomeToolbarItemSemanticSignature',
-          'RNSHomeToolbarItemArraysAreSemanticallyEqual',
-          'RNSHomeToolbarItemSetsAreSemanticallyEqual',
-          'RNSHomeToolbarItemArraysHaveSameInstances',
-          'RNSAuditSemanticIdentifier',
-          'RNSAuditToolbarItemRole',
-          'RNSAuditToolbarRoles',
-          'RNSAuditNavigationBarRoles',
-          'RNSAuditToolbarItemDetails',
-          'RNSViewControllerContainsToolbarTabsController',
-          'RNSAuditToolbarItemViewIsReady',
-          'RNSFindAccessibleToolbarElement',
-          'RNSAccessibleToolbarElementIsVisibleInWindow',
-          'RNSFindReadyToolbarItemForRole',
-          'RNSMaybePublishHomeToolbarReadiness',
-          'RNSSharedToolbarArraysAreSemanticallyEqual',
-          'RNSSharedToolbarSnapshotsAreSemanticallyEqual',
-          'RNSNullableStringsEqual',
-          'RNSRetainSafeSharedToolbarItemInstances',
-          'RNSSharedToolbarItemsNeedAttachment',
-          'RNSFindNestedNavigationController',
-        ],
-        'ios/RNSScreenStackHeaderConfig.mm': [
-          'RNSFindTabBarControllerInViewController',
-          'RNSFindToolbarTabsControllerForNavigationController',
-          'RNSShouldSuppressNestedRootNavigationBar',
-          'RNSLogNestedRootBarSuppression',
-          'RNSSynchronizeSharedTabToolbar',
-        ],
-        'ios/RNSScreenStack.mm': [
-          'RNSFindSharedToolbarTabsController',
-          'RNSPrepareSharedToolbarBeforeRootPop',
-          'RNSMarkSharedToolbarRootDidShow',
-        ],
-      };
-      for (const [relativePath, helperNames] of Object.entries(helperDefinitionsByFile)) {
-        const generatedSource = readFileSync(join(temporaryRoot, relativePath), 'utf8');
-        for (const helperName of helperNames) {
-          expect(countStaticFunctionDefinitions(generatedSource, helperName)).toBe(1);
-        }
-      }
-      expect(tabController).not.toContain('id<UIAccessibilityContainer>');
-      expect(tabController).toContain('#import <objc/message.h>');
-      expect(tabController).toContain('#import <objc/runtime.h>');
-      expect(tabController).toContain(
-        '((NSInteger (*)(id, SEL))objc_msgSend)(view, @selector(accessibilityElementCount))',
-      );
-      expect(tabController).toContain(
-        '((id (*)(id, SEL, NSInteger))objc_msgSend)(view, @selector(accessibilityElementAtIndex:), index)',
-      );
-      expect(tabController).toContain(
-        '[view respondsToSelector:@selector(accessibilityElementCount)]',
-      );
-      expect(tabController).toContain(
-        '[view respondsToSelector:@selector(accessibilityElementAtIndex:)]',
-      );
-      const prepareMethodStart = tabController.indexOf(
-        '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason',
-      );
-      const synchronizeMethodStart = tabController.indexOf(
-        '- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason',
-        prepareMethodStart,
-      );
-      const rootPreparation = tabController.slice(prepareMethodStart, synchronizeMethodStart);
-      const rootBranchStart = rootPreparation.indexOf('if (nestedNavigationController != nil) {');
-      const rootBranch = rootPreparation.slice(rootBranchStart);
-      expect(rootBranchStart).toBeGreaterThanOrEqual(0);
-      expect(rootBranch).toContain('RNSSharedToolbarMaterializedItemsKey');
-      expect(rootBranch).toContain(
-        '[nestedNavigationController setNavigationBarHidden:YES animated:NO]',
-      );
-      expect(rootBranch).toContain(
-        '[sharedNavigationItem setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement]',
-      );
-      expect(rootBranch).toContain(
-        '[sharedNavigationItem setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement]',
-      );
-      expect(rootBranch).not.toContain('[nestedNavigationController setNavigationBarHidden:NO');
-      expect(tabController).toContain(
-        'if (!isTabRoot) {\n    [sharedNavigationController setNavigationBarHidden:YES animated:NO];\n    [nestedNavigationController setNavigationBarHidden:NO animated:NO];',
-      );
-      for (const selectionReason of [
-        'tab-selection-index',
-        'programmatic-selection',
-        'tab-selection-shouldSelect',
-        'tab-selection-commit',
-      ]) {
-        expect(tabController).toContain(selectionReason);
-      }
-
-      const screenStack = readFileSync(join(temporaryRoot, 'ios/RNSScreenStack.mm'), 'utf8');
-      const normalPreparation = screenStack.indexOf(
-        'RNSPrepareSharedToolbarBeforeRootPop(_controller, top, @"normal-pop")',
-      );
-      const normalPop = screenStack.indexOf(
-        '[_controller popViewControllerAnimated:YES]',
-        normalPreparation,
-      );
-      expect(normalPreparation).toBeGreaterThanOrEqual(0);
-      expect(normalPop).toBeGreaterThan(normalPreparation);
-      expect(screenStack).not.toContain(
-        '[tabsController prepareSharedNavigationBarForPopToViewController:viewController',
-      );
-      expect(screenStack).toContain('@"interactive-native-gesture-accepted"');
-      expect(screenStack).toContain('@"interactive-custom-swipe-began"');
-      expect(screenStack).toContain('@"interactive-screen-transition"');
-      expect(screenStack).toContain('cancelInteractiveTransition');
-      expect(screenStack).toContain(
-        '[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"]',
-      );
-      expect(screenStack).toContain(
-        'RNSMarkSharedToolbarRootDidShow(navigationController, viewController, tabsController)',
-      );
-      expect(screenStack).toContain('sharedNavigationController.transitionCoordinator != nil');
-      expect(screenStack).toContain('homeToolbar.rootDidShow');
-      expect(screenStack).toContain('_controller.interactivePopGestureRecognizer.delegate = self');
-
-      const preflightStart = tabController.indexOf(
-        '- (BOOL)prepareSharedNavigationBarForPopToViewController:',
-      );
-      const preflightEnd = tabController.indexOf(
-        '- (void)prepareSharedNavigationBarForViewController:',
-        preflightStart,
-      );
-      const preflight = tabController.slice(preflightStart, preflightEnd);
-      expect(preflight.indexOf('RNSSharedToolbarStagedItemsKey')).toBeLessThan(
-        preflight.indexOf('RNSSharedToolbarMaterializedItemsKey'),
-      );
-      expect(preflight).toContain('staged-destination-materialization');
-      expect(preflight).toContain('sharedRootController != self.parentViewController');
-      expect(preflight).toContain('RNSRetainSafeSharedToolbarItemInstances(');
-      expect(preflight).toContain('sharedBeforeRight, cachedRight, snapshotRight');
-      expect(preflight).toContain(
-        '[sharedNavigationItem setRightBarButtonItems:rightItems animated:NO]',
-      );
-      expect(preflight).toContain('sharedNavigationController.navigationBar layoutIfNeeded');
-      expect(preflight.indexOf('setRightBarButtonItems:rightItems animated:NO')).toBeLessThan(
-        preflight.indexOf('navigation.destination-prepared'),
-      );
-
-      const headerRefresh = readFileSync(
-        join(temporaryRoot, 'ios/RNSScreenStackHeaderConfig.mm'),
-        'utf8',
-      );
-      expect(headerRefresh).toContain('consumeSharedToolbarPrePopPreparationForViewController:vc');
-      expect(headerRefresh).toContain('preservePreparedSharedToolbarItems');
-      expect(headerRefresh).toContain(
-        'Emporio Rigatti: preserve prepared toolbar during destination willShow',
-      );
-      expect(headerRefresh).toContain(
-        'Emporio Rigatti: keep prepared destination toolbar configuration',
-      );
-      expect(headerRefresh).toContain(
-        'Emporio Rigatti: do not duplicate prepared left toolbar item',
-      );
-      expect(headerRefresh).toContain(
-        'Emporio Rigatti: do not duplicate prepared right toolbar item',
-      );
-
-      const barButtonItem = readFileSync(join(temporaryRoot, 'ios/RNSBarButtonItem.mm'), 'utf8');
-      expect(barButtonItem).toContain('rns_refreshConfigurationFromItem:');
-      expect(barButtonItem).toContain('_rnsCanRefreshConfiguration');
-      expect(barButtonItem).toContain('dict[@"imageSource"] == nil');
-      expect(barButtonItem).toContain('dict[@"badge"] == nil');
-      expect(barButtonItem).toContain('_itemAction = [source->_itemAction copy]');
-      expect(barButtonItem).toContain('_buttonId = [source->_buttonId copy]');
-      expect(barButtonItem).toContain('self.menu = source.menu');
-
-      const screen = readFileSync(join(temporaryRoot, 'ios/RNSScreen.mm'), 'utf8');
-      expect(screen).toContain('[self setGestureEnabled:newScreenProps.gestureEnabled]');
-      expect(screen).toContain('newScreenProps.hidesBottomBarWhenPushed');
-    } finally {
-      rmSync(temporaryRoot, { recursive: true, force: true });
+    for (const relativePath of fixtureFiles) {
+      const destination = join(fixtureScreensRoot, relativePath);
+      mkdirSync(dirname(destination), { recursive: true });
+      copyFileSync(join(screensSourceRoot, relativePath), destination);
     }
+
+    writeFileSync(
+      join(fixtureScreensRoot, 'package.json'),
+      JSON.stringify({ name: 'react-native-screens', version: '4.26.2' }),
+    );
+
+    const configPluginsStub = join(fixtureRoot, 'config-plugins-stub.cjs');
+    writeFileSync(
+      configPluginsStub,
+      [
+        'exports.createRunOncePlugin = (plugin) => plugin;',
+        'exports.withDangerousMod = (config, [platform, action]) => ({ ...config, __platform: platform, __action: action });',
+      ].join('\n'),
+    );
+
+    const fixturePluginDirectory = join(fixtureRoot, 'plugins');
+    mkdirSync(fixturePluginDirectory, { recursive: true });
+    const fixturePluginPath = join(
+      fixturePluginDirectory,
+      'withRNScreensHideBottomBarWhenPushed.js',
+    );
+    const pluginSource = readFileSync(
+      join(projectRoot, 'plugins', 'withRNScreensHideBottomBarWhenPushed.js'),
+      'utf8',
+    ).replace("require('expo/config-plugins')", `require(${JSON.stringify(configPluginsStub)})`);
+    writeFileSync(fixturePluginPath, pluginSource);
+
+    const fixtureRequire = createRequire(fixturePluginPath);
+    const plugin = fixtureRequire(fixturePluginPath) as (
+      config: Record<string, unknown>,
+    ) => Record<string, unknown>;
+    const configured = plugin({});
+    runDangerousMod = configured.__action as typeof runDangerousMod;
+    if (configured.__platform !== 'ios' || runDangerousMod === undefined) {
+      throw new Error('The iOS dangerous mod was not registered by the config plugin.');
+    }
+
+    runDangerousMod(configured);
+
+    generatedController = readFileSync(
+      join(fixtureScreensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
+      'utf8',
+    );
+    generatedStack = readFileSync(join(fixtureScreensRoot, 'ios', 'RNSScreenStack.mm'), 'utf8');
+    generatedHeaderConfig = readFileSync(
+      join(fixtureScreensRoot, 'ios', 'RNSScreenStackHeaderConfig.mm'),
+      'utf8',
+    );
+  });
+
+  afterAll(() => {
+    if (fixtureRoot !== '' && existsSync(fixtureRoot)) {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('retains materialized arrays and their original UIBarButtonItem instances per root', () => {
+    const capture = sectionBetween(
+      generatedController,
+      '- (void)captureSharedToolbarItemsFromViewController:',
+      '- (void)prepareSharedNavigationBarForViewController:',
+    );
+
+    expect(generatedController).toContain('RNSSharedToolbarMaterializedItemsKey');
+    expect(capture).toContain('navigationController.viewControllers.count != 1');
+    expect(capture).toContain(
+      'NSDictionary *materialized = @{\@"left": item.leftBarButtonItems ?: @[], \@"right": item.rightBarButtonItems ?: @[]}',
+    );
+    expect(capture).toContain(
+      'objc_setAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey, materialized, OBJC_ASSOCIATION_RETAIN_NONATOMIC)',
+    );
+    expect(capture).toContain('[item setLeftBarButtonItems:nil animated:NO]');
+    expect(capture).toContain('[item setRightBarButtonItems:nil animated:NO]');
+    expect(capture).not.toContain('copy');
+  });
+
+  it('keeps the nested root bar suppressed and the shared navigation controller as owner', () => {
+    const rootPreparation = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:',
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+    );
+
+    expect(rootPreparation).toContain(
+      'sharedNavigationController.topViewController != tabsScreenViewController',
+    );
+    expect(rootPreparation).toContain(
+      'nestedNavigationController setNavigationBarHidden:YES animated:NO',
+    );
+    expect(rootPreparation).toContain(
+      'sharedNavigationController.topViewController.navigationItem',
+    );
+    expect(rootPreparation).toContain('if (sharedNavigationController.navigationBarHidden)');
+  });
+
+  it('preserves tab-selection preparation before UIKit commits the selected index', () => {
+    const setSelectedIndex = sectionBetween(
+      generatedController,
+      '- (void)setSelectedIndex:(NSUInteger)selectedIndex',
+      '- (void)setSelectedViewController:',
+    );
+
+    expect(setSelectedIndex.indexOf('prepareSharedNavigationBarForViewController')).toBeLessThan(
+      setSelectedIndex.indexOf('[super setSelectedIndex:selectedIndex]'),
+    );
+  });
+
+  it('prepares a validated destination root in willShow despite an active transition', () => {
+    const willShow = sectionBetween(
+      generatedStack,
+      '- (void)navigationController:(UINavigationController *)navigationController\n      willShowViewController:',
+      '- (void)presentationControllerDidDismiss:',
+    );
+    const destinationHandoff = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+      '- (void)synchronizeSharedNavigationBarWithReason:',
+    );
+    const rootPreparation = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:',
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+    );
+
+    expect(willShow.indexOf('[RNSScreenStackHeaderConfig willShowViewController:')).toBeLessThan(
+      willShow.indexOf('prepareSharedNavigationBarForWillShowDestinationViewController'),
+    );
+    expect(destinationHandoff).toContain('nestedNavigationController.viewControllers.count != 1');
+    expect(destinationHandoff).toContain(
+      'nestedNavigationController.topViewController != destinationViewController',
+    );
+    expect(destinationHandoff).toContain(
+      'objc_getAssociatedObject(destinationViewController.navigationItem',
+    );
+    expect(destinationHandoff).toContain('self.selectedViewController != rootTabViewController');
+    expect(destinationHandoff).toContain('allowRootDestinationDuringTransition:YES');
+    expect(rootPreparation).toContain('hasActiveTransition');
+    expect(rootPreparation).toContain(
+      'allowRootDestinationDuringTransition && nestedNavigationController.viewControllers.count == 1',
+    );
+    expect(rootPreparation).toContain(
+      'materializedItems = objc_getAssociatedObject(sourceNavigationItem',
+    );
+    expect(rootPreparation.indexOf('materializedItems = objc_getAssociatedObject')).toBeLessThan(
+      rootPreparation.indexOf('Only a cached, validated root destination'),
+    );
+    expect(rootPreparation.indexOf('Only a cached, validated root destination')).toBeLessThan(
+      rootPreparation.indexOf('nestedNavigationController setNavigationBarHidden:YES'),
+    );
+  });
+
+  it('captures materialized root items before running generic header resync', () => {
+    const synchronizationHelper = sectionBetween(
+      generatedHeaderConfig,
+      'static void RNSSynchronizeSharedTabToolbar(',
+      '\n}',
+    );
+
+    expect(synchronizationHelper).toContain('if (didMaterialize)');
+    expect(
+      synchronizationHelper.indexOf('captureSharedToolbarItemsFromViewController'),
+    ).toBeLessThan(synchronizationHelper.indexOf('synchronizeSharedNavigationBarWithReason'));
+  });
+
+  it('keeps generic synchronization blocked during transitions and limits didShow to reconciliation', () => {
+    const genericRootSync = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:',
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+    );
+    const didShow = sectionBetween(
+      generatedStack,
+      '- (void)navigationController:(UINavigationController *)navigationController\n       didShowViewController:',
+      '- (void)markChildUpdated',
+    );
+
+    expect(genericRootSync).toContain('if (!isTransitionCompletion && hasActiveTransition)');
+    expect(genericRootSync).toContain('allowRootDestinationDuringTransition');
+    expect(
+      generatedStack.indexOf('prepareSharedNavigationBarForWillShowDestinationViewController'),
+    ).toBeLessThan(generatedStack.indexOf('didShowViewController:'));
+    expect(didShow).toContain('synchronizeSharedNavigationBarWithReason:@"navigation-did-show"');
+  });
+
+  it('delivers the same detached custom view once through UINavigationItem setters', () => {
+    const rootPreparation = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:',
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+    );
+
+    expect(rootPreparation).toContain(
+      'RNSSharedToolbarItemsNeedAttachment(leftItems, sharedNavigationController.navigationBar)',
+    );
+    expect(rootPreparation).toContain(
+      'RNSSharedToolbarItemsNeedAttachment(rightItems, sharedNavigationController.navigationBar)',
+    );
+    expect(rootPreparation).toContain(
+      'setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement',
+    );
+    expect(rootPreparation).toContain(
+      'setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement',
+    );
+    expect(
+      rootPreparation.match(
+        /setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement/g,
+      ),
+    ).toHaveLength(1);
+    expect(
+      rootPreparation.match(
+        /setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement/g,
+      ),
+    ).toHaveLength(1);
+    expect(rootPreparation).not.toContain('layoutIfNeeded');
+    expect(rootPreparation).not.toContain('setLeftBarButtonItems:nil');
+    expect(rootPreparation).not.toContain('setRightBarButtonItems:nil');
+    expect(rootPreparation).not.toContain('removeFromSuperview');
+    expect(rootPreparation).not.toContain('addSubview:');
+  });
+
+  it('leaves didShow assignments as fallback and preserves semantic animation policy', () => {
+    const rootPreparation = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:',
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+    );
+
+    expect(rootPreparation).toContain('RNSHomeToolbarItemSetsAreSemanticallyEqual');
+    expect(rootPreparation).toContain(
+      '!(isSelectedHomeTab && isHeaderMaterializationResync && areCompleteToolbarSetsSemanticallyEqual)',
+    );
+    expect(rootPreparation).toContain('!isTransitionCompletion');
+    expect(rootPreparation).toContain(
+      'RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)',
+    );
+    expect(rootPreparation).toContain(
+      'RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)',
+    );
+  });
+
+  it('uses one generic left/right item path without screen-specific toolbar branches', () => {
+    const rootPreparation = sectionBetween(
+      generatedController,
+      '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:',
+      '- (void)prepareSharedNavigationBarForWillShowDestinationViewController:',
+    );
+
+    expect(rootPreparation).toContain(
+      'NSArray<UIBarButtonItem *> *leftItems = materializedItems[@"left"]',
+    );
+    expect(rootPreparation).toContain(
+      'NSArray<UIBarButtonItem *> *rightItems = materializedItems[@"right"]',
+    );
+    expect(rootPreparation).toContain('setLeftBarButtonItems:leftItems');
+    expect(rootPreparation).toContain('setRightBarButtonItems:rightItems');
+    expect(rootPreparation).not.toContain('finance-period');
+    expect(rootPreparation).not.toContain('settings-profile');
+    expect(rootPreparation).not.toContain('home-search');
+  });
+
+  it('keeps the 44x44 Home anchor and does not generate repeated ownership helpers', () => {
+    const homeToolbar = readFileSync(
+      join(projectRoot, 'src', 'components', 'navigation', 'HomeToolbar.tsx'),
+      'utf8',
+    );
+
+    expect(homeToolbar).toContain('home-toolbar-item:leading-anchor:44x44');
+    expect(
+      generatedController.match(
+        /static UINavigationController \*RNSFindNestedNavigationController/g,
+      ),
+    ).toHaveLength(1);
+    expect(generatedController.match(/RNSSharedToolbarItemsNeedAttachment\(/g)).toHaveLength(3);
+    expect(generatedController).toContain(
+      'nestedNavigationController setNavigationBarHidden:YES animated:NO',
+    );
+  });
+
+  it('applies the plugin idempotently to the generated native source', () => {
+    if (runDangerousMod === undefined) {
+      throw new Error('The iOS dangerous mod is unavailable.');
+    }
+    const fixtureScreensRoot = join(fixtureRoot, 'node_modules', 'react-native-screens');
+    const generatedPaths = fixtureFiles.map((relativePath) =>
+      join(fixtureScreensRoot, relativePath),
+    );
+    const before = generatedPaths.map((filePath) => readFileSync(filePath, 'utf8'));
+
+    runDangerousMod({});
+
+    const after = generatedPaths.map((filePath) => readFileSync(filePath, 'utf8'));
+    expect(after).toEqual(before);
   });
 });

@@ -1,0 +1,133 @@
+name: Swift preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-card-context-menu:
+    name: Compile NativeCardContextMenu (iOS Simulator)
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      APP_VARIANT: standard
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache npm and CocoaPods downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/Library/Caches/CocoaPods
+          key: native-sim-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/yarn.lock', '**/pnpm-lock.yaml') }}
+          restore-keys: native-sim-${{ runner.os }}-
+
+      - name: Install JavaScript dependencies
+        timeout-minutes: 20
+        run: npm ci
+
+      - name: Report Xcode version
+        id: xcode
+        run: |
+          set -euo pipefail
+          XCODE_VERSION=$(xcodebuild -version | awk '
+            /^Xcode / { version = $2 }
+            /^Build version / { build = $3 }
+            END {
+              if (version == "" || build == "") exit 1
+              printf "%s-%s", version, build
+            }')
+          echo "Xcode cache version: $XCODE_VERSION"
+          echo "version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate iOS project
+        timeout-minutes: 20
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods
+        timeout-minutes: 25
+        run: npx pod-install ios
+
+      - name: Restore preflight-only DerivedData
+        id: deriveddata
+        uses: actions/cache/restore@v4
+        with:
+          path: build/native-card-context-menu-preflight-derived-data
+          key: native-card-context-menu-preflight-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('package-lock.json', 'app.config.js', 'plugins/**', 'modules/native-card-context-menu/**') }}
+
+      - name: Verify generated Pods target and configuration
+        env:
+          TARGET_NAME: NativeCardContextMenu
+        run: |
+          set -euo pipefail
+          PODS_PROJECT="ios/Pods/Pods.xcodeproj"
+          [ -d "$PODS_PROJECT" ] || { echo "::error::CocoaPods project not found at $PODS_PROJECT"; exit 1; }
+
+          TARGETS_JSON=$(xcodebuild -list -json -project "$PODS_PROJECT")
+          printf '%s' "$TARGETS_JSON" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => (input += chunk));
+            process.stdin.on("end", () => {
+              const project = JSON.parse(input).project;
+              const target = process.argv[1];
+              if (!project?.targets?.includes(target)) {
+                console.error(`::error::Generated Pods project has no target named ${target}`);
+                console.error(`Available targets: ${(project?.targets || []).join(", ")}`);
+                process.exit(1);
+              }
+              console.log(`Generated Pods target confirmed: ${target}`);
+            });
+          ' "$TARGET_NAME"
+
+          mkdir -p build/native-card-context-menu-preflight
+          xcodebuild \
+            -showBuildSettings \
+            -project "$PODS_PROJECT" \
+            -target "$TARGET_NAME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            > build/native-card-context-menu-preflight/build-settings.txt
+
+          grep -Fq 'CONFIGURATION = Release' build/native-card-context-menu-preflight/build-settings.txt || {
+            echo '::error::Generated target did not resolve to the Release configuration'
+            exit 1
+          }
+          grep -Fq 'SDKROOT = iphonesimulator' build/native-card-context-menu-preflight/build-settings.txt || {
+            echo '::error::Generated target did not resolve to the iOS Simulator SDK'
+            exit 1
+          }
+          echo "Confirmed $TARGET_NAME / Release / iphonesimulator"
+
+      - name: Compile NativeCardContextMenu only
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/Pods/Pods.xcodeproj \
+            -target NativeCardContextMenu \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build/native-card-context-menu-preflight-derived-data \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build/native-card-context-menu-preflight/xcodebuild.log
+
+      - name: Save preflight-only DerivedData
+        if: success() && steps.deriveddata.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/native-card-context-menu-preflight-derived-data
+          key: native-card-context-menu-preflight-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('package-lock.json', 'app.config.js', 'plugins/**', 'modules/native-card-context-menu/**') }}

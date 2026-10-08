@@ -40,20 +40,6 @@ jobs:
         timeout-minutes: 20
         run: npm ci
 
-      - name: Report Xcode version
-        id: xcode
-        run: |
-          set -euo pipefail
-          XCODE_VERSION=$(xcodebuild -version | awk '
-            /^Xcode / { version = $2 }
-            /^Build version / { build = $3 }
-            END {
-              if (version == "" || build == "") exit 1
-              printf "%s-%s", version, build
-            }')
-          echo "Xcode cache version: $XCODE_VERSION"
-          echo "version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Generate iOS project
         timeout-minutes: 20
         run: npx expo prebuild --platform ios --no-install
@@ -61,13 +47,6 @@ jobs:
       - name: Install CocoaPods
         timeout-minutes: 25
         run: npx pod-install ios
-
-      - name: Restore preflight-only DerivedData
-        id: deriveddata
-        uses: actions/cache/restore@v4
-        with:
-          path: build/native-card-context-menu-preflight-derived-data
-          key: native-card-context-menu-preflight-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('package-lock.json', 'app.config.js', 'plugins/**', 'modules/native-card-context-menu/**') }}
 
       - name: Verify generated Pods target and configuration
         env:
@@ -121,13 +100,5 @@ jobs:
             -target NativeCardContextMenu \
             -configuration Release \
             -sdk iphonesimulator \
-            -derivedDataPath build/native-card-context-menu-preflight-derived-data \
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build/native-card-context-menu-preflight/xcodebuild.log
-
-      - name: Save preflight-only DerivedData
-        if: success() && steps.deriveddata.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: build/native-card-context-menu-preflight-derived-data
-          key: native-card-context-menu-preflight-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('package-lock.json', 'app.config.js', 'plugins/**', 'modules/native-card-context-menu/**') }}

@@ -218,6 +218,8 @@ describe('reusable native context menu preview', () => {
     expect(dismissCoordinator).toContain('transitionContext.isInteractive');
     expect(dismissCoordinator).toContain('pan finish progress=');
     expect(dismissCoordinator).toContain('pan cancel progress=');
+    expect(dismissCoordinator.match(/self\.formatted\(progress\)/g)).toHaveLength(3);
+    expect(dismissCoordinator).not.toContain('\\(formatted(progress)');
     expect(dismissCoordinator).toContain('dismiss teardown after destination didShow');
     expect(dismissCoordinator).toContain('finished && !transitionContext.transitionWasCancelled');
   });

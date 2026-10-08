@@ -179,10 +179,10 @@ final class NativePeekPopInteractiveDismissCoordinator: NSObject,
       interactionController?.update(progress)
       let velocity = gestureWindow.map { gesture.velocity(in: $0).y } ?? 0
       if progress >= 0.34 || (progress >= 0.1 && velocity >= 900) {
-        logger.notice("pan finish progress=\(formatted(progress), privacy: .public)")
+        logger.notice("pan finish progress=\(self.formatted(progress), privacy: .public)")
         interactionController?.finish()
       } else {
-        logger.notice("pan cancel progress=\(formatted(progress), privacy: .public)")
+        logger.notice("pan cancel progress=\(self.formatted(progress), privacy: .public)")
         interactionController?.cancel()
       }
     case .cancelled, .failed:
@@ -191,7 +191,7 @@ final class NativePeekPopInteractiveDismissCoordinator: NSObject,
       }
       let progress = normalizedProgress(for: gesture)
       interactionController?.update(progress)
-      logger.notice("pan cancelled by recognizer progress=\(formatted(progress), privacy: .public)")
+      logger.notice("pan cancelled by recognizer progress=\(self.formatted(progress), privacy: .public)")
       interactionController?.cancel()
     default:
       break

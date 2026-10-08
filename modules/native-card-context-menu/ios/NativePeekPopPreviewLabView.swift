@@ -59,6 +59,9 @@ public final class NativePeekPopPreviewLabView: ExpoView {
       actions: actions,
       menuTitle: menuTitle,
       secondaryCard: secondaryCard,
+      interactiveNavigationControllerProvider: { [weak self] in
+        self?.interactiveNavigationController
+      },
       onClose: { [weak self] identifier in
         self?.onClose(["identifier": identifier])
       },
@@ -166,6 +169,7 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
   private var actions: [[String: Any]]
   private var menuTitle: String
   private var secondaryCard: [String: Any]?
+  private let interactiveNavigationControllerProvider: () -> UINavigationController?
   private let onClose: (String) -> Void
   private let onAction: (String, String) -> Void
   private let onOpen: (String, [String: Any]) -> Void
@@ -178,6 +182,7 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
     actions: [[String: Any]],
     menuTitle: String,
     secondaryCard: [String: Any]?,
+    interactiveNavigationControllerProvider: @escaping () -> UINavigationController?,
     onClose: @escaping (String) -> Void,
     onAction: @escaping (String, String) -> Void,
     onOpen: @escaping (String, [String: Any]) -> Void
@@ -187,6 +192,7 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
     self.actions = actions
     self.menuTitle = menuTitle
     self.secondaryCard = secondaryCard
+    self.interactiveNavigationControllerProvider = interactiveNavigationControllerProvider
     self.onClose = onClose
     self.onAction = onAction
     self.onOpen = onOpen
@@ -410,7 +416,7 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
           rawValue: self.secondaryCard?["presentationStyle"] as? String ?? "page"
         ) ?? .page
         return style == .interactiveViewer
-          ? self.interactiveNavigationController
+          ? self.interactiveNavigationControllerProvider()
           : self.navigationController
       }
       secondaryCoordinator.onAction = { [weak self] identifier, actionId in

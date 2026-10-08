@@ -144,8 +144,12 @@ describe('reusable native context menu preview', () => {
     );
     expect(labView).toContain('rootView.backgroundColor = .clear');
     expect(labView).toContain('return style == .interactiveViewer');
-    expect(labView).toContain('? self.interactiveNavigationController');
+    expect(labView).toContain('? self.interactiveNavigationControllerProvider()');
     expect(labView).toContain(': self.navigationController');
+    expect(labView).toContain('interactiveNavigationControllerProvider: { [weak self] in');
+    expect(labView).toContain('self?.interactiveNavigationController');
+    expect(labView).toContain('self.interactiveNavigationControllerProvider()');
+    expect(labView).toContain('interactiveNavigationController = nil');
     expect(coordinator).toContain(
       'previewController.prepareForInteractiveViewer(in: navigationController)',
     );

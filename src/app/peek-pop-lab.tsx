@@ -28,6 +28,35 @@ const preview = {
 
 const actions = [{ id: 'paid', title: 'Pago', systemImage: 'checkmark.circle' }] as const;
 
+const expandedPanelPreview = {
+  title: 'Cliente Exemplo',
+  subtitle: 'Cliente Varejo',
+  leadingSystemImage: 'person.crop.circle.fill',
+  summary: {
+    label: 'Valor em aberto',
+    value: 'R$ 306,00',
+    subtitle: '3 baldes em aberto',
+  },
+  sections: [
+    {
+      title: 'Últimos pagamentos',
+      rows: [
+        { title: '30 Set 2026', subtitle: 'Pix', value: 'R$ 102,00' },
+        { title: '23 Set 2026', subtitle: 'Dinheiro', value: 'R$ 99,60' },
+        { title: '16 Set 2026', subtitle: 'Pix', value: 'R$ 50,00' },
+      ],
+    },
+    {
+      title: 'Informações adicionais',
+      rows: [
+        { title: 'Entrega', subtitle: 'Segunda, quarta e sexta' },
+        { title: 'Endereço', subtitle: 'Rua de demonstração, 123' },
+        { title: 'Forma de pagamento', value: 'Pix ou dinheiro' },
+      ],
+    },
+  ],
+} as const;
+
 export default function PeekPopLabScreen() {
   const router = useRouter();
 
@@ -45,6 +74,14 @@ export default function PeekPopLabScreen() {
       onAction={handleAction}
       onClose={() => router.back()}
       preview={preview}
+      secondaryCard={{
+        title: 'Prévia → Painel expandido',
+        identifier: 'settings-peek-pop-expanded-panel',
+        preview: expandedPanelPreview,
+        actions,
+        menuTitle: 'Cliente',
+        presentationStyle: 'expandedPanel',
+      }}
       style={styles.host}
     />
   );

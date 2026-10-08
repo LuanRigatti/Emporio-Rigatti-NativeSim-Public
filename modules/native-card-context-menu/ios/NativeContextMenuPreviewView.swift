@@ -17,6 +17,9 @@ public final class NativeContextMenuPreviewView: ExpoView {
   var menuTitle = "" {
     didSet { coordinator?.menuTitle = menuTitle }
   }
+  var presentationStyle: NativeContextMenuPreviewPresentationStyle = .page {
+    didSet { coordinator?.presentationStyle = presentationStyle }
+  }
 
   private var coordinator: NativeContextMenuPreviewCoordinator?
 
@@ -32,5 +35,6 @@ public final class NativeContextMenuPreviewView: ExpoView {
     coordinator?.onOpen = { [weak self] identifier, preview in
       self?.onOpen(["identifier": identifier, "preview": preview])
     }
+    coordinator?.presentationStyle = presentationStyle
   }
 }

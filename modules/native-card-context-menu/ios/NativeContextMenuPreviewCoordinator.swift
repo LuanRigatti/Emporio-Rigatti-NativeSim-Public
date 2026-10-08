@@ -5,6 +5,11 @@ enum NativeContextMenuPreviewCommitBehavior {
   case pushPreviewController
 }
 
+enum NativeContextMenuPreviewPresentationStyle: String {
+  case page
+  case expandedPanel
+}
+
 final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteractionDelegate {
   private weak var hostView: UIView?
   private var interaction: UIContextMenuInteraction?
@@ -13,6 +18,7 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
   var previewContent: [String: Any] = [:]
   var actions: [[String: Any]] = []
   var menuTitle = ""
+  var presentationStyle: NativeContextMenuPreviewPresentationStyle = .page
   var onAction: ((String, String) -> Void)?
   var onOpen: ((String, [String: Any]) -> Void)?
   var navigationControllerProvider: (() -> UINavigationController?)?
@@ -42,12 +48,13 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
 
     let cardIdentifier = identifier
     let content = previewContent
+    let style = presentationStyle
     let actionItems = actions
 
     return UIContextMenuConfiguration(
       identifier: cardIdentifier as NSString,
       previewProvider: {
-        NativeContextMenuPreviewViewController(content: content)
+        NativeContextMenuPreviewViewController(content: content, presentationStyle: style)
       }
     ) { [weak self] _ in
       self?.makeMenu(actions: actionItems, cardIdentifier: cardIdentifier) ?? UIMenu()

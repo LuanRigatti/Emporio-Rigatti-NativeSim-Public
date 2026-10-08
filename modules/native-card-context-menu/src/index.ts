@@ -7,9 +7,11 @@ export type {
   NativeContextMenuActionEvent,
   NativeContextMenuOpenEvent,
   NativeContextMenuPreviewContent,
+  NativeContextMenuPreviewPresentationStyle,
   NativeContextMenuPreviewRow,
   NativeContextMenuPreviewSection,
   NativeContextMenuPreviewViewProps,
   NativePeekPopPreviewLabCloseEvent,
+  NativePeekPopPreviewLabCard,
   NativePeekPopPreviewLabViewProps,
 } from './NativeContextMenuPreview.types';

@@ -27,6 +27,8 @@ export type NativeContextMenuPreviewContent = {
   sections?: readonly NativeContextMenuPreviewSection[];
 };
 
+export type NativeContextMenuPreviewPresentationStyle = 'page' | 'expandedPanel';
+
 export type NativeContextMenuAction = {
   id: string;
   title: string;
@@ -60,9 +62,19 @@ export type NativeContextMenuPreviewViewProps = ViewProps & {
   preview: NativeContextMenuPreviewContent;
   actions: readonly NativeContextMenuAction[];
   menuTitle?: string;
+  presentationStyle?: NativeContextMenuPreviewPresentationStyle;
   children?: ReactNode;
   onAction?: (event: NativeContextMenuActionEvent) => void;
   onOpen?: (event: NativeContextMenuOpenEvent) => void;
+};
+
+export type NativePeekPopPreviewLabCard = {
+  title: string;
+  identifier: string;
+  preview: NativeContextMenuPreviewContent;
+  actions: readonly NativeContextMenuAction[];
+  menuTitle?: string;
+  presentationStyle?: NativeContextMenuPreviewPresentationStyle;
 };
 
 export type NativePeekPopPreviewLabViewProps = ViewProps & {
@@ -70,6 +82,7 @@ export type NativePeekPopPreviewLabViewProps = ViewProps & {
   preview: NativeContextMenuPreviewContent;
   actions: readonly NativeContextMenuAction[];
   menuTitle?: string;
+  secondaryCard?: NativePeekPopPreviewLabCard;
   onAction?: (event: NativeContextMenuActionEvent) => void;
   onOpen?: (event: NativeContextMenuOpenEvent) => void;
   onClose?: (event: NativePeekPopPreviewLabCloseEvent) => void;

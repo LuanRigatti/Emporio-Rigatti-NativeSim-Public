@@ -11,6 +11,7 @@ export const NativePeekPopPreviewLabView: ComponentType<NativePeekPopPreviewLabV
   onClose: _onClose,
   onOpen: _onOpen,
   preview: _preview,
+  secondaryCard: _secondaryCard,
   ...viewProps
 }) => (
   <View {...viewProps} accessibilityRole="summary">

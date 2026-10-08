@@ -22,6 +22,10 @@ public final class NativeContextMenuPreviewModule: Module {
       Prop("menuTitle") { (view: NativeContextMenuPreviewView, menuTitle: String) in
         view.menuTitle = menuTitle
       }
+
+      Prop("presentationStyle") { (view: NativeContextMenuPreviewView, style: String) in
+        view.presentationStyle = NativeContextMenuPreviewPresentationStyle(rawValue: style) ?? .page
+      }
     }
   }
 }

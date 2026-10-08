@@ -2,12 +2,17 @@ import UIKit
 
 final class NativeContextMenuPreviewViewController: UIViewController {
   private let content: [String: Any]
+  private let presentationStyle: NativeContextMenuPreviewPresentationStyle
   private let scrollView = UIScrollView()
   private let cardView = UIView()
   private let contentStack = UIStackView()
 
-  init(content: [String: Any]) {
+  init(
+    content: [String: Any],
+    presentationStyle: NativeContextMenuPreviewPresentationStyle = .page
+  ) {
     self.content = content
+    self.presentationStyle = presentationStyle
     super.init(nibName: nil, bundle: nil)
     title = content["title"] as? String
     navigationItem.largeTitleDisplayMode = .never
@@ -37,6 +42,11 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   }
 
   private func buildLayout() {
+    if presentationStyle == .expandedPanel {
+      buildExpandedPanelLayout()
+      return
+    }
+
     view.backgroundColor = .secondarySystemGroupedBackground
 
     scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -69,6 +79,50 @@ final class NativeContextMenuPreviewViewController: UIViewController {
       contentStack.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -22),
       contentStack.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 24),
       contentStack.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -24),
+    ])
+  }
+
+  private func buildExpandedPanelLayout() {
+    let safeArea = view.safeAreaLayoutGuide
+    view.backgroundColor = .systemGroupedBackground
+
+    cardView.translatesAutoresizingMaskIntoConstraints = false
+    cardView.backgroundColor = .systemBackground
+    cardView.layer.cornerRadius = 32
+    cardView.layer.cornerCurve = .continuous
+    cardView.clipsToBounds = true
+    view.addSubview(cardView)
+
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.alwaysBounceVertical = false
+    scrollView.showsVerticalScrollIndicator = false
+    cardView.addSubview(scrollView)
+
+    contentStack.translatesAutoresizingMaskIntoConstraints = false
+    contentStack.axis = .vertical
+    contentStack.spacing = 22
+    scrollView.addSubview(contentStack)
+
+    let preferredWidth = cardView.widthAnchor.constraint(equalTo: safeArea.widthAnchor, constant: -32)
+    preferredWidth.priority = .defaultHigh
+
+    NSLayoutConstraint.activate([
+      cardView.centerXAnchor.constraint(equalTo: safeArea.centerXAnchor),
+      cardView.centerYAnchor.constraint(equalTo: safeArea.centerYAnchor),
+      cardView.widthAnchor.constraint(lessThanOrEqualToConstant: 640),
+      cardView.leadingAnchor.constraint(greaterThanOrEqualTo: safeArea.leadingAnchor, constant: 16),
+      cardView.trailingAnchor.constraint(lessThanOrEqualTo: safeArea.trailingAnchor, constant: -16),
+      cardView.heightAnchor.constraint(equalTo: safeArea.heightAnchor, multiplier: 0.82),
+      preferredWidth,
+      scrollView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: cardView.trailingAnchor),
+      scrollView.topAnchor.constraint(equalTo: cardView.topAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: cardView.bottomAnchor),
+      contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 24),
+      contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -24),
+      contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 24),
+      contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
+      contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -48),
     ])
   }
 
@@ -270,14 +324,17 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   private func updatePreferredContentSize() {
     guard let window = view.window else {
       if preferredContentSize == .zero {
-        preferredContentSize = CGSize(width: 360, height: 420)
+        let height: CGFloat = presentationStyle == .expandedPanel ? 520 : 420
+        preferredContentSize = CGSize(width: 360, height: height)
       }
       return
     }
 
     let screenBounds = window.windowScene?.screen.bounds ?? window.bounds
     let safeHeight = screenBounds.height - window.safeAreaInsets.top - window.safeAreaInsets.bottom
-    let height = min(460, max(240, safeHeight - 180))
+    let maxHeight: CGFloat = presentationStyle == .expandedPanel ? 560 : 460
+    let minHeight: CGFloat = presentationStyle == .expandedPanel ? 320 : 240
+    let height = min(maxHeight, max(minHeight, safeHeight - 180))
     let width = min(400, max(280, screenBounds.width - 32))
     let nextSize = CGSize(width: width, height: height)
 

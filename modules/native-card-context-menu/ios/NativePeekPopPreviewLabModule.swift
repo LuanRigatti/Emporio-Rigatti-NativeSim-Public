@@ -22,6 +22,10 @@ public final class NativePeekPopPreviewLabModule: Module {
       Prop("menuTitle") { (view: NativePeekPopPreviewLabView, menuTitle: String) in
         view.menuTitle = menuTitle
       }
+
+      Prop("secondaryCard") { (view: NativePeekPopPreviewLabView, secondaryCard: [String: Any]) in
+        view.secondaryCard = secondaryCard
+      }
     }
   }
 }

@@ -27,6 +27,12 @@ describe('reusable native context menu preview', () => {
     'modules/native-card-context-menu/ios/NativePeekPopPreviewLabModule.swift',
   );
   const route = readSource('src/app/peek-pop-lab.tsx');
+  const labModuleView = readSource(
+    'modules/native-card-context-menu/ios/NativePeekPopPreviewLabView.swift',
+  );
+  const labFallback = readSource(
+    'modules/native-card-context-menu/src/NativePeekPopPreviewLabView.tsx',
+  );
   const rootLayout = readSource('src/app/_layout.tsx');
   const settings = readSource('src/features/settings/components/SettingsScreen.tsx');
 
@@ -45,7 +51,9 @@ describe('reusable native context menu preview', () => {
     expect(coordinator).toContain('UIContextMenuInteractionDelegate');
     expect(coordinator).toContain('UIContextMenuConfiguration(');
     expect(coordinator).toContain('previewProvider:');
-    expect(coordinator).toContain('NativeContextMenuPreviewViewController(content: content)');
+    expect(coordinator).toContain(
+      'NativeContextMenuPreviewViewController(content: content, presentationStyle: style)',
+    );
     expect(coordinator).toContain('UIMenu(');
     expect(coordinator).toContain('UIAction(');
     expect(coordinator).toContain('animator.preferredCommitStyle = .pop');
@@ -54,8 +62,36 @@ describe('reusable native context menu preview', () => {
     expect(coordinator).toContain(
       'navigationController.pushViewController(previewController, animated: false)',
     );
+    expect(coordinator).toContain('animator.preferredCommitStyle = .pop');
+    expect(coordinator).toContain('animator.previewViewController');
+    expect(previewController).toContain(
+      'presentationStyle: NativeContextMenuPreviewPresentationStyle = .page',
+    );
     expect(previewController).toContain('UIFontMetrics');
     expect(previewController).toContain('.systemBackground');
+  });
+
+  it('keeps the existing page presentation as the default and supports a UIKit expanded panel style', () => {
+    expect(coordinator).toContain(
+      'var presentationStyle: NativeContextMenuPreviewPresentationStyle = .page',
+    );
+    expect(publicTypes).toContain("'page' | 'expandedPanel'");
+    expect(nativeModule).toContain('Prop("presentationStyle")');
+    expect(previewController).toContain('if presentationStyle == .expandedPanel');
+    expect(previewController).toContain('cardView.layer.cornerRadius = 32');
+    expect(previewController).toContain(
+      'cardView.centerYAnchor.constraint(equalTo: safeArea.centerYAnchor)',
+    );
+    expect(previewController).toContain(
+      'cardView.heightAnchor.constraint(equalTo: safeArea.heightAnchor, multiplier: 0.82)',
+    );
+    expect(previewController).toContain(
+      'cardView.widthAnchor.constraint(lessThanOrEqualToConstant: 640)',
+    );
+    expect(previewController).toContain('scrollView.contentLayoutGuide');
+    expect(previewController).toContain('presentationStyle == .expandedPanel ? 560 : 460');
+    expect(previewController).not.toContain('UISheetPresentationController');
+    expect(previewController).not.toContain('present(');
   });
 
   it('supports TS-configured identity, preview content, actions, and open callbacks', () => {
@@ -64,12 +100,16 @@ describe('reusable native context menu preview', () => {
     expect(publicTypes).toContain('NativeContextMenuAction');
     expect(publicTypes).toContain('onAction?');
     expect(publicTypes).toContain('onOpen?');
+    expect(publicTypes).toContain('secondaryCard?: NativePeekPopPreviewLabCard');
     expect(genericComponent).toContain("requireNativeView('NativeContextMenuPreview')");
     expect(nativeModule).toContain('Prop("identifier")');
     expect(nativeModule).toContain('Prop("preview")');
     expect(nativeModule).toContain('Prop("actions")');
     expect(nativeModule).toContain('Events("onAction", "onOpen")');
     expect(labModule).toContain('Events("onClose", "onAction", "onOpen")');
+    expect(labModule).toContain('Prop("secondaryCard")');
+    expect(labModuleView).toContain('var secondaryCard: [String: Any]?');
+    expect(labFallback).toContain('secondaryCard: _secondaryCard');
     expect(coordinator).toContain('identifier: cardIdentifier as NSString');
     expect(coordinator).toContain('self?.onOpen?(cardIdentifier, content)');
     expect(previewController).toContain('content["sections"]');
@@ -79,6 +119,16 @@ describe('reusable native context menu preview', () => {
     expect(route).toContain('Cliente Exemplo');
     expect(route).toContain('R$ 306,00');
     expect(route).toContain("title: 'Pago'");
+    expect(route).toContain("title: 'Prévia → Painel expandido'");
+    expect(route).toContain("presentationStyle: 'expandedPanel'");
+    expect(route).toContain("title: 'Informações adicionais'");
+    expect(labView).toContain(
+      'private var secondaryCoordinator: NativeContextMenuPreviewCoordinator?',
+    );
+    expect(labView).toContain('commitBehavior: .pushPreviewController');
+    expect(labView).toContain('secondaryCardView');
+    expect(labView).not.toContain('UISheetPresentationController');
+    expect(labView).not.toContain('present(');
     expect(route).not.toContain('__DEV__');
     expect(route).not.toContain('Redirect');
     expect(route).toContain('Nenhum dado real foi alterado.');

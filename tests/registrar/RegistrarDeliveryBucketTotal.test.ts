@@ -89,7 +89,10 @@ jest.mock('@/components/layout', () => ({
 jest.mock('@/components/native', () => ({
   NativeCardContextMenu: ({ children }: { children?: ReactNode }) => children,
   NativeDailyDataSheet: () => null,
-  NativeGlassIconButton: () => null,
+  NativeGlassIconButton: (props: Record<string, unknown>) => {
+    const React = require('react') as typeof import('react');
+    return React.createElement('native-glass-icon-button', props);
+  },
 }));
 
 jest.mock('@/components/feedback', () => {
@@ -155,17 +158,19 @@ jest.mock('@/components/premium', () => ({
     compactTitle,
     children,
     largeTitle,
+    scrollContentContainerStyle,
     scrollViewProps,
   }: {
     children?: ReactNode;
     compactTitle?: ReactNode;
     largeTitle?: ReactNode;
+    scrollContentContainerStyle?: unknown;
     scrollViewProps?: unknown;
   }) => {
     const React = require('react') as typeof import('react');
     return React.createElement(
       'progressive-collapsible-screen',
-      { compactTitle, scrollViewProps },
+      { compactTitle, scrollContentContainerStyle, scrollViewProps },
       largeTitle,
       children,
     );
@@ -351,9 +356,12 @@ const { RegistrarDailyDataScreen, RegistrarDeliveryScreen } =
     RegistrarDailyDataScreen: ComponentType;
     RegistrarDeliveryScreen: ComponentType<{
       inlineClientSelection?: boolean;
+      showClientSearch?: boolean;
       showLargeTitle?: boolean;
     }>;
   };
+const RegistrarDeliveryClientsRoute = require('@/app/registrar-entrega/clientes')
+  .default as ComponentType;
 
 function delivery(id: string, quantidade: number): Delivery {
   return {
@@ -847,6 +855,10 @@ describe('Registrar Atacado delivery bucket total', () => {
       renderer.root.findAll((node) => String(node.type) === 'registrar-delivery-sheet'),
     ).toHaveLength(1);
     expect(renderer.root.findAll((node) => String(node.type) === 'toolbar-menu')).toHaveLength(1);
+    const addButton = renderer.root.find(
+      (node) => String(node.type) === 'native-glass-icon-button',
+    );
+    expect(addButton.props.accessibilityLabel).toBe('Adicionar entrega');
   });
 
   it('opens the existing client creation route from the inline native toolbar action', () => {
@@ -868,6 +880,11 @@ describe('Registrar Atacado delivery bucket total', () => {
       (node) =>
         String(node.type) === 'toolbar-button' && node.props.accessibilityLabel === 'Novo cliente',
     );
+    expect(
+      renderer.root
+        .findAll((node) => String(node.type) === 'toolbar-button')
+        .map((node) => node.props.accessibilityLabel),
+    ).toEqual(['Novo cliente']);
     expect(toolbarAction.props.accessibilityLabel).toBe('Novo cliente');
     expect(toolbarAction.find((node) => String(node.type) === 'toolbar-icon').props.sf).toBe(
       'person.badge.plus',
@@ -879,6 +896,81 @@ describe('Registrar Atacado delivery bucket total', () => {
     act(() => toolbarAction.props.onPress());
 
     expect(mockRouterPush).toHaveBeenCalledWith('/clientes/novo');
+  });
+
+  it('shows the full client list without a search bar on the dedicated Clientes route', () => {
+    const clients = [
+      {
+        clientId: 'client:route-first',
+        canonicalName: 'André Marques',
+        currentPrice: 49.8,
+        hasIncompleteAddress: false,
+        normalizedName: 'andre marques',
+        sources: ['delivery'],
+        usesBoleto: false,
+        usesInvoice: false,
+      },
+      {
+        clientId: 'client:route-second',
+        canonicalName: 'Café Portugal',
+        currentPrice: 49.8,
+        hasIncompleteAddress: false,
+        normalizedName: 'cafe portugal',
+        sources: ['delivery'],
+        usesBoleto: false,
+        usesInvoice: false,
+      },
+    ];
+    mockUseClients.mockReturnValue({ clients });
+    mockRegistrarDeliveryController.clientItems = clients.map((client) => ({
+      bucketPrice: client.currentPrice,
+      id: client.clientId,
+      systemImage: 'person.crop.circle.fill',
+      title: client.canonicalName,
+    }));
+    mockUseDeliveries.mockReturnValue({ allDeliveries: [], create: jest.fn(), remove: jest.fn() });
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(createElement(RegistrarDeliveryClientsRoute));
+    });
+
+    expect(renderer.root.findAll((node) => String(node.type) === 'search-bar')).toHaveLength(0);
+    expect(
+      renderer.root
+        .findAll((node) => String(node.type) === 'client-list-item')
+        .map((row) => row.props.title),
+    ).toEqual(['André Marques', 'Café Portugal']);
+    expect(
+      renderer.root.findAll((node) => String(node.type) === 'sticky-action-footer'),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAll((node) => String(node.type) === 'native-glass-icon-button'),
+    ).toHaveLength(0);
+    const scrollScreen = renderer.root.find(
+      (node) => String(node.type) === 'progressive-collapsible-screen',
+    );
+    expect(scrollScreen.props.scrollContentContainerStyle).toMatchObject({ paddingBottom: 24 });
+    expect(scrollScreen.props.scrollViewProps).toBeUndefined();
+    expect(renderer.root.findAll((node) => String(node.type) === 'native-header')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ props: expect.objectContaining({ title: 'Clientes' }) }),
+      ]),
+    );
+
+    const newClientAction = renderer.root.find(
+      (node) =>
+        String(node.type) === 'toolbar-button' && node.props.accessibilityLabel === 'Novo cliente',
+    );
+    act(() => newClientAction.props.onPress());
+    expect(mockRouterPush).toHaveBeenCalledWith('/clientes/novo');
+
+    act(() => clientPressTargets(renderer)[0].props.onPress());
+    expect(mockRouterPush).toHaveBeenLastCalledWith({
+      params: { clientId: clients[0].clientId },
+      pathname: '/registrar-entrega/[clientId]',
+    });
+    act(() => renderer.unmount());
   });
 
   it('uses the first client tap only to blur a focused search and keeps the query', () => {

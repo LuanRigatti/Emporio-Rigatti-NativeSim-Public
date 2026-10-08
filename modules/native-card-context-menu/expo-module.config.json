@@ -1,6 +1,10 @@
 {
   "platforms": ["ios"],
   "apple": {
-    "modules": ["NativeCardContextMenuModule"]
+    "modules": [
+      "NativeCardContextMenuModule",
+      "NativeContextMenuPreviewModule",
+      "NativePeekPopPreviewLabModule"
+    ]
   }
 }

@@ -9,7 +9,7 @@ describe('Home Screen Quick Action routes', () => {
     expect(QUICK_ACTION_ROUTES).toEqual({
       [QUICK_ACTION_TYPES.history]: '/historico',
       [QUICK_ACTION_TYPES.registerData]: '/registrar-dados',
-      [QUICK_ACTION_TYPES.registerDelivery]: '/registrar-entrega',
+      [QUICK_ACTION_TYPES.registerDelivery]: '/registrar-entrega/clientes',
       [QUICK_ACTION_TYPES.testMode]: '/modo-teste',
     });
   });

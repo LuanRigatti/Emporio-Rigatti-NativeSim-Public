@@ -357,6 +357,22 @@ function AppShell() {
                   <Stack.Screen.BackButton displayMode="minimal" />
                 </Stack.Screen>
                 <Stack.Screen
+                  name="registrar-entrega/clientes"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: true,
+                    headerShadowVisible: false,
+                    headerShown: true,
+                    headerTitle: '',
+                    headerTransparent: true,
+                    unstable_nativeProps: {
+                      headerConfig: { experimental_userInterfaceStyle: resolvedMode },
+                    },
+                  }}
+                >
+                  <Stack.Screen.BackButton displayMode="minimal" />
+                </Stack.Screen>
+                <Stack.Screen
                   name="registrar-entrega/[clientId]"
                   options={{
                     animation: 'default',
@@ -947,6 +963,17 @@ function AppShell() {
                 >
                   <Stack.Screen.BackButton displayMode="minimal" />
                 </Stack.Screen>
+                <Stack.Screen
+                  name="peek-pop-lab"
+                  options={{
+                    animation: 'default',
+                    gestureEnabled: false,
+                    headerShown: false,
+                    unstable_nativeProps: {
+                      hidesBottomBarWhenPushed: true,
+                    },
+                  }}
+                />
                 <Stack.Screen
                   name="modo-teste"
                   options={{

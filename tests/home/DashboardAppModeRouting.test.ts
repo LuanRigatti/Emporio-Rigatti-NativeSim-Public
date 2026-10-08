@@ -9,6 +9,7 @@ const mockAppMode = {
   isReady: true,
   mode: 'retail' as 'wholesale' | 'retail',
 };
+const mockRouterPush = jest.fn();
 const mockUseDeliveries = jest.fn(() => ({
   deliveries: [],
   remove: jest.fn(),
@@ -18,7 +19,7 @@ const mockUseClients = jest.fn(() => ({ clients: [] }));
 const mockUseFactoryPurchases = jest.fn(() => ({ dataUnavailable: false, purchases: [] }));
 const mockUseOpenPaymentClients = jest.fn(() => ({ clientCards: [], totalOpenAmount: 0 }));
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }));
 jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/layout', () => ({ NativeGlassHeader: () => null }));
 jest.mock('@/components/navigation/HomeToolbar', () => ({
@@ -34,9 +35,17 @@ jest.mock('@/components/navigation/HomeToolbar', () => ({
 }));
 jest.mock('@/components/premium', () => ({
   AnimatedPressable: ({ children }: { children?: ReactNode }) => children,
-  PremiumCard: ({ children }: { children?: ReactNode }) => {
+  PremiumCard: ({
+    accessibilityLabel,
+    children,
+    onPress,
+  }: {
+    accessibilityLabel?: string;
+    children?: ReactNode;
+    onPress?: () => void;
+  }) => {
     const React = require('react') as typeof import('react');
-    return React.createElement('premium-card', null, children);
+    return React.createElement('premium-card', { accessibilityLabel, onPress }, children);
   },
   PremiumScreen: ({ children }: { children?: ReactNode }) => {
     const React = require('react') as typeof import('react');
@@ -120,6 +129,7 @@ describe('Dashboard AppMode routing', () => {
   beforeEach(() => {
     mockAppMode.isReady = true;
     mockAppMode.mode = 'retail';
+    mockRouterPush.mockClear();
     mockUseDeliveries.mockClear();
     mockUseClients.mockClear();
     mockUseFactoryPurchases.mockClear();
@@ -147,6 +157,21 @@ describe('Dashboard AppMode routing', () => {
     expect(mockUseClients).toHaveBeenCalledTimes(1);
     expect(mockUseFactoryPurchases).toHaveBeenCalledTimes(1);
     expect(mockUseOpenPaymentClients).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it('opens the existing Registrar Entrega route from the Home card', () => {
+    mockAppMode.mode = 'wholesale';
+    const renderer = renderDashboard();
+    const registrarDeliveryCard = renderer.root.find(
+      (node) =>
+        String(node.type) === 'premium-card' &&
+        node.props.accessibilityLabel === 'Abrir Registrar Entrega',
+    );
+
+    act(() => registrarDeliveryCard.props.onPress());
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/registrar-entrega');
     act(() => renderer.unmount());
   });
 

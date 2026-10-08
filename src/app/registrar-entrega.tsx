@@ -1,5 +1,5 @@
-import { RegistrarDeliveryScreen } from '@/app/(tabs)/registrar/index';
+import { RegistrarDeliveryLandingScreen } from '@/features/deliveries/components/RegistrarDeliveryLandingScreen';
 
 export default function RootRegistrarDeliveryRoute() {
-  return <RegistrarDeliveryScreen inlineClientSelection showLargeTitle />;
+  return <RegistrarDeliveryLandingScreen />;
 }

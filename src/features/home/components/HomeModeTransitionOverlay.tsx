@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -26,11 +26,9 @@ const SPLASH_REVEAL_DURATION_MS = 1000;
 const SPLASH_SYMBOL_CENTER_OFFSET = 37;
 const SPLASH_REVEAL_TRAVEL = 26;
 const HOME_MODE_REVEAL_DURATION_MS = 300;
-// Both existing splash assets place the artwork's lower edge at about 52.8% of the image canvas.
-const SPLASH_LOGO_ART_BOTTOM_RATIO = '52.8%';
 
 export function HomeModeTransitionOverlay({
-  transition: { id, phase, targetMode },
+  transition: { id, phase },
   onCovered,
   onRevealed,
   onCancel,
@@ -112,18 +110,6 @@ export function HomeModeTransitionOverlay({
             testID="home-mode-transition-composition"
           >
             <AppLogo size={540} variant="splash" />
-            <View
-              pointerEvents="none"
-              style={[
-                styles.modeLabel,
-                { marginTop: theme.spacing.xl, top: SPLASH_LOGO_ART_BOTTOM_RATIO },
-              ]}
-              testID="home-mode-transition-target-label"
-            >
-              <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
-                {targetMode === 'wholesale' ? 'Atacado' : 'Varejo'}
-              </Text>
-            </View>
           </Animated.View>
         </View>
       </Animated.View>
@@ -141,10 +127,4 @@ const styles = StyleSheet.create({
     transform: [{ translateY: SPLASH_SYMBOL_CENTER_OFFSET }],
   },
   content: { alignItems: 'center', justifyContent: 'center' },
-  modeLabel: {
-    alignItems: 'center',
-    left: 0,
-    position: 'absolute',
-    right: 0,
-  },
 });

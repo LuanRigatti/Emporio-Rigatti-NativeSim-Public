@@ -644,37 +644,26 @@ como histórico técnico e não devem substituir a inspeção do código/Git atu
   `dados`. Os destinos usam `Stack.Screen.BackButton displayMode="minimal"`;
   as rotas/layouts antigos de `src/app/registrar` foram removidos e a
   declaração raiz duplicada de `registrar` deixou de ser necessária.
-- Registrar Entrega mantém o `RegistrarDeliverySheet` compartilhado, seleção de
-  cliente pelo Menu nativo, detalhe em um único sheet, detents, gestos, Liquid
-  Glass, callbacks e a máquina de estados `closed → presented → dismissing → closed`.
-- Na variante Home → `Registrar entrega`, o mesmo Bottom Sheet usa duas páginas
-  internas pelo `RegistrarDeliveryPagerRN`: a Page 0 lista clientes com círculo
-  `54x54`, ícone de cliente, nome, descrição `Cliente`, `chevron.right` e linha
-  inteira clicável; a seleção avança para a Page 1 no mesmo sheet, com swipe
-  horizontal interativo e snap. A Page 1 mantém cliente, Data, Baldes, Valor
-  total, Confirmar e `chevron.left` simples para voltar. A variante padrão
-  continua preservando o Menu nativo de seleção.
-- As rotas Home → `Registrar Entrega` e `/registrar/entrega` passam
-  `inlineClientSelection` e usam o pager de clientes descrito acima; a
-  composição antiga do Menu continua preservada na variante padrão do sheet.
-- O botão de data do detalhe reutiliza os itens, formatter e regras de ajuste
-  de data compartilhados com `NativeDateToolbar` do Histórico, exibindo a
-  forma compacta `dia mês` e mantendo o Menu nativo de mês/ano/dia.
-- Os sheets usam o tint escuro opt-in `rgba(0, 0, 0, 0.30)` e preservam a superfície
-  nativa; o light mode não recebe esse tint específico.
-- O botão `Confirmar` é uma cápsula nativa de `84%` da largura disponível e
-  `58 pt` de altura. Seu conteúdo SwiftUI ocupa o frame completo e usa
-  `contentShape(.capsule())`, portanto toda a cápsula é clicável.
-- A seleção mantém o chevron nativo; toda a área direita `Selecionar/nome +
-  chevron` abre o Menu, enquanto o label `Cliente` permanece estático.
+- A Home abre `/registrar-entrega`, uma página inteira `Entrega` com
+  `ProgressiveCollapsibleScreen` e um único card `Clientes`. A ação global de
+  Live Activity permanece na toolbar dessa página e usa o snapshot completo
+  das entregas do dia, sem depender de cliente selecionado.
+- `/registrar-entrega/clientes` reutiliza a lista existente de clientes, busca
+  local, cards e ação `Novo cliente`. Com a busca focada, o primeiro toque em
+  um cliente apenas dispensa o teclado; com a busca recolhida, o toque navega
+  para `/registrar-entrega/[clientId]` com haptic.
+- A tela de detalhe da entrega mantém formulário, validações e persistência
+  atuais; após salvar, `router.back()` retorna à lista de clientes.
+- O card de Entrega na tab Registrar, `/registrar/entrega`, Quick Action,
+  deep link de Live Activity e redirect `(home-shortcuts)` abrem diretamente
+  `/registrar-entrega/clientes`. Só o card da Home abre a página intermediária.
+- As páginas de entrada, clientes e formulário continuam no Root Native Stack,
+  com Back e swipe-back nativos. O `RegistrarDeliverySheet` e o pager antigo
+  não participam desse fluxo.
 - O Bottom Sheet de Dados Diários usa detent `0.46`, drag indicator nativo e
   conteúdo sem botão `X` no iOS. A página principal mostra quatro linhas sem
   separadores, com círculos `54x54`, SF Symbols `21 pt`, descrição secundária,
   `chevron.right` simples e a linha inteira clicável.
-- A navegação para o detalhe ocorre dentro do mesmo sheet pelo
-  `RegistrarDeliveryPagerRN`, com duas páginas horizontais e swipe preservado.
-  O detalhe mantém o botão voltar, título central, campo correspondente e
-  botão `Adicionar` em cápsula de `58 pt`.
 
 ### Cards e linhas de clientes
 

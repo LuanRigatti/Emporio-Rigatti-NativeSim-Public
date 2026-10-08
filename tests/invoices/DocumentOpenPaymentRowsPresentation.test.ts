@@ -43,10 +43,16 @@ describe('Document and open payment client rows', () => {
   });
 
   it('keeps open payment client rows directly on the grouped card surface', () => {
+    const triggerStart = openPaymentClientCardsSource.indexOf('const renderRow');
+    const triggerEnd = openPaymentClientCardsSource.indexOf('const renderPreview', triggerStart);
+    const triggerSource = openPaymentClientCardsSource.slice(triggerStart, triggerEnd);
+    const triggerStyleEnd = triggerSource.indexOf('testID="open-payment-client-trigger"');
+    const triggerStyle = triggerSource.slice(triggerSource.indexOf('style={['), triggerStyleEnd);
+
     expect(openPaymentClientCardsSource).toContain('<GlassCard');
-    expect(openPaymentClientCardsSource).toContain(
-      "backgroundColor: preview ? openPaymentCardSurface : 'transparent'",
-    );
+    expect(triggerStyle).not.toContain('backgroundColor');
+    expect(openPaymentClientCardsSource).toContain('backgroundColor: openPaymentCardSurface');
+    expect(openPaymentClientCardsSource).toContain('preview={renderPreview(client)}');
     expect(openPaymentClientCardsSource).toContain('onMarkAsPaid(delivery.id)');
   });
 });

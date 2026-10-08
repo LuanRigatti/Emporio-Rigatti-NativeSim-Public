@@ -12,6 +12,7 @@ const financeIndex = source('src/app/(tabs)/financeiro/index.tsx');
 const settingsScreen = source('src/features/settings/components/SettingsScreen.tsx');
 const systemSettingsScreen = source('src/features/settings/components/SystemSettingsScreen.tsx');
 const homeShortcutsLayout = source('src/app/(home-shortcuts)/_layout.tsx');
+const homeShortcutRegistrarRoute = source('src/app/(home-shortcuts)/registrar-entrega.tsx');
 
 function screenBlock(layout: string, routeName: string) {
   const escapedName = routeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -37,9 +38,13 @@ describe('nested Native Stack back button display modes', () => {
     }
 
     expect(registrarLayout).toContain('<Stack.Screen name="index"');
-    expect(registrarIndex).toContain("router.push('/registrar-entrega')");
+    expect(registrarIndex).toContain("router.push('/registrar-entrega/clientes')");
     expect(registrarIndex).toContain("router.push('/registrar-dados')");
     expect(rootLayout).toMatch(/name="registrar-entrega"[\s\S]{0,500}gestureEnabled: true/);
+    expectBackButtonMode(rootLayout, 'registrar-entrega/clientes', 'minimal');
+    expect(rootLayout).toMatch(
+      /name="registrar-entrega\/clientes"[\s\S]{0,500}gestureEnabled: true/,
+    );
     expect(rootLayout).toMatch(/name="registrar-dados"[\s\S]{0,500}gestureEnabled: true/);
   });
 
@@ -125,5 +130,6 @@ describe('nested Native Stack back button display modes', () => {
     expect(homeShortcutsLayout.match(/icon="chevron\.left"/g)).toHaveLength(4);
     expect(homeShortcutsLayout).toContain('options={{ gestureEnabled: false }}');
     expect(homeShortcutsLayout).toContain('options={{ gestureEnabled: true }}');
+    expect(homeShortcutRegistrarRoute).toContain('<Redirect href="/registrar-entrega/clientes" />');
   });
 });

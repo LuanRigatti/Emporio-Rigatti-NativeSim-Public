@@ -18,7 +18,6 @@ const PATCH_MARKERS = {
   sharedToolbarConfigHelpers: 'Emporio Rigatti: shared tab toolbar config helpers',
   sharedToolbarConfigHidden: 'Emporio Rigatti: shared tab toolbar config hidden',
   sharedToolbarConfigVisible: 'Emporio Rigatti: shared tab toolbar config visible',
-  sharedToolbarWillShow: 'Emporio Rigatti: shared toolbar willShow destination handoff',
   homeToolbarSemanticComparison: 'Emporio Rigatti: Home toolbar semantic comparison',
   homeToolbarReplacementPolicy: 'Emporio Rigatti: Home toolbar replacement policy',
 };
@@ -62,10 +61,11 @@ static char RNSSharedToolbarMaterializedItemsKey;
 
 static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *items, UINavigationBar *bar)
 {
-  if (bar.window == nil) return NO; // Attachment cannot be compared before the shared bar enters a window.
+  if (bar.window == nil) return NO; // Initial presentation is reconciled at didShow.
   for (UIBarButtonItem *item in items) {
     UIView *view = item.customView;
-    if (view != nil && (view.window != bar.window || ![view isDescendantOfView:bar])) return YES;
+    if (view != nil && !view.hidden && view.alpha > 0 &&
+        (view.window != bar.window || ![view isDescendantOfView:bar])) return YES;
   }
   return NO;
 }
@@ -98,25 +98,20 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
 }
 
 - (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason
-{
-  [self prepareSharedNavigationBarForViewController:viewController reason:reason allowRootDestinationDuringTransition:NO];
-}
-
-- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:(BOOL)allowRootDestinationDuringTransition
 {`,
     'capture',
   );
   patch(
     controller,
-    '  if (!isTabRoot) {\n    [sharedNavigationController setNavigationBarHidden:YES animated:NO];',
+    '  if (nestedNavigationController != nil) {\n    // The nested stack remains',
     `  BOOL isTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
-  BOOL hasActiveTransition = sharedNavigationController.transitionCoordinator != nil ||
-      nestedNavigationController.transitionCoordinator != nil;
-  if (!isTabRoot) {
-    if (!isTransitionCompletion && hasActiveTransition) {
-      return; // Generic syncs never mutate the toolbar during an active transition.
-    }
-    [sharedNavigationController setNavigationBarHidden:YES animated:NO];`,
+  if (!isTransitionCompletion && (sharedNavigationController.transitionCoordinator != nil ||
+                                 nestedNavigationController.transitionCoordinator != nil)) {
+    return; // UIKit owns the in-flight morph; didShow reconciles the actual destination.
+  }
+
+  if (nestedNavigationController != nil) {
+    // The nested stack remains`,
     'transition',
   );
   patch(
@@ -126,25 +121,10 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
   if (materializedItems == nil) {
     return; // Missing source is not a deliberate empty toolbar.
   }
-  if (!isTransitionCompletion && hasActiveTransition &&
-      !(allowRootDestinationDuringTransition && nestedNavigationController.viewControllers.count == 1)) {
-    return; // Only a cached, validated root destination from willShow may hand off during a transition.
-  }
-  if (!nestedNavigationController.navigationBarHidden) {
-    // The nested stack remains the source of the native items, but its root bar must not
-    // compete with the single shared bar owned by the (tabs) screen.
-    [nestedNavigationController setNavigationBarHidden:YES animated:NO];
-  }
   NSArray<UIBarButtonItem *> *leftItems = materializedItems[@"left"];
   NSArray<UIBarButtonItem *> *rightItems = materializedItems[@"right"];
 `,
     'materialized-source',
-  );
-  patch(
-    controller,
-    '  if (!nestedNavigationController.navigationBarHidden) {\n    // The nested stack remains the source of the native items, but its root bar must not\n    // compete with the single shared bar owned by the (tabs) screen.\n    [nestedNavigationController setNavigationBarHidden:YES animated:NO];\n  }',
-    '',
-    'defer-root-suppression-until-valid-cache',
   );
   patch(
     controller,
@@ -156,8 +136,29 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
   patch(
     controller,
     '  [sharedNavigationController setNavigationBarHidden:NO animated:NO];\n}',
-    `  if (sharedNavigationController.navigationBarHidden) {
-    [sharedNavigationController setNavigationBarHidden:NO animated:NO];
+    `  [sharedNavigationController setNavigationBarHidden:NO animated:NO];
+  UINavigationBar *bar = sharedNavigationController.navigationBar;
+  BOOL canCheckAttachment = bar.window != nil &&
+      (isTransitionCompletion || (self.selectedViewController == viewController &&
+       nestedNavigationController.topViewController.viewIfLoaded.window != nil &&
+       (!shouldAnimateToolbarItemReplacement ||
+        (RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems) &&
+         RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)))));
+  if (canCheckAttachment) [bar layoutIfNeeded];
+  BOOL repairLeft = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(leftItems, bar);
+  BOOL repairRight = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(rightItems, bar);
+  if (repairLeft || repairRight) {
+    // Re-register only detached sides after exclusive ownership has been established.
+    // This is synchronous lifecycle reconciliation, not a retry or an animated morph.
+    if (repairLeft) {
+      [sharedNavigationItem setLeftBarButtonItems:nil animated:NO];
+      [sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO];
+    }
+    if (repairRight) {
+      [sharedNavigationItem setRightBarButtonItems:nil animated:NO];
+      [sharedNavigationItem setRightBarButtonItems:rightItems animated:NO];
+    }
+    [bar layoutIfNeeded];
   }
 }`,
     'reconcile',
@@ -233,25 +234,6 @@ static RNSTabBarController *RNSFindSharedToolbarTabsController(UIViewController 
 - (void)markChildUpdated`,
     'did-show-reconcile',
   );
-  patch(
-    stack,
-    '  [RNSScreenStackHeaderConfig willShowViewController:viewController\n                                            animated:animated\n                                          withConfig:screenView.findHeaderConfig];\n}',
-    `  [RNSScreenStackHeaderConfig willShowViewController:viewController
-                                            animated:animated
-                                          withConfig:screenView.findHeaderConfig];
-
-  // ${PATCH_MARKERS.sharedToolbarWillShow}
-  RNSTabBarController *tabsController = nil;
-  UIViewController *ancestor = navigationController;
-  while (ancestor != nil && tabsController == nil) {
-    tabsController = RNSFindSharedToolbarTabsController(ancestor);
-    ancestor = ancestor.parentViewController;
-  }
-  [tabsController prepareSharedNavigationBarForWillShowDestinationViewController:viewController
-                                                              navigationController:navigationController];
-}`,
-    PATCH_MARKERS.sharedToolbarWillShow,
-  );
 }
 
 function patchRNScreens() {
@@ -288,7 +270,7 @@ function patchRNScreens() {
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.h'),
     '- (void)tearDown;\n',
-    `- (void)tearDown;\n\n// ${PATCH_MARKERS.sharedToolbarHeader}\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason;\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason allowRootDestinationDuringTransition:(BOOL)allowRootDestinationDuringTransition;\n- (void)prepareSharedNavigationBarForWillShowDestinationViewController:(UIViewController *)destinationViewController navigationController:(UINavigationController *)nestedNavigationController;\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;\n`,
+    `- (void)tearDown;\n\n// ${PATCH_MARKERS.sharedToolbarHeader}\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason;\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;\n`,
     PATCH_MARKERS.sharedToolbarHeader,
   );
 
@@ -308,74 +290,9 @@ function patchRNScreens() {
 
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
-    '  BOOL isTabRoot = nestedNavigationController == nil || nestedNavigationController.viewControllers.count <= 1;\n\n  if (!isTabRoot) {',
-    '  BOOL isTabRoot = nestedNavigationController == nil || nestedNavigationController.viewControllers.count <= 1;\n  if (isTabRoot && nestedNavigationController == nil) {\n    return;\n  }\n\n  if (!isTabRoot) {',
-    `${PATCH_MARKERS.sharedToolbarController} root-stack-guard`,
-  );
-
-  patchFile(
-    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
-    '  if (nestedNavigationController != nil) {\n    // The nested stack remains the source of the native items, but its root bar must not\n    // compete with the single shared bar owned by the (tabs) screen.\n    [nestedNavigationController setNavigationBarHidden:YES animated:NO];\n  }',
-    '  if (!nestedNavigationController.navigationBarHidden) {\n    // The nested stack remains the source of the native items, but its root bar must not\n    // compete with the single shared bar owned by the (tabs) screen.\n    [nestedNavigationController setNavigationBarHidden:YES animated:NO];\n  }',
-    `${PATCH_MARKERS.sharedToolbarController} conditional-root-suppression`,
-  );
-
-  patchFile(
-    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
-    '- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason\n{',
-    `- (void)prepareSharedNavigationBarForWillShowDestinationViewController:(UIViewController *)destinationViewController navigationController:(UINavigationController *)nestedNavigationController
-{
-  if (destinationViewController == nil || nestedNavigationController == nil ||
-      nestedNavigationController.viewControllers.count != 1 ||
-      nestedNavigationController.topViewController != destinationViewController ||
-      objc_getAssociatedObject(destinationViewController.navigationItem, &RNSSharedToolbarMaterializedItemsKey) == nil) {
-    return;
-  }
-
-  UIViewController *rootTabViewController = nil;
-  for (UIViewController *tabViewController in self.viewControllers) {
-    if (RNSFindNestedNavigationController(tabViewController) == nestedNavigationController) {
-      rootTabViewController = tabViewController;
-      break;
-    }
-  }
-  if (rootTabViewController == nil || self.selectedViewController != rootTabViewController) {
-    return;
-  }
-
-  [self prepareSharedNavigationBarForViewController:rootTabViewController
-                                             reason:@"navigation-will-show-destination"
-               allowRootDestinationDuringTransition:YES];
-}
-
-- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason
-{`,
-    `${PATCH_MARKERS.sharedToolbarWillShow} controller method`,
-  );
-
-  patchFile(
-    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
     `  if (![sharedNavigationItem.leftBarButtonItems isEqualToArray:leftItems]) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:YES];\n  }\n  if (![sharedNavigationItem.rightBarButtonItems isEqualToArray:rightItems]) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:YES];\n  }`,
     `  // ${PATCH_MARKERS.homeToolbarReplacementPolicy}\n  NSArray<UIBarButtonItem *> *sharedLeftItems = sharedNavigationItem.leftBarButtonItems ?: @[];\n  NSArray<UIBarButtonItem *> *sharedRightItems = sharedNavigationItem.rightBarButtonItems ?: @[];\n  BOOL isSelectedHomeTab = tabIndex == 0 && self.selectedIndex == (NSUInteger)tabIndex;\n  BOOL isHeaderMaterializationResync = [reason isEqualToString:@"header-materialization/resync"];\n  BOOL areCompleteToolbarSetsSemanticallyEqual = RNSHomeToolbarItemSetsAreSemanticallyEqual(\n      leftItems, rightItems, sharedLeftItems, sharedRightItems);\n  BOOL shouldAnimateToolbarItemReplacement =\n      !(isSelectedHomeTab && isHeaderMaterializationResync && areCompleteToolbarSetsSemanticallyEqual);\n\n  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement];\n  }\n  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement];\n  }`,
     PATCH_MARKERS.homeToolbarReplacementPolicy,
-  );
-
-  patchFile(
-    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
-    '  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)) {',
-    `  // ${PATCH_MARKERS.sharedToolbarWillShow} left item delivery
-  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems) ||
-      RNSSharedToolbarItemsNeedAttachment(leftItems, sharedNavigationController.navigationBar)) {`,
-    `${PATCH_MARKERS.sharedToolbarWillShow} left item delivery`,
-  );
-
-  patchFile(
-    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
-    '  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)) {',
-    `  // ${PATCH_MARKERS.sharedToolbarWillShow} right item delivery
-  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems) ||
-      RNSSharedToolbarItemsNeedAttachment(rightItems, sharedNavigationController.navigationBar)) {`,
-    `${PATCH_MARKERS.sharedToolbarWillShow} right item delivery`,
   );
 
   patchFile(

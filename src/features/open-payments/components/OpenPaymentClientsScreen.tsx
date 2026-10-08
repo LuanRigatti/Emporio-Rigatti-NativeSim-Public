@@ -16,8 +16,14 @@ export function OpenPaymentClientsScreen({
   const router = useRouter();
   const { theme } = useAppTheme();
   const { currency: maskCurrency } = useTestModePresentation();
-  const { clientCards, markDeliveryPaid, testModeEnabled, totalOpenAmount } =
-    useOpenPaymentClients();
+  const {
+    clientCards,
+    markDeliveryPaid,
+    paymentHistoryError,
+    paymentHistoryLoading,
+    testModeEnabled,
+    totalOpenAmount,
+  } = useOpenPaymentClients();
 
   const header = (
     <NativeGlassHeader
@@ -81,6 +87,8 @@ export function OpenPaymentClientsScreen({
     clientCards.length > 0 ? (
       <OpenPaymentClientCards
         clients={clientCards}
+        paymentHistoryError={paymentHistoryError}
+        paymentHistoryLoading={paymentHistoryLoading}
         onMarkAsPaid={markDeliveryPaid}
         testModeEnabled={testModeEnabled}
       />

@@ -113,6 +113,8 @@ Mem0 é somente contexto técnico durável entre sessões e nunca substitui o es
 
 Toda gravação, atualização, busca ou exclusão deve permanecer no escopo: `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-pwa-ios-2026"`.
 
+Adendo autorizado pelo usuário em 2026-10-07: o escopo Mem0 canônico atual deste projeto é `user_id = "Luan Rigatti"` e `app_id = "LuanRigatti-emporiorigatti"`. Esta decisão substitui todas as referências acima ao app_id anterior para consultas, gravações, atualizações, exclusões e linhas de status do Mem0. O repositório fonte da verdade é `LuanRigatti/emporiorigatti`; não inferir o app_id do Mem0 pelo slug, package name ou nome da pasta.
+
 ## Regras permanentes do projeto
 
 1. A pasta `ionic-reference` contém o projeto Ionic original e deve ser utilizada somente para consulta.

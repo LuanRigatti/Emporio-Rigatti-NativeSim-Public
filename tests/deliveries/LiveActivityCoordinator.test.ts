@@ -44,12 +44,14 @@ function snapshot(
 class FakeSnapshotSource {
   public current: CompleteDeliveryDateSnapshot | null = null;
   private readonly listeners = new Set<(event: DeliveryDateSnapshotEvent) => void>();
-  public readonly load = jest.fn(async (uid: string, filters: { mode: string; date?: string }) => {
-    if (this.current && this.current.uid === uid && this.current.date === filters.date) {
-      this.emit({ type: 'complete', snapshot: this.current });
-    }
-    return [];
-  });
+  public readonly load = jest.fn(
+    async (uid: string, filters: { mode: string; date?: string }): Promise<Delivery[]> => {
+      if (this.current && this.current.uid === uid && this.current.date === filters.date) {
+        this.emit({ type: 'complete', snapshot: this.current });
+      }
+      return [];
+    },
+  );
 
   public subscribeDateSnapshots(listener: (event: DeliveryDateSnapshotEvent) => void) {
     this.listeners.add(listener);
@@ -155,6 +157,14 @@ function makeCoordinator(
   return { coordinator, driver, ownershipStore };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('LiveActivityCoordinator', () => {
   let attachedCoordinators: LiveActivityCoordinator[];
 
@@ -176,6 +186,11 @@ describe('LiveActivityCoordinator', () => {
     expect(coordinator.getSnapshot()).toMatchObject({ supported: true, canStart: true });
     await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
     expect(driver.start).toHaveBeenCalledTimes(1);
+    expect(driver.start).toHaveBeenCalledWith(
+      expect.anything(),
+      '/historico?mode=wholesale',
+      expect.any(Date),
+    );
     expect(driver.instances[0]?.content).toEqual({
       date: TODAY,
       bucketCount: 2,
@@ -220,7 +235,7 @@ describe('LiveActivityCoordinator', () => {
     expect(driver.start).not.toHaveBeenCalled();
   });
 
-  it('serializes simultaneous start taps into one Live Activity', async () => {
+  it('serializes simultaneous toggles against the latest active state without duplicate starts', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(snapshot());
     const { coordinator, driver } = makeCoordinator(source);
@@ -234,7 +249,142 @@ describe('LiveActivityCoordinator', () => {
 
     expect(results).toEqual([{ ok: true }, { ok: true }]);
     expect(driver.start).toHaveBeenCalledTimes(1);
-    expect(driver.getInstances()).toHaveLength(1);
+    expect(driver.getInstances()).toHaveLength(0);
+  });
+
+  it('invalidates canStart synchronously when foreground reconciliation begins without an active activity', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const { coordinator } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 1);
+    expect(coordinator.getSnapshot().canStart).toBe(true);
+
+    const loadStarted = deferred<void>();
+    const loadResult = deferred<Delivery[]>();
+    source.load.mockImplementationOnce(async (uid, filters) => {
+      loadStarted.resolve();
+      await loadResult.promise;
+      if (source.current) source.emit({ type: 'complete', snapshot: source.current });
+      return [];
+    });
+
+    const foreground = (
+      coordinator as unknown as { handleForeground: () => Promise<void> }
+    ).handleForeground();
+
+    expect(coordinator.getSnapshot().canStart).toBe(false);
+    await loadStarted.promise;
+    expect(coordinator.getSnapshot().canStart).toBe(false);
+
+    loadResult.resolve([]);
+    await foreground;
+
+    expect(coordinator.getSnapshot().canStart).toBe(true);
+  });
+
+  it('keeps an active activity stoppable while foreground waits for a complete snapshot', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const { coordinator, driver } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 1);
+    await coordinator.toggleFromToolbar();
+    const active = driver.instances[0];
+    if (!active) throw new Error('Expected a started fake activity.');
+    source.setSnapshot(null);
+
+    const loadStarted = deferred<void>();
+    const loadResult = deferred<Delivery[]>();
+    source.load.mockImplementationOnce(async () => {
+      loadStarted.resolve();
+      return loadResult.promise;
+    });
+
+    const foreground = (
+      coordinator as unknown as { handleForeground: () => Promise<void> }
+    ).handleForeground();
+    await loadStarted.promise;
+
+    expect(coordinator.getSnapshot()).toMatchObject({ isActive: true, canStart: false });
+    await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
+    expect(active.ended).toBe(true);
+
+    loadResult.resolve([]);
+    await foreground;
+    expect(coordinator.getSnapshot().isActive).toBe(false);
+  });
+
+  it('adopts and refreshes an activity found during the serialized start action without duplicating it', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const driver = new FakeDriver();
+    const ownershipStore = new FakeOwnershipStore();
+    const { coordinator } = makeCoordinator(source, driver, ownershipStore);
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 1);
+    const existing = driver.add('late-existing-activity', content({ bucketCount: 8 }));
+    ownershipStore.value = {
+      uid: 'user-a',
+      activityId: 'late-existing-activity',
+      content: existing.content,
+    };
+
+    await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
+
+    expect(driver.start).not.toHaveBeenCalled();
+    expect(driver.getInstances()).toEqual([existing]);
+    expect(existing.ended).toBe(false);
+    expect(existing.update).toHaveBeenCalledWith(
+      expect.objectContaining({ bucketCount: 2, deliveryCount: 1, isObsolete: false }),
+      expect.any(Date),
+    );
+    expect(coordinator.getSnapshot().isActive).toBe(true);
+  });
+
+  it('uses the state present when the queued action runs and recovers ActivityKit before stopping', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const driver = new FakeDriver();
+    const ownershipStore = new FakeOwnershipStore();
+    const { coordinator } = makeCoordinator(source, driver, ownershipStore);
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 1);
+
+    const queueGate = deferred<void>();
+    const internal = coordinator as unknown as {
+      enqueue: (operation: () => Promise<void>) => Promise<void>;
+      updateState: (patch: { isActive?: boolean }) => void;
+    };
+    const precedingOperation = internal.enqueue(async () => {
+      await queueGate.promise;
+      internal.updateState({ isActive: true });
+    });
+    const action = coordinator.toggleFromToolbar();
+
+    const existing = driver.add('recovered-before-action', content());
+    ownershipStore.value = {
+      uid: 'user-a',
+      activityId: 'recovered-before-action',
+      content: existing.content,
+    };
+    ownershipStore.read.mockClear();
+    queueGate.resolve();
+
+    await Promise.all([precedingOperation, action]);
+
+    expect(existing.ended).toBe(true);
+    expect(driver.start).not.toHaveBeenCalled();
+    expect(driver.getInstances()).toEqual([]);
+    expect(ownershipStore.read).toHaveBeenCalledTimes(1);
+    expect(existing.end.mock.invocationCallOrder[0]).toBeGreaterThan(
+      ownershipStore.read.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(coordinator.getSnapshot().isActive).toBe(false);
   });
 
   it('refuses to start from an unknown or incomplete date snapshot', async () => {

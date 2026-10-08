@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Keyboard, Platform, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -55,8 +55,6 @@ import { triggerLightImpactHaptic, triggerSelectionHaptic } from '@/utils/haptic
 import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
-import { wholesaleDeliveryLiveActivityCoordinator } from '@/features/deliveries/liveActivity/LiveActivityCoordinator';
-import { useLiveActivityCoordinatorState } from '@/features/deliveries/liveActivity/useLiveActivityCoordinator';
 import type { Delivery } from '@/types/data';
 
 const DELIVERY_CARD_GROWTH_DURATION = 200;
@@ -129,7 +127,7 @@ function RegistrarModeSelection() {
 
   const handleOpenRegistrarEntrega = () => {
     triggerLightImpactHaptic();
-    router.push('/registrar-entrega');
+    router.push('/registrar-entrega/clientes');
   };
 
   const handleOpenRegistrarDados = () => {
@@ -500,9 +498,11 @@ export function RegistrarDailyDataScreen() {
 
 export function RegistrarDeliveryScreen({
   inlineClientSelection = false,
+  showClientSearch = true,
   showLargeTitle = false,
 }: {
   inlineClientSelection?: boolean;
+  showClientSearch?: boolean;
   showLargeTitle?: boolean;
 } = {}) {
   const colorScheme = useColorScheme();
@@ -538,9 +538,10 @@ export function RegistrarDeliveryScreen({
     create,
     preserveSelectedClientOnDismiss: inlineClientSelection,
   });
+  const shouldShowClientSearch = inlineClientSelection && showClientSearch;
   const normalizedClientSearchQuery = useMemo(
-    () => normalizeHomeSearchText(clientSearchQuery),
-    [clientSearchQuery],
+    () => (shouldShowClientSearch ? normalizeHomeSearchText(clientSearchQuery) : ''),
+    [clientSearchQuery, shouldShowClientSearch],
   );
   const filteredClientItems = useMemo(() => {
     const items = registrarDeliverySheet.clientItems;
@@ -554,7 +555,7 @@ export function RegistrarDeliveryScreen({
     registrarDeliverySheet;
   const handleOpenClientRegistration = useCallback(
     (clientId: string) => {
-      if (clientSearchFocused) {
+      if (shouldShowClientSearch && clientSearchFocused) {
         Keyboard.dismiss();
         setClientSearchBlurRequestKey((requestKey) => requestKey + 1);
         return;
@@ -563,7 +564,7 @@ export function RegistrarDeliveryScreen({
       triggerLightImpactHaptic();
       router.push({ pathname: '/registrar-entrega/[clientId]', params: { clientId } });
     },
-    [clientSearchFocused, router],
+    [clientSearchFocused, router, shouldShowClientSearch],
   );
   const handleClientSearchFocus = useCallback(() => {
     setClientSearchFocused(true);
@@ -717,7 +718,7 @@ export function RegistrarDeliveryScreen({
           hasSearchQuery={normalizedClientSearchQuery.length > 0}
           items={filteredClientItems}
           onSelect={handleOpenClientRegistration}
-          searchFocused={clientSearchFocused}
+          searchFocused={shouldShowClientSearch && clientSearchFocused}
         />
       ) : null}
       {!inlineClientSelection && hasTodayDeliveries ? (
@@ -921,16 +922,20 @@ export function RegistrarDeliveryScreen({
             paddingHorizontal: theme.layout.screenHorizontalPadding,
           }}
           nativeHeader
-          scrollViewProps={{
-            automaticallyAdjustKeyboardInsets: true,
-            keyboardShouldPersistTaps: 'handled',
-          }}
+          scrollViewProps={
+            shouldShowClientSearch
+              ? {
+                  automaticallyAdjustKeyboardInsets: true,
+                  keyboardShouldPersistTaps: 'handled',
+                }
+              : undefined
+          }
           scrollContentContainerStyle={{
             paddingBottom:
               theme.layout.tabBarHeight +
               insets.bottom +
               theme.spacing.xl +
-              (inlineClientSelection ? stickyActionFooterHeight : 0),
+              (shouldShowClientSearch ? stickyActionFooterHeight : 0),
             paddingHorizontal: 0,
           }}
         >
@@ -944,7 +949,7 @@ export function RegistrarDeliveryScreen({
               theme.layout.tabBarHeight +
               insets.bottom +
               theme.spacing.xl +
-              (inlineClientSelection ? stickyActionFooterHeight : 0),
+              (shouldShowClientSearch ? stickyActionFooterHeight : 0),
             paddingHorizontal: 0,
           }}
           overlayHeader={header}
@@ -956,7 +961,7 @@ export function RegistrarDeliveryScreen({
           {deliveryList}
         </PremiumScreen>
       )}
-      {inlineClientSelection ? (
+      {shouldShowClientSearch ? (
         <StickyActionFooter
           contentContainerStyle={{ paddingHorizontal: '8%' }}
           height={stickyActionFooterHeight}
@@ -982,7 +987,7 @@ export function RegistrarDeliveryScreen({
             />
           </GlassSurface>
         </StickyActionFooter>
-      ) : (
+      ) : !inlineClientSelection ? (
         <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
           <View
             style={[
@@ -1006,7 +1011,7 @@ export function RegistrarDeliveryScreen({
             />
           </View>
         </View>
-      )}
+      ) : null}
       {!inlineClientSelection ? (
         <RegistrarDeliverySheet controller={registrarDeliverySheet} />
       ) : null}
@@ -1125,7 +1130,6 @@ function RegistrarDeliveryToolbar({
   sortMode: DeliverySortMode;
 }) {
   const { theme } = useAppTheme();
-  const liveActivityState = useLiveActivityCoordinatorState();
 
   if (inlineClientSelection) {
     return (
@@ -1140,38 +1144,6 @@ function RegistrarDeliveryToolbar({
           <Stack.Toolbar.Icon sf="person.badge.plus" />
           <Stack.Toolbar.Label>Novo cliente</Stack.Toolbar.Label>
         </Stack.Toolbar.Button>
-        {Platform.OS === 'ios' ? (
-          <Stack.Toolbar.Button
-            accessibilityHint={
-              liveActivityState.isActive
-                ? 'Encerra a Atividade ao vivo das entregas no Atacado'
-                : liveActivityState.supported !== true
-                  ? 'Disponível em uma Development Build iOS com suporte a Live Activities'
-                  : liveActivityState.canStart
-                    ? 'Mostra os baldes e as entregas de hoje na Tela Bloqueada e na Dynamic Island'
-                    : 'Aguarde uma consulta completa das entregas de hoje'
-            }
-            accessibilityLabel={
-              liveActivityState.isActive
-                ? 'Encerrar atividade ao vivo'
-                : 'Iniciar atividade ao vivo'
-            }
-            disabled={
-              liveActivityState.isBusy ||
-              liveActivityState.supported !== true ||
-              (!liveActivityState.isActive && !liveActivityState.canStart)
-            }
-            icon="dot.radiowaves.left.and.right"
-            onPress={() => {
-              void wholesaleDeliveryLiveActivityCoordinator.toggleFromToolbar().then((result) => {
-                if (!result.ok) Alert.alert('Atividade ao vivo', result.message);
-              });
-            }}
-            selected={liveActivityState.isActive}
-            separateBackground={false}
-            tintColor={theme.colors.textPrimary}
-          />
-        ) : null}
       </Stack.Toolbar>
     );
   }

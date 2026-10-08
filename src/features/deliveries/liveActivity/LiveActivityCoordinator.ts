@@ -249,7 +249,6 @@ export class LiveActivityCoordinator {
     }
     if (!session?.uid) return { ok: false, message: UNSUPPORTED_MESSAGE };
     const uid = session.uid;
-    const shouldStop = Boolean(this.activeInstance || this.state.isActive);
 
     this.updateState({ isBusy: true });
     try {
@@ -261,19 +260,21 @@ export class LiveActivityCoordinator {
           const driver = await this.getDriver();
           if (!driver) return { ok: false, message: UNSUPPORTED_MESSAGE };
 
-          if (shouldStop) {
+          const wasActiveWhenOperationStarted = Boolean(this.activeInstance || this.state.isActive);
+          const existing = await this.recoverActivity(driver, uid, driver.getInstances());
+          const action = wasActiveWhenOperationStarted ? 'stop' : existing ? 'refresh' : 'start';
+          if (action === 'stop') {
             return await this.stopAllInstances(driver);
           }
 
           const date = todayIso(this.now());
           const snapshot = this.source.getCompleteDateSnapshot(uid, date, session.sessionVersion);
           if (!snapshot) {
-            this.updateState({ canStart: false });
+            this.updateState({ isActive: Boolean(existing), canStart: false });
             return { ok: false, message: INCOMPLETE_MESSAGE };
           }
 
-          const existing = await this.recoverActivity(driver, uid, driver.getInstances());
-          if (existing) {
+          if (action === 'refresh' && existing) {
             this.updateState({ isActive: true, canStart: true });
             await this.publishFreshSnapshot(snapshot, uid);
             return { ok: true };
@@ -285,7 +286,7 @@ export class LiveActivityCoordinator {
           };
           const activity = driver.start(
             content,
-            '/registrar-entrega',
+            '/historico?mode=wholesale',
             nextLocalMidnight(content.date),
           );
           const ownership = { uid, activityId: activity.getId(), content };
@@ -316,6 +317,11 @@ export class LiveActivityCoordinator {
     const session = this.session;
     if (!session?.uid || !this.isCurrentSession(session)) return;
     this.scheduleNextMidnight();
+    if (this.state.isActive || this.activeInstance) {
+      if (!this.state.isActive) this.updateState({ isActive: true });
+    } else {
+      this.updateState({ canStart: false });
+    }
     await this.enqueue(async () => {
       if (!this.isCurrentSession(session)) return;
       try {

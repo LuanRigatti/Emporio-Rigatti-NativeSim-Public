@@ -10,7 +10,7 @@ export type QuickActionType = (typeof QUICK_ACTION_TYPES)[keyof typeof QUICK_ACT
 export const QUICK_ACTION_ROUTES: Record<QuickActionType, string> = {
   [QUICK_ACTION_TYPES.history]: '/historico',
   [QUICK_ACTION_TYPES.registerData]: '/registrar-dados',
-  [QUICK_ACTION_TYPES.registerDelivery]: '/registrar-entrega',
+  [QUICK_ACTION_TYPES.registerDelivery]: '/registrar-entrega/clientes',
   [QUICK_ACTION_TYPES.testMode]: '/modo-teste',
 };
 

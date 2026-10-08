@@ -274,22 +274,10 @@ describe('Home AppMode splash transition', () => {
       });
       expect(findAnimation(1000).easing).toBe('inOut(cubic)');
       expect(mockEasingInOut).toHaveBeenCalledWith('cubic');
-      const targetLabel = renderer.root.findByProps({
-        testID: 'home-mode-transition-target-label',
-      });
-      expect(targetLabel.findByType(Text).props.children).toBe(
-        targetMode === 'wholesale' ? 'Atacado' : 'Varejo',
-      );
-      expect(StyleSheet.flatten(targetLabel.props.style)).toMatchObject({
-        top: '52.8%',
-        marginTop: 24,
-      });
-      expect(targetLabel.parent?.props.testID).toBe('home-mode-transition-composition');
-      expect(StyleSheet.flatten(targetLabel.findByType(Text).props.style)).toMatchObject({
-        color: colorScheme === 'dark' ? '#F5F7FA' : '#111827',
-        fontSize: 17,
-        fontWeight: '600',
-      });
+      expect(
+        renderer.root.findAllByProps({ testID: 'home-mode-transition-target-label' }),
+      ).toHaveLength(0);
+      expect(surface.findAllByType(Text)).toHaveLength(0);
       findAnimation(1000).setCurrentValue(0.5);
       const halfwayCompositionStyles = mockAnimatedStyleCallbacks
         .map((getStyle) => getStyle())

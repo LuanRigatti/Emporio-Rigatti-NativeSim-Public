@@ -13,11 +13,6 @@ const consumers = [
   ['Route Tracking', 'src/features/location/components/LocationTrackingScreen.tsx', 1],
   ['Histórico compacto', 'src/features/history/components/HistoryCompactDeliveryCard.tsx', 1],
   ['Pagamentos em aberto', 'src/features/open-payments/components/OpenPaymentsScreen.tsx', 1],
-  [
-    'Clientes com pagamentos em aberto',
-    'src/features/open-payments/components/OpenPaymentClientCards.tsx',
-    1,
-  ],
 ] as const;
 
 function readProjectFile(path: string): string {
@@ -67,6 +62,18 @@ describe('measured context-menu card geometry', () => {
     expect(headerStyle).toContain("width: '100%'");
     expect(source).toContain('clientCopy: { flex: 1, minWidth: 0 }');
     expect(source).toContain('flexShrink: 1');
+  });
+
+  it('keeps the open payment client trigger measured while sizing its preview independently', () => {
+    const source = readProjectFile(
+      'src/features/open-payments/components/OpenPaymentClientCards.tsx',
+    );
+
+    expect(source).toContain('<MeasuredContextMenuGeometry');
+    expect(source).toContain('triggerWidthStyle');
+    expect(source).not.toContain('previewFrameStyle');
+    expect(source).toContain('preview={renderPreview(client)}');
+    expect(source).toContain('windowWidth - insets.left - insets.right - theme.spacing.md * 2');
   });
 
   it('keeps card geometry out of the shared iOS menu adapter', () => {

@@ -113,6 +113,12 @@ function findCostSetting(renderer: ReactTestRenderer): ReactTestInstance | undef
     .find((node) => node.props.title === 'Custos');
 }
 
+function findPeekPopLabSetting(renderer: ReactTestRenderer): ReactTestInstance | undefined {
+  return renderer.root
+    .findAll((node) => String(node.type) === 'setting-item')
+    .find((node) => node.props.title === 'Teste de prévia nativa');
+}
+
 describe('SettingsScreen retail client navigation', () => {
   beforeEach(() => {
     mockAppMode.mode = 'wholesale';
@@ -158,5 +164,14 @@ describe('SettingsScreen retail client navigation', () => {
     expect(costSetting).toBeDefined();
     act(() => costSetting?.props.onPress());
     expect(mockPush).toHaveBeenCalledWith('/custos-varejo');
+  });
+
+  it('opens the native preview lab route', () => {
+    const renderer = renderSettings();
+    const labSetting = findPeekPopLabSetting(renderer);
+
+    expect(labSetting).toBeDefined();
+    act(() => labSetting?.props.onPress());
+    expect(mockPush).toHaveBeenCalledWith('/peek-pop-lab');
   });
 });

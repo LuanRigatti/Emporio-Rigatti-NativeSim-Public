@@ -279,7 +279,10 @@ describe('Registrar app mode routing', () => {
     act(() => cards[1].props.onPress());
 
     expect(mockLightImpactHaptic).toHaveBeenCalledTimes(2);
-    expect(mockRouterPush.mock.calls).toEqual([['/registrar-entrega'], ['/registrar-dados']]);
+    expect(mockRouterPush.mock.calls).toEqual([
+      ['/registrar-entrega/clientes'],
+      ['/registrar-dados'],
+    ]);
     act(() => renderer.unmount());
   });
 

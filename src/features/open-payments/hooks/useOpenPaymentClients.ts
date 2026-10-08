@@ -7,8 +7,11 @@ import { formatClientName, normalizeClientKey } from '@/utils/data';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 
+import { getRecentPaidDeliveriesForClient } from '../data/openPaymentClientPreview';
+
 export type OpenPaymentClientCard = ClientFinancialRankingItem & {
   deliveries: Delivery[];
+  recentPayments: Delivery[];
 };
 
 export function useOpenPaymentClients() {
@@ -18,21 +21,34 @@ export function useOpenPaymentClients() {
     mode: 'all',
     status: 'Não Pago',
   });
+  const {
+    deliveries: paidDeliveries,
+    error: paymentHistoryError,
+    loading: paymentHistoryLoading,
+  } = useDeliveries({ mode: 'all', status: 'Pago' });
 
   const clientCards = useMemo<OpenPaymentClientCard[]>(
     () =>
       financialCalculationService
         .rankClients(deliveries, { periodo: 'todos' })
         .filter((client) => client.valor > 0)
-        .map((client) => ({
-          ...client,
-          deliveries: deliveries.filter(
+        .map((client) => {
+          const clientDeliveries = deliveries.filter(
             (delivery) =>
               normalizeClientKey(formatClientName(delivery.cliente)) ===
               normalizeClientKey(client.nome),
-          ),
-        })),
-    [deliveries],
+          );
+
+          return {
+            ...client,
+            deliveries: clientDeliveries,
+            recentPayments: getRecentPaidDeliveriesForClient(
+              { deliveries: clientDeliveries, nome: client.nome },
+              paidDeliveries,
+            ),
+          };
+        }),
+    [deliveries, paidDeliveries],
   );
   const totalOpenAmount = useMemo(
     () => financialCalculationService.calculatePendente(deliveries),
@@ -48,5 +64,12 @@ export function useOpenPaymentClients() {
     [editMany, testModeEnabled],
   );
 
-  return { clientCards, markDeliveryPaid, testModeEnabled, totalOpenAmount };
+  return {
+    clientCards,
+    markDeliveryPaid,
+    paymentHistoryError,
+    paymentHistoryLoading,
+    testModeEnabled,
+    totalOpenAmount,
+  };
 }

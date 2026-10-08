@@ -6,6 +6,12 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   private let scrollView = UIScrollView()
   private let cardView = UIView()
   private let contentStack = UIStackView()
+  private let viewerSurfaceView = UIView()
+  weak var transitionSourceView: UIView?
+  private weak var commitNavigationController: UINavigationController?
+  private var interactiveDismissCoordinator: NativePeekPopInteractiveDismissCoordinator?
+
+  var usesInteractiveViewer: Bool { presentationStyle == .interactiveViewer }
 
   init(
     content: [String: Any],
@@ -28,8 +34,39 @@ final class NativeContextMenuPreviewViewController: UIViewController {
     buildContent()
   }
 
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    installInteractiveDismissCoordinatorIfNeeded()
+  }
+
+  override func accessibilityPerformEscape() -> Bool {
+    guard usesInteractiveViewer,
+          navigationController?.topViewController === self else {
+      return super.accessibilityPerformEscape()
+    }
+
+    navigationController?.popViewController(animated: true)
+    return true
+  }
+
+  func prepareForInteractiveViewer(in navigationController: UINavigationController) {
+    guard usesInteractiveViewer else {
+      return
+    }
+    commitNavigationController = navigationController
+    navigationController.view.isUserInteractionEnabled = true
+    navigationController.setNavigationBarHidden(true, animated: false)
+  }
+
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    if usesInteractiveViewer {
+      let bottomInset = view.safeAreaInsets.bottom
+      if scrollView.contentInset.bottom != bottomInset {
+        scrollView.contentInset.bottom = bottomInset
+        scrollView.verticalScrollIndicatorInsets.bottom = bottomInset
+      }
+    }
     updatePreferredContentSize()
   }
 
@@ -42,6 +79,11 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   }
 
   private func buildLayout() {
+    if usesInteractiveViewer {
+      buildInteractiveViewerLayout()
+      return
+    }
+
     if presentationStyle == .expandedPanel {
       buildExpandedPanelLayout()
       return
@@ -80,6 +122,65 @@ final class NativeContextMenuPreviewViewController: UIViewController {
       contentStack.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 24),
       contentStack.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -24),
     ])
+  }
+
+  private func buildInteractiveViewerLayout() {
+    let safeArea = view.safeAreaLayoutGuide
+    view.backgroundColor = .clear
+    view.isOpaque = false
+
+    viewerSurfaceView.translatesAutoresizingMaskIntoConstraints = false
+    viewerSurfaceView.backgroundColor = .systemBackground
+    viewerSurfaceView.layer.cornerRadius = 32
+    viewerSurfaceView.layer.cornerCurve = .continuous
+    viewerSurfaceView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+    viewerSurfaceView.clipsToBounds = true
+    view.addSubview(viewerSurfaceView)
+
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.backgroundColor = .clear
+    scrollView.alwaysBounceVertical = false
+    scrollView.showsVerticalScrollIndicator = false
+    scrollView.contentInsetAdjustmentBehavior = .never
+    viewerSurfaceView.addSubview(scrollView)
+
+    contentStack.translatesAutoresizingMaskIntoConstraints = false
+    contentStack.axis = .vertical
+    contentStack.spacing = 24
+    scrollView.addSubview(contentStack)
+
+    NSLayoutConstraint.activate([
+      viewerSurfaceView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      viewerSurfaceView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      viewerSurfaceView.topAnchor.constraint(equalTo: safeArea.topAnchor),
+      viewerSurfaceView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: viewerSurfaceView.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: viewerSurfaceView.trailingAnchor),
+      scrollView.topAnchor.constraint(equalTo: viewerSurfaceView.topAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: viewerSurfaceView.bottomAnchor),
+      contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 24),
+      contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -24),
+      contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 28),
+      contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -28),
+      contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -48),
+    ])
+  }
+
+  private func installInteractiveDismissCoordinatorIfNeeded() {
+    guard usesInteractiveViewer,
+          interactiveDismissCoordinator == nil,
+          let navigationController = commitNavigationController,
+          self.navigationController === navigationController,
+          navigationController.topViewController === self else {
+      return
+    }
+
+    interactiveDismissCoordinator = NativePeekPopInteractiveDismissCoordinator(
+      navigationController: navigationController,
+      viewerController: self,
+      scrollView: scrollView,
+      gestureView: viewerSurfaceView
+    )
   }
 
   private func buildExpandedPanelLayout() {
@@ -188,9 +289,13 @@ final class NativeContextMenuPreviewViewController: UIViewController {
 
   private func makeSummary(_ summary: [String: Any]) -> UIView {
     let container = UIView()
-    container.backgroundColor = .secondarySystemGroupedBackground
-    container.layer.cornerRadius = 20
-    container.layer.cornerCurve = .continuous
+    if usesInteractiveViewer {
+      container.backgroundColor = .clear
+    } else {
+      container.backgroundColor = .secondarySystemGroupedBackground
+      container.layer.cornerRadius = 20
+      container.layer.cornerCurve = .continuous
+    }
 
     let labels = UIStackView()
     labels.translatesAutoresizingMaskIntoConstraints = false
@@ -218,10 +323,10 @@ final class NativeContextMenuPreviewViewController: UIViewController {
     }
     container.addSubview(labels)
     NSLayoutConstraint.activate([
-      labels.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-      labels.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
-      labels.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-      labels.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
+      labels.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: usesInteractiveViewer ? 0 : 16),
+      labels.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: usesInteractiveViewer ? 0 : -16),
+      labels.topAnchor.constraint(equalTo: container.topAnchor, constant: usesInteractiveViewer ? 0 : 16),
+      labels.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: usesInteractiveViewer ? 0 : -16),
     ])
     return container
   }
@@ -322,18 +427,29 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   }
 
   private func updatePreferredContentSize() {
+    let preferredHeight: CGFloat
+    let maxHeight: CGFloat
+    let minHeight: CGFloat
+    switch presentationStyle {
+    case .page:
+      preferredHeight = 420
+      maxHeight = 460
+      minHeight = 240
+    case .expandedPanel, .interactiveViewer:
+      preferredHeight = 520
+      maxHeight = 560
+      minHeight = 320
+    }
+
     guard let window = view.window else {
       if preferredContentSize == .zero {
-        let height: CGFloat = presentationStyle == .expandedPanel ? 520 : 420
-        preferredContentSize = CGSize(width: 360, height: height)
+        preferredContentSize = CGSize(width: 360, height: preferredHeight)
       }
       return
     }
 
     let screenBounds = window.windowScene?.screen.bounds ?? window.bounds
     let safeHeight = screenBounds.height - window.safeAreaInsets.top - window.safeAreaInsets.bottom
-    let maxHeight: CGFloat = presentationStyle == .expandedPanel ? 560 : 460
-    let minHeight: CGFloat = presentationStyle == .expandedPanel ? 320 : 240
     let height = min(maxHeight, max(minHeight, safeHeight - 180))
     let width = min(400, max(280, screenBounds.width - 32))
     let nextSize = CGSize(width: width, height: height)

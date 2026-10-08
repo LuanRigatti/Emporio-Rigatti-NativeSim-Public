@@ -648,10 +648,11 @@ como histórico técnico e não devem substituir a inspeção do código/Git atu
   `ProgressiveCollapsibleScreen` e um único card `Clientes`. A ação global de
   Live Activity permanece na toolbar dessa página e usa o snapshot completo
   das entregas do dia, sem depender de cliente selecionado.
-- `/registrar-entrega/clientes` reutiliza a lista existente de clientes, busca
-  local, cards e ação `Novo cliente`. Com a busca focada, o primeiro toque em
-  um cliente apenas dispensa o teclado; com a busca recolhida, o toque navega
-  para `/registrar-entrega/[clientId]` com haptic.
+- `/registrar-entrega/clientes` reutiliza a lista existente de clientes e
+  cards, sem busca inferior nem CTA `Adicionar`; `Novo cliente` permanece na
+  toolbar. Tocar em um cliente navega diretamente para
+  `/registrar-entrega/[clientId]` com haptic. A busca local continua disponível
+  em `/registrar/entrega`.
 - A tela de detalhe da entrega mantém formulário, validações e persistência
   atuais; após salvar, `router.back()` retorna à lista de clientes.
 - O card de Entrega na tab Registrar, `/registrar/entrega`, Quick Action,

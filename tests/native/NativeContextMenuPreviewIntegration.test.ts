@@ -10,10 +10,14 @@ describe('reusable native context menu preview', () => {
   const previewController = readSource(
     'modules/native-card-context-menu/ios/NativeContextMenuPreviewViewController.swift',
   );
+  const dismissCoordinator = readSource(
+    'modules/native-card-context-menu/ios/NativePeekPopInteractiveDismissCoordinator.swift',
+  );
   const labView = readSource(
     'modules/native-card-context-menu/ios/NativePeekPopPreviewLabView.swift',
   );
   const moduleConfig = readSource('modules/native-card-context-menu/expo-module.config.json');
+  const podspec = readSource('modules/native-card-context-menu/ios/NativeCardContextMenu.podspec');
   const publicTypes = readSource(
     'modules/native-card-context-menu/src/NativeContextMenuPreview.types.ts',
   );
@@ -40,6 +44,7 @@ describe('reusable native context menu preview', () => {
     expect(moduleConfig).toContain('NativeCardContextMenuModule');
     expect(moduleConfig).toContain('NativeContextMenuPreviewModule');
     expect(moduleConfig).toContain('NativePeekPopPreviewLabModule');
+    expect(podspec).toContain("s.source_files = '**/*.{h,m,mm,swift}'");
     expect(settings).not.toContain('__DEV__');
     expect(settings).toContain('title="Teste de prévia nativa"');
     expect(settings).toContain("router.push('/peek-pop-lab')");
@@ -51,9 +56,9 @@ describe('reusable native context menu preview', () => {
     expect(coordinator).toContain('UIContextMenuInteractionDelegate');
     expect(coordinator).toContain('UIContextMenuConfiguration(');
     expect(coordinator).toContain('previewProvider:');
-    expect(coordinator).toContain(
-      'NativeContextMenuPreviewViewController(content: content, presentationStyle: style)',
-    );
+    expect(coordinator).toContain('NativeContextMenuPreviewViewController(');
+    expect(coordinator).toContain('content: content');
+    expect(coordinator).toContain('presentationStyle: style');
     expect(coordinator).toContain('UIMenu(');
     expect(coordinator).toContain('UIAction(');
     expect(coordinator).toContain('animator.preferredCommitStyle = .pop');
@@ -71,11 +76,11 @@ describe('reusable native context menu preview', () => {
     expect(previewController).toContain('.systemBackground');
   });
 
-  it('keeps the existing page presentation as the default and supports a UIKit expanded panel style', () => {
+  it('preserves the first card and opens the second in a sibling viewer navigation container', () => {
     expect(coordinator).toContain(
       'var presentationStyle: NativeContextMenuPreviewPresentationStyle = .page',
     );
-    expect(publicTypes).toContain("'page' | 'expandedPanel'");
+    expect(publicTypes).toContain("'page' | 'expandedPanel' | 'interactiveViewer'");
     expect(nativeModule).toContain('Prop("presentationStyle")');
     expect(previewController).toContain('if presentationStyle == .expandedPanel');
     expect(previewController).toContain('cardView.layer.cornerRadius = 32');
@@ -89,9 +94,103 @@ describe('reusable native context menu preview', () => {
       'cardView.widthAnchor.constraint(lessThanOrEqualToConstant: 640)',
     );
     expect(previewController).toContain('scrollView.contentLayoutGuide');
-    expect(previewController).toContain('presentationStyle == .expandedPanel ? 560 : 460');
+    const firstCardProps = route
+      .split('<NativePeekPopPreviewLabView')[1]
+      ?.split('secondaryCard={{')[0];
+    expect(firstCardProps).toBeDefined();
+    expect(firstCardProps).toContain('identifier="settings-peek-pop-sample-client"');
+    expect(firstCardProps).toContain('preview={preview}');
+    expect(firstCardProps).toContain('actions={actions}');
+    expect(firstCardProps).not.toContain('presentationStyle');
+    expect(route).toContain("presentationStyle: 'interactiveViewer'");
+    expect(route).toContain("title: 'Prévia → Painel expandido'");
+    expect(route).toContain("title: 'Pago'");
+
+    const viewerLayout = previewController
+      .split('private func buildInteractiveViewerLayout()')[1]
+      ?.split('private func installInteractiveDismissCoordinatorIfNeeded()')[0];
+    expect(viewerLayout).toBeDefined();
+    expect(viewerLayout).toContain('view.safeAreaLayoutGuide');
+    expect(viewerLayout).toContain('view.backgroundColor = .clear');
+    expect(viewerLayout).toContain('viewerSurfaceView.backgroundColor = .systemBackground');
+    expect(viewerLayout).toContain(
+      'viewerSurfaceView.topAnchor.constraint(equalTo: safeArea.topAnchor)',
+    );
+    expect(viewerLayout).toContain(
+      'viewerSurfaceView.bottomAnchor.constraint(equalTo: view.bottomAnchor)',
+    );
+    expect(viewerLayout).toContain(
+      'viewerSurfaceView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]',
+    );
+    expect(viewerLayout).toContain(
+      'scrollView.bottomAnchor.constraint(equalTo: viewerSurfaceView.bottomAnchor)',
+    );
+    expect(viewerLayout).toContain(
+      'contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -28)',
+    );
+    expect(viewerLayout).not.toContain('cardView');
+    expect(viewerLayout).not.toContain('0.82');
+    expect(previewController).toContain(
+      'if usesInteractiveViewer {\n      container.backgroundColor = .clear',
+    );
     expect(previewController).not.toContain('UISheetPresentationController');
     expect(previewController).not.toContain('present(');
+
+    expect(labView).toContain('hostViewController.addChild(navigationController)');
+    expect(labView).toContain('hostViewController.addChild(interactiveNavigationController)');
+    expect(labView).toContain('interactiveNavigationController.view.backgroundColor = .clear');
+    expect(labView).toContain(
+      'interactiveNavigationController.view.isUserInteractionEnabled = false',
+    );
+    expect(labView).toContain('rootView.backgroundColor = .clear');
+    expect(labView).toContain('return style == .interactiveViewer');
+    expect(labView).toContain('? self.interactiveNavigationController');
+    expect(labView).toContain(': self.navigationController');
+    expect(coordinator).toContain(
+      'previewController.prepareForInteractiveViewer(in: navigationController)',
+    );
+    expect(coordinator).toContain(
+      'navigationController.pushViewController(previewController, animated: false)',
+    );
+  });
+
+  it('drives vertical dismissal through an interactive UIKit navigation pop', () => {
+    expect(dismissCoordinator).toContain('UIPanGestureRecognizer(');
+    expect(dismissCoordinator).toContain(
+      'scrollView.panGestureRecognizer.require(toFail: panGesture)',
+    );
+    expect(dismissCoordinator).toContain('gestureRecognizerShouldBegin');
+    expect(dismissCoordinator).toContain('scrollViewIsAtTop');
+    expect(dismissCoordinator).toContain('UIPercentDrivenInteractiveTransition()');
+    expect(dismissCoordinator).toContain('navigationController.popViewController(animated: true)');
+    expect(dismissCoordinator).toContain('interactionController?.update(progress)');
+    expect(dismissCoordinator).toContain('interactionController?.finish()');
+    expect(dismissCoordinator).toContain('interactionController?.cancel()');
+    expect(dismissCoordinator).toContain('transitionContext.transitionWasCancelled');
+    expect(dismissCoordinator).toContain('fromView.frame = startFrame');
+    expect(dismissCoordinator).toContain('transitionContext.completeTransition(completed)');
+    expect(dismissCoordinator).toContain('navigationController.delegate = self');
+    expect(dismissCoordinator).toContain('navigationController.delegate = nil');
+    expect(dismissCoordinator).toContain('gestureView.addGestureRecognizer(panGesture)');
+    expect(dismissCoordinator).toContain('gestureView?.removeGestureRecognizer($0)');
+    expect(dismissCoordinator).toContain(
+      'sourceView.convert(sourceView.bounds, to: containerView)',
+    );
+    expect(dismissCoordinator).not.toContain('sourceCenterX');
+    expect(dismissCoordinator).toContain(
+      'navigationController.view.isUserInteractionEnabled = false',
+    );
+    expect(coordinator).toContain(
+      'previewController.prepareForInteractiveViewer(in: navigationController)',
+    );
+    expect(previewController).toContain('installInteractiveDismissCoordinatorIfNeeded()');
+    expect(dismissCoordinator).toContain(
+      'sourceView.convert(sourceView.bounds, to: containerView)',
+    );
+    expect(dismissCoordinator).toContain('fromView.layer.cornerRadius = reduceMotion ? 0 : 32');
+    expect(dismissCoordinator).toContain('UIAccessibility.isReduceMotionEnabled');
+    expect(dismissCoordinator).not.toContain('present(');
+    expect(dismissCoordinator).not.toContain('UISheetPresentationController');
   });
 
   it('supports TS-configured identity, preview content, actions, and open callbacks', () => {
@@ -120,7 +219,7 @@ describe('reusable native context menu preview', () => {
     expect(route).toContain('R$ 306,00');
     expect(route).toContain("title: 'Pago'");
     expect(route).toContain("title: 'Prévia → Painel expandido'");
-    expect(route).toContain("presentationStyle: 'expandedPanel'");
+    expect(route).toContain("presentationStyle: 'interactiveViewer'");
     expect(route).toContain("title: 'Informações adicionais'");
     expect(labView).toContain(
       'private var secondaryCoordinator: NativeContextMenuPreviewCoordinator?',

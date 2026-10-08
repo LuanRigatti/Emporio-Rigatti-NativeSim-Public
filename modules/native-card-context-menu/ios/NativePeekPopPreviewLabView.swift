@@ -25,6 +25,7 @@ public final class NativePeekPopPreviewLabView: ExpoView {
   private weak var hostViewController: UIViewController?
   private var navigationController: UINavigationController?
   private var rootViewController: NativePeekPopPreviewLabRootViewController?
+  private var interactiveNavigationController: UINavigationController?
 
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -83,9 +84,30 @@ public final class NativePeekPopPreviewLabView: ExpoView {
     ])
     navigationController.didMove(toParent: hostViewController)
 
+    let interactiveRootViewController = NativePeekPopInteractiveViewerRootViewController()
+    let interactiveNavigationController = UINavigationController(
+      rootViewController: interactiveRootViewController
+    )
+    interactiveNavigationController.setNavigationBarHidden(true, animated: false)
+    interactiveNavigationController.view.backgroundColor = .clear
+    interactiveNavigationController.view.isOpaque = false
+    interactiveNavigationController.view.isUserInteractionEnabled = false
+    interactiveNavigationController.view.translatesAutoresizingMaskIntoConstraints = false
+
+    hostViewController.addChild(interactiveNavigationController)
+    addSubview(interactiveNavigationController.view)
+    NSLayoutConstraint.activate([
+      interactiveNavigationController.view.leadingAnchor.constraint(equalTo: leadingAnchor),
+      interactiveNavigationController.view.trailingAnchor.constraint(equalTo: trailingAnchor),
+      interactiveNavigationController.view.topAnchor.constraint(equalTo: topAnchor),
+      interactiveNavigationController.view.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+    interactiveNavigationController.didMove(toParent: hostViewController)
+
     self.hostViewController = hostViewController
     self.navigationController = navigationController
     self.rootViewController = rootViewController
+    self.interactiveNavigationController = interactiveNavigationController
   }
 
   private func removeNavigationController() {
@@ -96,8 +118,12 @@ public final class NativePeekPopPreviewLabView: ExpoView {
     navigationController.willMove(toParent: nil)
     navigationController.view.removeFromSuperview()
     navigationController.removeFromParent()
+    interactiveNavigationController?.willMove(toParent: nil)
+    interactiveNavigationController?.view.removeFromSuperview()
+    interactiveNavigationController?.removeFromParent()
     self.navigationController = nil
     rootViewController = nil
+    interactiveNavigationController = nil
     hostViewController = nil
   }
 
@@ -332,7 +358,9 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
       attachingTo: cardView,
       commitBehavior: .pushPreviewController
     )
-    coordinator.navigationControllerProvider = { [weak self] in self?.navigationController }
+    coordinator.navigationControllerProvider = { [weak self] in
+      self?.navigationController
+    }
     coordinator.onAction = { [weak self] identifier, actionId in
       self?.onAction(identifier, actionId)
     }
@@ -374,7 +402,17 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
         attachingTo: secondaryCardView,
         commitBehavior: .pushPreviewController
       )
-      secondaryCoordinator.navigationControllerProvider = { [weak self] in self?.navigationController }
+      secondaryCoordinator.navigationControllerProvider = { [weak self] in
+        guard let self else {
+          return nil
+        }
+        let style = NativeContextMenuPreviewPresentationStyle(
+          rawValue: self.secondaryCard?["presentationStyle"] as? String ?? "page"
+        ) ?? .page
+        return style == .interactiveViewer
+          ? self.interactiveNavigationController
+          : self.navigationController
+      }
       secondaryCoordinator.onAction = { [weak self] identifier, actionId in
         self?.onAction(identifier, actionId)
       }
@@ -416,5 +454,14 @@ private final class NativePeekPopPreviewLabRootViewController: UIViewController 
 
   @objc private func closeLab() {
     onClose(identifier)
+  }
+}
+
+private final class NativePeekPopInteractiveViewerRootViewController: UIViewController {
+  override func loadView() {
+    let rootView = UIView()
+    rootView.backgroundColor = .clear
+    rootView.isOpaque = false
+    view = rootView
   }
 }

@@ -7,6 +7,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 const mockRouterPush = jest.fn();
 const mockToggleFromToolbar = jest.fn().mockResolvedValue({ ok: true });
 const mockLightImpactHaptic = jest.fn();
+const mockLiveActivityState = {
+  canStart: true,
+  isActive: false,
+  isBusy: false,
+  supported: true,
+};
 
 jest.mock('expo-router', () => {
   const React = require('react') as typeof import('react');
@@ -85,12 +91,7 @@ jest.mock('@/features/deliveries/liveActivity/LiveActivityCoordinator', () => ({
 }));
 
 jest.mock('@/features/deliveries/liveActivity/useLiveActivityCoordinator', () => ({
-  useLiveActivityCoordinatorState: () => ({
-    canStart: true,
-    isActive: false,
-    isBusy: false,
-    supported: true,
-  }),
+  useLiveActivityCoordinatorState: () => mockLiveActivityState,
 }));
 
 jest.mock('@/utils/haptics', () => ({ triggerLightImpactHaptic: mockLightImpactHaptic }));
@@ -113,6 +114,12 @@ describe('RegistrarDeliveryLandingScreen', () => {
     mockRouterPush.mockClear();
     mockToggleFromToolbar.mockClear();
     mockLightImpactHaptic.mockClear();
+    Object.assign(mockLiveActivityState, {
+      canStart: true,
+      isActive: false,
+      isBusy: false,
+      supported: true,
+    });
   });
 
   it('shows only the Clientes action under the Entrega title', () => {
@@ -154,6 +161,70 @@ describe('RegistrarDeliveryLandingScreen', () => {
       await Promise.resolve();
     });
 
+    expect(mockToggleFromToolbar).toHaveBeenCalledTimes(1);
+    expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(mockLightImpactHaptic.mock.invocationCallOrder[0]).toBeLessThan(
+      mockToggleFromToolbar.mock.invocationCallOrder[0],
+    );
+    act(() => renderer.unmount());
+  });
+
+  it('triggers one light haptic when ending an active Live Activity', async () => {
+    Object.assign(mockLiveActivityState, { canStart: false, isActive: true });
+    const renderer = renderLanding();
+    const action = renderer.root.find(
+      (node) =>
+        String(node.type) === 'stack-toolbar-button' &&
+        node.props.icon === 'dot.radiowaves.left.and.right',
+    );
+
+    expect(action.props.disabled).toBe(false);
+    expect(action.props.accessibilityLabel).toBe('Encerrar atividade ao vivo');
+
+    await act(async () => {
+      action.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
+    expect(mockToggleFromToolbar).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it('does not haptically respond or toggle when the Live Activity action is disabled', () => {
+    Object.assign(mockLiveActivityState, { canStart: false });
+    const renderer = renderLanding();
+    const action = renderer.root.find(
+      (node) =>
+        String(node.type) === 'stack-toolbar-button' &&
+        node.props.icon === 'dot.radiowaves.left.and.right',
+    );
+
+    expect(action.props.disabled).toBe(true);
+    act(() => action.props.onPress());
+
+    expect(mockLightImpactHaptic).not.toHaveBeenCalled();
+    expect(mockToggleFromToolbar).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it('continues the Live Activity action if the haptic utility throws synchronously', async () => {
+    mockLightImpactHaptic.mockImplementationOnce(() => {
+      throw new Error('Haptics unavailable');
+    });
+    const renderer = renderLanding();
+    const action = renderer.root.find(
+      (node) =>
+        String(node.type) === 'stack-toolbar-button' &&
+        node.props.icon === 'dot.radiowaves.left.and.right',
+    );
+
+    await act(async () => {
+      action.props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
     expect(mockToggleFromToolbar).toHaveBeenCalledTimes(1);
     act(() => renderer.unmount());
   });

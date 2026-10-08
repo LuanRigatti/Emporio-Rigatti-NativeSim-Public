@@ -27,7 +27,8 @@ export type NativeContextMenuPreviewContent = {
   sections?: readonly NativeContextMenuPreviewSection[];
 };
 
-export type NativeContextMenuPreviewPresentationStyle = 'page' | 'expandedPanel';
+export type NativeContextMenuPreviewPresentationStyle =
+  'page' | 'expandedPanel' | 'interactiveViewer';
 
 export type NativeContextMenuAction = {
   id: string;

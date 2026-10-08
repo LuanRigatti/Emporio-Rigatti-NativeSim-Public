@@ -28,7 +28,7 @@ const preview = {
 
 const actions = [{ id: 'paid', title: 'Pago', systemImage: 'checkmark.circle' }] as const;
 
-const expandedPanelPreview = {
+const interactiveViewerPreview = {
   title: 'Cliente Exemplo',
   subtitle: 'Cliente Varejo',
   leadingSystemImage: 'person.crop.circle.fill',
@@ -76,11 +76,11 @@ export default function PeekPopLabScreen() {
       preview={preview}
       secondaryCard={{
         title: 'Prévia → Painel expandido',
-        identifier: 'settings-peek-pop-expanded-panel',
-        preview: expandedPanelPreview,
+        identifier: 'settings-peek-pop-interactive-viewer',
+        preview: interactiveViewerPreview,
         actions,
         menuTitle: 'Cliente',
-        presentationStyle: 'expandedPanel',
+        presentationStyle: 'interactiveViewer',
       }}
       style={styles.host}
     />

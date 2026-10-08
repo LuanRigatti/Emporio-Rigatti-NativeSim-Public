@@ -17,6 +17,10 @@ export function RegistrarDeliveryLandingScreen() {
   const insets = useAppSafeAreaInsets();
   const router = useRouter();
   const liveActivityState = useLiveActivityCoordinatorState();
+  const isLiveActivityActionDisabled =
+    liveActivityState.isBusy ||
+    liveActivityState.supported !== true ||
+    (!liveActivityState.isActive && !liveActivityState.canStart);
   const contentTopInset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
 
   const handleOpenClients = useCallback(() => {
@@ -53,13 +57,15 @@ export function RegistrarDeliveryLandingScreen() {
                 ? 'Encerrar atividade ao vivo'
                 : 'Iniciar atividade ao vivo'
             }
-            disabled={
-              liveActivityState.isBusy ||
-              liveActivityState.supported !== true ||
-              (!liveActivityState.isActive && !liveActivityState.canStart)
-            }
+            disabled={isLiveActivityActionDisabled}
             icon="dot.radiowaves.left.and.right"
             onPress={() => {
+              if (isLiveActivityActionDisabled) return;
+              try {
+                triggerLightImpactHaptic();
+              } catch {
+                // Haptic failure must not block the Live Activity action.
+              }
               void wholesaleDeliveryLiveActivityCoordinator.toggleFromToolbar().then((result) => {
                 if (!result.ok) Alert.alert('Atividade ao vivo', result.message);
               });

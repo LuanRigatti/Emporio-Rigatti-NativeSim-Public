@@ -8,6 +8,7 @@ enum NativeContextMenuPreviewCommitBehavior {
 enum NativeContextMenuPreviewPresentationStyle: String {
   case page
   case expandedPanel
+  case interactiveViewer
 }
 
 final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteractionDelegate {
@@ -50,11 +51,19 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
     let content = previewContent
     let style = presentationStyle
     let actionItems = actions
+    let sourceView = hostView
 
     return UIContextMenuConfiguration(
       identifier: cardIdentifier as NSString,
       previewProvider: {
-        NativeContextMenuPreviewViewController(content: content, presentationStyle: style)
+        let previewController = NativeContextMenuPreviewViewController(
+          content: content,
+          presentationStyle: style
+        )
+        if style == .interactiveViewer {
+          previewController.transitionSourceView = sourceView
+        }
+        return previewController
       }
     ) { [weak self] _ in
       self?.makeMenu(actions: actionItems, cardIdentifier: cardIdentifier) ?? UIMenu()
@@ -93,6 +102,9 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
           $0 === previewController
         }
         if !isAlreadyPresented {
+          if previewController.usesInteractiveViewer {
+            previewController.prepareForInteractiveViewer(in: navigationController)
+          }
           navigationController.pushViewController(previewController, animated: false)
         }
       }

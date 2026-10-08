@@ -199,6 +199,29 @@ describe('reusable native context menu preview', () => {
     expect(dismissCoordinator).not.toContain('UISheetPresentationController');
   });
 
+  it('measures interactive dismissal in stable coordinates and logs bounded native diagnostics', () => {
+    expect(dismissCoordinator).toContain('gestureWindow = window');
+    expect(dismissCoordinator).toContain('gestureStartY = gesture.location(in: window).y');
+    expect(dismissCoordinator).toContain(
+      'gestureReferenceHeight = max(navigationController.view.bounds.height, 1)',
+    );
+    expect(dismissCoordinator).toContain('gesture.location(in: gestureWindow).y - gestureStartY');
+    expect(dismissCoordinator).toContain(
+      'min(max(downwardDistance / max(gestureReferenceHeight, 1), 0), 1)',
+    );
+    expect(dismissCoordinator).not.toContain('gesture.translation(in: viewerController.view)');
+    expect(dismissCoordinator).toContain('logProgressMilestone(progress)');
+    expect(dismissCoordinator).toContain('bucket * 25');
+    expect(dismissCoordinator).toContain('category: "PeekPopDismiss"');
+    expect(dismissCoordinator).toContain('interaction controller activated');
+    expect(dismissCoordinator).toContain('let interactionController');
+    expect(dismissCoordinator).toContain('transitionContext.isInteractive');
+    expect(dismissCoordinator).toContain('pan finish progress=');
+    expect(dismissCoordinator).toContain('pan cancel progress=');
+    expect(dismissCoordinator).toContain('dismiss teardown after destination didShow');
+    expect(dismissCoordinator).toContain('finished && !transitionContext.transitionWasCancelled');
+  });
+
   it('supports TS-configured identity, preview content, actions, and open callbacks', () => {
     expect(publicTypes).toContain('identifier: string');
     expect(publicTypes).toContain('NativeContextMenuPreviewContent');

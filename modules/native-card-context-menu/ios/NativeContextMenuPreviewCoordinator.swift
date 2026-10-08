@@ -77,7 +77,8 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
   ) {
     animator.preferredCommitStyle = .pop
 
-    guard let previewController = animator.previewViewController else {
+    guard let previewController =
+      animator.previewViewController as? NativeContextMenuPreviewViewController else {
       return
     }
 

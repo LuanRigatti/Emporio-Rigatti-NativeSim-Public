@@ -62,7 +62,9 @@ describe('reusable native context menu preview', () => {
     expect(coordinator).toContain('UIMenu(');
     expect(coordinator).toContain('UIAction(');
     expect(coordinator).toContain('animator.preferredCommitStyle = .pop');
-    expect(coordinator).toContain('animator.previewViewController');
+    expect(coordinator).toContain(
+      'animator.previewViewController as? NativeContextMenuPreviewViewController',
+    );
     expect(coordinator).toContain('animator.addAnimations');
     expect(coordinator).toContain(
       'navigationController.pushViewController(previewController, animated: false)',

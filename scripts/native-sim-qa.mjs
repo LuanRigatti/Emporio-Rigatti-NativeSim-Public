@@ -24,6 +24,7 @@ const videoDirectory = path.join(outputDirectory, 'video');
 const sessionName = `rigatti-qa-${process.env.GITHUB_RUN_ID || 'local'}`;
 const simulatorBootTimeoutMs = 600_000;
 const simulatorDiagnosticTimeoutMs = 30_000;
+const simulatorInstallTimeoutMs = 300_000;
 const maxDiagnosticTextLength = 6_000;
 const expectedMode = {
   wholesale: {
@@ -64,10 +65,12 @@ const report = {
   },
   actions: [],
   errors: [],
+  cleanupErrors: [],
   evidence: [],
 };
 
-let simulatorPrepared = false;
+let simulatorUdid = null;
+let agentDeviceSessionReady = false;
 let appSessionOpened = false;
 let recordingStarted = false;
 let failedStep = null;
@@ -335,7 +338,7 @@ function readSimulatorBootDiagnostics(failure) {
 function bootFreshIosSimulator() {
   try {
     const device = listAvailableIosSimulators();
-    simulatorPrepared = true;
+    simulatorUdid = device.udid;
 
     // agent-device 0.20.1 gives boot a 90s daemon envelope; its iOS boot work allows 180s.
     // Preboot outside that request, then let agent-device bind to the already-booted UDID.
@@ -371,6 +374,7 @@ function bootFreshIosSimulator() {
       simulatorBootTimeoutMs,
       true,
     );
+    agentDeviceSessionReady = true;
   } catch (error) {
     const bootError =
       error instanceof QaStepError
@@ -445,7 +449,7 @@ function writeReport() {
   report.status =
     failedStep === 'public_evidence_safety_confirmation'
       ? 'blocked'
-      : report.errors.length === 0
+      : report.errors.length === 0 && report.cleanupErrors.length === 0
         ? 'passed'
         : 'failed';
   report.failedStep = failedStep;
@@ -459,8 +463,81 @@ function writeReport() {
 
 function addCleanupError(step, error) {
   const safeError = error instanceof QaStepError ? error : new QaStepError(step, 'Cleanup failed.');
-  report.errors.push({ step, message: safeError.message });
+  report.cleanupErrors.push({ step, message: safeError.message });
   if (!failedStep) failedStep = step;
+}
+
+function installCachedAppOnSimulator() {
+  if (!simulatorUdid || !agentDeviceSessionReady) {
+    throw new QaStepError(
+      'install_cached_app',
+      'The selected simulator or its agent-device session is not ready.',
+    );
+  }
+
+  const installResult = captureCommand(
+    'xcrun',
+    ['simctl', 'install', simulatorUdid, process.env.APP_PATH],
+    simulatorInstallTimeoutMs,
+  );
+  const installDiagnostic = safeCommandResult(
+    'xcrun simctl install <UDID> <APP_PATH>',
+    simulatorInstallTimeoutMs,
+    installResult,
+  );
+  report.diagnostics = {
+    ...(report.diagnostics || {}),
+    cachedAppInstall: { install: installDiagnostic },
+  };
+
+  if (installResult.errorCode || installResult.status !== 0) {
+    const reason =
+      installResult.errorCode ||
+      `exit-${installResult.status ?? installResult.signal ?? 'unknown'}`;
+    console.error('NativeSim QA app install diagnostics (sanitized):');
+    console.error(JSON.stringify(report.diagnostics.cachedAppInstall, null, 2));
+    throw new QaStepError(
+      'install_cached_app',
+      `simctl install failed (${reason}); sanitized diagnostics are attached to report.json.`,
+    );
+  }
+
+  const verificationResult = captureCommand(
+    'xcrun',
+    ['simctl', 'get_app_container', simulatorUdid, process.env.APP_BUNDLE_ID, 'app'],
+    simulatorDiagnosticTimeoutMs,
+  );
+  const bundleContainerReturned =
+    verificationResult.status === 0 && Boolean(verificationResult.stdout.trim());
+  const verificationDiagnostic = {
+    ...safeCommandResult(
+      'xcrun simctl get_app_container <UDID> <APP_BUNDLE_ID> app',
+      simulatorDiagnosticTimeoutMs,
+      verificationResult,
+      false,
+    ),
+    bundleContainerReturned,
+  };
+  if (!bundleContainerReturned) {
+    verificationDiagnostic.stderr = sanitizeDiagnosticText(verificationResult.stderr);
+  }
+  report.diagnostics.cachedAppInstall.verification = verificationDiagnostic;
+
+  if (verificationResult.errorCode || verificationResult.status !== 0 || !bundleContainerReturned) {
+    const reason =
+      verificationResult.errorCode ||
+      `exit-${verificationResult.status ?? verificationResult.signal ?? 'unknown'}`;
+    console.error('NativeSim QA app install verification diagnostics (sanitized):');
+    console.error(JSON.stringify(report.diagnostics.cachedAppInstall, null, 2));
+    throw new QaStepError(
+      'install_cached_app',
+      `Installed bundle could not be verified on the selected simulator (${reason}).`,
+    );
+  }
+
+  console.log(
+    `Cached app installed and bundle verified on selected simulator; installMs=${installResult.elapsedMs}; verificationMs=${verificationResult.elapsedMs}.`,
+  );
 }
 
 mkdirSync(screenshotDirectory, { recursive: true });
@@ -496,17 +573,7 @@ try {
 
   runStep('boot_fresh_ios_simulator', bootFreshIosSimulator);
 
-  runStep('install_cached_app', () => {
-    runAgentDevice('install_cached_app', [
-      'install',
-      process.env.APP_BUNDLE_ID,
-      process.env.APP_PATH,
-      '--platform',
-      'ios',
-      '--device',
-      process.env.SIMULATOR_DEVICE,
-    ]);
-  });
+  runStep('install_cached_app', installCachedAppOnSimulator);
 
   runStep('open_app', () => {
     runAgentDevice('open_app', [
@@ -639,9 +706,10 @@ try {
     }
   }
 
-  if (simulatorPrepared) {
+  if (agentDeviceSessionReady) {
     try {
-      runAgentDevice('close_simulator_session', ['close', '--shutdown'], 120_000);
+      // End this run's agent session only; never shut down a simulator another session may use.
+      runAgentDevice('close_simulator_session', ['close'], 120_000);
     } catch (error) {
       addCleanupError('close_simulator_session', error);
     }

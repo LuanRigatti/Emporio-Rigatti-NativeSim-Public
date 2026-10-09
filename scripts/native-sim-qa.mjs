@@ -22,6 +22,9 @@ const outputDirectory = path.resolve(process.env.QA_ARTIFACT_DIR || process.cwd(
 const screenshotDirectory = path.join(outputDirectory, 'screenshots');
 const videoDirectory = path.join(outputDirectory, 'video');
 const sessionName = `rigatti-qa-${process.env.GITHUB_RUN_ID || 'local'}`;
+const simulatorBootTimeoutMs = 600_000;
+const simulatorDiagnosticTimeoutMs = 30_000;
+const maxDiagnosticTextLength = 6_000;
 const expectedMode = {
   wholesale: {
     homeLabel: 'Alterar modo. Modo atual: Atacado',
@@ -70,13 +73,77 @@ let recordingStarted = false;
 let failedStep = null;
 
 class QaStepError extends Error {
-  constructor(step, message) {
+  constructor(step, message, bootFailure = null) {
     super(message);
     this.step = step;
+    this.bootFailure = bootFailure;
   }
 }
 
-function runAgentDevice(step, args, timeout = 120_000) {
+function sanitizeDiagnosticText(value) {
+  return String(value || '')
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(
+      /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/gi,
+      '[redacted-private-key]',
+    )
+    .replace(/\b(Bearer|Basic)\s+[^\s,;]+/gi, '$1 [redacted]')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, '[redacted-url]')
+    .replace(
+      /\b(?:gh[pousr]_|github_pat_|AIza|ya29\.|AKIA|sk-)[A-Za-z0-9._-]{12,}\b/g,
+      '[redacted-token]',
+    )
+    .replace(
+      /\beyJ[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]{8,})?\b/g,
+      '[redacted-token]',
+    )
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[redacted-email]')
+    .replace(
+      /((?:access[_ -]?token|refresh[_ -]?token|token|password|secret|api[_ -]?key|authorization|cookie|credential)\s*(?:=|:)\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,
+      '$1[redacted]',
+    )
+    .replace(/([?&](?:k|token|access_token|auth|key|secret)=)[^&\s]+/gi, '$1[redacted]')
+    .replace(/\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b/gi, '[redacted-id]')
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, '[redacted-opaque-value]')
+    .replace(/\/Users\/[^/\s]+/g, '/Users/[redacted]')
+    .replace(/C:\\Users\\[^\\\s]+/gi, 'C:\\Users\\[redacted]')
+    .slice(-maxDiagnosticTextLength);
+}
+
+function captureCommand(command, args, timeout = simulatorBootTimeoutMs) {
+  const startedAt = Date.now();
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    maxBuffer: 4 * 1024 * 1024,
+    timeout,
+    windowsHide: true,
+  });
+
+  return {
+    status: result.status,
+    signal: result.signal || null,
+    errorCode: result.error?.code || null,
+    elapsedMs: Date.now() - startedAt,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+  };
+}
+
+function safeCommandResult(command, timeoutMs, result, includeOutput = true) {
+  return {
+    command,
+    timeoutMs,
+    elapsedMs: result.elapsedMs,
+    exitCode: result.status,
+    signal: result.signal,
+    errorCode: result.errorCode,
+    stdout: includeOutput ? sanitizeDiagnosticText(result.stdout) : '',
+    stderr: includeOutput ? sanitizeDiagnosticText(result.stderr) : '',
+  };
+}
+
+function runAgentDevice(step, args, timeout = 120_000, captureBootFailure = false) {
+  const startedAt = Date.now();
   const result = spawnSync('agent-device', ['--session', sessionName, ...args], {
     encoding: 'utf8',
     maxBuffer: 1024 * 1024,
@@ -86,10 +153,238 @@ function runAgentDevice(step, args, timeout = 120_000) {
 
   if (result.error || result.status !== 0) {
     const reason = result.error?.code || `exit-${result.status ?? result.signal ?? 'unknown'}`;
-    throw new QaStepError(step, `agent-device failed (${reason}).`);
+    const bootFailure = captureBootFailure
+      ? safeCommandResult('agent-device boot', timeout, {
+          status: result.status,
+          signal: result.signal,
+          errorCode: result.error?.code || null,
+          elapsedMs: Date.now() - startedAt,
+          stdout: result.stdout,
+          stderr: result.stderr,
+        })
+      : null;
+    throw new QaStepError(step, `agent-device failed (${reason}).`, bootFailure);
   }
 
   return result.stdout.trim();
+}
+
+function normalizeDeviceName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replaceAll('_', ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function listAvailableIosSimulators() {
+  const result = captureCommand(
+    'xcrun',
+    ['simctl', 'list', 'devices', 'available', '--json'],
+    60_000,
+  );
+  if (result.errorCode || result.status !== 0) {
+    throw new QaStepError(
+      'boot_fresh_ios_simulator',
+      'Could not enumerate available iOS simulators before boot.',
+      safeCommandResult('xcrun simctl list devices available --json', 60_000, result),
+    );
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(result.stdout);
+  } catch {
+    throw new QaStepError(
+      'boot_fresh_ios_simulator',
+      'Simulator inventory returned invalid JSON.',
+      safeCommandResult('xcrun simctl list devices available --json', 60_000, result),
+    );
+  }
+
+  const requestedName = normalizeDeviceName(process.env.SIMULATOR_DEVICE);
+  const candidates = Object.entries(payload.devices || {})
+    .filter(([runtime]) => /^com\.apple\.coresimulator\.simruntime\.ios-/i.test(runtime))
+    .flatMap(([runtime, devices], runtimeIndex) =>
+      (Array.isArray(devices) ? devices : []).map((device, deviceIndex) => ({
+        runtime,
+        runtimeIndex,
+        deviceIndex,
+        device,
+      })),
+    )
+    .filter(
+      ({ device }) =>
+        device?.isAvailable === true &&
+        typeof device.udid === 'string' &&
+        normalizeDeviceName(device.name) === requestedName,
+    )
+    .sort(
+      (left, right) =>
+        Number(right.device.state === 'Booted') - Number(left.device.state === 'Booted') ||
+        String(left.device.name).localeCompare(String(right.device.name)) ||
+        left.runtimeIndex - right.runtimeIndex ||
+        left.deviceIndex - right.deviceIndex,
+    );
+
+  if (candidates.length === 0) {
+    throw new QaStepError(
+      'boot_fresh_ios_simulator',
+      'No available iOS simulator matched the requested device name.',
+    );
+  }
+
+  return candidates[0].device;
+}
+
+function readSimulatorBootDiagnostics(failure) {
+  const xcodeResult = captureCommand('xcodebuild', ['-version'], simulatorDiagnosticTimeoutMs);
+  const xcodeText = `${xcodeResult.stdout}\n${xcodeResult.stderr}`;
+  const xcodeVersion = xcodeText
+    .split(/\r?\n/)
+    .filter((line) =>
+      /^(Xcode\s+|Build version\s+|ProductName:|ProductVersion:|BuildVersion:)/i.test(line.trim()),
+    )
+    .map((line) => sanitizeDiagnosticText(line.trim()));
+
+  const runtimesResult = captureCommand(
+    'xcrun',
+    ['simctl', 'list', 'runtimes', '--json'],
+    simulatorDiagnosticTimeoutMs,
+  );
+  let iosRuntimes = [];
+  try {
+    const payload = JSON.parse(runtimesResult.stdout);
+    iosRuntimes = (payload.runtimes || [])
+      .filter((runtime) => /\biOS\b/i.test(runtime.name || ''))
+      .map((runtime) => ({
+        name: sanitizeDiagnosticText(runtime.name),
+        version: sanitizeDiagnosticText(runtime.version),
+        available: runtime.isAvailable === true,
+      }));
+  } catch {
+    // Keep only the command status below; malformed output is not copied to the artifact.
+  }
+
+  const devicesResult = captureCommand(
+    'xcrun',
+    ['simctl', 'list', 'devices', 'available', '--json'],
+    simulatorDiagnosticTimeoutMs,
+  );
+  let iosDevices = [];
+  try {
+    const payload = JSON.parse(devicesResult.stdout);
+    iosDevices = Object.entries(payload.devices || {})
+      .filter(([runtime]) => /^com\.apple\.coresimulator\.simruntime\.ios-/i.test(runtime))
+      .flatMap(([runtime, devices]) =>
+        (Array.isArray(devices) ? devices : [])
+          .filter((device) => device?.isAvailable === true)
+          .map((device) => ({
+            name: sanitizeDiagnosticText(device.name),
+            runtime: sanitizeDiagnosticText(
+              (payload.runtimes || []).find((item) => item.identifier === runtime)?.version ||
+                runtime
+                  .replace(/^com\.apple\.CoreSimulator\.SimRuntime\.iOS-/i, '')
+                  .replaceAll('-', '.'),
+            ),
+            state: sanitizeDiagnosticText(device.state),
+          })),
+      );
+  } catch {
+    // Do not include raw inventory JSON because it contains simulator identifiers.
+  }
+
+  return {
+    failure: {
+      message: sanitizeDiagnosticText(failure?.message || 'Simulator initialization failed.'),
+      command: failure?.bootFailure?.command || null,
+      timeoutMs: failure?.bootFailure?.timeoutMs || null,
+      elapsedMs: failure?.bootFailure?.elapsedMs || null,
+      exitCode: failure?.bootFailure?.exitCode ?? null,
+      signal: failure?.bootFailure?.signal || null,
+      errorCode: failure?.bootFailure?.errorCode || null,
+      stdout: failure?.bootFailure?.stdout || '',
+      stderr: failure?.bootFailure?.stderr || '',
+    },
+    xcode: {
+      version: xcodeVersion,
+      command: safeCommandResult(
+        'xcodebuild -version',
+        simulatorDiagnosticTimeoutMs,
+        xcodeResult,
+        Boolean(xcodeResult.errorCode) || xcodeResult.status !== 0,
+      ),
+    },
+    iosRuntimes: runtimesResult.status === 0 ? iosRuntimes : [],
+    runtimesCommand: safeCommandResult(
+      'xcrun simctl list runtimes --json',
+      simulatorDiagnosticTimeoutMs,
+      runtimesResult,
+      Boolean(runtimesResult.errorCode) || runtimesResult.status !== 0,
+    ),
+    availableIosDevices: devicesResult.status === 0 ? iosDevices : [],
+    devicesCommand: safeCommandResult(
+      'xcrun simctl list devices available --json',
+      simulatorDiagnosticTimeoutMs,
+      devicesResult,
+      Boolean(devicesResult.errorCode) || devicesResult.status !== 0,
+    ),
+  };
+}
+
+function bootFreshIosSimulator() {
+  try {
+    const device = listAvailableIosSimulators();
+    simulatorPrepared = true;
+
+    // agent-device 0.20.1 gives boot a 90s daemon envelope; its iOS boot work allows 180s.
+    // Preboot outside that request, then let agent-device bind to the already-booted UDID.
+    if (device.state !== 'Booted') {
+      const bootResult = captureCommand('xcrun', ['simctl', 'boot', device.udid]);
+      const alreadyBooted = /already booted|current state:\s*booted/i.test(
+        `${bootResult.stdout}\n${bootResult.stderr}`,
+      );
+      if ((bootResult.errorCode || bootResult.status !== 0) && !alreadyBooted) {
+        throw new QaStepError(
+          'boot_fresh_ios_simulator',
+          'xcrun simctl boot failed.',
+          safeCommandResult('xcrun simctl boot', simulatorBootTimeoutMs, bootResult),
+        );
+      }
+    }
+
+    const bootStatus = captureCommand('xcrun', ['simctl', 'bootstatus', device.udid, '-b']);
+    if (bootStatus.errorCode || bootStatus.status !== 0) {
+      throw new QaStepError(
+        'boot_fresh_ios_simulator',
+        'xcrun simctl bootstatus failed.',
+        safeCommandResult('xcrun simctl bootstatus -b', simulatorBootTimeoutMs, bootStatus),
+      );
+    }
+
+    // agent-device opens Simulator after a cold boot; simctl preboot skips that path.
+    captureCommand('open', ['-a', 'Simulator'], 15_000);
+
+    runAgentDevice(
+      'boot_fresh_ios_simulator',
+      ['boot', '--platform', 'ios', '--udid', device.udid],
+      simulatorBootTimeoutMs,
+      true,
+    );
+  } catch (error) {
+    const bootError =
+      error instanceof QaStepError
+        ? error
+        : new QaStepError('boot_fresh_ios_simulator', 'Simulator initialization failed.');
+    const diagnostics = readSimulatorBootDiagnostics(bootError.bootFailure);
+    report.diagnostics = { simulatorBoot: diagnostics };
+    console.error('NativeSim QA simulator boot diagnostics (sanitized):');
+    console.error(JSON.stringify(report.diagnostics, null, 2));
+    throw new QaStepError(
+      'boot_fresh_ios_simulator',
+      `${bootError.message} Sanitized diagnostics are attached to report.json.`,
+    );
+  }
 }
 
 function runStep(name, operation) {
@@ -199,14 +494,7 @@ try {
 
   runStep('verify_agent_device_version', verifyAgentDeviceVersion);
 
-  runStep('boot_fresh_ios_simulator', () => {
-    runAgentDevice(
-      'boot_fresh_ios_simulator',
-      ['boot', '--platform', 'ios', '--device', process.env.SIMULATOR_DEVICE],
-      600_000,
-    );
-    simulatorPrepared = true;
-  });
+  runStep('boot_fresh_ios_simulator', bootFreshIosSimulator);
 
   runStep('install_cached_app', () => {
     runAgentDevice('install_cached_app', [

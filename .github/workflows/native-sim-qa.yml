@@ -111,6 +111,17 @@ jobs:
           path: app-source
           fetch-depth: 0
 
+      - name: Require private source read token
+        env:
+          SOURCE_READ_TOKEN_PRESENT: ${{ secrets.NATIVESIM_QA_SOURCE_READ_TOKEN != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$SOURCE_READ_TOKEN_PRESENT" != 'true' ]]; then
+            echo '::error::Repository secret NATIVESIM_QA_SOURCE_READ_TOKEN is required to check out the private source snapshot.'
+            exit 1
+          fi
+
       - name: Check out the exact source snapshot
         uses: actions/checkout@v4
         with:
@@ -118,6 +129,7 @@ jobs:
           ref: ${{ inputs.source_sha }}
           path: source-snapshot
           fetch-depth: 1
+          token: ${{ secrets.NATIVESIM_QA_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
       - name: Verify exact source commit and synchronized tree

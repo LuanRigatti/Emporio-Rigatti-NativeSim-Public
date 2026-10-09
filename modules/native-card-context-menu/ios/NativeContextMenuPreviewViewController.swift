@@ -1,6 +1,10 @@
 import UIKit
 
 final class NativeContextMenuPreviewViewController: UIViewController {
+  private static let previewCardCornerRadius: CGFloat = 28
+  // Matches open-payment cards: theme.radius.xl (22) + theme.spacing.sm (12).
+  private static let expandedCardCornerRadius: CGFloat = 34
+
   private let content: [String: Any]
   private let presentationStyle: NativeContextMenuPreviewPresentationStyle
   private let scrollView = UIScrollView()
@@ -58,6 +62,19 @@ final class NativeContextMenuPreviewViewController: UIViewController {
     navigationController.setNavigationBarHidden(true, animated: false)
   }
 
+  func prepareForExpandedPagePresentation(in navigationController: UINavigationController) {
+    guard presentationStyle == .page else { return }
+    navigationItem.largeTitleDisplayMode = .always
+    cardView.layer.cornerRadius = Self.expandedCardCornerRadius
+    updateExpandedPageLargeTitleAppearance(in: navigationController)
+  }
+
+  func restorePeekPresentation() {
+    guard presentationStyle == .page else { return }
+    navigationItem.largeTitleDisplayMode = .never
+    cardView.layer.cornerRadius = Self.previewCardCornerRadius
+  }
+
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     if usesInteractiveViewer {
@@ -75,7 +92,23 @@ final class NativeContextMenuPreviewViewController: UIViewController {
     if traitCollection.preferredContentSizeCategory
       != previousTraitCollection?.preferredContentSizeCategory {
       view.setNeedsLayout()
+      if navigationItem.largeTitleDisplayMode == .always,
+         let navigationController {
+        updateExpandedPageLargeTitleAppearance(in: navigationController)
+      }
     }
+  }
+
+  private func updateExpandedPageLargeTitleAppearance(in navigationController: UINavigationController) {
+    let baseFont = UIFont.systemFont(ofSize: 36, weight: .bold)
+    let font = UIFontMetrics(forTextStyle: .largeTitle).scaledFont(
+      for: baseFont,
+      compatibleWith: traitCollection
+    )
+    navigationController.navigationBar.largeTitleTextAttributes = [
+      .font: font,
+      .foregroundColor: UIColor.label,
+    ]
   }
 
   private func buildLayout() {
@@ -98,7 +131,7 @@ final class NativeContextMenuPreviewViewController: UIViewController {
 
     cardView.translatesAutoresizingMaskIntoConstraints = false
     cardView.backgroundColor = .systemBackground
-    cardView.layer.cornerRadius = 28
+    cardView.layer.cornerRadius = Self.previewCardCornerRadius
     cardView.layer.cornerCurve = .continuous
     scrollView.addSubview(cardView)
 

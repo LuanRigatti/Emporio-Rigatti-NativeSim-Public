@@ -101,7 +101,10 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
 
       let presentationHost = presentationHostProvider?()
       animator.addAnimations { [presentationHost] in
-        presentationHost?.prepareForPreviewCommit(in: navigationController)
+        presentationHost?.prepareForPreviewCommit(
+          in: navigationController,
+          previewController: previewController
+        )
         let isAlreadyPresented = navigationController.viewControllers.contains {
           $0 === previewController
         }

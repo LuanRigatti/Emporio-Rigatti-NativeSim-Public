@@ -22,12 +22,16 @@ describe('Open Payments native Peek & Pop integration', () => {
   const host = readSource(
     'modules/native-card-context-menu/ios/NativeOpenPaymentContextMenuHostView.swift',
   );
+  const previewController = readSource(
+    'modules/native-card-context-menu/ios/NativeContextMenuPreviewViewController.swift',
+  );
   const hostModule = readSource(
     'modules/native-card-context-menu/ios/NativeOpenPaymentContextMenuHostModule.swift',
   );
   const moduleConfig = readSource('modules/native-card-context-menu/expo-module.config.json');
   const lab = readSource('modules/native-card-context-menu/ios/NativePeekPopPreviewLabView.swift');
   const labRoute = readSource('src/app/peek-pop-lab.tsx');
+  const podspec = readSource('modules/native-card-context-menu/ios/NativeCardContextMenu.podspec');
 
   it('mounts one screen-level host and binds native preview cards only to the focused route', () => {
     expect(screen.match(/<NativeOpenPaymentContextMenuHostView/g)).toHaveLength(1);
@@ -69,22 +73,76 @@ describe('Open Payments native Peek & Pop integration', () => {
     expect(host).toContain('private weak var hostViewController: UIViewController?');
   });
 
-  it('hides only the source route back button while the UIKit page is expanded and restores it on exit', () => {
+  it('preserves the native route back button and routes it to the list while the preview is expanded', () => {
     const openPaymentsRoute = rootLayout.match(
       /<Stack\.Screen\s+name="em-aberto"[\s\S]*?<\/Stack\.Screen>/,
+    )?.[0];
+    const commitPreparation = host.match(
+      /func prepareForPreviewCommit\([\s\S]*?\n  }\n\n  func previewCommitDidComplete/,
+    )?.[0];
+    const returnDelegate = host.match(
+      /public func navigationController\([\s\S]*?\n  }\n\n  private func installNavigationControllerIfNeeded/,
+    )?.[0];
+    const teardown = host.match(
+      /private func tearDownNavigationController\([\s\S]*?\n  }\n\n  private func installSourceBackActionForExpandedPreview/,
     )?.[0];
 
     expect(openPaymentsRoute).toContain('headerShown: true');
     expect(openPaymentsRoute).toContain('<Stack.Screen.BackButton displayMode="minimal" />');
-    expect(host).toContain('hideSourceBackButtonForExpandedPreview()');
-    expect(host).toContain(
-      'hostViewController.navigationItem.setHidesBackButton(true, animated: false)',
+    expect(commitPreparation).toContain('installSourceBackActionForExpandedPreview()');
+    expect(commitPreparation).toContain(
+      'navigationController.navigationBar.prefersLargeTitles = true',
     );
-    expect(host).toContain('originalSourceBackButtonHidden');
-    expect(host).toContain('restoreSourceBackButton()');
-    expect(host).toContain('viewController === rootViewController');
+    expect(commitPreparation).toContain(
+      'previewController.prepareForExpandedPagePresentation(in: navigationController)',
+    );
+    expect(commitPreparation).toContain(
+      'previewController.navigationItem.setHidesBackButton(true, animated: false)',
+    );
+    expect(host).toContain('hostViewController.navigationItem.backAction = UIAction');
+    expect(host).toContain('self?.popExpandedPreviewToList()');
+    expect(host).toContain('navigationController.popToRootViewController(animated: true)');
+    expect(host).toContain('sourceBackDismissalInProgress');
+    expect(host).toContain('originalSourceBackAction');
+    expect(returnDelegate).toContain('viewController === rootViewController');
+    expect(returnDelegate).toContain('restoreExpandedPreviewState()');
+    expect(teardown).toContain('restoreExpandedPreviewState()');
+    expect(host).toContain(
+      'navigationController?.navigationBar.prefersLargeTitles = originalSiblingPrefersLargeTitles',
+    );
+    expect(host).toContain('navigationController?.navigationBar.largeTitleTextAttributes =');
+    expect(host).toContain('expandedPreviewController?.restorePeekPresentation()');
+    expect(host).toContain('navigationController.popToRootViewController(animated: false)');
     expect(host).toContain('if pendingTeardown || window == nil');
-    expect(host).toContain('private func tearDownNavigationController()');
+    expect(host).not.toContain('hostViewController.navigationItem.setHidesBackButton');
+    expect(host).not.toContain('originalSourceBackButtonHidden');
+    expect(podspec).toContain("s.platforms = { ios: '16.4' }");
+    expect(previewController).toContain('navigationItem.largeTitleDisplayMode = .never');
+    expect(previewController).toContain(
+      'func prepareForExpandedPagePresentation(in navigationController: UINavigationController)',
+    );
+    expect(previewController).toContain('navigationItem.largeTitleDisplayMode = .always');
+    expect(previewController).toContain('private static let previewCardCornerRadius: CGFloat = 28');
+    expect(previewController).toContain(
+      'private static let expandedCardCornerRadius: CGFloat = 34',
+    );
+    expect(previewController).toContain(
+      'cardView.layer.cornerRadius = Self.expandedCardCornerRadius',
+    );
+    expect(previewController).toContain(
+      'cardView.layer.cornerRadius = Self.previewCardCornerRadius',
+    );
+    expect(previewController).toContain('UIFont.systemFont(ofSize: 36, weight: .bold)');
+    expect(previewController).toContain('UIFontMetrics(forTextStyle: .largeTitle).scaledFont(');
+    expect(previewController).toContain('compatibleWith: traitCollection');
+    expect(previewController).toContain('numberOfLines = 0');
+    expect(previewController).toContain('adjustsFontForContentSizeCategory = true');
+    expect(previewController).toContain('cardView.addSubview(contentStack)');
+    expect(previewController).toContain('backgroundColor = .systemBackground');
+    expect(previewController).toContain('view.backgroundColor = .secondarySystemGroupedBackground');
+    expect(coordinator).toContain('previewController: previewController');
+    expect(coordinator).toContain('animator.addAnimations { [presentationHost] in');
+    expect(lab).not.toContain('presentationHostProvider');
   });
 
   it('commits the same preview controller with .pop and keeps both lab cards on their existing paths', () => {
@@ -95,9 +153,8 @@ describe('Open Payments native Peek & Pop integration', () => {
     expect(coordinator).toContain(
       'navigationController.pushViewController(previewController, animated: false)',
     );
-    expect(coordinator).toContain(
-      'presentationHost?.prepareForPreviewCommit(in: navigationController)',
-    );
+    expect(coordinator).toContain('presentationHost?.prepareForPreviewCommit(');
+    expect(coordinator).toContain('previewController: previewController');
     expect(coordinator).toContain(
       'presentationHost?.previewCommitDidComplete(in: navigationController)',
     );

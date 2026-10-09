@@ -2,7 +2,10 @@ import ExpoModulesCore
 import UIKit
 
 protocol NativeContextMenuPreviewPresentationHost: AnyObject {
-  func prepareForPreviewCommit(in navigationController: UINavigationController)
+  func prepareForPreviewCommit(
+    in navigationController: UINavigationController,
+    previewController: NativeContextMenuPreviewViewController
+  )
   func previewCommitDidComplete(in navigationController: UINavigationController)
 }
 
@@ -22,10 +25,16 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
   }
 
   private weak var hostViewController: UIViewController?
-  private var originalSourceBackButtonHidden: Bool?
+  private weak var expandedPreviewController: NativeContextMenuPreviewViewController?
+  private var originalSourceBackAction: UIAction?
+  private var originalSiblingPrefersLargeTitles: Bool?
+  private var originalSiblingLargeTitleTextAttributes: [NSAttributedString.Key: Any]?
+  private var hasTemporarySourceBackAction = false
+  private var hasTemporaryLargeTitleAppearance = false
   private var navigationController: UINavigationController?
   private var rootViewController: NativeOpenPaymentContextMenuRootViewController?
   private var commitInProgress = false
+  private var sourceBackDismissalInProgress = false
   private var pendingDeactivation = false
   private var pendingTeardown = false
   private var deactivationCompletionScheduled = false
@@ -58,14 +67,26 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     return navigationController
   }
 
-  func prepareForPreviewCommit(in navigationController: UINavigationController) {
+  func prepareForPreviewCommit(
+    in navigationController: UINavigationController,
+    previewController: NativeContextMenuPreviewViewController
+  ) {
     guard self.navigationController === navigationController,
           active,
           window != nil else {
       return
     }
 
-    hideSourceBackButtonForExpandedPreview()
+    installSourceBackActionForExpandedPreview()
+    if !hasTemporaryLargeTitleAppearance {
+      originalSiblingPrefersLargeTitles = navigationController.navigationBar.prefersLargeTitles
+      originalSiblingLargeTitleTextAttributes = navigationController.navigationBar.largeTitleTextAttributes
+      hasTemporaryLargeTitleAppearance = true
+    }
+    expandedPreviewController = previewController
+    navigationController.navigationBar.prefersLargeTitles = true
+    previewController.prepareForExpandedPagePresentation(in: navigationController)
+    previewController.navigationItem.setHidesBackButton(true, animated: false)
     commitInProgress = true
     pendingDeactivation = false
     navigationController.view.isUserInteractionEnabled = true
@@ -78,7 +99,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     commitInProgress = false
 
     if navigationController.topViewController === rootViewController {
-      restoreSourceBackButton()
+      restoreExpandedPreviewState()
     }
 
     if pendingTeardown || window == nil {
@@ -93,12 +114,14 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     didShow viewController: UIViewController,
     animated: Bool
   ) {
-    guard self.navigationController === navigationController,
-          viewController === rootViewController else {
+    guard self.navigationController === navigationController else {
       return
     }
 
-    restoreSourceBackButton()
+    sourceBackDismissalInProgress = false
+    guard viewController === rootViewController else { return }
+
+    restoreExpandedPreviewState()
     navigationController.setNavigationBarHidden(true, animated: false)
     navigationController.view.isUserInteractionEnabled = false
 
@@ -190,8 +213,9 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     pendingDeactivation = false
     if navigationController.topViewController !== rootViewController {
       navigationController.popToRootViewController(animated: false)
+      restoreExpandedPreviewState()
     } else {
-      restoreSourceBackButton()
+      restoreExpandedPreviewState()
       navigationController.setNavigationBarHidden(true, animated: false)
       navigationController.view.isUserInteractionEnabled = false
     }
@@ -224,7 +248,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
 
   private func tearDownNavigationController() {
     guard let navigationController else { return }
-    restoreSourceBackButton()
+    restoreExpandedPreviewState()
     pendingTeardown = false
     pendingDeactivation = false
     navigationController.delegate = nil
@@ -236,21 +260,51 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     hostViewController = nil
   }
 
-  private func hideSourceBackButtonForExpandedPreview() {
+  private func installSourceBackActionForExpandedPreview() {
     guard let hostViewController else { return }
-    if originalSourceBackButtonHidden == nil {
-      originalSourceBackButtonHidden = hostViewController.navigationItem.hidesBackButton
+    if !hasTemporarySourceBackAction {
+      originalSourceBackAction = hostViewController.navigationItem.backAction
+      hasTemporarySourceBackAction = true
     }
-    hostViewController.navigationItem.setHidesBackButton(true, animated: false)
+    hostViewController.navigationItem.backAction = UIAction { [weak self] _ in
+      self?.popExpandedPreviewToList()
+    }
   }
 
-  private func restoreSourceBackButton() {
-    guard let wasHidden = originalSourceBackButtonHidden else { return }
-    hostViewController?.navigationItem.setHidesBackButton(
-      wasHidden,
-      animated: false
-    )
-    self.originalSourceBackButtonHidden = nil
+  private func popExpandedPreviewToList() {
+    guard !sourceBackDismissalInProgress,
+          let navigationController,
+          let rootViewController,
+          navigationController.topViewController !== rootViewController else {
+      return
+    }
+
+    sourceBackDismissalInProgress = true
+    navigationController.popToRootViewController(animated: true)
+  }
+
+  private func restoreSourceBackAction() {
+    guard hasTemporarySourceBackAction else { return }
+    hostViewController?.navigationItem.backAction = originalSourceBackAction
+    originalSourceBackAction = nil
+    hasTemporarySourceBackAction = false
+    sourceBackDismissalInProgress = false
+  }
+
+  private func restoreExpandedPreviewState() {
+    restoreSourceBackAction()
+    if hasTemporaryLargeTitleAppearance {
+      if let originalSiblingPrefersLargeTitles {
+        navigationController?.navigationBar.prefersLargeTitles = originalSiblingPrefersLargeTitles
+      }
+      navigationController?.navigationBar.largeTitleTextAttributes =
+        originalSiblingLargeTitleTextAttributes
+    }
+    expandedPreviewController?.restorePeekPresentation()
+    expandedPreviewController = nil
+    originalSiblingPrefersLargeTitles = nil
+    originalSiblingLargeTitleTextAttributes = nil
+    hasTemporaryLargeTitleAppearance = false
   }
 
   private func nearestViewController() -> UIViewController? {

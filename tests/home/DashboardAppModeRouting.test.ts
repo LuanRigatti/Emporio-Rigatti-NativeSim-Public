@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ReactNode } from 'react';
+import { Text } from 'react-native';
 
 const mockAppMode = {
   isReady: true,
@@ -157,6 +158,33 @@ describe('Dashboard AppMode routing', () => {
     expect(mockUseClients).toHaveBeenCalledTimes(1);
     expect(mockUseFactoryPurchases).toHaveBeenCalledTimes(1);
     expect(mockUseOpenPaymentClients).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps exactly the four existing Wholesale Home cards in order', () => {
+    mockAppMode.mode = 'wholesale';
+    const renderer = renderDashboard();
+    const cards = renderer.root.findAll((node) => String(node.type) === 'premium-card');
+
+    expect(cards).toHaveLength(4);
+    expect(cards.map((card) => card.props.accessibilityLabel)).toEqual([
+      'Abrir Registrar Entrega',
+      'Abrir recebimentos em aberto',
+      'Abrir documentos',
+      'Abrir Fábrica',
+    ]);
+    expect(
+      cards.map((card) => card.findAllByType(Text).map((node) => node.props.children)),
+    ).toEqual([
+      ['Registrar Entrega', '0 hoje'],
+      ['Em aberto', '0'],
+      ['Documentos', '0 em aberto'],
+      ['Fábrica', '0'],
+    ]);
+    expect(
+      cards.flatMap((card) => card.findAllByType(Text).map((node) => node.props.children)),
+    ).not.toContain('Registrar Dados Diários');
+
     act(() => renderer.unmount());
   });
 

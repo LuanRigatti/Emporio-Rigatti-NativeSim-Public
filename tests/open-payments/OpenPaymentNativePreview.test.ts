@@ -1,4 +1,5 @@
 import type { Delivery } from '@/types/data';
+import { darkColors, getCardSurfaceColor, lightColors } from '../../src/theme/colors';
 
 import {
   buildOpenPaymentNativePreview,
@@ -61,6 +62,42 @@ describe('OpenPayment native preview DTO', () => {
       title: '06/10/2026',
       value: 'R$ 50.00',
     });
+  });
+
+  it('forwards the resolved light and dark page and card colors when supplied', () => {
+    const client = makeClient([makeDelivery('open-1', 'Não Pago', '2026-10-07')]);
+    const formatCurrency = (value: number) => `R$ ${value.toFixed(2)}`;
+
+    const lightPreview = buildOpenPaymentNativePreview(client, {
+      cardSurfaceColor: getCardSurfaceColor('light', lightColors.surface),
+      formatCurrency,
+      pageBackgroundColor: lightColors.background,
+      paymentHistoryLoading: false,
+    });
+    const darkPreview = buildOpenPaymentNativePreview(client, {
+      cardSurfaceColor: getCardSurfaceColor('dark', darkColors.surface),
+      formatCurrency,
+      pageBackgroundColor: darkColors.background,
+      paymentHistoryLoading: false,
+    });
+
+    expect(lightPreview.appearance).toEqual({
+      cardSurfaceColor: '#FEFFFF',
+      pageBackgroundColor: '#FAF8F7',
+    });
+    expect(darkPreview.appearance).toEqual({
+      cardSurfaceColor: '#0C0C0E',
+      pageBackgroundColor: '#000000',
+    });
+  });
+
+  it('omits optional appearance configuration when theme colors are not supplied', () => {
+    const preview = buildOpenPaymentNativePreview(
+      makeClient([makeDelivery('open-1', 'Não Pago', '2026-10-07')]),
+      { formatCurrency: (value) => `R$ ${value}`, paymentHistoryLoading: false },
+    );
+
+    expect(preview).not.toHaveProperty('appearance');
   });
 
   it('does not invent payment dates when a paid delivery has no date', () => {

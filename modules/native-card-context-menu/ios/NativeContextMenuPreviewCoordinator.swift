@@ -14,9 +14,16 @@ enum NativeContextMenuPreviewPresentationStyle: String {
 final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteractionDelegate {
   private weak var hostView: UIView?
   private var interaction: UIContextMenuInteraction?
+  private weak var committedPreviewController: NativeContextMenuPreviewViewController?
 
   var identifier = ""
-  var previewContent: [String: Any] = [:]
+  var previewContent: [String: Any] = [:] {
+    didSet {
+      committedPreviewController?.updateExpandedPageThemeAppearance(
+        previewContent["appearance"] as? [String: Any]
+      )
+    }
+  }
   var actions: [[String: Any]] = []
   var menuTitle = ""
   var presentationStyle: NativeContextMenuPreviewPresentationStyle = .page
@@ -99,6 +106,7 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
         return
       }
 
+      committedPreviewController = previewController
       let presentationHost = presentationHostProvider?()
       animator.addAnimations { [presentationHost] in
         presentationHost?.prepareForPreviewCommit(

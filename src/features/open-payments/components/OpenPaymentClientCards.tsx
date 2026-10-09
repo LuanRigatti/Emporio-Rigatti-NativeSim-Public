@@ -210,9 +210,11 @@ export function OpenPaymentClientCards({
                   identifier={getOpenPaymentClientPreviewIdentifier(client)}
                   nativePeekPopEnabled={nativePeekPopEnabled}
                   nativePreview={buildOpenPaymentNativePreview(client, {
+                    cardSurfaceColor: openPaymentCardSurface,
                     formatCurrency: maskCurrency,
                     paymentHistoryError,
                     paymentHistoryLoading,
+                    pageBackgroundColor: theme.colors.background,
                   })}
                   preview={renderPreview(client)}
                   style={[

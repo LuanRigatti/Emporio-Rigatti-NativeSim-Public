@@ -33,9 +33,17 @@ export function buildOpenPaymentNativePreview(
     paymentHistoryError?: string;
     paymentHistoryLoading: boolean;
     formatCurrency: (value: number) => string;
+    pageBackgroundColor?: string;
+    cardSurfaceColor?: string;
   },
 ): NativeContextMenuPreviewContent {
-  const { formatCurrency, paymentHistoryError, paymentHistoryLoading } = options;
+  const {
+    cardSurfaceColor,
+    formatCurrency,
+    pageBackgroundColor,
+    paymentHistoryError,
+    paymentHistoryLoading,
+  } = options;
   const rows = paymentHistoryLoading
     ? [{ id: 'payment-history-loading', title: 'Carregando pagamentos…' }]
     : paymentHistoryError
@@ -52,6 +60,9 @@ export function buildOpenPaymentNativePreview(
         : [{ id: 'payment-history-empty', title: 'Sem pagamentos anteriores' }];
 
   return {
+    ...(pageBackgroundColor && cardSurfaceColor
+      ? { appearance: { cardSurfaceColor, pageBackgroundColor } }
+      : {}),
     leadingSystemImage: 'person.crop.circle.fill',
     sections: [{ rows, title: 'Últimos pagamentos' }],
     subtitle: 'Cliente',

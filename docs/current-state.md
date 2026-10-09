@@ -45,6 +45,26 @@ preservam o histórico técnico e as decisões acumuladas.
   BottomSheet com `.ignoresSafeArea(.container, edges: .bottom)`, o patch
   versionado de expo-backdrop e NativeTabs/Native Stack/Stack.Toolbar.
 
+### NativeTabs com quatro abas — atualizado em 2026-10-09
+
+- `src/app/(tabs)/_layout.tsx` mantém Expo Router `NativeTabs`, SF Symbols,
+  labels ocultos, toolbar compartilhada e sizing nativo. A ordem agora é Home,
+  Finanças, Histórico e Configurações; o gatilho Registrar foi removido. Não
+  houve ajuste manual de dimensões ou implementação RN da barra.
+- A Home Atacado preserva os quatro cards existentes; Registrar Entrega segue
+  para `/registrar-entrega`. A Home Varejo preserva Registrar Pedido e o fluxo
+  de sucesso agora retorna para `/(tabs)/dashboard`, sem navegar para a aba
+  removida.
+- Dados Diários continuam acessíveis por Configurações e pela rota `/dados`,
+  com `CostsEditorScreen`, `useCostSettings` e as telas/sheets de registro
+  preservados. Rotas raiz e Quick Actions continuam registrados.
+- O indicador selecionado continua sob controle da NativeTabs/UIKit. Com
+  quatro itens, a cápsula deve ser redistribuída pelo sistema; a aparência real
+  e a largura resultante ainda precisam de validação no iPhone.
+- A mudança é somente TSX e não exige nova Development Build para Fast Refresh.
+  A validação física deve usar a nova Development Build descrita abaixo, pois a
+  instalada no iPhone é anterior à manutenção do SDK 57.
+
 ### Validação ainda pendente em iPhone físico
 
 A Development Build instalada anteriormente no iPhone foi compilada antes

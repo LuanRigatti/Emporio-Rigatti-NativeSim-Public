@@ -10,9 +10,8 @@ type IoniconName = keyof typeof Ionicons.glyphMap;
 
 function icon(
   name: IoniconName,
-  sf: 'house' | 'chart.bar' | 'plus.circle' | 'clock' | 'gearshape',
-  selectedSf:
-    'house.fill' | 'chart.bar.fill' | 'plus.circle.fill' | 'clock.fill' | 'gearshape.fill',
+  sf: 'house' | 'chart.bar' | 'clock' | 'gearshape',
+  selectedSf: 'house.fill' | 'chart.bar.fill' | 'clock.fill' | 'gearshape.fill',
   color: string,
 ) {
   return {
@@ -63,12 +62,6 @@ function TabsNavigator() {
             {...icon('bar-chart-outline', 'chart.bar', 'chart.bar.fill', iconColor)}
           />
           <NativeTabs.Trigger.Label hidden>Finanças</NativeTabs.Trigger.Label>
-        </NativeTabs.Trigger>
-        <NativeTabs.Trigger name="registrar">
-          <NativeTabs.Trigger.Icon
-            {...icon('add-outline', 'plus.circle', 'plus.circle.fill', iconColor)}
-          />
-          <NativeTabs.Trigger.Label hidden>Registrar</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="historico">
           <NativeTabs.Trigger.Icon {...icon('time-outline', 'clock', 'clock.fill', iconColor)} />

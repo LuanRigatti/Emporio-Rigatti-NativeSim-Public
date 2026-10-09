@@ -148,7 +148,7 @@ function getSafeRedirectPath(
 function handleSuccess(flow: RetailOrderFlowContextValue, router: ReturnType<typeof useRouter>) {
   if (!flow.successVisible) return;
   flow.dismissSuccess();
-  router.dismissTo('/registrar');
+  router.dismissTo('/(tabs)/dashboard');
 }
 
 export function RetailOrderCombinedRegistrarScreen() {

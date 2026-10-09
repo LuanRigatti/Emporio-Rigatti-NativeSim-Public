@@ -19,6 +19,10 @@ export type NativeContextMenuPreviewContent = {
   title: string;
   subtitle?: string;
   leadingSystemImage?: string;
+  appearance?: {
+    pageBackgroundColor?: string;
+    cardSurfaceColor?: string;
+  };
   summary?: {
     label: string;
     value: string;

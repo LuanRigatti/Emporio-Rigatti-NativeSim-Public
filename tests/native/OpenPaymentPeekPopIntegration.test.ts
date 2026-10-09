@@ -7,6 +7,10 @@ describe('Open Payments native Peek & Pop integration', () => {
   const screen = readSource('src/features/open-payments/components/OpenPaymentClientsScreen.tsx');
   const rootLayout = readSource('src/app/_layout.tsx');
   const cards = readSource('src/features/open-payments/components/OpenPaymentClientCards.tsx');
+  const previewBuilder = readSource('src/features/open-payments/data/openPaymentNativePreview.ts');
+  const previewTypes = readSource(
+    'modules/native-card-context-menu/src/NativeContextMenuPreview.types.ts',
+  );
   const nativeCard = readSource(
     'src/features/open-payments/components/OpenPaymentClientContextMenu.ios.tsx',
   );
@@ -162,5 +166,48 @@ describe('Open Payments native Peek & Pop integration', () => {
     expect(lab).toContain('commitBehavior: .pushPreviewController');
     expect(labRoute).toContain("presentationStyle: 'interactiveViewer'");
     expect(labRoute).toContain('identifier="settings-peek-pop-sample-client"');
+  });
+
+  it('passes resolved app colors only to the open-payment expanded preview', () => {
+    expect(cards).toContain('getCardSurfaceColor(resolvedMode, theme.colors.surface)');
+    expect(cards).toContain('cardSurfaceColor: openPaymentCardSurface');
+    expect(cards).toContain('pageBackgroundColor: theme.colors.background');
+    expect(previewBuilder).toContain('appearance: { cardSurfaceColor, pageBackgroundColor }');
+    expect(previewTypes).toContain('appearance?: {');
+    expect(previewTypes).toContain('pageBackgroundColor?: string');
+    expect(previewTypes).toContain('cardSurfaceColor?: string');
+
+    const expandedPagePreparation =
+      previewController.match(/func prepareForExpandedPagePresentation\([\s\S]*?\n  }/)?.[0] ?? '';
+    expect(expandedPagePreparation).toContain('guard presentationStyle == .page else { return }');
+    expect(expandedPagePreparation).toContain('applyThemeAppearanceIfPresent');
+    expect(expandedPagePreparation).toContain('updateExpandedPageLargeTitleAppearance');
+    expect(expandedPagePreparation.indexOf('applyThemeAppearanceIfPresent')).toBeLessThan(
+      expandedPagePreparation.indexOf('updateExpandedPageLargeTitleAppearance'),
+    );
+    expect(previewController).toContain('view.backgroundColor = .secondarySystemGroupedBackground');
+    expect(previewController).toContain('cardView.backgroundColor = .systemBackground');
+    expect(previewController).toContain('private func restoreThemeAppearance()');
+    expect(previewController).toContain(
+      'func updateExpandedPageThemeAppearance(_ appearance: [String: Any]?)',
+    );
+    expect(previewController).toContain('guard let hex = value as? String');
+    expect(previewController).toContain(
+      'guard pageColor != nil || cardColor != nil else { return }',
+    );
+    expect(previewController).toContain('navigationBar.standardAppearance = Self.copyAppearance');
+    expect(previewController).toContain(
+      'navigationBar.scrollEdgeAppearance = snapshot.scrollEdgeAppearance',
+    );
+    const compactPageLayout =
+      previewController.match(/private func buildLayout\(\)[\s\S]*?\n  }/)?.[0] ?? '';
+    expect(compactPageLayout).not.toContain('applyThemeAppearanceIfPresent');
+    expect(compactPageLayout).toContain('view.backgroundColor = .secondarySystemGroupedBackground');
+    expect(compactPageLayout).toContain('cardView.backgroundColor = .systemBackground');
+    expect(labRoute).not.toContain('pageBackgroundColor:');
+    expect(labRoute).not.toContain('cardSurfaceColor:');
+    expect(coordinator).toContain('private weak var committedPreviewController');
+    expect(coordinator).toContain('committedPreviewController?.updateExpandedPageThemeAppearance(');
+    expect(coordinator).toContain('committedPreviewController = previewController');
   });
 });

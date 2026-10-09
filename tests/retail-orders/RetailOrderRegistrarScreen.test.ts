@@ -1601,12 +1601,12 @@ describe('RetailOrderRegistrarScreen wizard', () => {
     await act(async () => {
       findNodes(renderer, 'native-dialog')[0].props.actions[0].onPress();
     });
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/registrar');
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/(tabs)/dashboard');
     expect(mockRouter.dismissAll).not.toHaveBeenCalled();
     expect(mockRouter.replace).not.toHaveBeenCalledWith('/registrar-pedido-varejo');
     expect(collectText(renderer.root)).not.toContain('Pagamento inicial');
 
-    mockPathname = '/registrar';
+    mockPathname = '/(tabs)/dashboard';
     updateStep(renderer, 'client');
     expect(observedFlow?.draft.clientId).toBe('');
     expect(observedFlow?.draft.lineItems).toHaveLength(0);

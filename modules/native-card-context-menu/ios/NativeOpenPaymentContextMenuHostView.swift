@@ -22,6 +22,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
   }
 
   private weak var hostViewController: UIViewController?
+  private var originalSourceBackButtonHidden: Bool?
   private var navigationController: UINavigationController?
   private var rootViewController: NativeOpenPaymentContextMenuRootViewController?
   private var commitInProgress = false
@@ -64,6 +65,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
       return
     }
 
+    hideSourceBackButtonForExpandedPreview()
     commitInProgress = true
     pendingDeactivation = false
     navigationController.view.isUserInteractionEnabled = true
@@ -74,6 +76,10 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
   func previewCommitDidComplete(in navigationController: UINavigationController) {
     guard self.navigationController === navigationController else { return }
     commitInProgress = false
+
+    if navigationController.topViewController === rootViewController {
+      restoreSourceBackButton()
+    }
 
     if pendingTeardown || window == nil {
       tearDownNavigationControllerWhenSafe()
@@ -92,6 +98,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
       return
     }
 
+    restoreSourceBackButton()
     navigationController.setNavigationBarHidden(true, animated: false)
     navigationController.view.isUserInteractionEnabled = false
 
@@ -184,6 +191,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     if navigationController.topViewController !== rootViewController {
       navigationController.popToRootViewController(animated: false)
     } else {
+      restoreSourceBackButton()
       navigationController.setNavigationBarHidden(true, animated: false)
       navigationController.view.isUserInteractionEnabled = false
     }
@@ -216,6 +224,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
 
   private func tearDownNavigationController() {
     guard let navigationController else { return }
+    restoreSourceBackButton()
     pendingTeardown = false
     pendingDeactivation = false
     navigationController.delegate = nil
@@ -225,6 +234,23 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     self.navigationController = nil
     rootViewController = nil
     hostViewController = nil
+  }
+
+  private func hideSourceBackButtonForExpandedPreview() {
+    guard let hostViewController else { return }
+    if originalSourceBackButtonHidden == nil {
+      originalSourceBackButtonHidden = hostViewController.navigationItem.hidesBackButton
+    }
+    hostViewController.navigationItem.setHidesBackButton(true, animated: false)
+  }
+
+  private func restoreSourceBackButton() {
+    guard let wasHidden = originalSourceBackButtonHidden else { return }
+    hostViewController?.navigationItem.setHidesBackButton(
+      wasHidden,
+      animated: false
+    )
+    self.originalSourceBackButtonHidden = nil
   }
 
   private func nearestViewController() -> UIViewController? {

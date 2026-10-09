@@ -5,6 +5,7 @@ const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 
 
 describe('Open Payments native Peek & Pop integration', () => {
   const screen = readSource('src/features/open-payments/components/OpenPaymentClientsScreen.tsx');
+  const rootLayout = readSource('src/app/_layout.tsx');
   const cards = readSource('src/features/open-payments/components/OpenPaymentClientCards.tsx');
   const nativeCard = readSource(
     'src/features/open-payments/components/OpenPaymentClientContextMenu.ios.tsx',
@@ -66,6 +67,24 @@ describe('Open Payments native Peek & Pop integration', () => {
     expect(host).toContain('didShow viewController: UIViewController');
     expect(host).toContain('navigationController.removeFromParent()');
     expect(host).toContain('private weak var hostViewController: UIViewController?');
+  });
+
+  it('hides only the source route back button while the UIKit page is expanded and restores it on exit', () => {
+    const openPaymentsRoute = rootLayout.match(
+      /<Stack\.Screen\s+name="em-aberto"[\s\S]*?<\/Stack\.Screen>/,
+    )?.[0];
+
+    expect(openPaymentsRoute).toContain('headerShown: true');
+    expect(openPaymentsRoute).toContain('<Stack.Screen.BackButton displayMode="minimal" />');
+    expect(host).toContain('hideSourceBackButtonForExpandedPreview()');
+    expect(host).toContain(
+      'hostViewController.navigationItem.setHidesBackButton(true, animated: false)',
+    );
+    expect(host).toContain('originalSourceBackButtonHidden');
+    expect(host).toContain('restoreSourceBackButton()');
+    expect(host).toContain('viewController === rootViewController');
+    expect(host).toContain('if pendingTeardown || window == nil');
+    expect(host).toContain('private func tearDownNavigationController()');
   });
 
   it('commits the same preview controller with .pop and keeps both lab cards on their existing paths', () => {

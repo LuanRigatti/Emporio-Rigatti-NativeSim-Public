@@ -4,7 +4,7 @@ import {
   MeasuredContextMenuGeometry,
   type ContextMenuCardGeometryStyle,
 } from '@/components/layout/MeasuredContextMenuGeometry';
-import { NativeCardContextMenu } from '@/components/native';
+import type { NativeCardContextMenuAction } from '@/components/native';
 import { GlassCard } from '@/components/premium';
 import { useAppSafeAreaInsets } from '@/providers';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
@@ -12,7 +12,12 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { formatDateAsDayMonthYear } from '@/utils/groupItemsByDate';
 
 import type { OpenPaymentClientCard } from '../hooks/useOpenPaymentClients';
+import {
+  buildOpenPaymentNativePreview,
+  getOpenPaymentClientPreviewIdentifier,
+} from '../data/openPaymentNativePreview';
 import OpenPaymentClientIcon from './OpenPaymentClientIcon';
+import { OpenPaymentClientContextMenu } from './OpenPaymentClientContextMenu';
 
 export type OpenPaymentClientCardsProps = {
   clients: readonly OpenPaymentClientCard[];
@@ -20,6 +25,7 @@ export type OpenPaymentClientCardsProps = {
   paymentHistoryLoading: boolean;
   onMarkAsPaid: (deliveryId: string) => void;
   testModeEnabled: boolean;
+  nativePeekPopEnabled?: boolean;
 };
 
 export function OpenPaymentClientCards({
@@ -27,6 +33,7 @@ export function OpenPaymentClientCards({
   paymentHistoryError,
   paymentHistoryLoading,
   onMarkAsPaid,
+  nativePeekPopEnabled = false,
   testModeEnabled,
 }: OpenPaymentClientCardsProps) {
   const { resolvedMode, theme } = useAppTheme();
@@ -189,8 +196,8 @@ export function OpenPaymentClientCards({
           <MeasuredContextMenuGeometry key={client.nome}>
             {({ onLayout, triggerWidthStyle }) => (
               <View onLayout={onLayout} style={{ height: cardMinHeight, width: '100%' }}>
-                <NativeCardContextMenu
-                  actions={client.deliveries.map((delivery) => ({
+                <OpenPaymentClientContextMenu
+                  actions={client.deliveries.map<NativeCardContextMenuAction>((delivery) => ({
                     id: `complete-payment-${delivery.id}`,
                     disabled: testModeEnabled,
                     onPress: () => onMarkAsPaid(delivery.id),
@@ -200,6 +207,13 @@ export function OpenPaymentClientCards({
                         ? 'Pago'
                         : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
                   }))}
+                  identifier={getOpenPaymentClientPreviewIdentifier(client)}
+                  nativePeekPopEnabled={nativePeekPopEnabled}
+                  nativePreview={buildOpenPaymentNativePreview(client, {
+                    formatCurrency: maskCurrency,
+                    paymentHistoryError,
+                    paymentHistoryLoading,
+                  })}
                   preview={renderPreview(client)}
                   style={[
                     styles.contextMenu,
@@ -210,7 +224,7 @@ export function OpenPaymentClientCards({
                   ]}
                 >
                   {renderRow(client, triggerWidthStyle)}
-                </NativeCardContextMenu>
+                </OpenPaymentClientContextMenu>
               </View>
             )}
           </MeasuredContextMenuGeometry>

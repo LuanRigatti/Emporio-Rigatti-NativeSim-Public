@@ -23,6 +23,7 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
   var onAction: ((String, String) -> Void)?
   var onOpen: ((String, [String: Any]) -> Void)?
   var navigationControllerProvider: (() -> UINavigationController?)?
+  var presentationHostProvider: (() -> NativeContextMenuPreviewPresentationHost?)?
 
   private let commitBehavior: NativeContextMenuPreviewCommitBehavior
 
@@ -98,7 +99,9 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
         return
       }
 
-      animator.addAnimations {
+      let presentationHost = presentationHostProvider?()
+      animator.addAnimations { [presentationHost] in
+        presentationHost?.prepareForPreviewCommit(in: navigationController)
         let isAlreadyPresented = navigationController.viewControllers.contains {
           $0 === previewController
         }
@@ -109,7 +112,8 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
           navigationController.pushViewController(previewController, animated: false)
         }
       }
-      animator.addCompletion { [weak self] in
+      animator.addCompletion { [weak self, presentationHost] in
+        presentationHost?.previewCommitDidComplete(in: navigationController)
         self?.onOpen?(cardIdentifier, content)
       }
     }

@@ -69,6 +69,11 @@ export type NativeContextMenuPreviewViewProps = ViewProps & {
   onOpen?: (event: NativeContextMenuOpenEvent) => void;
 };
 
+export type NativeOpenPaymentContextMenuHostViewProps = ViewProps & {
+  active: boolean;
+  children?: ReactNode;
+};
+
 export type NativePeekPopPreviewLabCard = {
   title: string;
   identifier: string;

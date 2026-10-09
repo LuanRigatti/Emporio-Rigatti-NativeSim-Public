@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -6,6 +6,7 @@ import { NativeGlassBackButton } from '@/components/native';
 import { GlassCard, PremiumScreen, ProgressiveCollapsibleScreen } from '@/components/premium';
 import { useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import { NativeOpenPaymentContextMenuHostView } from 'native-card-context-menu';
 
 import { OpenPaymentClientCards } from './OpenPaymentClientCards';
 import { useOpenPaymentClients } from '../hooks/useOpenPaymentClients';
@@ -14,6 +15,7 @@ export function OpenPaymentClientsScreen({
   nativeHeader = false,
 }: { nativeHeader?: boolean } = {}) {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { theme } = useAppTheme();
   const { currency: maskCurrency } = useTestModePresentation();
   const {
@@ -90,6 +92,7 @@ export function OpenPaymentClientsScreen({
         paymentHistoryError={paymentHistoryError}
         paymentHistoryLoading={paymentHistoryLoading}
         onMarkAsPaid={markDeliveryPaid}
+        nativePeekPopEnabled={nativeHeader}
         testModeEnabled={testModeEnabled}
       />
     ) : (
@@ -108,14 +111,16 @@ export function OpenPaymentClientsScreen({
 
   if (nativeHeader) {
     return (
-      <ProgressiveCollapsibleScreen
-        compactTitle="Em aberto"
-        contentTopInset={originalContentTopOffset}
-        largeTitle={pageTitle}
-        nativeHeader
-      >
-        {clientCardsContent}
-      </ProgressiveCollapsibleScreen>
+      <NativeOpenPaymentContextMenuHostView active={isFocused} style={styles.nativePeekPopHost}>
+        <ProgressiveCollapsibleScreen
+          compactTitle="Em aberto"
+          contentTopInset={originalContentTopOffset}
+          largeTitle={pageTitle}
+          nativeHeader
+        >
+          {clientCardsContent}
+        </ProgressiveCollapsibleScreen>
+      </NativeOpenPaymentContextMenuHostView>
     );
   }
 
@@ -136,5 +141,6 @@ export function OpenPaymentClientsScreen({
 const styles = StyleSheet.create({
   screenContent: { flexGrow: 1 },
   content: { width: '100%' },
+  nativePeekPopHost: { flex: 1 },
   totalCard: { alignSelf: 'center' },
 });

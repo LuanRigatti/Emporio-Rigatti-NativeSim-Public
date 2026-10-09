@@ -4,6 +4,7 @@
     "modules": [
       "NativeCardContextMenuModule",
       "NativeContextMenuPreviewModule",
+      "NativeOpenPaymentContextMenuHostModule",
       "NativePeekPopPreviewLabModule"
     ]
   }

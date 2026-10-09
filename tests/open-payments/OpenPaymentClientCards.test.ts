@@ -106,7 +106,7 @@ function makeDelivery(
   };
 }
 
-function renderCards(recentPayments: Delivery[]): ReactTestRenderer {
+function renderCards(recentPayments: Delivery[], onMarkAsPaid = jest.fn()): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
 
   Dimensions.set({
@@ -128,7 +128,7 @@ function renderCards(recentPayments: Delivery[]): ReactTestRenderer {
             valor: 120,
           },
         ],
-        onMarkAsPaid: jest.fn(),
+        onMarkAsPaid,
         paymentHistoryLoading: false,
         testModeEnabled: false,
       }),
@@ -174,6 +174,19 @@ describe('OpenPaymentClientCards rich context preview', () => {
     const text = renderer.root.findAllByType(Text).map((node) => node.props.children);
 
     expect(text).toContain('Sem pagamentos anteriores');
+    act(() => renderer.unmount());
+  });
+
+  it('forwards the existing Pago action to the delivery mutation callback', () => {
+    const onMarkAsPaid = jest.fn();
+    const renderer = renderCards([], onMarkAsPaid);
+    const menu = renderer.root.findAll(
+      (node) => String(node.type) === 'native-card-context-menu',
+    )[0];
+
+    act(() => menu.props.actions[0].onPress());
+
+    expect(onMarkAsPaid).toHaveBeenCalledWith('open-1');
     act(() => renderer.unmount());
   });
 });

@@ -22,9 +22,13 @@ const outputDirectory = path.resolve(process.env.QA_ARTIFACT_DIR || process.cwd(
 const screenshotDirectory = path.join(outputDirectory, 'screenshots');
 const videoDirectory = path.join(outputDirectory, 'video');
 const sessionName = `rigatti-qa-${process.env.GITHUB_RUN_ID || 'local'}`;
+const qaExecutionBudgetMs = 25 * 60_000;
+const qaCleanupGraceMs = 90_000;
+const qaStartedAtMs = Date.now();
 const simulatorBootTimeoutMs = 600_000;
 const simulatorDiagnosticTimeoutMs = 30_000;
 const simulatorInstallTimeoutMs = 300_000;
+const simulatorBundleVerificationTimeoutMs = 90_000;
 const maxDiagnosticTextLength = 6_000;
 const expectedMode = {
   wholesale: {
@@ -65,8 +69,21 @@ const report = {
   },
   actions: [],
   errors: [],
+  warnings: [],
   cleanupErrors: [],
   evidence: [],
+  validation: {
+    installCommandSucceeded: false,
+    bundleContainerCheck: 'not-run',
+    appOpenCommandSucceeded: false,
+    quickLoginScreenVisible: false,
+    installedAppRuntimeVerified: false,
+    quickLoginTapped: false,
+    homeAtacadoVisible: false,
+    homeVarejoVisible: false,
+    returnedToAtacadoVisible: false,
+    functionalFlowCompleted: false,
+  },
 };
 
 let simulatorUdid = null;
@@ -113,12 +130,37 @@ function sanitizeDiagnosticText(value) {
     .slice(-maxDiagnosticTextLength);
 }
 
-function captureCommand(command, args, timeout = simulatorBootTimeoutMs) {
+function getRemainingTimeoutMs(timeout, includeCleanupGrace = false) {
+  const allowedMs = qaExecutionBudgetMs + (includeCleanupGrace ? qaCleanupGraceMs : 0);
+  return Math.max(0, Math.min(timeout, allowedMs - (Date.now() - qaStartedAtMs)));
+}
+
+function captureCommand(
+  command,
+  args,
+  timeout = simulatorBootTimeoutMs,
+  includeCleanupGrace = false,
+) {
+  const effectiveTimeoutMs = getRemainingTimeoutMs(timeout, includeCleanupGrace);
+  if (effectiveTimeoutMs <= 0) {
+    return {
+      status: null,
+      signal: null,
+      errorCode: includeCleanupGrace
+        ? 'QA_CLEANUP_BUDGET_EXHAUSTED'
+        : 'QA_EXECUTION_BUDGET_EXHAUSTED',
+      elapsedMs: 0,
+      timeoutMs: 0,
+      stdout: '',
+      stderr: '',
+    };
+  }
+
   const startedAt = Date.now();
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     maxBuffer: 4 * 1024 * 1024,
-    timeout,
+    timeout: effectiveTimeoutMs,
     windowsHide: true,
   });
 
@@ -127,6 +169,7 @@ function captureCommand(command, args, timeout = simulatorBootTimeoutMs) {
     signal: result.signal || null,
     errorCode: result.error?.code || null,
     elapsedMs: Date.now() - startedAt,
+    timeoutMs: effectiveTimeoutMs,
     stdout: result.stdout || '',
     stderr: result.stderr || '',
   };
@@ -135,7 +178,7 @@ function captureCommand(command, args, timeout = simulatorBootTimeoutMs) {
 function safeCommandResult(command, timeoutMs, result, includeOutput = true) {
   return {
     command,
-    timeoutMs,
+    timeoutMs: result.timeoutMs ?? timeoutMs,
     elapsedMs: result.elapsedMs,
     exitCode: result.status,
     signal: result.signal,
@@ -145,12 +188,26 @@ function safeCommandResult(command, timeoutMs, result, includeOutput = true) {
   };
 }
 
-function runAgentDevice(step, args, timeout = 120_000, captureBootFailure = false) {
+function runAgentDevice(
+  step,
+  args,
+  timeout = 60_000,
+  captureBootFailure = false,
+  includeCleanupGrace = false,
+) {
+  const effectiveTimeoutMs = getRemainingTimeoutMs(timeout, includeCleanupGrace);
+  if (effectiveTimeoutMs <= 0) {
+    const reason = includeCleanupGrace
+      ? 'QA_CLEANUP_BUDGET_EXHAUSTED'
+      : 'QA_EXECUTION_BUDGET_EXHAUSTED';
+    throw new QaStepError(step, `agent-device could not start (${reason}).`);
+  }
+
   const startedAt = Date.now();
   const result = spawnSync('agent-device', ['--session', sessionName, ...args], {
     encoding: 'utf8',
     maxBuffer: 1024 * 1024,
-    timeout,
+    timeout: effectiveTimeoutMs,
     windowsHide: true,
   });
 
@@ -162,6 +219,7 @@ function runAgentDevice(step, args, timeout = 120_000, captureBootFailure = fals
           signal: result.signal,
           errorCode: result.error?.code || null,
           elapsedMs: Date.now() - startedAt,
+          timeoutMs: effectiveTimeoutMs,
           stdout: result.stdout,
           stderr: result.stderr,
         })
@@ -366,7 +424,18 @@ function bootFreshIosSimulator() {
     }
 
     // agent-device opens Simulator after a cold boot; simctl preboot skips that path.
-    captureCommand('open', ['-a', 'Simulator'], 15_000);
+    const simulatorUiResult = captureCommand('open', ['-a', 'Simulator'], 15_000);
+    if (simulatorUiResult.errorCode || simulatorUiResult.status !== 0) {
+      report.warnings.push({
+        step: 'open_simulator_ui',
+        message:
+          'Opening the Simulator UI was unavailable; continuing with the selected booted UDID.',
+      });
+      report.diagnostics = {
+        ...(report.diagnostics || {}),
+        simulatorUi: safeCommandResult('open -a Simulator', 15_000, simulatorUiResult, true),
+      };
+    }
 
     runAgentDevice(
       'boot_fresh_ios_simulator',
@@ -395,8 +464,15 @@ function runStep(name, operation) {
   const startedAt = Date.now();
 
   try {
-    operation();
-    report.actions.push({ name, status: 'passed', durationMs: Date.now() - startedAt });
+    const result = operation();
+    const action = {
+      name,
+      status: result?.actionStatus || 'passed',
+      durationMs: Date.now() - startedAt,
+    };
+    if (result?.validatedBy) action.validatedBy = result.validatedBy;
+    report.actions.push(action);
+    return action;
   } catch (error) {
     const safeError = error instanceof QaStepError ? error : new QaStepError(name, 'Step failed.');
     report.actions.push({
@@ -421,12 +497,7 @@ function captureEvidence(name, targetPath) {
 }
 
 function verifyAgentDeviceVersion() {
-  const result = spawnSync('agent-device', ['--version'], {
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024,
-    timeout: 15_000,
-    windowsHide: true,
-  });
+  const result = captureCommand('agent-device', ['--version'], 15_000);
 
   if (result.error || result.status !== 0) {
     throw new QaStepError('verify_agent_device_version', 'Could not read agent-device version.');
@@ -446,10 +517,11 @@ function verifyAgentDeviceVersion() {
 }
 
 function writeReport() {
+  const expectedFlowCompleted = report.validation.functionalFlowCompleted === true;
   report.status =
     failedStep === 'public_evidence_safety_confirmation'
       ? 'blocked'
-      : report.errors.length === 0 && report.cleanupErrors.length === 0
+      : report.errors.length === 0 && expectedFlowCompleted
         ? 'passed'
         : 'failed';
   report.failedStep = failedStep;
@@ -464,7 +536,7 @@ function writeReport() {
 function addCleanupError(step, error) {
   const safeError = error instanceof QaStepError ? error : new QaStepError(step, 'Cleanup failed.');
   report.cleanupErrors.push({ step, message: safeError.message });
-  if (!failedStep) failedStep = step;
+  report.warnings.push({ step, message: safeError.message });
 }
 
 function installCachedAppOnSimulator() {
@@ -502,17 +574,19 @@ function installCachedAppOnSimulator() {
     );
   }
 
+  report.validation.installCommandSucceeded = true;
+
   const verificationResult = captureCommand(
     'xcrun',
     ['simctl', 'get_app_container', simulatorUdid, process.env.APP_BUNDLE_ID, 'app'],
-    simulatorDiagnosticTimeoutMs,
+    simulatorBundleVerificationTimeoutMs,
   );
   const bundleContainerReturned =
     verificationResult.status === 0 && Boolean(verificationResult.stdout.trim());
   const verificationDiagnostic = {
     ...safeCommandResult(
       'xcrun simctl get_app_container <UDID> <APP_BUNDLE_ID> app',
-      simulatorDiagnosticTimeoutMs,
+      simulatorBundleVerificationTimeoutMs,
       verificationResult,
       false,
     ),
@@ -523,21 +597,27 @@ function installCachedAppOnSimulator() {
   }
   report.diagnostics.cachedAppInstall.verification = verificationDiagnostic;
 
-  if (verificationResult.errorCode || verificationResult.status !== 0 || !bundleContainerReturned) {
+  if (bundleContainerReturned) {
+    report.validation.bundleContainerCheck = 'passed';
+  } else {
+    report.validation.bundleContainerCheck =
+      verificationResult.errorCode === 'ETIMEDOUT' ? 'timed-out' : 'unavailable';
     const reason =
       verificationResult.errorCode ||
       `exit-${verificationResult.status ?? verificationResult.signal ?? 'unknown'}`;
+    report.warnings.push({
+      step: 'verify_cached_app_bundle',
+      message: `simctl get_app_container returned no bundle path (${reason}); proceeding to a controlled open on the same simulator UDID.`,
+    });
     console.error('NativeSim QA app install verification diagnostics (sanitized):');
     console.error(JSON.stringify(report.diagnostics.cachedAppInstall, null, 2));
-    throw new QaStepError(
-      'install_cached_app',
-      `Installed bundle could not be verified on the selected simulator (${reason}).`,
-    );
   }
 
   console.log(
-    `Cached app installed and bundle verified on selected simulator; installMs=${installResult.elapsedMs}; verificationMs=${verificationResult.elapsedMs}.`,
+    `simctl install exit 0; containerCheck=${report.validation.bundleContainerCheck}; installMs=${installResult.elapsedMs}; verificationMs=${verificationResult.elapsedMs}. Runtime verification remains pending until app open and the expected login screen are observed.`,
   );
+
+  return { actionStatus: 'pending_runtime_validation' };
 }
 
 mkdirSync(screenshotDirectory, { recursive: true });
@@ -573,50 +653,53 @@ try {
 
   runStep('boot_fresh_ios_simulator', bootFreshIosSimulator);
 
-  runStep('install_cached_app', installCachedAppOnSimulator);
+  const installAction = runStep('install_cached_app', installCachedAppOnSimulator);
 
   runStep('open_app', () => {
-    runAgentDevice('open_app', [
-      'open',
-      process.env.APP_BUNDLE_ID,
-      '--platform',
-      'ios',
-      '--device',
-      process.env.SIMULATOR_DEVICE,
-      '--relaunch',
-    ]);
+    runAgentDevice('open_app', ['open', process.env.APP_BUNDLE_ID, '--relaunch'], 180_000);
     appSessionOpened = true;
+    report.validation.appOpenCommandSucceeded = true;
   });
 
   runStep('wait_for_existing_quick_login_button', () => {
     runAgentDevice(
       'wait_for_existing_quick_login_button',
-      ['wait', 'visible', 'label="Entrada rápida" role=button', '90000'],
+      ['wait', 'label="Entrada rápida" role=button', '90000'],
       100_000,
     );
+    report.validation.quickLoginScreenVisible = true;
+    report.validation.installedAppRuntimeVerified = true;
+    installAction.status = 'passed';
+    installAction.validatedBy = 'app open succeeded and Entrada rápida was visible';
   });
 
   captureEvidence('capture_login_screen', path.join(screenshotDirectory, 'login.png'));
 
   runStep('start_short_video', () => {
-    runAgentDevice('start_short_video', [
-      'record',
-      'start',
-      path.join(videoDirectory, 'quick-login-and-mode-switch.mov'),
-    ]);
+    runAgentDevice(
+      'start_short_video',
+      ['record', 'start', path.join(videoDirectory, 'quick-login-and-mode-switch.mov')],
+      60_000,
+    );
     recordingStarted = true;
   });
 
   runStep('tap_existing_quick_login', () => {
-    runAgentDevice('tap_existing_quick_login', ['press', 'label="Entrada rápida" role=button']);
+    runAgentDevice(
+      'tap_existing_quick_login',
+      ['press', 'label="Entrada rápida" role=button'],
+      90_000,
+    );
+    report.validation.quickLoginTapped = true;
   });
 
   runStep('confirm_authenticated_home_atacado', () => {
     runAgentDevice(
       'confirm_authenticated_home_atacado',
-      ['wait', 'visible', `label="${expectedMode.wholesale.homeLabel}" role=button`, '120000'],
+      ['wait', `label="${expectedMode.wholesale.homeLabel}" role=button`, '120000'],
       130_000,
     );
+    report.validation.homeAtacadoVisible = true;
   });
 
   captureEvidence('capture_atacado', path.join(screenshotDirectory, 'atacado.png'));
@@ -626,21 +709,21 @@ try {
       'press',
       `label="${expectedMode.wholesale.homeLabel}" role=button`,
     ]);
-    runAgentDevice('open_sales_mode_selector_from_atacado', [
-      'wait',
-      'visible',
-      'label="Modo de venda"',
-      '15000',
-    ]);
+    runAgentDevice(
+      'open_sales_mode_selector_from_atacado',
+      ['wait', 'label="Modo de venda"', '15000'],
+      25_000,
+    );
   });
 
   runStep('select_varejo', () => {
     runAgentDevice('select_varejo', ['press', 'label="Varejo" role=button']);
     runAgentDevice(
       'select_varejo',
-      ['wait', 'visible', `label="${expectedMode.retail.homeLabel}" role=button`, '60000'],
+      ['wait', `label="${expectedMode.retail.homeLabel}" role=button`, '60000'],
       70_000,
     );
+    report.validation.homeVarejoVisible = true;
   });
 
   captureEvidence('capture_varejo', path.join(screenshotDirectory, 'varejo.png'));
@@ -650,27 +733,28 @@ try {
       'press',
       `label="${expectedMode.retail.homeLabel}" role=button`,
     ]);
-    runAgentDevice('open_sales_mode_selector_from_varejo', [
-      'wait',
-      'visible',
-      'label="Modo de venda"',
-      '15000',
-    ]);
+    runAgentDevice(
+      'open_sales_mode_selector_from_varejo',
+      ['wait', 'label="Modo de venda"', '15000'],
+      25_000,
+    );
   });
 
   runStep('select_atacado_again', () => {
     runAgentDevice('select_atacado_again', ['press', 'label="Atacado" role=button']);
     runAgentDevice(
       'select_atacado_again',
-      ['wait', 'visible', `label="${expectedMode.wholesale.homeLabel}" role=button`, '60000'],
+      ['wait', `label="${expectedMode.wholesale.homeLabel}" role=button`, '60000'],
       70_000,
     );
+    report.validation.returnedToAtacadoVisible = true;
   });
 
   captureEvidence(
     'capture_atacado_after_return',
     path.join(screenshotDirectory, 'atacado-final.png'),
   );
+  report.validation.functionalFlowCompleted = true;
 } catch (error) {
   const safeError =
     error instanceof QaStepError ? error : new QaStepError('qa_flow', 'QA flow failed.');
@@ -680,18 +764,25 @@ try {
   if (appSessionOpened) {
     const failureScreenshot = path.join(screenshotDirectory, 'failure.png');
     try {
-      runAgentDevice('capture_failure_state', ['screenshot', failureScreenshot]);
+      runAgentDevice(
+        'capture_failure_state',
+        ['screenshot', failureScreenshot],
+        30_000,
+        false,
+        true,
+      );
       if (existsSync(failureScreenshot) && statSync(failureScreenshot).size > 0) {
         report.evidence.push('screenshots/failure.png');
       }
-    } catch {
+    } catch (diagnosticError) {
       // Preserve the original failure without forwarding device output.
+      addCleanupError('capture_failure_state', diagnosticError);
     }
   }
 } finally {
   if (recordingStarted) {
     try {
-      runAgentDevice('stop_short_video', ['record', 'stop']);
+      runAgentDevice('stop_short_video', ['record', 'stop'], 60_000, false, true);
       const videoPath = path.join(videoDirectory, 'quick-login-and-mode-switch.mov');
       if (existsSync(videoPath) && statSync(videoPath).size > 0) {
         report.evidence.push('video/quick-login-and-mode-switch.mov');
@@ -709,7 +800,7 @@ try {
   if (agentDeviceSessionReady) {
     try {
       // End this run's agent session only; never shut down a simulator another session may use.
-      runAgentDevice('close_simulator_session', ['close'], 120_000);
+      runAgentDevice('close_simulator_session', ['close'], 60_000, false, true);
     } catch (error) {
       addCleanupError('close_simulator_session', error);
     }

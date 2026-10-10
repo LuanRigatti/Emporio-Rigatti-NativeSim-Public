@@ -73,7 +73,7 @@ function transformResumoFinanceiroWidgetSource(source) {
     '  public var body: some View {',
     '    let propsPresent = entry.props != nil',
     '    let configurationPresent = (widgetEnvironment["configuration"] as? [String: Any])?.isEmpty == false',
-    '    resumoFinanceiroDiagnosticsLogger.info("event=layout_evaluation phase=start props_present=\\(propsPresent, privacy: .public) configuration_present=\\(configurationPresent, privacy: .public)")',
+    '    let _ = resumoFinanceiroDiagnosticsLogger.info("event=layout_evaluation phase=start props_present=\\(propsPresent, privacy: .public) configuration_present=\\(configurationPresent, privacy: .public)")',
     '    if let layout = WidgetsStorage.getString',
   ].join('\n');
   transformed = replaceExactlyOnce(
@@ -87,7 +87,7 @@ function transformResumoFinanceiroWidgetSource(source) {
     '      let node = evaluateLayout(layout: layout, props: entry.props ?? [:], environment: widgetEnvironment)';
   const layoutReplacement = [
     layoutAnchor,
-    '      resumoFinanceiroDiagnosticsLogger.info("event=layout_evaluation phase=returned props_present=\\(propsPresent, privacy: .public) configuration_present=\\(configurationPresent, privacy: .public)")',
+    '      let _ = resumoFinanceiroDiagnosticsLogger.info("event=layout_evaluation phase=returned props_present=\\(propsPresent, privacy: .public) configuration_present=\\(configurationPresent, privacy: .public)")',
   ].join('\n');
   transformed = replaceExactlyOnce(
     transformed,
@@ -100,7 +100,7 @@ function transformResumoFinanceiroWidgetSource(source) {
     '    } else {\n      WidgetsDynamicView(name: entry.name, kind: .widget, node: createRedBox';
   const missingLayoutReplacement = [
     '    } else {',
-    '      resumoFinanceiroDiagnosticsLogger.info("event=layout_evaluation phase=layout_missing props_present=\\(propsPresent, privacy: .public) configuration_present=\\(configurationPresent, privacy: .public)")',
+    '      let _ = resumoFinanceiroDiagnosticsLogger.info("event=layout_evaluation phase=layout_missing props_present=\\(propsPresent, privacy: .public) configuration_present=\\(configurationPresent, privacy: .public)")',
     '      WidgetsDynamicView(name: entry.name, kind: .widget, node: createRedBox',
   ].join('\n');
   transformed = replaceExactlyOnce(

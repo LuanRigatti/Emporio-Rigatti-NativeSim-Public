@@ -40,12 +40,23 @@ const generatedWidgetSource = [
 describe('ResumoFinanceiro diagnostics CNG plugin', () => {
   it('adds provider and layout events and remains idempotent', () => {
     const instrumented = transformResumoFinanceiroWidgetSource(generatedWidgetSource);
+    const viewBuilderBody = instrumented.match(
+      /  public var body: some View \{\n([\s\S]*?)\n  \}\n\}/,
+    )?.[1];
 
     expect(instrumented).toContain('category: "RigattiWidgetSync"');
     expect(instrumented).toContain('event=timeline_read source=extension raw_count=');
-    expect(instrumented).toContain('event=layout_evaluation phase=start');
-    expect(instrumented).toContain('event=layout_evaluation phase=returned');
-    expect(instrumented).toContain('event=layout_evaluation phase=layout_missing');
+    expect(instrumented).toContain(
+      '    resumoFinanceiroDiagnosticsLogger.info("event=timeline_read source=extension',
+    );
+    expect(viewBuilderBody).toBeDefined();
+    expect(
+      viewBuilderBody?.match(/let _ = resumoFinanceiroDiagnosticsLogger\.info\(/g),
+    ).toHaveLength(3);
+    expect(viewBuilderBody).toContain('event=layout_evaluation phase=start');
+    expect(viewBuilderBody).toContain('event=layout_evaluation phase=returned');
+    expect(viewBuilderBody).toContain('event=layout_evaluation phase=layout_missing');
+    expect(viewBuilderBody).not.toMatch(/^\s*resumoFinanceiroDiagnosticsLogger\.info\(/m);
     expect(transformResumoFinanceiroWidgetSource(instrumented)).toBe(instrumented);
   });
 

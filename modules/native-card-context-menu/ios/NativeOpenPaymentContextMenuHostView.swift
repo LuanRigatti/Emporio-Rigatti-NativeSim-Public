@@ -71,7 +71,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     logEvent(
       "host-window",
       details: "attached=\(window != nil) host=\(objectIdentity(self)) " +
-        "window=\(window.map(objectIdentity) ?? \"nil\")"
+        "window=\(window.map(objectIdentity) ?? "nil")"
     )
     if window == nil {
       requestTeardown()
@@ -132,7 +132,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     commitInProgress = false
     logEvent(
       "preview-commit-complete",
-      details: "top=\(navigationController.topViewController.map(controllerIdentity) ?? \"nil\")"
+      details: "top=\(navigationController.topViewController.map(controllerIdentity) ?? "nil")"
     )
     logNavigationControllerState(role: "sibling", navigationController: navigationController)
     if let ownerNavigationController = hostViewController?.navigationController {
@@ -240,7 +240,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     logEvent(
       "sibling-installed",
       details: "siblingNav=\(objectIdentity(navigationController)) " +
-        "ownerNav=\(hostViewController.navigationController.map(objectIdentity) ?? \"nil\") " +
+        "ownerNav=\(hostViewController.navigationController.map(objectIdentity) ?? "nil") " +
         "parent=\(controllerIdentity(hostViewController))"
     )
     logNavigationControllerState(role: "sibling", navigationController: navigationController)
@@ -476,8 +476,8 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
       let containerView = transitionCoordinator.containerView
       logEvent(
         "transition-participants",
-        details: "from=\(fromController.map(controllerIdentity) ?? \"nil\") " +
-          "to=\(toController.map(controllerIdentity) ?? \"nil\") " +
+        details: "from=\(fromController.map(controllerIdentity) ?? "nil") " +
+          "to=\(toController.map(controllerIdentity) ?? "nil") " +
           "state=\(transitionSummary(transitionCoordinator))"
       )
       logTransitionViewMapping(
@@ -532,8 +532,8 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     let toController = coordinator.viewController(forKey: .to)
     logEvent(
       "transition-participants",
-      details: "role=\(role) from=\(fromController.map(controllerIdentity) ?? \"nil\") " +
-        "to=\(toController.map(controllerIdentity) ?? \"nil\") " +
+      details: "role=\(role) from=\(fromController.map(controllerIdentity) ?? "nil") " +
+        "to=\(toController.map(controllerIdentity) ?? "nil") " +
         "state=\(transitionSummary(coordinator))"
     )
     logTransitionViewMapping(
@@ -677,7 +677,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
         let identity = ObjectIdentifier(current)
         if loggedViewIDs.insert(identity).inserted,
            current.clipsToBounds || current.layer.masksToBounds ||
-             current.layer.mask != nil || current.maskView != nil || current.layer.cornerRadius > 0 {
+             current.layer.mask != nil || current.mask != nil || current.layer.cornerRadius > 0 {
           logViewState(
             phase: "transition-frame-\(transitionGeometrySampleCount)",
             role: "\(role)-clip-ancestor-\(depth)",
@@ -751,9 +751,9 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     }
     logEvent(
       "transition-view-mapping",
-      details: "role=\(role) key=\(key) controller=\(controller.map(controllerIdentity) ?? \"nil\") " +
-        "controllerView=\(controllerView.map(objectIdentity) ?? \"nil\") " +
-        "transitionView=\(transitionView.map(objectIdentity) ?? \"nil\") " +
+      details: "role=\(role) key=\(key) controller=\(controller.map(controllerIdentity) ?? "nil") " +
+        "controllerView=\(controllerView.map(objectIdentity) ?? "nil") " +
+        "transitionView=\(transitionView.map(objectIdentity) ?? "nil") " +
         "sameView=\(matchesControllerView)"
     )
   }
@@ -781,7 +781,7 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     let layerMask = view.layer.mask.map { mask in
       "\(String(describing: type(of: mask)))#\(ObjectIdentifier(mask))"
     } ?? "none"
-    let viewMask = view.maskView.map { objectIdentity($0) } ?? "none"
+    let viewMask = view.mask.map { objectIdentity($0) } ?? "none"
     var details = "phase=\(phase) role=\(role) view=\(objectIdentity(view)) " +
       "super=\(superviewIdentity) window=\(windowIdentity) " +
       "frame=\(NSCoder.string(for: view.frame)) bounds=\(NSCoder.string(for: view.bounds)) " +
@@ -811,12 +811,12 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
       "navigation-state",
       details: "role=\(role) nav=\(objectIdentity(navigationController)) " +
         "stackCount=\(navigationController.viewControllers.count) " +
-        "top=\(navigationController.topViewController.map(controllerIdentity) ?? \"nil\") " +
+        "top=\(navigationController.topViewController.map(controllerIdentity) ?? "nil") " +
         "barHidden=\(navigationController.isNavigationBarHidden) " +
         "viewHidden=\(navigationController.viewIfLoaded?.isHidden ?? true) " +
         "interaction=\(navigationController.viewIfLoaded?.isUserInteractionEnabled ?? false) " +
         "transition=\(transitionSummary(navigationController.transitionCoordinator)) " +
-        "gestureEnabled(effective)=\(edgePopGesture.map { String($0.isEnabled) } ?? \"nil\")"
+        "gestureEnabled(effective)=\(edgePopGesture.map { String($0.isEnabled) } ?? "nil")"
     )
 
     for (index, viewController) in navigationController.viewControllers.enumerated() {

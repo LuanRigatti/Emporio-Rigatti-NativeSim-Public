@@ -3,7 +3,6 @@ import UIKit
 
 public final class NativeContextMenuPreviewView: ExpoView {
   let onAction = EventDispatcher()
-  let onOpen = EventDispatcher()
 
   var identifier = "" {
     didSet { coordinator?.identifier = identifier }
@@ -27,31 +26,11 @@ public final class NativeContextMenuPreviewView: ExpoView {
     super.init(appContext: appContext)
     coordinator = NativeContextMenuPreviewCoordinator(
       attachingTo: self,
-      commitBehavior: .pushPreviewController
+      commitBehavior: .dismissPreview
     )
-    coordinator?.navigationControllerProvider = { [weak self] in
-      self?.nearestPresentationHost()?.navigationControllerForPreview()
-    }
-    coordinator?.presentationHostProvider = { [weak self] in
-      self?.nearestPresentationHost()
-    }
     coordinator?.onAction = { [weak self] identifier, actionId in
       self?.onAction(["identifier": identifier, "actionId": actionId])
     }
-    coordinator?.onOpen = { [weak self] identifier, preview in
-      self?.onOpen(["identifier": identifier, "preview": preview])
-    }
     coordinator?.presentationStyle = presentationStyle
-  }
-
-  private func nearestPresentationHost() -> NativeOpenPaymentContextMenuHostView? {
-    var currentView = superview
-    while let view = currentView {
-      if let host = view as? NativeOpenPaymentContextMenuHostView {
-        return host
-      }
-      currentView = view.superview
-    }
-    return nil
   }
 }

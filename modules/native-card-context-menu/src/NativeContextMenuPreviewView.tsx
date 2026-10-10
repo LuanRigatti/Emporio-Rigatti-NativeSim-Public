@@ -8,7 +8,6 @@ export const NativeContextMenuPreviewView: ComponentType<NativeContextMenuPrevie
   identifier: _identifier,
   menuTitle: _menuTitle,
   onAction: _onAction,
-  onOpen: _onOpen,
   presentationStyle: _presentationStyle,
   preview: _preview,
   ...viewProps

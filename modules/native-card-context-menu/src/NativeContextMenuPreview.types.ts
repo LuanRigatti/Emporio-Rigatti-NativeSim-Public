@@ -62,12 +62,6 @@ export type NativePeekPopPreviewLabCloseEvent = {
   };
 };
 
-export type NativeOpenPaymentPreviewStateEvent = {
-  nativeEvent: {
-    expanded: boolean;
-  };
-};
-
 export type NativeContextMenuPreviewViewProps = ViewProps & {
   identifier: string;
   preview: NativeContextMenuPreviewContent;
@@ -76,13 +70,6 @@ export type NativeContextMenuPreviewViewProps = ViewProps & {
   presentationStyle?: NativeContextMenuPreviewPresentationStyle;
   children?: ReactNode;
   onAction?: (event: NativeContextMenuActionEvent) => void;
-  onOpen?: (event: NativeContextMenuOpenEvent) => void;
-};
-
-export type NativeOpenPaymentContextMenuHostViewProps = ViewProps & {
-  active: boolean;
-  children?: ReactNode;
-  onExpandedPreviewChange?: (event: NativeOpenPaymentPreviewStateEvent) => void;
 };
 
 export type NativePeekPopPreviewLabCard = {

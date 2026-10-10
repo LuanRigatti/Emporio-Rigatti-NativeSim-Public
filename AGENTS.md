@@ -586,3 +586,10 @@ Depois da alteração:
 3. execute `git diff --check -- AGENTS.md`;
 4. informe o Git status;
 5. não altere mais nada.
+
+## Diagnósticos OSLog nativos
+
+- Sempre que identificar necessidade de adicionar, modificar, coletar ou analisar OSLog nativo do Empório Rigatti, consulte e use a skill global `$oslog`, seguindo seu `SKILL.md` e referências. Se a skill não estiver acessível, informe isso; não presuma que foi executada. A skill orienta integração e recuperação dos logs; implementar instrumentação no app continua sendo responsabilidade do Codex.
+- Para instrumentação nova, use `Logger`/OSLog nativo e subsistemas app-owned capturados automaticamente pelo NativeSim (`com.pareact.mobile`, extensões ou outros explicitamente suportados). Escolha categorias e eventos conforme a investigação; não dependa de categorias fixas nem de mudanças recorrentes nas GitHub Actions Variables. Reutilize diagnósticos existentes quando suficientes.
+- Não registre dados financeiros, de clientes, credenciais ou outras informações sensíveis. Preserve captura criptografada, manifesto, coleta, análise e entrega de arquivos clicáveis definidos pela skill `$oslog`.
+- Não inicie NativeSim, builds ou workflows, nem encerre sessões, sem autorização explícita. Diferencie diagnósticos temporários dos permanentes e proponha remover instrumentação temporária quando perder sua finalidade. Não crie instrumentação para uma investigação sem necessidade técnica demonstrada.

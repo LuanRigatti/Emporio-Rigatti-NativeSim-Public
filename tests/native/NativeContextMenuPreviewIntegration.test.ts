@@ -235,7 +235,7 @@ describe('reusable native context menu preview', () => {
     expect(nativeModule).toContain('Prop("identifier")');
     expect(nativeModule).toContain('Prop("preview")');
     expect(nativeModule).toContain('Prop("actions")');
-    expect(nativeModule).toContain('Events("onAction", "onOpen")');
+    expect(nativeModule).toContain('Events("onAction")');
     expect(labModule).toContain('Events("onClose", "onAction", "onOpen")');
     expect(labModule).toContain('Prop("secondaryCard")');
     expect(labModuleView).toContain('var secondaryCard: [String: Any]?');

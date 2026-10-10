@@ -1,4 +1,7 @@
-import { summarizeFinanceWidgetTimeline } from '@/features/finance/widgets/ResumoFinanceiroWidgetDiagnostics';
+import {
+  extractFinanceWidgetPublishErrorMetadata,
+  summarizeFinanceWidgetTimeline,
+} from '@/features/finance/widgets/ResumoFinanceiroWidgetDiagnostics';
 
 jest.mock('expo-modules-core', () => ({
   requireOptionalNativeModule: () => null,
@@ -40,6 +43,56 @@ describe('ResumoFinanceiro widget diagnostic timeline summary', () => {
     expect(summarizeFinanceWidgetTimeline({ entries: [] })).toEqual({
       entryCount: 0,
       validEntryCount: 0,
+    });
+  });
+});
+
+describe('ResumoFinanceiro widget publish error metadata', () => {
+  it('classifies the known missing-layout error without adding unavailable fields', () => {
+    expect(
+      extractFinanceWidgetPublishErrorMetadata({
+        name: 'Error',
+        code: 'ERR_UPDATED_TIMELINE_WITHOUT_LAYOUT',
+        message: 'must not be logged',
+      }),
+    ).toEqual({
+      errorType: 'UpdatedTimelineWithoutLayout',
+      errorDomain: null,
+      errorCode: 'ERR_UPDATED_TIMELINE_WITHOUT_LAYOUT',
+    });
+  });
+
+  it('keeps safe metadata from an unknown error and omits its message', () => {
+    expect(
+      extractFinanceWidgetPublishErrorMetadata({
+        name: 'TypeError',
+        domain: 'NSCocoaErrorDomain',
+        code: 'ERR_UNEXPECTED_NATIVE_FAILURE',
+        message: 'private details must not be logged',
+      }),
+    ).toEqual({
+      errorType: 'TypeError',
+      errorDomain: 'NSCocoaErrorDomain',
+      errorCode: 'ERR_UNEXPECTED_NATIVE_FAILURE',
+    });
+  });
+
+  it('omits absent, malformed, and unapproved fields', () => {
+    expect(
+      extractFinanceWidgetPublishErrorMetadata({
+        name: 'private error details',
+        domain: 'user@example.com',
+        code: '12345678901234567890',
+      }),
+    ).toEqual({
+      errorType: null,
+      errorDomain: null,
+      errorCode: null,
+    });
+    expect(extractFinanceWidgetPublishErrorMetadata(undefined)).toEqual({
+      errorType: null,
+      errorDomain: null,
+      errorCode: null,
     });
   });
 });

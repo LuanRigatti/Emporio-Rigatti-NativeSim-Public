@@ -265,7 +265,7 @@ class ResumoFinanceiroSnapshotCoordinator {
       updateWidgetTimeline(entries);
       recordFinanceWidgetPublishResult(true, 'update_timeline');
     } catch (error) {
-      recordFinanceWidgetPublishResult(false, 'update_timeline');
+      recordFinanceWidgetPublishResult(false, 'update_timeline', error);
       throw error;
     }
     this.recordPublishedTimelineRead();

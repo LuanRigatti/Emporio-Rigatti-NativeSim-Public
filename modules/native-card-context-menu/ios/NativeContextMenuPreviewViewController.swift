@@ -2,31 +2,16 @@ import UIKit
 
 final class NativeContextMenuPreviewViewController: UIViewController {
   private static let previewCardCornerRadius: CGFloat = 28
-  // Matches open-payment cards: theme.radius.xl (22) + theme.spacing.sm (12).
-  private static let expandedCardCornerRadius: CGFloat = 34
 
   private let content: [String: Any]
   private let presentationStyle: NativeContextMenuPreviewPresentationStyle
-  private var currentThemeAppearance: [String: Any]?
   private let scrollView = UIScrollView()
   private let cardView = UIView()
   private let contentStack = UIStackView()
   private let viewerSurfaceView = UIView()
-  private weak var expandedPageNavigationBar: UINavigationBar?
-  private var expandedPageAppearanceSnapshot: ExpandedPageAppearanceSnapshot?
   weak var transitionSourceView: UIView?
   private weak var commitNavigationController: UINavigationController?
   private var interactiveDismissCoordinator: NativePeekPopInteractiveDismissCoordinator?
-
-  private struct ExpandedPageAppearanceSnapshot {
-    let viewBackgroundColor: UIColor?
-    let cardBackgroundColor: UIColor?
-    let navigationBarBackgroundColor: UIColor?
-    let standardAppearance: UINavigationBarAppearance
-    let scrollEdgeAppearance: UINavigationBarAppearance?
-    let compactAppearance: UINavigationBarAppearance?
-    let compactScrollEdgeAppearance: UINavigationBarAppearance?
-  }
 
   var usesInteractiveViewer: Bool { presentationStyle == .interactiveViewer }
 
@@ -36,7 +21,6 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   ) {
     self.content = content
     self.presentationStyle = presentationStyle
-    currentThemeAppearance = content["appearance"] as? [String: Any]
     super.init(nibName: nil, bundle: nil)
     title = content["title"] as? String
     navigationItem.largeTitleDisplayMode = .never
@@ -49,6 +33,7 @@ final class NativeContextMenuPreviewViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     buildLayout()
+    applyPreviewAppearance()
     buildContent()
   }
 
@@ -76,31 +61,6 @@ final class NativeContextMenuPreviewViewController: UIViewController {
     navigationController.setNavigationBarHidden(true, animated: false)
   }
 
-  func prepareForExpandedPagePresentation(in navigationController: UINavigationController) {
-    guard presentationStyle == .page else { return }
-    navigationItem.largeTitleDisplayMode = .always
-    cardView.layer.cornerRadius = Self.expandedCardCornerRadius
-    applyThemeAppearanceIfPresent(in: navigationController.navigationBar)
-    updateExpandedPageLargeTitleAppearance(in: navigationController)
-  }
-
-  func restorePeekPresentation() {
-    guard presentationStyle == .page else { return }
-    navigationItem.largeTitleDisplayMode = .never
-    cardView.layer.cornerRadius = Self.previewCardCornerRadius
-    restoreThemeAppearance()
-  }
-
-  func updateExpandedPageThemeAppearance(_ appearance: [String: Any]?) {
-    guard presentationStyle == .page else {
-      return
-    }
-    currentThemeAppearance = appearance
-    if let navigationBar = expandedPageNavigationBar {
-      applyThemeAppearance(appearance, in: navigationBar)
-    }
-  }
-
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
     if usesInteractiveViewer {
@@ -113,97 +73,18 @@ final class NativeContextMenuPreviewViewController: UIViewController {
     updatePreferredContentSize()
   }
 
-  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-    super.traitCollectionDidChange(previousTraitCollection)
-    if traitCollection.preferredContentSizeCategory
-      != previousTraitCollection?.preferredContentSizeCategory {
-      view.setNeedsLayout()
-      if navigationItem.largeTitleDisplayMode == .always,
-         let navigationController {
-        updateExpandedPageLargeTitleAppearance(in: navigationController)
-      }
-    }
-  }
-
-  private func updateExpandedPageLargeTitleAppearance(in navigationController: UINavigationController) {
-    let baseFont = UIFont.systemFont(ofSize: 36, weight: .bold)
-    let font = UIFontMetrics(forTextStyle: .largeTitle).scaledFont(
-      for: baseFont,
-      compatibleWith: traitCollection
-    )
-    navigationController.navigationBar.largeTitleTextAttributes = [
-      .font: font,
-      .foregroundColor: UIColor.label,
-    ]
-  }
-
-  private func applyThemeAppearanceIfPresent(in navigationBar: UINavigationBar) {
-    applyThemeAppearance(currentThemeAppearance, in: navigationBar)
-  }
-
-  private func applyThemeAppearance(
-    _ appearance: [String: Any]?,
-    in navigationBar: UINavigationBar
-  ) {
-    guard let appearance else { return }
-    let pageColor = Self.themeColor(from: appearance["pageBackgroundColor"])
-    let cardColor = Self.themeColor(from: appearance["cardSurfaceColor"])
-    guard pageColor != nil || cardColor != nil else { return }
-
-    if expandedPageAppearanceSnapshot == nil {
-      expandedPageNavigationBar = navigationBar
-      expandedPageAppearanceSnapshot = ExpandedPageAppearanceSnapshot(
-        viewBackgroundColor: view.backgroundColor,
-        cardBackgroundColor: cardView.backgroundColor,
-        navigationBarBackgroundColor: navigationBar.backgroundColor,
-        standardAppearance: Self.copyAppearance(navigationBar.standardAppearance),
-        scrollEdgeAppearance: navigationBar.scrollEdgeAppearance.map(Self.copyAppearance),
-        compactAppearance: navigationBar.compactAppearance.map(Self.copyAppearance),
-        compactScrollEdgeAppearance: navigationBar.compactScrollEdgeAppearance.map(Self.copyAppearance)
-      )
+  private func applyPreviewAppearance() {
+    guard presentationStyle == .page,
+          let appearance = content["appearance"] as? [String: Any] else {
+      return
     }
 
-    if let pageColor {
+    if let pageColor = Self.themeColor(from: appearance["pageBackgroundColor"]) {
       view.backgroundColor = pageColor
-      navigationBar.backgroundColor = pageColor
-      navigationBar.standardAppearance = Self.appearance(
-        basedOn: navigationBar.standardAppearance,
-        backgroundColor: pageColor
-      )
-      navigationBar.scrollEdgeAppearance = Self.appearance(
-        basedOn: navigationBar.scrollEdgeAppearance ?? navigationBar.standardAppearance,
-        backgroundColor: pageColor
-      )
-      navigationBar.compactAppearance = Self.appearance(
-        basedOn: navigationBar.compactAppearance ?? navigationBar.standardAppearance,
-        backgroundColor: pageColor
-      )
-      navigationBar.compactScrollEdgeAppearance = Self.appearance(
-        basedOn: navigationBar.compactScrollEdgeAppearance ?? navigationBar.standardAppearance,
-        backgroundColor: pageColor
-      )
     }
-
-    if let cardColor {
+    if let cardColor = Self.themeColor(from: appearance["cardSurfaceColor"]) {
       cardView.backgroundColor = cardColor
     }
-  }
-
-  private func restoreThemeAppearance() {
-    guard let snapshot = expandedPageAppearanceSnapshot else { return }
-    view.backgroundColor = snapshot.viewBackgroundColor
-    cardView.backgroundColor = snapshot.cardBackgroundColor
-
-    if let navigationBar = expandedPageNavigationBar {
-      navigationBar.backgroundColor = snapshot.navigationBarBackgroundColor
-      navigationBar.standardAppearance = Self.copyAppearance(snapshot.standardAppearance)
-      navigationBar.scrollEdgeAppearance = snapshot.scrollEdgeAppearance.map(Self.copyAppearance)
-      navigationBar.compactAppearance = snapshot.compactAppearance.map(Self.copyAppearance)
-      navigationBar.compactScrollEdgeAppearance = snapshot.compactScrollEdgeAppearance.map(Self.copyAppearance)
-    }
-
-    expandedPageNavigationBar = nil
-    expandedPageAppearanceSnapshot = nil
   }
 
   private static func themeColor(from value: Any?) -> UIColor? {
@@ -220,20 +101,6 @@ final class NativeContextMenuPreviewViewController: UIViewController {
       blue: CGFloat(rgb & 0xFF) / 255,
       alpha: 1
     )
-  }
-
-  private static func copyAppearance(_ appearance: UINavigationBarAppearance) -> UINavigationBarAppearance {
-    appearance.copy() as? UINavigationBarAppearance ?? UINavigationBarAppearance()
-  }
-
-  private static func appearance(
-    basedOn appearance: UINavigationBarAppearance,
-    backgroundColor: UIColor
-  ) -> UINavigationBarAppearance {
-    let themedAppearance = copyAppearance(appearance)
-    themedAppearance.backgroundEffect = nil
-    themedAppearance.backgroundColor = backgroundColor
-    return themedAppearance
   }
 
   private func buildLayout() {

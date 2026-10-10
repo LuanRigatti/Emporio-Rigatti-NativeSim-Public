@@ -9,7 +9,7 @@ export type OpenPaymentClientContextMenuProps = {
   children: ReactNode;
   identifier: string;
   nativePreview: NativeContextMenuPreviewContent;
-  nativePeekPopEnabled: boolean;
+  nativePreviewEnabled: boolean;
   preview: ReactNode;
   style: StyleProp<ViewStyle>;
 };

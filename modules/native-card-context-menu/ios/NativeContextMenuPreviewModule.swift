@@ -5,7 +5,7 @@ public final class NativeContextMenuPreviewModule: Module {
     Name("NativeContextMenuPreview")
 
     View(NativeContextMenuPreviewView.self) {
-      Events("onAction", "onOpen")
+      Events("onAction")
 
       Prop("identifier") { (view: NativeContextMenuPreviewView, identifier: String) in
         view.identifier = identifier

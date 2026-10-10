@@ -9,22 +9,20 @@ import type {
 
 import type { OpenPaymentClientContextMenuProps } from './OpenPaymentClientContextMenu.types';
 
-const supportsNativePeekPop =
-  requireOptionalNativeModule('NativeContextMenuPreview') !== null &&
-  requireOptionalNativeModule('NativeOpenPaymentContextMenuHost') !== null;
+const supportsNativePreview = requireOptionalNativeModule('NativeContextMenuPreview') !== null;
 const NativePreviewView: ComponentType<NativeContextMenuPreviewViewProps> | null =
-  supportsNativePeekPop ? requireNativeView('NativeContextMenuPreview') : null;
+  supportsNativePreview ? requireNativeView('NativeContextMenuPreview') : null;
 
 export function OpenPaymentClientContextMenu({
   actions,
   children,
   identifier,
   nativePreview,
-  nativePeekPopEnabled,
+  nativePreviewEnabled,
   preview,
   style,
 }: OpenPaymentClientContextMenuProps) {
-  if (!nativePeekPopEnabled || !NativePreviewView) {
+  if (!nativePreviewEnabled || !NativePreviewView) {
     return (
       <NativeCardContextMenu actions={actions} preview={preview} style={style}>
         {children}

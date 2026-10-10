@@ -25,7 +25,7 @@ export type OpenPaymentClientCardsProps = {
   paymentHistoryLoading: boolean;
   onMarkAsPaid: (deliveryId: string) => void;
   testModeEnabled: boolean;
-  nativePeekPopEnabled?: boolean;
+  nativePreviewEnabled?: boolean;
 };
 
 export function OpenPaymentClientCards({
@@ -33,7 +33,7 @@ export function OpenPaymentClientCards({
   paymentHistoryError,
   paymentHistoryLoading,
   onMarkAsPaid,
-  nativePeekPopEnabled = false,
+  nativePreviewEnabled = false,
   testModeEnabled,
 }: OpenPaymentClientCardsProps) {
   const { resolvedMode, theme } = useAppTheme();
@@ -208,7 +208,7 @@ export function OpenPaymentClientCards({
                         : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
                   }))}
                   identifier={getOpenPaymentClientPreviewIdentifier(client)}
-                  nativePeekPopEnabled={nativePeekPopEnabled}
+                  nativePreviewEnabled={nativePreviewEnabled}
                   nativePreview={buildOpenPaymentNativePreview(client, {
                     cardSurfaceColor: openPaymentCardSurface,
                     formatCurrency: maskCurrency,

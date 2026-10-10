@@ -1,6 +1,7 @@
 import UIKit
 
 enum NativeContextMenuPreviewCommitBehavior {
+  case dismissPreview
   case callback
   case pushPreviewController
 }
@@ -14,23 +15,15 @@ enum NativeContextMenuPreviewPresentationStyle: String {
 final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteractionDelegate {
   private weak var hostView: UIView?
   private var interaction: UIContextMenuInteraction?
-  private weak var committedPreviewController: NativeContextMenuPreviewViewController?
 
   var identifier = ""
-  var previewContent: [String: Any] = [:] {
-    didSet {
-      committedPreviewController?.updateExpandedPageThemeAppearance(
-        previewContent["appearance"] as? [String: Any]
-      )
-    }
-  }
+  var previewContent: [String: Any] = [:]
   var actions: [[String: Any]] = []
   var menuTitle = ""
   var presentationStyle: NativeContextMenuPreviewPresentationStyle = .page
   var onAction: ((String, String) -> Void)?
   var onOpen: ((String, [String: Any]) -> Void)?
   var navigationControllerProvider: (() -> UINavigationController?)?
-  var presentationHostProvider: (() -> NativeContextMenuPreviewPresentationHost?)?
 
   private let commitBehavior: NativeContextMenuPreviewCommitBehavior
 
@@ -83,7 +76,13 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
     willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
     animator: UIContextMenuInteractionCommitAnimating
   ) {
-    animator.preferredCommitStyle = .pop
+    switch commitBehavior {
+    case .dismissPreview:
+      animator.preferredCommitStyle = .dismiss
+      return
+    case .callback, .pushPreviewController:
+      animator.preferredCommitStyle = .pop
+    }
 
     guard let previewController =
       animator.previewViewController as? NativeContextMenuPreviewViewController else {
@@ -94,6 +93,8 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
     let content = previewContent
 
     switch commitBehavior {
+    case .dismissPreview:
+      return
     case .callback:
       animator.addCompletion { [weak self] in
         self?.onOpen?(cardIdentifier, content)
@@ -106,13 +107,7 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
         return
       }
 
-      committedPreviewController = previewController
-      let presentationHost = presentationHostProvider?()
-      animator.addAnimations { [presentationHost] in
-        presentationHost?.prepareForPreviewCommit(
-          in: navigationController,
-          previewController: previewController
-        )
+      animator.addAnimations {
         let isAlreadyPresented = navigationController.viewControllers.contains {
           $0 === previewController
         }
@@ -123,8 +118,7 @@ final class NativeContextMenuPreviewCoordinator: NSObject, UIContextMenuInteract
           navigationController.pushViewController(previewController, animated: false)
         }
       }
-      animator.addCompletion { [weak self, presentationHost] in
-        presentationHost?.previewCommitDidComplete(in: navigationController)
+      animator.addCompletion { [weak self] in
         self?.onOpen?(cardIdentifier, content)
       }
     }

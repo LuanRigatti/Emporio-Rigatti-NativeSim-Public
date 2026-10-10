@@ -18,12 +18,45 @@ type ResumoFinanceiroConfiguration = {
 };
 
 function ResumoFinanceiroWidget(
-  props: ResumoFinanceiroWidgetProps,
-  environment: { configuration: ResumoFinanceiroConfiguration },
+  props: Partial<ResumoFinanceiroWidgetProps> | null | undefined,
+  environment:
+    { configuration?: ResumoFinanceiroConfiguration | null; date?: Date | null } | null | undefined,
 ) {
   'widget';
 
-  const values = environment.configuration.mode === 'retail' ? props.retail : props.wholesale;
+  const safeProps = props && typeof props === 'object' ? props : undefined;
+  const selectedDomain =
+    environment?.configuration?.mode === 'retail' ? safeProps?.retail : safeProps?.wholesale;
+  const values = selectedDomain && typeof selectedDomain === 'object' ? selectedDomain : undefined;
+  const monthNames = [
+    'JANEIRO',
+    'FEVEREIRO',
+    'MARÇO',
+    'ABRIL',
+    'MAIO',
+    'JUNHO',
+    'JULHO',
+    'AGOSTO',
+    'SETEMBRO',
+    'OUTUBRO',
+    'NOVEMBRO',
+    'DEZEMBRO',
+  ];
+  const environmentDate =
+    environment?.date instanceof Date && !Number.isNaN(environment.date.getTime())
+      ? environment.date
+      : new Date();
+  const providedMonthLabel = safeProps?.monthLabel;
+  const monthLabel =
+    typeof providedMonthLabel === 'string' && providedMonthLabel.trim().length > 0
+      ? providedMonthLabel
+      : `${monthNames[environmentDate.getMonth()]} ${environmentDate.getFullYear()}`;
+  const faturamento = values?.faturamento;
+  const lucroLiquido = values?.lucroLiquido;
+  const faturamentoLabel =
+    typeof faturamento === 'string' && faturamento.trim().length > 0 ? faturamento : '—';
+  const lucroLiquidoLabel =
+    typeof lucroLiquido === 'string' && lucroLiquido.trim().length > 0 ? lucroLiquido : '—';
 
   return (
     <VStack
@@ -41,7 +74,7 @@ function ResumoFinanceiroWidget(
             lineLimit(1),
           ]}
         >
-          {props.monthLabel}
+          {monthLabel}
         </Text>
       </HStack>
       <Spacer minLength={5} />
@@ -65,7 +98,7 @@ function ResumoFinanceiroWidget(
             allowsTightening(true),
           ]}
         >
-          {values.faturamento ?? '—'}
+          {faturamentoLabel}
         </Text>
       </VStack>
       <Spacer minLength={5} />
@@ -89,7 +122,7 @@ function ResumoFinanceiroWidget(
             allowsTightening(true),
           ]}
         >
-          {values.lucroLiquido ?? '—'}
+          {lucroLiquidoLabel}
         </Text>
       </VStack>
     </VStack>

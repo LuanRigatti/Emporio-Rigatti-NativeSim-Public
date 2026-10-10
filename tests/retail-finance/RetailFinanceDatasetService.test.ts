@@ -1,9 +1,11 @@
 import type { RetailOrder, RetailPayment } from '@/types/data';
 
 import { RetailFinanceDatasetService } from '@/services/retail-finance/RetailFinanceDatasetService';
+import { retailOrderDataSource, retailPaymentDataSource } from '@/services/retail-orders';
 
 let mockOrders: readonly RetailOrder[] = [];
 let mockOrderSnapshotAvailable = true;
+let mockOrderRemoteComplete = false;
 let mockPayments = new Map<string, readonly RetailPayment[]>();
 let mockResolveHistoryLoad: (() => void) | undefined;
 let mockBlockHistoryLoad = false;
@@ -12,6 +14,7 @@ const timestamp = { nanoseconds: 0, seconds: 1 } as RetailOrder['createdAt'];
 jest.mock('@/services/retail-orders', () => ({
   retailOrderDataSource: {
     getSnapshot: () => (mockOrderSnapshotAvailable ? mockOrders : null),
+    getLoadState: () => ({ remoteComplete: mockOrderRemoteComplete }),
     hydrateFromCache: jest.fn(async () => undefined),
     list: () => mockOrders.slice(),
     loadHistorical: jest.fn(
@@ -21,12 +24,14 @@ jest.mock('@/services/retail-orders', () => ({
             mockResolveHistoryLoad = resolve;
             return;
           }
+          mockOrderRemoteComplete = true;
           resolve();
         }),
     ),
     subscribe: () => () => undefined,
   },
   retailPaymentDataSource: {
+    getSnapshot: (orderId: string) => mockPayments.get(orderId) ?? null,
     hydrateFromCache: jest.fn(async () => undefined),
     list: (orderId: string) => mockPayments.get(orderId) ?? [],
     load: jest.fn(async () => undefined),
@@ -88,6 +93,7 @@ describe('RetailFinanceDatasetService order deletion invalidation', () => {
   beforeEach(() => {
     mockOrders = [];
     mockOrderSnapshotAvailable = true;
+    mockOrderRemoteComplete = false;
     mockPayments = new Map();
     mockResolveHistoryLoad = undefined;
     mockBlockHistoryLoad = false;
@@ -126,5 +132,46 @@ describe('RetailFinanceDatasetService order deletion invalidation', () => {
     expect(
       service.getSnapshot('uid-retail', 1).dataset?.orders.map((item) => item.orderId),
     ).toEqual(['order-retained']);
+  });
+
+  it('hydrates the widget cache without starting a remote load and keeps incomplete payments unavailable', async () => {
+    const cachedOrder = order('order-cached');
+    mockOrders = [cachedOrder];
+    const service = new RetailFinanceDatasetService();
+
+    await service.hydrateFromCache('uid-retail-cache', 7);
+
+    expect(service.getSnapshot('uid-retail-cache', 7)).toMatchObject({
+      coverageComplete: false,
+      source: 'cache',
+    });
+    expect(service.getSnapshot('uid-retail-cache', 7).dataset?.orders).toHaveLength(1);
+    expect(retailOrderDataSource.loadHistorical).not.toHaveBeenCalled();
+    expect(retailPaymentDataSource.load).not.toHaveBeenCalled();
+
+    mockPayments.set(cachedOrder.orderId, []);
+    (service as unknown as { syncPaymentSnapshots: () => void }).syncPaymentSnapshots();
+
+    expect(service.getSnapshot('uid-retail-cache', 7).coverageComplete).toBe(true);
+    expect(
+      service
+        .getSnapshot('uid-retail-cache', 7)
+        .dataset?.paymentsByOrderId.get(cachedOrder.orderId),
+    ).toEqual([]);
+  });
+
+  it('continues the existing remote refresh after a cache-only hydration', async () => {
+    const cachedOrder = order('order-cached-refresh');
+    mockOrders = [cachedOrder];
+    mockPayments.set(cachedOrder.orderId, []);
+    const service = new RetailFinanceDatasetService();
+
+    await service.hydrateFromCache('uid-retail-refresh', 8);
+    expect(service.getSnapshot('uid-retail-refresh', 8).source).toBe('cache');
+
+    await service.load('uid-retail-refresh', 8);
+
+    expect(retailOrderDataSource.loadHistorical).toHaveBeenCalledTimes(1);
+    expect(service.getSnapshot('uid-retail-refresh', 8).source).toBe('remote');
   });
 });

@@ -77,6 +77,85 @@ describe('Open Payments native Peek & Pop integration', () => {
     expect(host).toContain('private weak var hostViewController: UIViewController?');
   });
 
+  it('routes the edge swipe to the sibling native pop while the expanded page is open', () => {
+    const openPaymentsRoute = rootLayout.match(
+      /<Stack\.Screen\s+name="em-aberto"[\s\S]*?<\/Stack\.Screen>/,
+    )?.[0];
+    const expandedStateRestore = host.match(
+      /private func restoreExpandedPreviewState\(\)[\s\S]*?\n  }/,
+    )?.[0];
+    const didShow = host.match(
+      /public func navigationController\([\s\S]*?didShow viewController[\s\S]*?\n  }\n\n  private func installNavigationControllerIfNeeded/,
+    )?.[0];
+
+    expect(openPaymentsRoute).toContain('gestureEnabled: true');
+    expect(screen).toContain(
+      '<Stack.Screen options={{ gestureEnabled: !isExpandedPeekPopOpen }} />',
+    );
+    expect(screen).toContain('onExpandedPreviewChange={({ nativeEvent }) =>');
+    expect(screen).toContain('setIsExpandedPeekPopOpen(nativeEvent.expanded)');
+    expect(hostModule).toContain('Events("onExpandedPreviewChange")');
+    expect(host).toContain('let onExpandedPreviewChange = EventDispatcher()');
+    expect(host).toContain('setExpandedPreviewPresented(true)');
+    expect(expandedStateRestore).toContain('setExpandedPreviewPresented(false)');
+    expect(didShow).toContain('guard viewController === rootViewController else { return }');
+    expect(didShow).toContain('restoreExpandedPreviewState()');
+    expect(host).toContain('navigationController.popViewController(animated: true)');
+    expect(host).not.toContain('interactivePopGestureRecognizer.isEnabled =');
+    expect(host).not.toContain('interactiveContentPopGestureRecognizer.isEnabled =');
+    expect(host).not.toContain('interactivePopGestureRecognizer.delegate =');
+  });
+
+  it('keeps the route gesture disabled after a cancelled sibling swipe and restores it on close or teardown', () => {
+    const didShow = host.match(
+      /public func navigationController\([\s\S]*?didShow viewController[\s\S]*?\n  }\n\n  private func installNavigationControllerIfNeeded/,
+    )?.[0];
+    const deactivate = host.match(
+      /private func deactivateNavigationController\(\)[\s\S]*?\n  }\n\n  private func scheduleDeactivationAfterTransition/,
+    )?.[0];
+    const teardown = host.match(
+      /private func tearDownNavigationController\(\)[\s\S]*?\n  }\n\n  private func installSourceBackActionForExpandedPreview/,
+    )?.[0];
+
+    expect(didShow).toContain('sourceBackDismissalInProgress = false');
+    expect(didShow).toContain('guard viewController === rootViewController else { return }');
+    const didShowSource = didShow ?? '';
+    expect(didShowSource.indexOf('guard viewController === rootViewController')).toBeLessThan(
+      didShowSource.indexOf('restoreExpandedPreviewState()'),
+    );
+    expect(deactivate).toContain('pendingDeactivation = true');
+    expect(deactivate).toContain('scheduleDeactivationAfterTransition(transitionCoordinator)');
+    expect(teardown).toContain('restoreExpandedPreviewState()');
+    expect(teardown).toContain('navigationController.removeFromParent()');
+    expect(host).toContain('setExpandedPreviewPresented(false)');
+  });
+
+  it('logs return transition state and clipping geometry without applying visual repairs', () => {
+    expect(host).toContain('import OSLog');
+    expect(host).toContain('[PeekPopReturn]');
+    expect(host).toContain('transitionCoordinator?.containerView');
+    expect(host).toContain('interactive=');
+    expect(host).toContain('windowFrame=');
+    expect(host).toContain('clips=');
+    expect(host).toContain('masks=');
+    expect(host).toContain('radius=');
+    expect(host).toContain('ancestorStates(from: self)');
+    expect(host).toContain('ancestorStates(from: transitionContainer)');
+    expect(host).toContain('hostViewController?.navigationController');
+    expect(host).toContain('siblingNavController=');
+    expect(host).toContain('owningNavController=');
+    expect(host).toContain('owningTransition={');
+    expect(host).toContain('owningContainer={');
+    expect(host).toContain('"deactivation-request"');
+    expect(host).toContain('"teardown-request"');
+    expect(host).toContain('"teardown"');
+    expect(host).toContain('"willShow"');
+    expect(host).toContain('"didShow"');
+    expect(host).not.toContain('layoutIfNeeded()');
+    expect(host).not.toContain('clipsToBounds = true');
+    expect(host).not.toContain('masksToBounds = true');
+  });
+
   it('preserves the native route back button and routes it to the list while the preview is expanded', () => {
     const openPaymentsRoute = rootLayout.match(
       /<Stack\.Screen\s+name="em-aberto"[\s\S]*?<\/Stack\.Screen>/,
@@ -105,7 +184,7 @@ describe('Open Payments native Peek & Pop integration', () => {
     );
     expect(host).toContain('hostViewController.navigationItem.backAction = UIAction');
     expect(host).toContain('self?.popExpandedPreviewToList()');
-    expect(host).toContain('navigationController.popToRootViewController(animated: true)');
+    expect(host).toContain('navigationController.popViewController(animated: true)');
     expect(host).toContain('sourceBackDismissalInProgress');
     expect(host).toContain('originalSourceBackAction');
     expect(returnDelegate).toContain('viewController === rootViewController');

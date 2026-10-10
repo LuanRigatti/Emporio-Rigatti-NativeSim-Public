@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import OSLog
 import UIKit
 
 protocol NativeContextMenuPreviewPresentationHost: AnyObject {
@@ -12,6 +13,8 @@ protocol NativeContextMenuPreviewPresentationHost: AnyObject {
 public final class NativeOpenPaymentContextMenuHostView: ExpoView,
   NativeContextMenuPreviewPresentationHost,
   UINavigationControllerDelegate {
+  let onExpandedPreviewChange = EventDispatcher()
+
   var active = false {
     didSet {
       guard active != oldValue else { return }
@@ -38,6 +41,11 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
   private var pendingDeactivation = false
   private var pendingTeardown = false
   private var deactivationCompletionScheduled = false
+  private var expandedPreviewIsPresented = false
+  private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "NativeCardContextMenu",
+    category: "OpenPaymentPeekPopReturn"
+  )
 
   public required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -92,6 +100,13 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     navigationController.view.isUserInteractionEnabled = true
     navigationController.setNavigationBarHidden(false, animated: false)
     bringSubviewToFront(navigationController.view)
+    setExpandedPreviewPresented(true)
+    logTransitionGeometry(
+      "expanded-prepared",
+      navigationController: navigationController,
+      destination: previewController,
+      animated: false
+    )
   }
 
   func previewCommitDidComplete(in navigationController: UINavigationController) {
@@ -111,6 +126,20 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
 
   public func navigationController(
     _ navigationController: UINavigationController,
+    willShow viewController: UIViewController,
+    animated: Bool
+  ) {
+    guard self.navigationController === navigationController else { return }
+    logTransitionGeometry(
+      "willShow",
+      navigationController: navigationController,
+      destination: viewController,
+      animated: animated
+    )
+  }
+
+  public func navigationController(
+    _ navigationController: UINavigationController,
     didShow viewController: UIViewController,
     animated: Bool
   ) {
@@ -118,6 +147,12 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
       return
     }
 
+    logTransitionGeometry(
+      "didShow",
+      navigationController: navigationController,
+      destination: viewController,
+      animated: animated
+    )
     sourceBackDismissalInProgress = false
     guard viewController === rootViewController else { return }
 
@@ -168,6 +203,14 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
 
   private func deactivateNavigationController() {
     guard let navigationController else { return }
+    if let topViewController = navigationController.topViewController {
+      logTransitionGeometry(
+        "deactivation-request",
+        navigationController: navigationController,
+        destination: topViewController,
+        animated: false
+      )
+    }
     if commitInProgress || navigationController.transitionCoordinator != nil {
       pendingDeactivation = true
       if let transitionCoordinator = navigationController.transitionCoordinator {
@@ -222,7 +265,15 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
   }
 
   private func requestTeardown() {
-    guard navigationController != nil else { return }
+    guard let navigationController else { return }
+    if let topViewController = navigationController.topViewController {
+      logTransitionGeometry(
+        "teardown-request",
+        navigationController: navigationController,
+        destination: topViewController,
+        animated: false
+      )
+    }
     if commitInProgress {
       pendingTeardown = true
       return
@@ -248,6 +299,14 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
 
   private func tearDownNavigationController() {
     guard let navigationController else { return }
+    if let topViewController = navigationController.topViewController {
+      logTransitionGeometry(
+        "teardown",
+        navigationController: navigationController,
+        destination: topViewController,
+        animated: false
+      )
+    }
     restoreExpandedPreviewState()
     pendingTeardown = false
     pendingDeactivation = false
@@ -280,7 +339,13 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     }
 
     sourceBackDismissalInProgress = true
-    navigationController.popToRootViewController(animated: true)
+    logTransitionGeometry(
+      "button-return-request",
+      navigationController: navigationController,
+      destination: rootViewController,
+      animated: true
+    )
+    navigationController.popViewController(animated: true)
   }
 
   private func restoreSourceBackAction() {
@@ -305,6 +370,73 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
     originalSiblingPrefersLargeTitles = nil
     originalSiblingLargeTitleTextAttributes = nil
     hasTemporaryLargeTitleAppearance = false
+    setExpandedPreviewPresented(false)
+  }
+
+  private func setExpandedPreviewPresented(_ presented: Bool) {
+    guard expandedPreviewIsPresented != presented else { return }
+    expandedPreviewIsPresented = presented
+    onExpandedPreviewChange(["expanded": presented])
+  }
+
+  private func logTransitionGeometry(
+    _ phase: String,
+    navigationController: UINavigationController,
+    destination: UIViewController,
+    animated: Bool
+  ) {
+    let transitionCoordinator = navigationController.transitionCoordinator
+    let transitionContainer = transitionCoordinator?.containerView
+    let transitionState = transitionCoordinator.map {
+      "interactive=\($0.isInteractive) animated=\($0.isAnimated) " +
+        "cancelled=\($0.isCancelled) percent=\($0.percentComplete)"
+    } ?? "interactive=false coordinator=none"
+    let owningNavigationController = hostViewController?.navigationController
+    let owningTransitionCoordinator = owningNavigationController?.transitionCoordinator
+    let owningTransitionContainer = owningTransitionCoordinator?.containerView
+    let owningTransitionState = owningTransitionCoordinator.map {
+      "interactive=\($0.isInteractive) animated=\($0.isAnimated) " +
+        "cancelled=\($0.isCancelled) percent=\($0.percentComplete)"
+    } ?? "interactive=false coordinator=none"
+    let owningNavigationControllerIdentity = owningNavigationController.map {
+      String(describing: ObjectIdentifier($0))
+    } ?? "nil"
+    let returnPath = sourceBackDismissalInProgress ? "button" : "native-or-lifecycle"
+    let message = "[PeekPopReturn] \(phase) path=\(returnPath) animated=\(animated) " +
+      "transition={\(transitionState)} host={\(viewState(self))} " +
+      "siblingNav={\(viewState(navigationController.view))} " +
+      "siblingNavController=\(ObjectIdentifier(navigationController)) " +
+      "transitionContainer={\(viewState(transitionContainer))} " +
+      "hostAncestors={\(ancestorStates(from: self))} " +
+      "containerAncestors={\(ancestorStates(from: transitionContainer))} " +
+      "owningNav={\(viewState(owningNavigationController?.view))} " +
+      "owningNavController=\(owningNavigationControllerIdentity) " +
+      "owningTransition={\(owningTransitionState)} " +
+      "owningContainer={\(viewState(owningTransitionContainer))} " +
+      "destination=\(type(of: destination))#\(ObjectIdentifier(destination))"
+    logger.notice("\(message, privacy: .public)")
+  }
+
+  private func viewState(_ view: UIView?) -> String {
+    guard let view else { return "nil" }
+    let windowFrame = view.window.map { NSStringFromCGRect($0.convert(view.bounds, from: view)) } ?? "no-window"
+    return "\(type(of: view))#\(ObjectIdentifier(view)) " +
+      "frame=\(NSStringFromCGRect(view.frame)) bounds=\(NSStringFromCGRect(view.bounds)) " +
+      "windowFrame=\(windowFrame) hidden=\(view.isHidden) alpha=\(view.alpha) " +
+      "clips=\(view.clipsToBounds) " +
+      "masks=\(view.layer.masksToBounds) radius=\(view.layer.cornerRadius) " +
+      "maskLayer=\(view.layer.mask != nil)"
+  }
+
+  private func ancestorStates(from view: UIView?) -> String {
+    guard let view else { return "nil" }
+    var states: [String] = []
+    var currentView: UIView? = view
+    while let ancestor = currentView, states.count < 12 {
+      states.append(viewState(ancestor))
+      currentView = ancestor.superview
+    }
+    return states.joined(separator: " <- ")
   }
 
   private func nearestViewController() -> UIViewController? {

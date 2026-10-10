@@ -37,6 +37,7 @@ import type { RouteFinancialSummary } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { todayIso } from '@/utils/data';
+import { getFinanceWidgetMonthKey } from '@/features/finance/widgets/ResumoFinanceiroSnapshot';
 
 export default function FinanceiroRoute() {
   const { mode } = useAppMode();
@@ -108,6 +109,7 @@ function WholesaleFinanceScreen() {
     remoteComplete,
     routesCoverage,
     snapshot,
+    snapshotSessionScopeKey,
     snapshotScopeKey,
   } = useFinancialData(financialQuery, {
     displayMonth: wholesaleSelection.kind === 'month' ? selectedPeriod : undefined,
@@ -217,6 +219,44 @@ function WholesaleFinanceScreen() {
   const currentLucroLiquidoValue = isNetProfitReady && summary ? summary.lucroLiquido : null;
   const faturamentoReady = summary !== undefined && currentFaturamentoValue !== null;
   const lucroLiquidoReady = isNetProfitReady && currentLucroLiquidoValue !== null;
+
+  useEffect(() => {
+    if (
+      !hasStableSnapshot ||
+      wholesaleSelection.kind !== 'month' ||
+      selectedPeriod !== getFinanceWidgetMonthKey(new Date()) ||
+      !snapshotSessionScopeKey ||
+      !faturamentoReady
+    ) {
+      return;
+    }
+
+    const widgetSnapshot = {
+      snapshotSessionScopeKey,
+      monthKey: selectedPeriod,
+      faturamento: currentFaturamentoValue,
+      lucroLiquido: lucroLiquidoReady ? currentLucroLiquidoValue : null,
+    };
+    let active = true;
+    void import('@/features/finance/widgets/ResumoFinanceiroSnapshotCoordinator')
+      .then(({ resumoFinanceiroSnapshotCoordinator }) => {
+        if (active) resumoFinanceiroSnapshotCoordinator.publishWholesale(widgetSnapshot);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [
+    currentFaturamentoValue,
+    currentLucroLiquidoValue,
+    faturamentoReady,
+    hasStableSnapshot,
+    lucroLiquidoReady,
+    selectedPeriod,
+    snapshotSessionScopeKey,
+    wholesaleSelection.kind,
+  ]);
+
   const keepingPreviousSummary = !hasStableSnapshot && displayedHeroValues.scopeKey !== undefined;
   const displayedFaturamentoValue = faturamentoReady
     ? currentFaturamentoValue

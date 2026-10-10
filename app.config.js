@@ -176,7 +176,37 @@ module.exports = {
           enableBackgroundRemoteNotifications: true,
         },
       ],
-      ['expo-widgets', { enablePushNotifications: false }],
+      [
+        'expo-widgets',
+        {
+          enablePushNotifications: false,
+          widgets: [
+            {
+              name: 'ResumoFinanceiro',
+              displayName: 'Resumo Financeiro',
+              description: 'Faturamento e lucro líquido do mês.',
+              ios: {
+                supportedFamilies: ['systemMedium'],
+                configuration: {
+                  title: 'Modo Financeiro',
+                  description: 'Escolha os dados de Atacado ou Varejo.',
+                  parameters: {
+                    mode: {
+                      title: 'Modo',
+                      type: 'enum',
+                      values: [
+                        { name: 'Atacado', value: 'wholesale' },
+                        { name: 'Varejo', value: 'retail' },
+                      ],
+                      default: 'wholesale',
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ],
       'expo-maps',
       [
         'expo-local-authentication',

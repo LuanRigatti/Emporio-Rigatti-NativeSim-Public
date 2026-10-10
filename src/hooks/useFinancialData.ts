@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ENABLE_FIRESTORE_CLIENTS_DELIVERIES,
@@ -22,6 +22,7 @@ type ResolvedFinancialSnapshot = {
   snapshot: UserDataSnapshot | null;
   comparisonSnapshot: UserDataSnapshot | null;
   scopeKey?: string;
+  sessionScopeKey?: string | null;
   coverage: FinancialDataCoverage;
 };
 
@@ -382,6 +383,7 @@ export function useFinancialData(
 ) {
   const { sessionVersion, user } = useAuth();
   const userId = user?.id;
+  const currentSessionScopeKey = userId ? `${userId}:${sessionVersion ?? 'none'}` : null;
   const enabled = options.enabled ?? true;
   const displayMonth = options.displayMonth;
   const skipRefreshWhenCached = options.skipRefreshWhenCached ?? false;
@@ -389,6 +391,12 @@ export function useFinancialData(
   const stableQuery = useMemo(() => JSON.parse(queryKey) as DailyMonthlyQuery, [queryKey]);
   const isAllTimeQuery = stableQuery.loadAll === true;
   const snapshotScopeKey = isAllTimeQuery ? 'all' : (displayMonth ?? queryKey);
+  const sessionScopeKeyRef = useRef(currentSessionScopeKey);
+  const loadVersion = useRef(0);
+  const lastAutomaticLoadKey = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    sessionScopeKeyRef.current = currentSessionScopeKey;
+  }, [currentSessionScopeKey]);
   const initialCacheEntry =
     userId && displayMonth ? financialPeriodSnapshotCache.getMemory(userId, displayMonth) : null;
   const initialAllTimeCacheEntry =
@@ -412,12 +420,12 @@ export function useFinancialData(
         ? (initialCacheEntry?.comparisonSnapshot ?? null)
         : null,
     scopeKey: hasInitialCachedSnapshot ? snapshotScopeKey : undefined,
+    sessionScopeKey: hasInitialCachedSnapshot ? currentSessionScopeKey : undefined,
     coverage: hasInitialCachedSnapshot ? cacheCoverage() : EMPTY_COVERAGE,
   }));
   const [loading, setLoading] = useState(!hasInitialCachedSnapshot);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const loadVersion = useRef(0);
   const snapshotRef = useRef<UserDataSnapshot | null>(
     hasInitialCachedSnapshot ? initialCachedSnapshot : null,
   );
@@ -427,11 +435,14 @@ export function useFinancialData(
   const {
     comparisonSnapshot,
     coverage,
+    sessionScopeKey: resolvedSnapshotSessionScopeKey,
     scopeKey: resolvedSnapshotScopeKey,
     snapshot,
   } = resolvedSnapshot;
   const hasSnapshotForRequestedScope =
-    snapshot !== null && resolvedSnapshotScopeKey === snapshotScopeKey;
+    snapshot !== null &&
+    resolvedSnapshotScopeKey === snapshotScopeKey &&
+    resolvedSnapshotSessionScopeKey === currentSessionScopeKey;
   const hasCachedSnapshotForRequestedScope =
     !hasSnapshotForRequestedScope && hasInitialCachedSnapshot && initialCachedSnapshot !== null;
   const baseSnapshotEntry = userId
@@ -448,14 +459,18 @@ export function useFinancialData(
       ? initialCachedSnapshot
       : hasLocallyDerivedSnapshot
         ? locallyDerivedSnapshot.snapshot
-        : snapshot;
+        : resolvedSnapshotSessionScopeKey === currentSessionScopeKey
+          ? snapshot
+          : null;
   const visibleComparisonSnapshot = hasSnapshotForRequestedScope
     ? comparisonSnapshot
     : hasCachedSnapshotForRequestedScope
       ? (initialCacheEntry?.comparisonSnapshot ?? null)
       : hasLocallyDerivedSnapshot
         ? locallyDerivedSnapshot.comparisonSnapshot
-        : comparisonSnapshot;
+        : resolvedSnapshotSessionScopeKey === currentSessionScopeKey
+          ? comparisonSnapshot
+          : null;
   const visibleCoverage = hasSnapshotForRequestedScope
     ? coverage
     : hasCachedSnapshotForRequestedScope || hasLocallyDerivedSnapshot
@@ -466,11 +481,19 @@ export function useFinancialData(
     : hasLocallyDerivedSnapshot
       ? snapshotScopeKey
       : resolvedSnapshotScopeKey;
+  const visibleSnapshotSessionScopeKey =
+    hasSnapshotForRequestedScope || hasCachedSnapshotForRequestedScope || hasLocallyDerivedSnapshot
+      ? currentSessionScopeKey
+      : resolvedSnapshotSessionScopeKey === currentSessionScopeKey
+        ? resolvedSnapshotSessionScopeKey
+        : undefined;
   const visibleLoading = hasCachedSnapshotForRequestedScope
     ? false
     : hasLocallyDerivedSnapshot
       ? false
-      : snapshot === null || resolvedSnapshotScopeKey !== snapshotScopeKey
+      : visibleSnapshot === null ||
+          resolvedSnapshotScopeKey !== snapshotScopeKey ||
+          resolvedSnapshotSessionScopeKey !== currentSessionScopeKey
         ? true
         : loading;
   const visibleRefreshing =
@@ -479,11 +502,11 @@ export function useFinancialData(
       : hasLocallyDerivedSnapshot
         ? true
         : refreshing;
-
   const load = useCallback(
     async (isRefresh = false) => {
       const version = ++loadVersion.current;
-      const isCurrent = () => loadVersion.current === version;
+      const isCurrent = () =>
+        loadVersion.current === version && sessionScopeKeyRef.current === currentSessionScopeKey;
       if (!userId) {
         if (isCurrent()) setLoading(false);
         return;
@@ -528,6 +551,7 @@ export function useFinancialData(
             comparisonSnapshot: null,
             coverage: cacheCoverage(),
             scopeKey: snapshotScopeKey,
+            sessionScopeKey: currentSessionScopeKey,
             snapshot: allTimeCacheEntry.snapshot,
           });
           setLoading(false);
@@ -542,6 +566,7 @@ export function useFinancialData(
               comparisonSnapshot: cachedEntry.comparisonSnapshot,
               coverage: cacheCoverage(),
               scopeKey: snapshotScopeKey,
+              sessionScopeKey: currentSessionScopeKey,
               snapshot: cachedSnapshot,
             });
             setLoading(false);
@@ -574,6 +599,7 @@ export function useFinancialData(
           setResolvedSnapshot((current) => {
             const nextComparisonSnapshot =
               current.comparisonSnapshot &&
+              current.sessionScopeKey === currentSessionScopeKey &&
               snapshotsEquivalent(current.comparisonSnapshot, sourceSnapshot)
                 ? current.comparisonSnapshot
                 : sourceSnapshot;
@@ -591,6 +617,7 @@ export function useFinancialData(
             if (
               current.comparisonSnapshot === nextComparisonSnapshot &&
               current.scopeKey === snapshotScopeKey &&
+              current.sessionScopeKey === currentSessionScopeKey &&
               current.snapshot === nextSnapshot &&
               coverageEqual(current.coverage, nextCoverage)
             ) {
@@ -600,6 +627,7 @@ export function useFinancialData(
               comparisonSnapshot: nextComparisonSnapshot,
               coverage: nextCoverage,
               scopeKey: snapshotScopeKey,
+              sessionScopeKey: currentSessionScopeKey,
               snapshot: nextSnapshot,
             };
           });
@@ -693,16 +721,39 @@ export function useFinancialData(
         }
       }
     },
-    [displayMonth, isAllTimeQuery, sessionVersion, snapshotScopeKey, stableQuery, userId],
+    [
+      currentSessionScopeKey,
+      displayMonth,
+      isAllTimeQuery,
+      sessionVersion,
+      snapshotScopeKey,
+      stableQuery,
+      userId,
+    ],
   );
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      lastAutomaticLoadKey.current = undefined;
+      return;
+    }
+    const automaticLoadKey = `${currentSessionScopeKey ?? 'signed-out'}:${snapshotScopeKey}:${queryKey}`;
+    if (lastAutomaticLoadKey.current === automaticLoadKey) return;
+    lastAutomaticLoadKey.current = automaticLoadKey;
     if (skipRefreshWhenCached && (hasInitialCachedSnapshot || hasLocallyDerivedSnapshot)) return;
     void (async () => {
       await load();
     })();
-  }, [enabled, hasInitialCachedSnapshot, hasLocallyDerivedSnapshot, load, skipRefreshWhenCached]);
+  }, [
+    currentSessionScopeKey,
+    enabled,
+    hasInitialCachedSnapshot,
+    hasLocallyDerivedSnapshot,
+    load,
+    queryKey,
+    skipRefreshWhenCached,
+    snapshotScopeKey,
+  ]);
 
   const reload = useCallback(() => load(true), [load]);
 
@@ -713,6 +764,7 @@ export function useFinancialData(
     remoteComplete: visibleCoverage.remoteComplete,
     routesCoverage: visibleCoverage.routesCoverage,
     snapshotScopeKey: visibleSnapshotScopeKey,
+    snapshotSessionScopeKey: visibleSnapshotSessionScopeKey,
     loading: visibleLoading,
     refreshing: visibleRefreshing,
     error,

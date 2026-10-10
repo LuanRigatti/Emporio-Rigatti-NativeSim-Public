@@ -101,10 +101,20 @@ function AppShell() {
     firestoreDeliveryDataSource.setSessionUser(sessionUid, sessionVersion);
     firestoreFactoryReceiptDataSource.setSessionUser(sessionUid, sessionVersion);
     if (status !== 'loading') {
+      let active = true;
+      const widgetUid = isAuthenticated ? (sessionUid ?? null) : null;
+      void import('@/features/finance/widgets/ResumoFinanceiroSnapshotCoordinator')
+        .then(({ resumoFinanceiroSnapshotCoordinator }) => {
+          if (active) resumoFinanceiroSnapshotCoordinator.setSession(widgetUid, sessionVersion);
+        })
+        .catch(() => undefined);
       void wholesaleDeliveryLiveActivityCoordinator.setSession(
         isAuthenticated ? (sessionUid ?? null) : null,
         sessionVersion,
       );
+      return () => {
+        active = false;
+      };
     }
   }, [isAuthenticated, sessionUid, sessionVersion, status]);
 

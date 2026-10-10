@@ -1,4 +1,5 @@
-import { useIsFocused, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -16,6 +17,7 @@ export function OpenPaymentClientsScreen({
 }: { nativeHeader?: boolean } = {}) {
   const router = useRouter();
   const isFocused = useIsFocused();
+  const [isExpandedPeekPopOpen, setIsExpandedPeekPopOpen] = useState(false);
   const { theme } = useAppTheme();
   const { currency: maskCurrency } = useTestModePresentation();
   const {
@@ -111,16 +113,25 @@ export function OpenPaymentClientsScreen({
 
   if (nativeHeader) {
     return (
-      <NativeOpenPaymentContextMenuHostView active={isFocused} style={styles.nativePeekPopHost}>
-        <ProgressiveCollapsibleScreen
-          compactTitle="Em aberto"
-          contentTopInset={originalContentTopOffset}
-          largeTitle={pageTitle}
-          nativeHeader
+      <>
+        <Stack.Screen options={{ gestureEnabled: !isExpandedPeekPopOpen }} />
+        <NativeOpenPaymentContextMenuHostView
+          active={isFocused}
+          onExpandedPreviewChange={({ nativeEvent }) =>
+            setIsExpandedPeekPopOpen(nativeEvent.expanded)
+          }
+          style={styles.nativePeekPopHost}
         >
-          {clientCardsContent}
-        </ProgressiveCollapsibleScreen>
-      </NativeOpenPaymentContextMenuHostView>
+          <ProgressiveCollapsibleScreen
+            compactTitle="Em aberto"
+            contentTopInset={originalContentTopOffset}
+            largeTitle={pageTitle}
+            nativeHeader
+          >
+            {clientCardsContent}
+          </ProgressiveCollapsibleScreen>
+        </NativeOpenPaymentContextMenuHostView>
+      </>
     );
   }
 

@@ -13,6 +13,7 @@ export type {
   NativeContextMenuPreviewSection,
   NativeContextMenuPreviewViewProps,
   NativeOpenPaymentContextMenuHostViewProps,
+  NativeOpenPaymentPreviewStateEvent,
   NativePeekPopPreviewLabCloseEvent,
   NativePeekPopPreviewLabCard,
   NativePeekPopPreviewLabViewProps,

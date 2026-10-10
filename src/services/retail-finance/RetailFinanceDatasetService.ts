@@ -9,15 +9,19 @@ export type RetailFinanceDataset = {
 
 export type RetailFinanceDatasetState = {
   dataset: RetailFinanceDataset | null;
+  coverageComplete: boolean;
   error?: string;
   loading: boolean;
   refreshing: boolean;
+  source: 'none' | 'cache' | 'remote';
 };
 
 const EMPTY_STATE: RetailFinanceDatasetState = {
+  coverageComplete: false,
   dataset: null,
   loading: false,
   refreshing: false,
+  source: 'none',
 };
 
 type ScopeState = {
@@ -27,6 +31,7 @@ type ScopeState = {
   requestGeneration: number;
   state: RetailFinanceDatasetState;
   inFlight?: Promise<void>;
+  cacheHydrationInFlight?: Promise<void>;
 };
 
 function scopeKey(userId: string, sessionVersion?: number): string {
@@ -62,8 +67,12 @@ async function loadPaymentSnapshots(
   userId: string,
   sessionVersion: number | undefined,
   remote: boolean,
-): Promise<ReadonlyMap<string, readonly RetailPayment[]>> {
+): Promise<{
+  complete: boolean;
+  paymentsByOrderId: ReadonlyMap<string, readonly RetailPayment[]>;
+}> {
   const next = new Map<string, readonly RetailPayment[]>();
+  let complete = true;
   let nextIndex = 0;
   const worker = async () => {
     while (nextIndex < orders.length) {
@@ -75,13 +84,18 @@ async function loadPaymentSnapshots(
       } else {
         await retailPaymentDataSource.hydrateFromCache(order.orderId, userId, sessionVersion);
       }
-      next.set(order.orderId, retailPaymentDataSource.list(order.orderId, userId, sessionVersion));
+      const snapshot = retailPaymentDataSource.getSnapshot(order.orderId, userId, sessionVersion);
+      if (snapshot === null) {
+        complete = false;
+        continue;
+      }
+      next.set(order.orderId, snapshot);
     }
   };
   await Promise.all(
     Array.from({ length: Math.min(2, Math.max(1, orders.length)) }, () => worker()),
   );
-  return next;
+  return { complete, paymentsByOrderId: next };
 }
 
 function datasetFor(
@@ -117,7 +131,7 @@ export class RetailFinanceDatasetService {
   public async load(userId: string, sessionVersion?: number, force = false): Promise<void> {
     const scope = this.scopeFor(userId, sessionVersion);
     if (scope.inFlight) return scope.inFlight;
-    if (!force && scope.state.dataset) return;
+    if (!force && scope.state.source === 'remote') return;
 
     const generation = ++scope.requestGeneration;
     const hasDataset = Boolean(scope.state.dataset);
@@ -126,6 +140,8 @@ export class RetailFinanceDatasetService {
       error: undefined,
       loading: !hasDataset,
       refreshing: hasDataset,
+      coverageComplete: scope.state.coverageComplete,
+      source: scope.state.source,
     };
     this.publish();
 
@@ -142,6 +158,74 @@ export class RetailFinanceDatasetService {
     return this.load(userId, sessionVersion, true);
   }
 
+  public async hydrateFromCache(userId: string, sessionVersion?: number): Promise<void> {
+    const scope = this.scopeFor(userId, sessionVersion);
+    if (scope.inFlight) return scope.inFlight;
+    if (scope.state.source === 'remote') return;
+    if (scope.cacheHydrationInFlight) return scope.cacheHydrationInFlight;
+
+    const generation = ++scope.requestGeneration;
+    const operation = this.hydrateCacheScope(scope, userId, sessionVersion, generation);
+    scope.cacheHydrationInFlight = operation;
+    try {
+      await operation;
+    } finally {
+      if (scope.cacheHydrationInFlight === operation) scope.cacheHydrationInFlight = undefined;
+    }
+  }
+
+  private async hydrateCacheScope(
+    scope: ScopeState,
+    userId: string,
+    sessionVersion: number | undefined,
+    generation: number,
+  ): Promise<void> {
+    scope.state = {
+      ...scope.state,
+      error: undefined,
+      loading: scope.state.dataset === null,
+      refreshing: scope.state.dataset !== null,
+    };
+    this.publish();
+
+    try {
+      await retailOrderDataSource.hydrateFromCache(userId, sessionVersion);
+      if (!this.isCurrent(scope, generation)) return;
+
+      const orderSnapshot = retailOrderDataSource.getSnapshot(userId, sessionVersion);
+      if (orderSnapshot === null) {
+        scope.state = { ...EMPTY_STATE, loading: false };
+        this.publish();
+        return;
+      }
+
+      const orders = retailOrderDataSource.list({ includeCancelled: true }, userId, sessionVersion);
+      const paymentSnapshots = await loadPaymentSnapshots(orders, userId, sessionVersion, false);
+      if (!this.isCurrent(scope, generation)) return;
+
+      const orderLoadState = retailOrderDataSource.getLoadState(userId, sessionVersion);
+      const isRemote = orderLoadState.remoteComplete && paymentSnapshots.complete;
+      scope.state = {
+        dataset: datasetFor(orders, paymentSnapshots.paymentsByOrderId),
+        coverageComplete: paymentSnapshots.complete,
+        loading: false,
+        refreshing: false,
+        source: isRemote ? 'remote' : 'cache',
+      };
+      this.publish();
+    } catch (error) {
+      if (!this.isCurrent(scope, generation)) return;
+      scope.state = {
+        ...scope.state,
+        error: error instanceof Error ? error.message : 'Não foi possível ler o cache Varejo.',
+        loading: false,
+        refreshing: false,
+      };
+      this.publish();
+      throw error;
+    }
+  }
+
   private async loadScope(
     scope: ScopeState,
     userId: string,
@@ -154,21 +238,27 @@ export class RetailFinanceDatasetService {
         await retailOrderDataSource.hydrateFromCache(userId, sessionVersion);
         if (!this.isCurrent(scope, generation)) return;
 
-        const cachedOrders = retailOrderDataSource.list(
-          { includeCancelled: true },
-          userId,
-          sessionVersion,
-        );
-        if (cachedOrders.length) {
-          const cachedDataset = datasetFor(
+        const cachedOrderSnapshot = retailOrderDataSource.getSnapshot(userId, sessionVersion);
+        if (cachedOrderSnapshot !== null) {
+          const cachedOrders = retailOrderDataSource.list(
+            { includeCancelled: true },
+            userId,
+            sessionVersion,
+          );
+          const cachedPayments = await loadPaymentSnapshots(
             cachedOrders,
-            await loadPaymentSnapshots(cachedOrders, userId, sessionVersion, false),
+            userId,
+            sessionVersion,
+            false,
           );
           if (!this.isCurrent(scope, generation)) return;
+          const cachedDataset = datasetFor(cachedOrders, cachedPayments.paymentsByOrderId);
           scope.state = {
             dataset: cachedDataset,
+            coverageComplete: cachedPayments.complete,
             loading: false,
             refreshing: true,
+            source: 'cache',
           };
           this.publish();
         }
@@ -177,15 +267,14 @@ export class RetailFinanceDatasetService {
       await retailOrderDataSource.loadHistorical(userId, sessionVersion);
       if (!this.isCurrent(scope, generation)) return;
       const orders = retailOrderDataSource.list({ includeCancelled: true }, userId, sessionVersion);
-      const dataset = datasetFor(
-        orders,
-        await loadPaymentSnapshots(orders, userId, sessionVersion, true),
-      );
+      const paymentSnapshots = await loadPaymentSnapshots(orders, userId, sessionVersion, true);
       if (!this.isCurrent(scope, generation)) return;
       scope.state = {
-        dataset,
+        dataset: datasetFor(orders, paymentSnapshots.paymentsByOrderId),
+        coverageComplete: paymentSnapshots.complete,
         loading: false,
         refreshing: false,
+        source: 'remote',
       };
       this.publish();
     } catch (error) {
@@ -246,6 +335,14 @@ export class RetailFinanceDatasetService {
       scope.state = {
         ...scope.state,
         dataset: { ...dataset, orders, ordersSignature: signature, paymentsByOrderId },
+        coverageComplete: orders.every(
+          (order) =>
+            retailPaymentDataSource.getSnapshot(
+              order.orderId,
+              scope.userId,
+              scope.sessionVersion,
+            ) !== null,
+        ),
         ...(orderWasRemoved ? { loading: false, refreshing: false } : {}),
       };
       changed = true;
@@ -275,6 +372,14 @@ export class RetailFinanceDatasetService {
       scope.state = {
         ...scope.state,
         dataset: { ...dataset, paymentsByOrderId },
+        coverageComplete: dataset.orders.every(
+          (order) =>
+            retailPaymentDataSource.getSnapshot(
+              order.orderId,
+              scope.userId,
+              scope.sessionVersion,
+            ) !== null,
+        ),
       };
       changed = true;
     });

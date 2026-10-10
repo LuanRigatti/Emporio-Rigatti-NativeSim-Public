@@ -5,4 +5,6 @@ import type { NativeOpenPaymentContextMenuHostViewProps } from './NativeContextM
 
 export const NativeOpenPaymentContextMenuHostView: ComponentType<
   NativeOpenPaymentContextMenuHostViewProps
-> = ({ active: _active, children }) => <Fragment>{children}</Fragment>;
+> = ({ active: _active, children, onExpandedPreviewChange: _onExpandedPreviewChange }) => (
+  <Fragment>{children}</Fragment>
+);

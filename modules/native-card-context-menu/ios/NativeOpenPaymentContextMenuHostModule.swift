@@ -5,6 +5,8 @@ public final class NativeOpenPaymentContextMenuHostModule: Module {
     Name("NativeOpenPaymentContextMenuHost")
 
     View(NativeOpenPaymentContextMenuHostView.self) {
+      Events("onExpandedPreviewChange")
+
       Prop("active") { (view: NativeOpenPaymentContextMenuHostView, active: Bool) in
         view.active = active
       }

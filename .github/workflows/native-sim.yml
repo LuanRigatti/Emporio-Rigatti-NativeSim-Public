@@ -126,8 +126,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install --yes age
 
-      - name: Create synthetic encrypted capture
-        id: synthetic
+      - name: Validate category configuration and start single-category capture
+        id: single_capture_start
         run: |
           set -euo pipefail
           source .github/native-sim/peekpop-log-capture.sh
@@ -135,30 +135,9 @@ jobs:
           # Keep the legacy PeekPop default covered even when the repository
           # variable selects different categories for real NativeSim sessions.
           unset NATIVE_SIM_LOG_CATEGORIES
-          export NATIVE_SIM_CAPTURE_ARTIFACT_DIR="$GITHUB_WORKSPACE/build/native-sim-oslogs-single"
-          peekpop_capture_preflight
-          peekpop_capture_start_synthetic
-          PEEKPOP_CAPTURE_ACTIVE=true
-          peekpop_capture_finish "synthetic-single-category"
-          python3 - "$PEEKPOP_CAPTURE_MANIFEST" <<'PY'
-          import json
-          import sys
-
-          with open(sys.argv[1], encoding="utf-8") as manifest_file:
-              manifest = json.load(manifest_file)
-          assert manifest["categories"] == ["OpenPaymentPeekPopReturn"], manifest
-          assert manifest["event_count"] == 1, manifest
-          assert manifest["capture_outcome"] == "synthetic-single-category", manifest
-          assert manifest["ciphertext_sha256"], manifest
-          PY
-          [ ! -e "$PEEKPOP_CAPTURE_RAW" ] || {
-            echo "::error::Plaintext raw log remains after finalization"
-            exit 1
-          }
-          files=$(find "$PEEKPOP_CAPTURE_ARTIFACT_DIR" -maxdepth 1 -type f -printf '%f\n' | sort)
-          expected=$(printf '%s\n' manifest.json native-sim-oslog.age | sort)
-          [ "$files" = "$expected" ] || {
-            echo "::error::Single-category smoke output contains unexpected files"
+          peekpop_capture_configure_categories
+          [ "$PEEKPOP_CAPTURE_CATEGORIES_CSV" = "OpenPaymentPeekPopReturn" ] || {
+            echo "::error::The default OSLog category changed unexpectedly"
             exit 1
           }
 
@@ -178,12 +157,72 @@ jobs:
               exit 1
             fi
           done
-          echo "Invalid OSLog category configurations were rejected"
 
-          export NATIVE_SIM_LOG_CATEGORIES="OpenPaymentPeekPopReturn,NativeSimSyntheticSecondary"
-          export NATIVE_SIM_CAPTURE_ARTIFACT_DIR="$GITHUB_WORKSPACE/build/native-sim-oslogs"
+          export NATIVE_SIM_CAPTURE_ARTIFACT_DIR="$GITHUB_WORKSPACE/build/native-sim-oslogs-single"
           peekpop_capture_preflight
           peekpop_capture_start_synthetic
+
+      - name: Finalize single-category capture in a separate step
+        id: single_capture_finish
+        env:
+          NATIVE_SIM_LOG_CATEGORIES: ${{ steps.single_capture_start.outputs.categories }}
+          PEEKPOP_LOG_STREAM_PID: ${{ steps.single_capture_start.outputs.pid }}
+          PEEKPOP_CAPTURE_RAW: ${{ steps.single_capture_start.outputs.raw }}
+          PEEKPOP_CAPTURE_STDERR: ${{ steps.single_capture_start.outputs.stderr }}
+          PEEKPOP_CAPTURE_STARTED_AT: ${{ steps.single_capture_start.outputs.started_at }}
+          PEEKPOP_CAPTURE_FILE: ${{ steps.single_capture_start.outputs.capture_file }}
+          PEEKPOP_CAPTURE_MANIFEST: ${{ steps.single_capture_start.outputs.manifest }}
+        run: |
+          set -euo pipefail
+          source .github/native-sim/peekpop-log-capture.sh
+          PEEKPOP_CAPTURE_ACTIVE=true
+          peekpop_capture_finish "synthetic-single-category"
+          python3 - "$PEEKPOP_CAPTURE_MANIFEST" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as manifest_file:
+              manifest = json.load(manifest_file)
+          assert manifest["categories"] == ["OpenPaymentPeekPopReturn"], manifest
+          assert manifest["event_count"] == 1, manifest
+          assert manifest["capture_outcome"] == "synthetic-single-category", manifest
+          assert manifest["ciphertext_sha256"], manifest
+          PY
+          [ ! -e "$PEEKPOP_CAPTURE_RAW" ] || {
+            echo "::error::Single-category plaintext remains after finalization"
+            exit 1
+          }
+          files=$(find "$(dirname "$PEEKPOP_CAPTURE_FILE")" -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected=$(printf '%s\n' manifest.json native-sim-oslog.age | sort)
+          [ "$files" = "$expected" ] || {
+            echo "::error::Single-category output contains unexpected files"
+            exit 1
+          }
+
+      - name: Start multi-category synthetic capture
+        id: multi_capture_start
+        env:
+          NATIVE_SIM_LOG_CATEGORIES: OpenPaymentPeekPopReturn,NativeSimSyntheticSecondary
+          NATIVE_SIM_CAPTURE_ARTIFACT_DIR: ${{ github.workspace }}/build/native-sim-oslogs
+        run: |
+          set -euo pipefail
+          source .github/native-sim/peekpop-log-capture.sh
+          peekpop_capture_preflight
+          peekpop_capture_start_synthetic
+
+      - name: Finalize multi-category capture in a separate step
+        id: synthetic_finish
+        env:
+          NATIVE_SIM_LOG_CATEGORIES: ${{ steps.multi_capture_start.outputs.categories }}
+          PEEKPOP_LOG_STREAM_PID: ${{ steps.multi_capture_start.outputs.pid }}
+          PEEKPOP_CAPTURE_RAW: ${{ steps.multi_capture_start.outputs.raw }}
+          PEEKPOP_CAPTURE_STDERR: ${{ steps.multi_capture_start.outputs.stderr }}
+          PEEKPOP_CAPTURE_STARTED_AT: ${{ steps.multi_capture_start.outputs.started_at }}
+          PEEKPOP_CAPTURE_FILE: ${{ steps.multi_capture_start.outputs.capture_file }}
+          PEEKPOP_CAPTURE_MANIFEST: ${{ steps.multi_capture_start.outputs.manifest }}
+        run: |
+          set -euo pipefail
+          source .github/native-sim/peekpop-log-capture.sh
           PEEKPOP_CAPTURE_ACTIVE=true
           peekpop_capture_finish "synthetic-smoke"
           python3 - "$PEEKPOP_CAPTURE_MANIFEST" <<'PY'
@@ -199,25 +238,26 @@ jobs:
           assert manifest["ciphertext_sha256"], manifest
           PY
           [ ! -e "$PEEKPOP_CAPTURE_RAW" ] || {
-            echo "::error::Plaintext raw log remains after finalization"
+            echo "::error::Multi-category plaintext remains after finalization"
             exit 1
           }
-          files=$(find "$PEEKPOP_CAPTURE_ARTIFACT_DIR" -maxdepth 1 -type f -printf '%f\n' | sort)
+          files=$(find "$(dirname "$PEEKPOP_CAPTURE_FILE")" -maxdepth 1 -type f -printf '%f\n' | sort)
           expected=$(printf '%s\n' manifest.json native-sim-oslog.age | sort)
           [ "$files" = "$expected" ] || {
-            echo "::error::Multi-category smoke artifact directory contains unexpected files"
+            echo "::error::Multi-category output contains unexpected files"
             exit 1
           }
 
-          export NATIVE_SIM_LOG_CATEGORIES="NativeSimSyntheticEmpty"
-          export NATIVE_SIM_CAPTURE_ARTIFACT_DIR="$RUNNER_TEMP/native-sim-oslog-zero-event"
-          peekpop_capture_prepare_paths
+      - name: Verify zero-event capture failure is explicit
+        env:
+          NATIVE_SIM_LOG_CATEGORIES: NativeSimSyntheticEmpty
+          NATIVE_SIM_CAPTURE_ARTIFACT_DIR: ${{ runner.temp }}/native-sim-oslog-zero-event
+        run: |
+          set -euo pipefail
+          source .github/native-sim/peekpop-log-capture.sh
+          peekpop_capture_preflight
+          peekpop_capture_start_synthetic
           : > "$PEEKPOP_CAPTURE_RAW"
-          : > "$PEEKPOP_CAPTURE_STDERR"
-          # shellcheck disable=SC2217 # Keep the synthetic process detached from step pipes.
-          sleep 600 </dev/null >/dev/null 2>&1 &
-          PEEKPOP_LOG_STREAM_PID=$!
-          peekpop_capture_record_start
           PEEKPOP_CAPTURE_ACTIVE=true
           set +e
           zero_output=$(peekpop_capture_finish "synthetic-zero-event" 2>&1)
@@ -242,12 +282,12 @@ jobs:
           assert manifest["ciphertext_sha256"], manifest
           PY
           [ ! -e "$PEEKPOP_CAPTURE_RAW" ] || {
-            echo "::error::Zero-event plaintext file remains after finalization"
+            echo "::error::Zero-event plaintext remains after finalization"
             exit 1
           }
 
       - name: Upload encrypted synthetic artifact
-        if: always() && steps.synthetic.outputs.artifact_ready == 'true'
+        if: always() && steps.synthetic_finish.outputs.artifact_ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: peekpop-capture-smoke-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1702,6 +1742,8 @@ jobs:
           PEEKPOP_CAPTURE_RAW: ${{ steps.peekpop_capture_start.outputs.raw }}
           PEEKPOP_CAPTURE_STDERR: ${{ steps.peekpop_capture_start.outputs.stderr }}
           PEEKPOP_CAPTURE_STARTED_AT: ${{ steps.peekpop_capture_start.outputs.started_at }}
+          PEEKPOP_CAPTURE_FILE: ${{ steps.peekpop_capture_start.outputs.capture_file }}
+          PEEKPOP_CAPTURE_MANIFEST: ${{ steps.peekpop_capture_start.outputs.manifest }}
           SESSION_ID: ${{ inputs.session }}
           HOLD_OUTCOME: ${{ steps.hold.outcome }}
           GRACEFUL_STOP_REQUESTED: ${{ steps.hold.outputs.graceful_stop }}

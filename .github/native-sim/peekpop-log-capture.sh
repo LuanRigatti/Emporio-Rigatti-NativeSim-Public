@@ -118,6 +118,8 @@ peekpop_capture_record_start() {
     echo "started_at=$PEEKPOP_CAPTURE_STARTED_AT"
     echo "categories=$PEEKPOP_CAPTURE_CATEGORIES_CSV"
     echo "predicate=$PEEKPOP_CAPTURE_PREDICATE"
+    echo "capture_file=$PEEKPOP_CAPTURE_FILE"
+    echo "manifest=$PEEKPOP_CAPTURE_MANIFEST"
   } >> "$GITHUB_OUTPUT"
   echo "OSLog capture source started for configured categories"
 }
@@ -163,8 +165,9 @@ peekpop_capture_start_synthetic() {
   : > "$PEEKPOP_CAPTURE_STDERR"
 
   # shellcheck disable=SC2217 # Keep the synthetic process detached from step pipes.
-  sleep 600 </dev/null >/dev/null 2>&1 &
+  nohup sleep 600 </dev/null >/dev/null 2>&1 &
   PEEKPOP_LOG_STREAM_PID=$!
+  disown "$PEEKPOP_LOG_STREAM_PID" 2>/dev/null || true
   peekpop_capture_record_start
   echo "Synthetic OSLog category events prepared without financial data"
 }

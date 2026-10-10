@@ -1,0 +1,8 @@
+{
+  "name": "native-widget-diagnostics",
+  "version": "0.1.0",
+  "description": "Temporary OSLog diagnostics for the ResumoFinanceiro iOS widget.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

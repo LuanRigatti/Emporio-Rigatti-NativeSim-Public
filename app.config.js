@@ -177,6 +177,10 @@ module.exports = {
         },
       ],
       [
+        // CNG dangerous mods run in reverse plugin order; this patches Swift after expo-widgets generates it.
+        './plugins/withResumoFinanceiroDiagnostics',
+      ],
+      [
         'expo-widgets',
         {
           enablePushNotifications: false,

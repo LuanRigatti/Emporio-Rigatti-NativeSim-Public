@@ -14,7 +14,7 @@ jobs:
   native-card-context-menu:
     name: Compile NativeCardContextMenu (iOS Simulator)
     runs-on: macos-26
-    timeout-minutes: 120
+    timeout-minutes: 240
     env:
       APP_VARIANT: standard
 
@@ -39,6 +39,12 @@ jobs:
       - name: Install JavaScript dependencies
         timeout-minutes: 20
         run: npm ci
+
+      - name: TypeScript typecheck
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          npm run typecheck
 
       - name: Generate iOS project
         timeout-minutes: 20
@@ -102,3 +108,140 @@ jobs:
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build/native-card-context-menu-preflight/xcodebuild.log
+
+      - name: Verify NativeWidgetDiagnostics Pods target
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          PODS_PROJECT="ios/Pods/Pods.xcodeproj"
+          TARGET_NAME="NativeWidgetDiagnostics"
+          [ -d "$PODS_PROJECT" ] || { echo "::error::CocoaPods project not found at $PODS_PROJECT"; exit 1; }
+
+          TARGETS_JSON=$(xcodebuild -list -json -project "$PODS_PROJECT")
+          printf '%s' "$TARGETS_JSON" | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => (input += chunk));
+            process.stdin.on("end", () => {
+              const project = JSON.parse(input).project;
+              const target = process.argv[1];
+              if (!project?.targets?.includes(target)) {
+                console.error(`::error::Generated Pods project has no target named ${target}`);
+                console.error(`Available targets: ${(project?.targets || []).join(", ")}`);
+                process.exit(1);
+              }
+              console.log(`Generated Pods target confirmed: ${target}`);
+            });
+          ' "$TARGET_NAME"
+
+          mkdir -p build/native-widget-diagnostics-preflight
+          xcodebuild \
+            -showBuildSettings \
+            -project "$PODS_PROJECT" \
+            -target "$TARGET_NAME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            > build/native-widget-diagnostics-preflight/pods-build-settings.txt
+
+          grep -Fq 'CONFIGURATION = Release' build/native-widget-diagnostics-preflight/pods-build-settings.txt || {
+            echo '::error::NativeWidgetDiagnostics did not resolve to the Release configuration'
+            exit 1
+          }
+          grep -Fq 'SDKROOT = iphonesimulator' build/native-widget-diagnostics-preflight/pods-build-settings.txt || {
+            echo '::error::NativeWidgetDiagnostics did not resolve to the iOS Simulator SDK'
+            exit 1
+          }
+          echo "Confirmed $TARGET_NAME / Release / iphonesimulator"
+
+      - name: Compile NativeWidgetDiagnostics only
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/Pods/Pods.xcodeproj \
+            -target NativeWidgetDiagnostics \
+            -configuration Release \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build/native-widget-diagnostics-preflight/xcodebuild.log
+
+      - name: Verify generated WidgetKit extension and diagnostics
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          APP_PROJECT="ios/emporiorigatti.xcodeproj"
+          WIDGET_TARGET="ExpoWidgetsTarget"
+          WIDGET_DIR="ios/ExpoWidgetsTarget"
+          WIDGET_INFO_PLIST="$WIDGET_DIR/Info.plist"
+          WIDGET_SWIFT="$WIDGET_DIR/ResumoFinanceiro.swift"
+          [ -d "$APP_PROJECT" ] || { echo "::error::Generated app project not found at $APP_PROJECT"; exit 1; }
+          [ -f "$WIDGET_INFO_PLIST" ] || { echo "::error::Generated WidgetKit Info.plist not found at $WIDGET_INFO_PLIST"; exit 1; }
+          [ -f "$WIDGET_SWIFT" ] || { echo "::error::Generated widget Swift source not found at $WIDGET_SWIFT"; exit 1; }
+
+          ruby - "$APP_PROJECT" "$WIDGET_TARGET" <<'RUBY'
+          require 'xcodeproj'
+
+          project = Xcodeproj::Project.open(ARGV.fetch(0))
+          widget_target_name = ARGV.fetch(1)
+          widget_target = project.targets.find { |target| target.name == widget_target_name }
+          abort("::error::Generated app project has no target named #{widget_target_name}") unless widget_target
+          unless widget_target.product_type == 'com.apple.product-type.app-extension'
+            abort("::error::#{widget_target_name} is not an app-extension target")
+          end
+
+          app_target = project.targets.find { |target| target.product_type == 'com.apple.product-type.application' }
+          if app_target && widget_target.dependencies.any? { |dependency| dependency.target&.uuid == app_target.uuid }
+            abort("::error::#{widget_target_name} depends on the full app target; refusing to compile the app")
+          end
+
+          puts "Generated WidgetKit extension target confirmed: #{widget_target.name} (#{widget_target.product_type})"
+          puts "Widget extension has no direct dependency on the full app target: #{app_target&.name || 'not found'}"
+          RUBY
+
+          EXTENSION_POINT=$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$WIDGET_INFO_PLIST")
+          [ "$EXTENSION_POINT" = "com.apple.widgetkit-extension" ] || {
+            echo "::error::Generated target is not a WidgetKit extension (NSExtensionPointIdentifier=$EXTENSION_POINT)"
+            exit 1
+          }
+
+          xcodebuild \
+            -showBuildSettings \
+            -project "$APP_PROJECT" \
+            -target "$WIDGET_TARGET" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            > build/native-widget-diagnostics-preflight/widget-build-settings.txt
+          grep -Fq 'CONFIGURATION = Release' build/native-widget-diagnostics-preflight/widget-build-settings.txt || {
+            echo '::error::ExpoWidgetsTarget did not resolve to the Release configuration'
+            exit 1
+          }
+          grep -Fq 'SDKROOT = iphonesimulator' build/native-widget-diagnostics-preflight/widget-build-settings.txt || {
+            echo '::error::ExpoWidgetsTarget did not resolve to the iOS Simulator SDK'
+            exit 1
+          }
+
+          for marker in \
+            'category: "RigattiWidgetSync"' \
+            'event=timeline_read source=extension' \
+            'event=layout_evaluation phase=start' \
+            'event=layout_evaluation phase=returned' \
+            'event=layout_evaluation phase=layout_missing'; do
+            grep -Fq "$marker" "$WIDGET_SWIFT" || {
+              echo "::error::Expected RigattiWidgetSync instrumentation missing from $WIDGET_SWIFT: $marker"
+              exit 1
+            }
+          done
+
+          echo "Confirmed WidgetKit target $WIDGET_TARGET, extension point $EXTENSION_POINT, and RigattiWidgetSync instrumentation"
+
+      - name: Compile WidgetKit extension only
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          mkdir -p build/native-widget-diagnostics-preflight
+          xcodebuild \
+            -project ios/emporiorigatti.xcodeproj \
+            -target ExpoWidgetsTarget \
+            -configuration Release \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build/native-widget-diagnostics-preflight/widget-extension-xcodebuild.log

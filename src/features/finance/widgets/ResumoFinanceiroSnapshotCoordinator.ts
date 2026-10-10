@@ -31,6 +31,11 @@ import {
   unavailableFinanceWidgetProps,
   type ResumoFinanceiroWidgetProps,
 } from './ResumoFinanceiroSnapshot';
+import {
+  recordFinanceWidgetPublishResult,
+  recordFinanceWidgetPublishStart,
+  recordFinanceWidgetTimelineRead,
+} from './ResumoFinanceiroWidgetDiagnostics';
 
 type WholesaleFinanceSnapshot = {
   snapshotSessionScopeKey: string | undefined;
@@ -72,6 +77,8 @@ class ResumoFinanceiroSnapshotCoordinator {
   private wholesaleRevision = 0;
   private updateWidgetTimeline:
     ((entries: WidgetTimelineEntry<ResumoFinanceiroWidgetProps>[]) => void) | null = null;
+  private readWidgetTimeline:
+    (() => Promise<WidgetTimelineEntry<ResumoFinanceiroWidgetProps>[]>) | null = null;
   private snapshot: ResumoFinanceiroWidgetProps = unavailableFinanceWidgetProps(
     getFinanceWidgetMonthKey(new Date()),
   );
@@ -246,12 +253,22 @@ class ResumoFinanceiroSnapshotCoordinator {
   }
 
   private publishTimeline(): void {
-    if (Platform.OS !== 'ios' || !this.updateWidgetTimeline) return;
+    const updateWidgetTimeline = this.updateWidgetTimeline;
+    if (Platform.OS !== 'ios' || !updateWidgetTimeline) return;
     this.snapshot = {
       ...this.snapshot,
       monthLabel: getFinanceWidgetMonthLabel(this.snapshot.monthKey),
     };
-    this.updateWidgetTimeline(createFinanceWidgetTimeline(this.snapshot, new Date()));
+    const entries = createFinanceWidgetTimeline(this.snapshot, new Date());
+    recordFinanceWidgetPublishStart(entries);
+    try {
+      updateWidgetTimeline(entries);
+      recordFinanceWidgetPublishResult(true, 'update_timeline');
+    } catch (error) {
+      recordFinanceWidgetPublishResult(false, 'update_timeline');
+      throw error;
+    }
+    this.recordPublishedTimelineRead();
   }
 
   private async loadWidget(generation: number): Promise<void> {
@@ -262,9 +279,26 @@ class ResumoFinanceiroSnapshotCoordinator {
       if (this.generation !== generation) return;
       this.updateWidgetTimeline =
         resumoFinanceiroWidget.updateTimeline.bind(resumoFinanceiroWidget);
+      this.readWidgetTimeline = resumoFinanceiroWidget.getTimeline.bind(resumoFinanceiroWidget);
       this.publishTimeline();
     } catch {
+      if (!this.updateWidgetTimeline) {
+        recordFinanceWidgetPublishResult(false, 'widget_module_load');
+      }
       // expo-widgets is an optional native module in Expo Go.
+    }
+  }
+
+  private recordPublishedTimelineRead(): void {
+    const readWidgetTimeline = this.readWidgetTimeline;
+    if (!readWidgetTimeline) return;
+
+    try {
+      void readWidgetTimeline()
+        .then((entries) => recordFinanceWidgetTimelineRead(true, entries))
+        .catch(() => recordFinanceWidgetTimelineRead(false, []));
+    } catch {
+      recordFinanceWidgetTimelineRead(false, []);
     }
   }
 }

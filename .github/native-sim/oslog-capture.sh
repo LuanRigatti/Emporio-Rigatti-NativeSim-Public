@@ -1,14 +1,31 @@
 # shellcheck shell=bash
-# Helpers used by the opt-in NativeSim OSLog category capture.
+# Helpers used by the opt-in NativeSim OSLog capture.
 # This file is sourced by a GitHub Actions bash step.
 
 peekpop_capture_configure_categories() {
   local raw="${NATIVE_SIM_LOG_CATEGORIES-}"
+  local mode="${NATIVE_SIM_LOG_FILTER_MODE:-subsystem}"
   local category remaining final_category
   local count=0
 
+  PEEKPOP_CAPTURE_CATEGORIES=()
+  PEEKPOP_CAPTURE_CATEGORIES_CSV=""
+  PEEKPOP_CAPTURE_CATEGORIES_JSON="[]"
+  PEEKPOP_CAPTURE_SUBSYSTEMS_JSON='[{"match":"prefix","value":"com.pareact.mobile"},{"match":"exact","value":"NativeAppleIntelligence"}]'
+  PEEKPOP_CAPTURE_SUBSYSTEMS=('prefix|com.pareact.mobile' 'exact|NativeAppleIntelligence')
+  PEEKPOP_CAPTURE_FILTER_MODE="subsystem"
+  PEEKPOP_CAPTURE_PREDICATE='subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence"'
+
+  if [ "$mode" = "subsystem" ]; then
+    return 0
+  fi
+  if [ "$mode" != "category" ]; then
+    echo "::error::NATIVE_SIM_LOG_FILTER_MODE must be subsystem or category"
+    return 1
+  fi
   if [ -z "$raw" ]; then
-    raw="OpenPaymentPeekPopReturn"
+    echo "::error::Category filter mode requires an explicit NATIVE_SIM_LOG_CATEGORIES value"
+    return 1
   fi
   if [ "${#raw}" -gt 520 ]; then
     echo "::error::NATIVE_SIM_LOG_CATEGORIES must be at most 520 characters"
@@ -19,9 +36,11 @@ peekpop_capture_configure_categories() {
     return 1
   fi
 
-  PEEKPOP_CAPTURE_CATEGORIES=()
+  PEEKPOP_CAPTURE_FILTER_MODE="category"
   PEEKPOP_CAPTURE_CATEGORIES_CSV=""
   PEEKPOP_CAPTURE_CATEGORIES_JSON="["
+  PEEKPOP_CAPTURE_SUBSYSTEMS_JSON="[]"
+  PEEKPOP_CAPTURE_SUBSYSTEMS=()
   PEEKPOP_CAPTURE_PREDICATE=""
   remaining="$raw"
 
@@ -116,12 +135,14 @@ peekpop_capture_record_start() {
     echo "raw=$PEEKPOP_CAPTURE_RAW"
     echo "stderr=$PEEKPOP_CAPTURE_STDERR"
     echo "started_at=$PEEKPOP_CAPTURE_STARTED_AT"
+    echo "filter_mode=$PEEKPOP_CAPTURE_FILTER_MODE"
     echo "categories=$PEEKPOP_CAPTURE_CATEGORIES_CSV"
+    echo "subsystems=$PEEKPOP_CAPTURE_SUBSYSTEMS_JSON"
     echo "predicate=$PEEKPOP_CAPTURE_PREDICATE"
     echo "capture_file=$PEEKPOP_CAPTURE_FILE"
     echo "manifest=$PEEKPOP_CAPTURE_MANIFEST"
   } >> "$GITHUB_OUTPUT"
-  echo "OSLog capture source started for configured categories"
+  echo "OSLog capture source started using $PEEKPOP_CAPTURE_FILTER_MODE filter"
 }
 
 peekpop_capture_start_detached() {
@@ -155,13 +176,40 @@ peekpop_capture_start_detached() {
 
 peekpop_capture_start_synthetic() {
   peekpop_capture_prepare_paths || return 1
-  local category index=0
+  local category index=0 selected subsystem event selector selector_kind selector_value
   : > "$PEEKPOP_CAPTURE_RAW"
-  for category in "${PEEKPOP_CAPTURE_CATEGORIES[@]}"; do
-    index=$((index + 1))
-    printf '2026-10-10T00:00:%02dZ %s synthetic_event=peekpop-smoke-%s\n' \
-      "$index" "$category" "$index" >> "$PEEKPOP_CAPTURE_RAW"
-  done
+  if [ "$PEEKPOP_CAPTURE_FILTER_MODE" = "category" ]; then
+    for category in "${PEEKPOP_CAPTURE_CATEGORIES[@]}"; do
+      index=$((index + 1))
+      subsystem="com.pareact.mobile"
+      if [ "$index" -eq 2 ]; then subsystem="com.pareact.mobile.ExpoWidgetsTarget"; fi
+      printf '2026-10-10T00:00:%02dZ App[1:2] [%s:%s] [%s] oslog-smoke category-event-%s\n' \
+        "$index" "$subsystem" "$category" "$category" "$index" >> "$PEEKPOP_CAPTURE_RAW"
+    done
+  else
+    local candidate_subsystems=("com.pareact.mobile" "com.pareact.mobile.ExpoWidgetsTarget" "NativeAppleIntelligence" "com.apple.springboard")
+    local candidate_categories=("AppDiagnostics" "RigattiWidgetSync" "Search" "Lifecycle")
+    local candidate_events=("app-event" "widget-event" "legacy-owned-subsystem-event" "system-event-must-not-match")
+    for index in "${!candidate_subsystems[@]}"; do
+      subsystem="${candidate_subsystems[$index]}"
+      category="${candidate_categories[$index]}"
+      event="${candidate_events[$index]}"
+      selected=false
+      for selector in "${PEEKPOP_CAPTURE_SUBSYSTEMS[@]}"; do
+        selector_kind="${selector%%|*}"
+        selector_value="${selector#*|}"
+        if { [ "$selector_kind" = "prefix" ] && [[ "$subsystem" == "$selector_value"* ]]; } || \
+           { [ "$selector_kind" = "exact" ] && [ "$subsystem" = "$selector_value" ]; }; then
+          selected=true
+          break
+        fi
+      done
+      if [ "$selected" = "true" ]; then
+        printf '2026-10-10T00:00:%02dZ App[1:2] [%s:%s] [%s] oslog-smoke %s\n' \
+          "$((index + 1))" "$subsystem" "$category" "$category" "$event" >> "$PEEKPOP_CAPTURE_RAW"
+      fi
+    done
+  fi
   : > "$PEEKPOP_CAPTURE_STDERR"
 
   # shellcheck disable=SC2217 # Keep the synthetic process detached from step pipes.
@@ -169,7 +217,7 @@ peekpop_capture_start_synthetic() {
   PEEKPOP_LOG_STREAM_PID=$!
   disown "$PEEKPOP_LOG_STREAM_PID" 2>/dev/null || true
   peekpop_capture_record_start
-  echo "Synthetic OSLog category events prepared without financial data"
+  echo "Synthetic OSLog events prepared without private data"
 }
 
 peekpop_capture_stop_stream() {
@@ -211,18 +259,7 @@ peekpop_capture_finish() {
   fi
 
   local event_count finish_at ciphertext_sha256
-  event_count=$(awk -v selected="$PEEKPOP_CAPTURE_CATEGORIES_CSV" '
-    BEGIN { category_count = split(selected, categories, ",") }
-    {
-      for (i = 1; i <= category_count; i++) {
-        if (index($0, categories[i]) > 0) {
-          matching_records += 1
-          break
-        }
-      }
-    }
-    END { print matching_records + 0 }
-  ' "$PEEKPOP_CAPTURE_RAW")
+  event_count=$(awk '!/^[[:space:]]*(Filtering the log data using|Timestamp[[:space:]]+Thread|[-=]{3,})/ && NF { records += 1 } END { print records + 0 }' "$PEEKPOP_CAPTURE_RAW")
   finish_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
   if ! age -r "$PEEKPOP_LOG_AGE_RECIPIENT" \
@@ -248,6 +285,8 @@ peekpop_capture_finish() {
   fi
 
   if ! PEEKPOP_CAPTURE_CATEGORIES_JSON="$PEEKPOP_CAPTURE_CATEGORIES_JSON" \
+    PEEKPOP_CAPTURE_FILTER_MODE="$PEEKPOP_CAPTURE_FILTER_MODE" \
+    PEEKPOP_CAPTURE_SUBSYSTEMS_JSON="$PEEKPOP_CAPTURE_SUBSYSTEMS_JSON" \
     PEEKPOP_CAPTURE_PREDICATE="$PEEKPOP_CAPTURE_PREDICATE" \
     PEEKPOP_CAPTURE_EVENT_COUNT="$event_count" \
     PEEKPOP_CAPTURE_STARTED_AT="$PEEKPOP_CAPTURE_STARTED_AT" \
@@ -261,14 +300,16 @@ import sys
 
 categories = json.loads(os.environ["PEEKPOP_CAPTURE_CATEGORIES_JSON"])
 manifest = {
-    "schema_version": 2,
+    "schema_version": 3,
     "repository": os.environ["GITHUB_REPOSITORY"],
     "run_id": os.environ["GITHUB_RUN_ID"],
     "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
     "session": os.environ.get("SESSION_ID", ""),
     "commit": os.environ["GITHUB_SHA"],
-    "category": categories[0],
+    "filter_mode": os.environ["PEEKPOP_CAPTURE_FILTER_MODE"],
+    "category": categories[0] if categories else None,
     "categories": categories,
+    "subsystems": json.loads(os.environ["PEEKPOP_CAPTURE_SUBSYSTEMS_JSON"]),
     "predicate": os.environ["PEEKPOP_CAPTURE_PREDICATE"],
     "stream_level": "debug",
     "started_at_utc": os.environ["PEEKPOP_CAPTURE_STARTED_AT"],
@@ -293,10 +334,10 @@ PY
   fi
   rm -f "$PEEKPOP_CAPTURE_RAW" "$PEEKPOP_CAPTURE_STDERR"
   PEEKPOP_CAPTURE_ACTIVE=false
-  echo "OSLog capture finalized; matching record count: $event_count"
+  echo "OSLog capture finalized; filtered record count: $event_count"
 
   if [ "$event_count" -eq 0 ]; then
-    echo "::error::No OSLog events were received for the selected categories; encrypted evidence and a zero-event manifest were saved"
+    echo "::error::No OSLog events were received for the selected filter; encrypted evidence and a zero-event manifest were saved"
     return 2
   fi
 }

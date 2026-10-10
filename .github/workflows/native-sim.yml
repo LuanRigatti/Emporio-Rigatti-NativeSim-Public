@@ -75,12 +75,20 @@ on:
         default: false
       capture_peekpop_logs:
         description: >-
-          Legacy per-run opt-in for OSLog categories. The normal Windows CLI
+          Legacy per-run opt-in for app-owned OSLog. The normal Windows CLI
           does not pass this input; use Repository variable
-          PEEKPOP_LOG_CAPTURE_ENABLED=true for that command. Categories come
-          from NATIVE_SIM_LOG_CATEGORIES or default to OpenPaymentPeekPopReturn.
+          PEEKPOP_LOG_CAPTURE_ENABLED=true for that command.
         type: boolean
         default: false
+      log_filter_mode:
+        description: >-
+          OSLog filter. subsystem captures the app bundle and its extensions
+          automatically; category applies NATIVE_SIM_LOG_CATEGORIES explicitly.
+        type: choice
+        options:
+          - subsystem
+          - category
+        default: subsystem
       agent_device:
         description: >-
           Also run an agent-device proxy beside the simulator, reachable at
@@ -110,11 +118,13 @@ concurrency:
 
 jobs:
   peekpop-capture-smoke:
+    name: OSLog capture smoke tests
     if: inputs.peekpop_capture_smoke_test == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       PEEKPOP_LOG_AGE_RECIPIENT: ${{ vars.PEEKPOP_LOG_AGE_RECIPIENT }}
+      NATIVE_SIM_LOG_CATEGORIES: RigattiWidgetSync
       SESSION_ID: ${{ inputs.session }}
       RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
@@ -126,23 +136,32 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install --yes age
 
-      - name: Validate category configuration and start single-category capture
+      - name: Validate automatic filter and start app/widget synthetic capture
         id: single_capture_start
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
 
-          # Keep the legacy PeekPop default covered even when the repository
-          # variable selects different categories for real NativeSim sessions.
-          unset NATIVE_SIM_LOG_CATEGORIES
+          # The legacy category variable is present but must not restrict default mode.
           peekpop_capture_configure_categories
-          [ "$PEEKPOP_CAPTURE_CATEGORIES_CSV" = "OpenPaymentPeekPopReturn" ] || {
-            echo "::error::The default OSLog category changed unexpectedly"
+          [ "$PEEKPOP_CAPTURE_FILTER_MODE" = "subsystem" ] || {
+            echo "::error::Default OSLog filter must be subsystem mode"
             exit 1
           }
+          [ "$PEEKPOP_CAPTURE_CATEGORIES_JSON" = "[]" ] || exit 1
+          [ "$PEEKPOP_CAPTURE_PREDICATE" = 'subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence"' ] || exit 1
+          [ "$PEEKPOP_CAPTURE_SUBSYSTEMS_JSON" = '[{"match":"prefix","value":"com.pareact.mobile"},{"match":"exact","value":"NativeAppleIntelligence"}]' ] || exit 1
+
+          NATIVE_SIM_LOG_FILTER_MODE=category NATIVE_SIM_LOG_CATEGORIES=RigattiWidgetSync \
+            peekpop_capture_configure_categories
+          [ "$PEEKPOP_CAPTURE_FILTER_MODE" = "category" ] && \
+            [ "$PEEKPOP_CAPTURE_PREDICATE" = 'category == "RigattiWidgetSync"' ] || {
+              echo "::error::Explicit category filtering was not preserved"
+              exit 1
+            }
 
           invalid_categories=(
-            'OpenPaymentPeekPopReturn OR process == "*"'
+            'CategoryA OR process == "*"'
             'category/with/slash'
             'CategoryA,,CategoryB'
             'Duplicate,Duplicate'
@@ -151,20 +170,56 @@ jobs:
           printf -v too_long_category '%065d' 0
           invalid_categories+=("$too_long_category")
           for invalid_value in "${invalid_categories[@]}"; do
-            if NATIVE_SIM_LOG_CATEGORIES="$invalid_value" \
+            if NATIVE_SIM_LOG_FILTER_MODE=category NATIVE_SIM_LOG_CATEGORIES="$invalid_value" \
               peekpop_capture_configure_categories >/dev/null 2>&1; then
               echo "::error::Invalid category configuration was accepted"
               exit 1
             fi
           done
+          if NATIVE_SIM_LOG_FILTER_MODE=category NATIVE_SIM_LOG_CATEGORIES= \
+            peekpop_capture_configure_categories >/dev/null 2>&1; then
+            echo "::error::Explicit category mode accepted an empty category list"
+            exit 1
+          fi
+          if NATIVE_SIM_LOG_FILTER_MODE=unrecognized NATIVE_SIM_LOG_CATEGORIES=RigattiWidgetSync \
+            peekpop_capture_configure_categories >/dev/null 2>&1; then
+            echo "::error::An unknown OSLog filter mode was accepted"
+            exit 1
+          fi
 
           export NATIVE_SIM_CAPTURE_ARTIFACT_DIR="$GITHUB_WORKSPACE/build/native-sim-oslogs-single"
           peekpop_capture_preflight
           peekpop_capture_start_synthetic
+          synthetic_record_count=$(grep -c 'oslog-smoke' "$PEEKPOP_CAPTURE_RAW")
+          [ "$synthetic_record_count" -eq 3 ] || {
+            echo "::error::Automatic filter should retain app, widget, and app-owned legacy subsystem records"
+            exit 1
+          }
+          grep -Fq '[com.pareact.mobile.ExpoWidgetsTarget:RigattiWidgetSync]' "$PEEKPOP_CAPTURE_RAW" || {
+            echo "::error::Automatic filter did not retain the widget subsystem record"
+            exit 1
+          }
+          grep -Fq '[NativeAppleIntelligence:Search]' "$PEEKPOP_CAPTURE_RAW" || {
+            echo "::error::Automatic filter did not retain the existing app-owned subsystem"
+            exit 1
+          }
+          grep -Fq '[com.pareact.mobile:AppDiagnostics]' "$PEEKPOP_CAPTURE_RAW" || {
+            echo "::error::Automatic filter did not retain app-owned categories"
+            exit 1
+          }
+          if grep -Fq '[NativeAppleIntelligence:Lifecycle]' "$PEEKPOP_CAPTURE_RAW"; then
+            echo "::error::Automatic filter retained an unselected subsystem category"
+            exit 1
+          fi
+          if grep -Fq '[com.apple.springboard:' "$PEEKPOP_CAPTURE_RAW"; then
+            echo "::error::Automatic filter retained an unrelated system subsystem"
+            exit 1
+          fi
 
-      - name: Finalize single-category capture in a separate step
+      - name: Finalize automatic subsystem capture in a separate step
         id: single_capture_finish
         env:
+          NATIVE_SIM_LOG_FILTER_MODE: ${{ steps.single_capture_start.outputs.filter_mode }}
           NATIVE_SIM_LOG_CATEGORIES: ${{ steps.single_capture_start.outputs.categories }}
           PEEKPOP_LOG_STREAM_PID: ${{ steps.single_capture_start.outputs.pid }}
           PEEKPOP_CAPTURE_RAW: ${{ steps.single_capture_start.outputs.raw }}
@@ -174,45 +229,55 @@ jobs:
           PEEKPOP_CAPTURE_MANIFEST: ${{ steps.single_capture_start.outputs.manifest }}
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           PEEKPOP_CAPTURE_ACTIVE=true
-          peekpop_capture_finish "synthetic-single-category"
+          peekpop_capture_finish "synthetic-auto-subsystem"
           python3 - "$PEEKPOP_CAPTURE_MANIFEST" <<'PY'
           import json
           import sys
 
           with open(sys.argv[1], encoding="utf-8") as manifest_file:
               manifest = json.load(manifest_file)
-          assert manifest["categories"] == ["OpenPaymentPeekPopReturn"], manifest
-          assert manifest["event_count"] == 1, manifest
-          assert manifest["capture_outcome"] == "synthetic-single-category", manifest
+          assert manifest["schema_version"] == 3, manifest
+          assert manifest["filter_mode"] == "subsystem", manifest
+          assert manifest["categories"] == [], manifest
+          assert manifest["category"] is None, manifest
+          assert manifest["subsystems"] == [
+              {"match": "prefix", "value": "com.pareact.mobile"},
+              {"match": "exact", "value": "NativeAppleIntelligence"},
+          ], manifest
+          assert manifest["predicate"] == 'subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence"', manifest
+          assert manifest["event_count"] == 3, manifest
+          assert manifest["capture_outcome"] == "synthetic-auto-subsystem", manifest
           assert manifest["ciphertext_sha256"], manifest
           PY
           [ ! -e "$PEEKPOP_CAPTURE_RAW" ] || {
-            echo "::error::Single-category plaintext remains after finalization"
+            echo "::error::Automatic-capture plaintext remains after finalization"
             exit 1
           }
           files=$(find "$(dirname "$PEEKPOP_CAPTURE_FILE")" -maxdepth 1 -type f -printf '%f\n' | sort)
           expected=$(printf '%s\n' manifest.json native-sim-oslog.age | sort)
           [ "$files" = "$expected" ] || {
-            echo "::error::Single-category output contains unexpected files"
+            echo "::error::Automatic-capture output contains unexpected files"
             exit 1
           }
 
       - name: Start multi-category synthetic capture
         id: multi_capture_start
         env:
-          NATIVE_SIM_LOG_CATEGORIES: OpenPaymentPeekPopReturn,NativeSimSyntheticSecondary
+          NATIVE_SIM_LOG_FILTER_MODE: category
+          NATIVE_SIM_LOG_CATEGORIES: RigattiWidgetSync,NativeSimSyntheticSecondary
           NATIVE_SIM_CAPTURE_ARTIFACT_DIR: ${{ github.workspace }}/build/native-sim-oslogs
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           peekpop_capture_preflight
           peekpop_capture_start_synthetic
 
       - name: Finalize multi-category capture in a separate step
         id: synthetic_finish
         env:
+          NATIVE_SIM_LOG_FILTER_MODE: ${{ steps.multi_capture_start.outputs.filter_mode }}
           NATIVE_SIM_LOG_CATEGORIES: ${{ steps.multi_capture_start.outputs.categories }}
           PEEKPOP_LOG_STREAM_PID: ${{ steps.multi_capture_start.outputs.pid }}
           PEEKPOP_CAPTURE_RAW: ${{ steps.multi_capture_start.outputs.raw }}
@@ -222,7 +287,7 @@ jobs:
           PEEKPOP_CAPTURE_MANIFEST: ${{ steps.multi_capture_start.outputs.manifest }}
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           PEEKPOP_CAPTURE_ACTIVE=true
           peekpop_capture_finish "synthetic-smoke"
           python3 - "$PEEKPOP_CAPTURE_MANIFEST" <<'PY'
@@ -231,8 +296,11 @@ jobs:
 
           with open(sys.argv[1], encoding="utf-8") as manifest_file:
               manifest = json.load(manifest_file)
-          assert manifest["categories"] == ["OpenPaymentPeekPopReturn", "NativeSimSyntheticSecondary"], manifest
-          assert manifest["predicate"] == 'category == "OpenPaymentPeekPopReturn" OR category == "NativeSimSyntheticSecondary"', manifest
+          assert manifest["schema_version"] == 3, manifest
+          assert manifest["filter_mode"] == "category", manifest
+          assert manifest["categories"] == ["RigattiWidgetSync", "NativeSimSyntheticSecondary"], manifest
+          assert manifest["subsystems"] == [], manifest
+          assert manifest["predicate"] == 'category == "RigattiWidgetSync" OR category == "NativeSimSyntheticSecondary"', manifest
           assert manifest["event_count"] == 2, manifest
           assert manifest["capture_outcome"] == "synthetic-smoke", manifest
           assert manifest["ciphertext_sha256"], manifest
@@ -250,11 +318,12 @@ jobs:
 
       - name: Verify zero-event capture failure is explicit
         env:
+          NATIVE_SIM_LOG_FILTER_MODE: category
           NATIVE_SIM_LOG_CATEGORIES: NativeSimSyntheticEmpty
           NATIVE_SIM_CAPTURE_ARTIFACT_DIR: ${{ runner.temp }}/native-sim-oslog-zero-event
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           peekpop_capture_preflight
           peekpop_capture_start_synthetic
           : > "$PEEKPOP_CAPTURE_RAW"
@@ -267,7 +336,7 @@ jobs:
             echo "::error::Zero-event finalization should return status 2, got $zero_status"
             exit 1
           }
-          printf '%s\n' "$zero_output" | grep -Fq 'No OSLog events were received for the selected categories' || {
+          printf '%s\n' "$zero_output" | grep -Fq 'No OSLog events were received for the selected filter' || {
             echo "::error::Zero-event finalization did not report a clear error"
             exit 1
           }
@@ -290,7 +359,7 @@ jobs:
         if: always() && steps.synthetic_finish.outputs.artifact_ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: peekpop-capture-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          name: oslog-capture-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             build/native-sim-oslogs/native-sim-oslog.age
             build/native-sim-oslogs/manifest.json
@@ -298,6 +367,7 @@ jobs:
           retention-days: 1
 
   peekpop-capture-smoke-windows:
+    name: Verify OSLog artifact on Windows
     if: inputs.peekpop_capture_smoke_test == true
     needs: peekpop-capture-smoke
     runs-on: windows-latest
@@ -306,13 +376,13 @@ jobs:
       - name: Download and verify encrypted artifact on Windows
         uses: actions/download-artifact@v4
         with:
-          name: peekpop-capture-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}\peekpop-capture-smoke
+          name: oslog-capture-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\oslog-capture-smoke
 
       - name: Verify artifact contents and manifest
         shell: pwsh
         env:
-          CAPTURE_ARTIFACT_DIR: ${{ runner.temp }}\peekpop-capture-smoke
+          CAPTURE_ARTIFACT_DIR: ${{ runner.temp }}\oslog-capture-smoke
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           SESSION_ID: ${{ inputs.session }}
@@ -332,26 +402,27 @@ jobs:
           $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
           $expectedManifestKeys = @(
             'schema_version', 'repository', 'run_id', 'run_attempt', 'session', 'commit',
-            'category', 'categories', 'predicate', 'stream_level', 'started_at_utc', 'finished_at_utc',
+            'category', 'categories', 'filter_mode', 'subsystems', 'predicate', 'stream_level', 'started_at_utc', 'finished_at_utc',
             'event_count', 'capture_outcome', 'ciphertext_sha256'
           ) | Sort-Object
           $manifestKeys = @($manifest.PSObject.Properties.Name | Sort-Object)
           if (($manifestKeys -join '|') -ne ($expectedManifestKeys -join '|')) {
             throw 'Manifest contains unexpected fields'
           }
-          if ($manifest.schema_version -ne 2) { throw 'Unexpected manifest schema version' }
+          if ($manifest.schema_version -ne 3) { throw 'Unexpected manifest schema version' }
           if ($manifest.repository -ne $env:EXPECTED_REPOSITORY) { throw 'Manifest repository does not match this workflow' }
           if ($manifest.run_id -ne $env:RUN_ID) { throw 'Manifest run id does not match this workflow' }
           if ($manifest.run_attempt -ne $env:RUN_ATTEMPT) { throw 'Manifest run attempt does not match this workflow' }
           if ($manifest.session -ne $env:SESSION_ID) { throw 'Manifest session does not match this workflow' }
           if ($manifest.commit -ne $env:EXPECTED_COMMIT) { throw 'Manifest commit does not match this workflow' }
-          if ($manifest.category -ne 'OpenPaymentPeekPopReturn') { throw 'Legacy PeekPop category compatibility changed' }
-          if ($manifest.predicate -ne 'category == "OpenPaymentPeekPopReturn" OR category == "NativeSimSyntheticSecondary"') {
+          if ($manifest.filter_mode -ne 'category' -or $manifest.category -ne 'RigattiWidgetSync') { throw 'Explicit OSLog category metadata changed unexpectedly' }
+          if (@($manifest.subsystems).Count -ne 0) { throw 'Explicit category manifest should not contain subsystem selectors' }
+          if ($manifest.predicate -ne 'category == "RigattiWidgetSync" OR category == "NativeSimSyntheticSecondary"') {
             throw 'Manifest predicate does not exactly match the synthetic categories'
           }
           $hash = (Get-FileHash -LiteralPath $cipherPath -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -ne $manifest.ciphertext_sha256) { throw 'Ciphertext SHA-256 does not match manifest' }
-          if (($manifest.categories -join '|') -ne 'OpenPaymentPeekPopReturn|NativeSimSyntheticSecondary') {
+          if (($manifest.categories -join '|') -ne 'RigattiWidgetSync|NativeSimSyntheticSecondary') {
             throw 'Unexpected categories in smoke manifest'
           }
           if ($manifest.event_count -ne 2) { throw "Expected 2 synthetic events, got $($manifest.event_count)" }
@@ -361,7 +432,7 @@ jobs:
           }
           $cipherBytes = [System.IO.File]::ReadAllBytes($cipherPath)
           $cipherText = [System.Text.Encoding]::ASCII.GetString($cipherBytes)
-          if ($cipherText.Contains('synthetic_event=peekpop-smoke-')) {
+          if ($cipherText.Contains('synthetic_event=oslog-smoke-')) {
             throw 'Synthetic event plaintext marker leaked into the encrypted artifact'
           }
 
@@ -375,25 +446,26 @@ jobs:
           $header = [System.Text.Encoding]::ASCII.GetString($headerBytes, 0, $read)
           if (-not $header.StartsWith('age-encryption.org/v1')) { throw 'Artifact is not an age ciphertext' }
 
-          $artifactName = "peekpop-capture-smoke-$env:RUN_ID-$env:RUN_ATTEMPT"
+          $artifactName = "oslog-capture-smoke-$env:RUN_ID-$env:RUN_ATTEMPT"
           $instructions = @'
           Windows runner downloaded the artifact, verified the manifest SHA-256 and confirmed that only ciphertext plus metadata are present.
 
           Capture setup for a normal `native-sim up --public --minutes 120` session:
           - Set Repository Variable `PEEKPOP_LOG_CAPTURE_ENABLED=true` to opt in.
           - Set `PEEKPOP_LOG_AGE_RECIPIENT=age1...` to the public age recipient. Keep the matching private identity on your Windows machine.
-          - Optionally set `NATIVE_SIM_LOG_CATEGORIES=CategoryA,CategoryB`. Categories are exact existing OSLog category names; up to 8 values, each 1-64 ASCII letters, digits, dots, underscores, or hyphens, starting with a letter or digit. No predicate syntax is accepted. If unset, the category is `OpenPaymentPeekPopReturn`.
+          - Default mode captures the `com.pareact.mobile` subsystem prefix (current main app and ExpoWidgetsTarget extension IDs) plus the existing app-owned `NativeAppleIntelligence` subsystem. Unrelated iOS subsystems are excluded.
+          - Select workflow input `log_filter_mode=category` to apply the configured `NATIVE_SIM_LOG_CATEGORIES` Actions variable explicitly. Categories are exact OSLog names; up to 8 values, each 1-64 ASCII letters, digits, dots, underscores, or hyphens. Predicate syntax is rejected. The legacy variable is ignored in default subsystem mode.
 
-          Run the `native-sim` workflow manually with `peekpop_capture_smoke_test=true` to test default/single category, multiple categories, invalid values, zero events, encrypted artifact upload, and Windows download/verification. The normal NativeSim capture remains filtered to the requested OSLog categories. It does not capture JavaScript `console.log` or the Xcode console.
+          Run the `native-sim` workflow manually with `peekpop_capture_smoke_test=true` to test automatic app/widget subsystem selection, explicit single/multiple categories, invalid values, zero events, encrypted artifact upload, and Windows download/verification. Keep future app/extension Logger subsystems under the app bundle identifier prefix for automatic inclusion; hard-coded app-owned subsystems need a narrow explicit selector. It does not capture JavaScript `console.log` or the Xcode console.
 
           Disable persistent capture by setting `PEEKPOP_LOG_CAPTURE_ENABLED=false` or removing that Repository Variable. The `capture_peekpop_logs` input remains a per-run opt-in when dispatching the workflow manually.
 
           To decrypt on your Windows machine without uploading a private key to GitHub:
 
           ```powershell
-          gh run download RUN_ID --repo LuanRigatti/Emporio-Rigatti-NativeSim-Public --name ARTIFACT_NAME --dir $env:TEMP\peekpop-capture-smoke
-          age -d -i <path-to-local-age-identity> -o $env:TEMP\peekpop-capture-smoke\decrypted.log $env:TEMP\peekpop-capture-smoke\native-sim-oslog.age
-          Select-String -Path $env:TEMP\peekpop-capture-smoke\decrypted.log -Pattern 'synthetic_event=peekpop-smoke-1','synthetic_event=peekpop-smoke-2'
+          gh run download RUN_ID --repo LuanRigatti/Emporio-Rigatti-NativeSim-Public --name ARTIFACT_NAME --dir $env:TEMP\oslog-capture-smoke
+          age -d -i <path-to-local-age-identity> -o $env:TEMP\oslog-capture-smoke\decrypted.log $env:TEMP\oslog-capture-smoke\native-sim-oslog.age
+          Select-String -Path $env:TEMP\oslog-capture-smoke\decrypted.log -Pattern 'synthetic_event=oslog-smoke-1','synthetic_event=oslog-smoke-2'
           ```
           '@
           $instructions = $instructions.Replace('RUN_ID', $env:RUN_ID).Replace('ARTIFACT_NAME', $artifactName)
@@ -422,24 +494,28 @@ jobs:
       AGENT_PORT: "4310"
       PEEKPOP_CAPTURE_ENABLED: ${{ (vars.PEEKPOP_LOG_CAPTURE_ENABLED == 'true' || inputs.capture_peekpop_logs == true) && 'true' || 'false' }}
       NATIVE_SIM_LOG_CATEGORIES: ${{ vars.NATIVE_SIM_LOG_CATEGORIES }}
+      NATIVE_SIM_LOG_FILTER_MODE: ${{ inputs.log_filter_mode || 'subsystem' }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Report PeekPop capture mode
+      - name: Report OSLog capture mode
         if: inputs.peekpop_capture_smoke_test != true
         run: |
           if [ "$PEEKPOP_CAPTURE_ENABLED" = "true" ]; then
-            echo "Filtered OSLog category capture is enabled for this NativeSim run."
+            source .github/native-sim/oslog-capture.sh
+            peekpop_capture_configure_categories
+            echo "Filtered OSLog capture is enabled using the $NATIVE_SIM_LOG_FILTER_MODE filter."
             {
-              echo "Categories come from the NATIVE_SIM_LOG_CATEGORIES repository variable as comma-separated exact OSLog category names (up to 8); when unset, the default is OpenPaymentPeekPopReturn."
+              echo "Default subsystem mode captures the app bundle identifier family and extensions, plus the existing app-owned NativeAppleIntelligence subsystem. The legacy NATIVE_SIM_LOG_CATEGORIES variable is ignored unless log_filter_mode=category is explicitly selected."
+              echo "The active predicate: $PEEKPOP_CAPTURE_PREDICATE"
               echo "The public artifact contains only age-encrypted log data and a metadata manifest. Keep the matching age identity private on your own machine."
             } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::notice title=PeekPop capture disabled::Set repository variable PEEKPOP_LOG_CAPTURE_ENABLED=true for an opt-in capture run."
-            echo "Filtered OSLog capture is disabled. Set Actions repository variable PEEKPOP_LOG_CAPTURE_ENABLED=true to enable it for the normal native-sim up command. NATIVE_SIM_LOG_CATEGORIES selects exact categories and defaults to OpenPaymentPeekPopReturn." >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=OSLog capture disabled::Set repository variable PEEKPOP_LOG_CAPTURE_ENABLED=true for an opt-in capture run."
+            echo "Filtered OSLog capture is disabled. Set Actions repository variable PEEKPOP_LOG_CAPTURE_ENABLED=true to enable it for the normal native-sim up command. The default filter is app/extension subsystem capture; use workflow input log_filter_mode=category to apply NATIVE_SIM_LOG_CATEGORIES explicitly." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - uses: actions/setup-node@v4
@@ -611,7 +687,7 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
           xcrun simctl list devices | grep -F "$UDID"
 
-      - name: Prepare encrypted PeekPop log capture
+      - name: Prepare encrypted OSLog capture
         if: env.PEEKPOP_CAPTURE_ENABLED == 'true'
         env:
           MODE: ${{ inputs.mode }}
@@ -620,24 +696,24 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$MODE" != "build" ]; then
-            echo "::error::PeekPop capture requires mode=build so capture starts after this workflow launches the app"
+            echo "::error::OSLog capture requires mode=build so capture starts after this workflow launches the app"
             exit 1
           fi
           if [ -z "$PEEKPOP_LOG_AGE_RECIPIENT" ]; then
-            echo "::error::Set the PEEKPOP_LOG_AGE_RECIPIENT Actions variable before enabling PeekPop capture"
+            echo "::error::Set the PEEKPOP_LOG_AGE_RECIPIENT Actions variable before enabling OSLog capture"
             exit 1
           fi
           if ! command -v age >/dev/null 2>&1; then
-            brew install age > "$RUNNER_TEMP/peekpop-age-install.log" 2>&1 || {
-              rm -f "$RUNNER_TEMP/peekpop-age-install.log"
+            brew install age > "$RUNNER_TEMP/oslog-age-install.log" 2>&1 || {
+              rm -f "$RUNNER_TEMP/oslog-age-install.log"
               echo "::error::Could not install age on this macOS runner"
               exit 1
             }
-            rm -f "$RUNNER_TEMP/peekpop-age-install.log"
+            rm -f "$RUNNER_TEMP/oslog-age-install.log"
           fi
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           peekpop_capture_preflight
-          echo "Encrypted PeekPop capture is configured"
+          echo "Encrypted OSLog capture is configured"
 
       - name: Start serve-sim
         timeout-minutes: 10
@@ -1287,7 +1363,7 @@ jobs:
           fi
           echo "Launched $BUNDLE_ID"
 
-      - name: Start PeekPop OSLog capture
+      - name: Start OSLog capture
         id: peekpop_capture_start
         if: env.PEEKPOP_CAPTURE_ENABLED == 'true' && inputs.mode == 'build'
         env:
@@ -1296,7 +1372,7 @@ jobs:
           NATIVE_SIM_LOG_CATEGORIES: ${{ vars.NATIVE_SIM_LOG_CATEGORIES }}
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           peekpop_capture_start_detached
 
       - name: Verify exported Release archive
@@ -1637,7 +1713,7 @@ jobs:
 
           if [ "$PEEKPOP_CAPTURE_ENABLED" = "true" ]; then
             if ! kill -0 "$PEEKPOP_LOG_STREAM_PID" 2>/dev/null; then
-              echo "::error::PeekPop OSLog stream stopped before the Hold step"
+              echo "::error::OSLog stream stopped before the Hold step"
               exit 1
             fi
             stop_capture_stream_on_exit() {
@@ -1659,7 +1735,7 @@ jobs:
           echo "Streaming until $(date -r "$END")"
           while [ "$(date +%s)" -lt "$END" ]; do
             if [ -n "$CAPTURE_SIGNAL" ]; then
-              echo "::warning::PeekPop capture received $CAPTURE_SIGNAL; the capture-enabled job will run its finalizer and encrypted artifact upload"
+              echo "::warning::OSLog capture received $CAPTURE_SIGNAL; the capture-enabled job will run its finalizer and encrypted artifact upload"
               break
             fi
             if ! curl -fsS -o /dev/null "http://127.0.0.1:$PREVIEW_PORT/healthz"; then
@@ -1668,7 +1744,7 @@ jobs:
             fi
             if [ "$PEEKPOP_CAPTURE_ENABLED" = "true" ] \
                && ! kill -0 "$PEEKPOP_LOG_STREAM_PID" 2>/dev/null; then
-              echo "::error::PeekPop OSLog stream stopped during the session"
+              echo "::error::OSLog stream stopped during the session"
               exit 1
             fi
             if [ "$BUILD_CONFIGURATION" = "development" ]; then
@@ -1713,11 +1789,11 @@ jobs:
                 2>/dev/null); then
                 if [ "$STOP_STATUS" = "true" ]; then
                   GRACEFUL_STOP_REQUESTED=true
-                  echo "Graceful PeekPop capture stop requested"
+                  echo "Graceful OSLog capture stop requested"
                   break
                 fi
               elif [ "$STOP_API_WARNED" = "false" ]; then
-                echo "::warning::Could not poll the PeekPop stop status; the session will continue until its configured end time"
+                echo "::warning::Could not poll the OSLog stop status; the session will continue until its configured end time"
                 STOP_API_WARNED=true
               fi
             fi
@@ -1732,7 +1808,7 @@ jobs:
           echo "graceful_stop=$GRACEFUL_STOP_REQUESTED" >> "$GITHUB_OUTPUT"
           echo "Session window elapsed or graceful stop was received"
 
-      - name: Finalize PeekPop OSLog capture
+      - name: Finalize OSLog capture
         id: peekpop_capture_finish
         if: always() && env.PEEKPOP_CAPTURE_ENABLED == 'true' && steps.peekpop_capture_start.outcome == 'success'
         env:
@@ -1749,7 +1825,7 @@ jobs:
           GRACEFUL_STOP_REQUESTED: ${{ steps.hold.outputs.graceful_stop }}
         run: |
           set -euo pipefail
-          source .github/native-sim/peekpop-log-capture.sh
+          source .github/native-sim/oslog-capture.sh
           PEEKPOP_CAPTURE_ACTIVE=true
           case "$HOLD_OUTCOME" in
             success)
@@ -1769,7 +1845,7 @@ jobs:
             -f "context=$STATUS_CONTEXT" \
             -f "description=session ended" || true
 
-      - name: Upload encrypted PeekPop logs
+      - name: Upload encrypted OSLog capture
         if: always() && env.PEEKPOP_CAPTURE_ENABLED == 'true' && steps.peekpop_capture_finish.outputs.artifact_ready == 'true'
         uses: actions/upload-artifact@v4
         with:

@@ -419,9 +419,9 @@ public final class NativeOpenPaymentContextMenuHostView: ExpoView,
 
   private func viewState(_ view: UIView?) -> String {
     guard let view else { return "nil" }
-    let windowFrame = view.window.map { NSStringFromCGRect($0.convert(view.bounds, from: view)) } ?? "no-window"
+    let windowFrame = view.window.map { NSCoder.string(for: $0.convert(view.bounds, from: view)) } ?? "no-window"
     return "\(type(of: view))#\(ObjectIdentifier(view)) " +
-      "frame=\(NSStringFromCGRect(view.frame)) bounds=\(NSStringFromCGRect(view.bounds)) " +
+      "frame=\(NSCoder.string(for: view.frame)) bounds=\(NSCoder.string(for: view.bounds)) " +
       "windowFrame=\(windowFrame) hidden=\(view.isHidden) alpha=\(view.alpha) " +
       "clips=\(view.clipsToBounds) " +
       "masks=\(view.layer.masksToBounds) radius=\(view.layer.cornerRadius) " +

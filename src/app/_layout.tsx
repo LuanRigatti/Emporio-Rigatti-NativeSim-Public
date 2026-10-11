@@ -162,6 +162,14 @@ function AppShell() {
   }, [isAuthenticated, sessionKey, sessionUid]);
 
   useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+
+    void import('@/features/finance/widgets/ResumoFinanceiroWidgetBranding')
+      .then(({ prepareResumoFinanceiroWidgetBranding }) => prepareResumoFinanceiroWidgetBranding())
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     if (!sessionUid) return;
 
     let active = true;

@@ -177,6 +177,10 @@ module.exports = {
         },
       ],
       [
+        // CNG dangerous mods run in reverse plugin order; this adds the shared image path after widget generation.
+        './plugins/withResumoFinanceiroBranding',
+      ],
+      [
         // CNG dangerous mods run in reverse plugin order; this patches Swift after expo-widgets generates it.
         './plugins/withResumoFinanceiroDiagnostics',
       ],

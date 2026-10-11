@@ -4,6 +4,7 @@ import { resumoFinanceiroWidget } from '@/features/finance/widgets/ResumoFinance
 
 jest.mock('@expo/ui/swift-ui', () => ({
   HStack: 'HStack',
+  Image: 'Image',
   Spacer: 'Spacer',
   Text: 'Text',
   VStack: 'VStack',
@@ -20,6 +21,7 @@ type WidgetTreeNode = {
   props?: {
     children?: unknown;
     modifiers?: { args?: unknown[]; name: string }[];
+    uiImage?: string;
   };
 };
 
@@ -28,7 +30,12 @@ type WidgetMode = 'wholesale' | 'retail';
 const serializedLayout = (resumoFinanceiroWidget as unknown as { layout: string }).layout;
 const fixedDate = new Date(2026, 9, 15, 12);
 
-function renderWidget(props: unknown, mode: WidgetMode) {
+function renderWidget(
+  props: unknown,
+  mode: WidgetMode,
+  colorScheme: 'light' | 'dark' = 'light',
+  widgetsDirectory: string | null = 'file:///group/ExpoWidgets',
+) {
   const jsx = (type: string, componentProps: Record<string, unknown>) => ({
     type,
     props: componentProps,
@@ -39,22 +46,32 @@ function renderWidget(props: unknown, mode: WidgetMode) {
 
   return runInNewContext(`(${serializedLayout})(props, environment)`, {
     props,
-    environment: { configuration: { mode }, date: fixedDate },
+    environment: { configuration: { mode }, date: fixedDate, colorScheme, widgetsDirectory },
     Date,
     _jsx: jsx,
     _jsxs: jsx,
     VStack: 'VStack',
     HStack: 'HStack',
+    Image: 'Image',
     Spacer: 'Spacer',
     Text: 'Text',
     containerBackground: modifier('containerBackground'),
+    background: modifier('background'),
+    clipped: modifier('clipped'),
+    containerRelativeFrame: modifier('containerRelativeFrame'),
+    frame: modifier('frame'),
     font: modifier('font'),
     foregroundStyle: modifier('foregroundStyle'),
-    kerning: modifier('kerning'),
     lineLimit: modifier('lineLimit'),
     minimumScaleFactor: modifier('minimumScaleFactor'),
     monospacedDigit: modifier('monospacedDigit'),
     allowsTightening: modifier('allowsTightening'),
+    resizable: modifier('resizable'),
+    scaleEffect: modifier('scaleEffect'),
+    padding: modifier('padding'),
+    shapes: {
+      roundedRectangle: (args: unknown) => ({ name: 'roundedRectangle', args }),
+    },
     widgetURL: modifier('widgetURL'),
   });
 }
@@ -76,15 +93,31 @@ function collectText(node: unknown): string[] {
   return collectText(element.props?.children);
 }
 
+function collectNodes(node: unknown, type: string): WidgetTreeNode[] {
+  if (Array.isArray(node)) {
+    return node.flatMap((child) => collectNodes(child, type));
+  }
+
+  if (!node || typeof node !== 'object') {
+    return [];
+  }
+
+  const element = node as WidgetTreeNode;
+  return [
+    ...(element.type === type ? [element] : []),
+    ...collectNodes(element.props?.children, type),
+  ];
+}
+
 describe('ResumoFinanceiro isolated widget layout', () => {
   it.each(['wholesale', 'retail'] as const)(
-    'renders current month and unavailable values for empty props in %s mode',
+    'renders the brand and unavailable values for empty props in %s mode',
     (mode) => {
       expect(collectText(renderWidget({}, mode))).toEqual([
-        'OUTUBRO 2026',
-        'FATURAMENTO',
+        'Empório Rigatti',
+        'Faturamento',
         '—',
-        'LUCRO LÍQUIDO',
+        'Lucro líquido',
         '—',
       ]);
     },
@@ -108,24 +141,83 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       for (const props of invalidProps) {
         expect(() => renderWidget(props, mode)).not.toThrow();
         expect(collectText(renderWidget(props, mode))).toEqual([
-          'OUTUBRO 2026',
-          'FATURAMENTO',
+          'Empório Rigatti',
+          'Faturamento',
           '—',
-          'LUCRO LÍQUIDO',
+          'Lucro líquido',
           '—',
         ]);
       }
     }
   });
 
-  it('uses monthKey to render a complete month and year when the saved label has only a year', () => {
-    expect(
-      collectText(renderWidget({ monthKey: '2026-11', monthLabel: '2026' }, 'wholesale'))[0],
-    ).toBe('NOVEMBRO 2026');
+  it('renders two equal rounded metric cards and omits the month label', () => {
+    const tree = renderWidget(
+      {
+        monthKey: '2026-10',
+        monthLabel: 'OUTUBRO 2026',
+        wholesale: { faturamento: 'R$ 150,00', lucroLiquido: 'R$ 45,00' },
+      },
+      'wholesale',
+    );
+
+    expect(collectText(tree)).toEqual([
+      'Empório Rigatti',
+      'Faturamento',
+      'R$ 150,00',
+      'Lucro líquido',
+      'R$ 45,00',
+    ]);
+
+    const cards = collectNodes(tree, 'VStack').filter(({ props }) =>
+      props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
+    );
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      const cardFrame = card.props?.modifiers?.find(
+        ({ name }) => name === 'containerRelativeFrame',
+      );
+      expect(cardFrame?.args?.[0]).toEqual({
+        axes: 'horizontal',
+        count: 2,
+        span: 1,
+        spacing: 12,
+      });
+      const cardBackground = card.props?.modifiers?.find(({ name }) => name === 'background');
+      expect(cardBackground?.args?.[1]).toMatchObject({
+        name: 'roundedRectangle',
+        args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
+      });
+    }
+    expect(collectNodes(tree, 'Divider')).toHaveLength(0);
   });
 
-  it('does not display a year-only label when monthKey is unavailable', () => {
-    expect(collectText(renderWidget({ monthLabel: '2026' }, 'wholesale'))[0]).toBe('OUTUBRO 2026');
+  it.each([
+    ['light', 'resumo-financeiro-splash-light.png'],
+    ['dark', 'resumo-financeiro-splash-dark.png'],
+  ] as const)('uses the canonical splash logo for %s appearance', (colorScheme, fileName) => {
+    const image = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'Image')[0];
+
+    expect(image?.props?.uiImage).toBe(`file:///group/ExpoWidgets/${fileName}`);
+    expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual([
+      'resizable',
+      'frame',
+      'scaleEffect',
+      'clipped',
+    ]);
+  });
+
+  it('keeps the values and placeholders when the shared logo directory is unavailable', () => {
+    const tree = renderWidget({}, 'wholesale', 'light', null);
+
+    expect(collectNodes(tree, 'Image')).toHaveLength(0);
+    expect(collectText(tree)).toEqual([
+      'Empório Rigatti',
+      'Faturamento',
+      '—',
+      'Lucro líquido',
+      '—',
+    ]);
   });
 
   it.each(['wholesale', 'retail'] as const)(

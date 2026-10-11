@@ -80,6 +80,12 @@ on:
           PEEKPOP_LOG_CAPTURE_ENABLED=true for that command.
         type: boolean
         default: false
+      widget_renderer_diagnostics:
+        description: >-
+          Extend the encrypted OSLog capture with WidgetKit/SwiftUI failures and
+          recent simulator crash or jetsam reports for the widget renderer.
+        type: boolean
+        default: false
       log_filter_mode:
         description: >-
           OSLog filter. subsystem captures the app bundle and its extensions
@@ -114,7 +120,7 @@ permissions:
 
 concurrency:
   group: native-sim-${{ inputs.session }}
-  cancel-in-progress: ${{ vars.PEEKPOP_LOG_CAPTURE_ENABLED != 'true' && inputs.capture_peekpop_logs != true }}
+  cancel-in-progress: ${{ vars.PEEKPOP_LOG_CAPTURE_ENABLED != 'true' && inputs.capture_peekpop_logs != true && inputs.widget_renderer_diagnostics != true }}
 
 jobs:
   peekpop-capture-smoke:
@@ -125,6 +131,7 @@ jobs:
     env:
       PEEKPOP_LOG_AGE_RECIPIENT: ${{ vars.PEEKPOP_LOG_AGE_RECIPIENT }}
       NATIVE_SIM_LOG_CATEGORIES: RigattiWidgetSync
+      NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS: "false"
       SESSION_ID: ${{ inputs.session }}
       RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
@@ -151,6 +158,23 @@ jobs:
           [ "$PEEKPOP_CAPTURE_CATEGORIES_JSON" = "[]" ] || exit 1
           [ "$PEEKPOP_CAPTURE_PREDICATE" = 'subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence"' ] || exit 1
           [ "$PEEKPOP_CAPTURE_SUBSYSTEMS_JSON" = '[{"match":"prefix","value":"com.pareact.mobile"},{"match":"exact","value":"NativeAppleIntelligence"}]' ] || exit 1
+
+          NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS=true peekpop_capture_configure_categories
+          [ "$PEEKPOP_CAPTURE_WIDGET_DIAGNOSTICS" = "true" ] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'subsystem CONTAINS[c] "WidgetKit"'* ]] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'subsystem CONTAINS[c] "SwiftUI"'* ]] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'messageType == error OR messageType == fault'* ]] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'eventMessage CONTAINS[c] "jetsam"'* ]] || exit 1
+
+          NATIVE_SIM_LOG_FILTER_MODE=category \
+            NATIVE_SIM_LOG_CATEGORIES=OpenPaymentPeekPopReturn,RigattiWidgetSync \
+            NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS=true peekpop_capture_configure_categories
+          [[ "$PEEKPOP_CAPTURE_CATEGORIES_CSV" == 'OpenPaymentPeekPopReturn,RigattiWidgetSync' ]] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'category == "OpenPaymentPeekPopReturn"'* ]] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'category == "RigattiWidgetSync"'* ]] || exit 1
+          [[ "$PEEKPOP_CAPTURE_PREDICATE" == *'memory pressure'* ]] || exit 1
+
+          NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS=false
 
           NATIVE_SIM_LOG_FILTER_MODE=category NATIVE_SIM_LOG_CATEGORIES=RigattiWidgetSync \
             peekpop_capture_configure_categories
@@ -184,6 +208,10 @@ jobs:
           if NATIVE_SIM_LOG_FILTER_MODE=unrecognized NATIVE_SIM_LOG_CATEGORIES=RigattiWidgetSync \
             peekpop_capture_configure_categories >/dev/null 2>&1; then
             echo "::error::An unknown OSLog filter mode was accepted"
+            exit 1
+          fi
+          if NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS=invalid peekpop_capture_configure_categories >/dev/null 2>&1; then
+            echo "::error::Invalid widget renderer diagnostics configuration was accepted"
             exit 1
           fi
 
@@ -492,7 +520,8 @@ jobs:
       GATE_PORT: "3199"
       PREVIEW_PORT: "3200"
       AGENT_PORT: "4310"
-      PEEKPOP_CAPTURE_ENABLED: ${{ (vars.PEEKPOP_LOG_CAPTURE_ENABLED == 'true' || inputs.capture_peekpop_logs == true) && 'true' || 'false' }}
+      PEEKPOP_CAPTURE_ENABLED: ${{ (vars.PEEKPOP_LOG_CAPTURE_ENABLED == 'true' || inputs.capture_peekpop_logs == true || inputs.widget_renderer_diagnostics == true) && 'true' || 'false' }}
+      NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS: ${{ inputs.widget_renderer_diagnostics == true && 'true' || 'false' }}
       NATIVE_SIM_LOG_CATEGORIES: ${{ vars.NATIVE_SIM_LOG_CATEGORIES }}
       NATIVE_SIM_LOG_FILTER_MODE: ${{ inputs.log_filter_mode || 'subsystem' }}
 
@@ -503,13 +532,22 @@ jobs:
 
       - name: Report OSLog capture mode
         if: inputs.peekpop_capture_smoke_test != true
+        env:
+          MODE: ${{ inputs.mode }}
         run: |
+          if [ "$NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS" = "true" ] && [ "$MODE" != "build" ]; then
+            echo "::error::Widget renderer diagnostics require mode=build to install the CNG-instrumented app extension"
+            exit 1
+          fi
           if [ "$PEEKPOP_CAPTURE_ENABLED" = "true" ]; then
             source .github/native-sim/oslog-capture.sh
             peekpop_capture_configure_categories
             echo "Filtered OSLog capture is enabled using the $NATIVE_SIM_LOG_FILTER_MODE filter."
             {
               echo "Default subsystem mode captures the app bundle identifier family and extensions, plus the existing app-owned NativeAppleIntelligence subsystem. The legacy NATIVE_SIM_LOG_CATEGORIES variable is ignored unless log_filter_mode=category is explicitly selected."
+              if [ "$NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS" = "true" ]; then
+                echo "Widget renderer diagnostics also capture WidgetKit/SwiftUI and process-termination errors, then append matching recent simulator crash/jetsam evidence before the same encrypted artifact is finalized."
+              fi
               echo "The active predicate: $PEEKPOP_CAPTURE_PREDICATE"
               echo "The public artifact contains only age-encrypted log data and a metadata manifest. Keep the matching age identity private on your own machine."
             } >> "$GITHUB_STEP_SUMMARY"
@@ -1821,12 +1859,71 @@ jobs:
           PEEKPOP_CAPTURE_FILE: ${{ steps.peekpop_capture_start.outputs.capture_file }}
           PEEKPOP_CAPTURE_MANIFEST: ${{ steps.peekpop_capture_start.outputs.manifest }}
           SESSION_ID: ${{ inputs.session }}
+          UDID: ${{ steps.sim.outputs.udid }}
+          NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS: ${{ inputs.widget_renderer_diagnostics == true && 'true' || 'false' }}
           HOLD_OUTCOME: ${{ steps.hold.outcome }}
           GRACEFUL_STOP_REQUESTED: ${{ steps.hold.outputs.graceful_stop }}
         run: |
           set -euo pipefail
           source .github/native-sim/oslog-capture.sh
           PEEKPOP_CAPTURE_ACTIVE=true
+
+          if [ "$NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS" = "true" ]; then
+            DIAGNOSTIC_APPEND=$(mktemp "$RUNNER_TEMP/widget-renderer-diagnostics.XXXXXX")
+            trap 'rm -f "$DIAGNOSTIC_APPEND"' EXIT
+            {
+              echo '===== widget renderer system diagnostics ====='
+              echo '===== simulator process snapshot ====='
+              xcrun simctl spawn "$UDID" ps -axo pid,comm,args 2>&1 || true
+              echo '===== WidgetKit, SwiftUI, and termination OSLog errors ====='
+              xcrun simctl spawn "$UDID" log show --last 60m --style compact \
+                --predicate '((subsystem CONTAINS[c] "WidgetKit" OR subsystem CONTAINS[c] "SwiftUI" OR subsystem CONTAINS[c] "frontboard" OR subsystem CONTAINS[c] "runningboard" OR subsystem CONTAINS[c] "memorystatus") AND (messageType == error OR messageType == fault)) OR ((process == "SpringBoard" OR process == "runningboardd" OR process == "memorystatusd") AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "jetsam" OR eventMessage CONTAINS[c] "memory pressure" OR eventMessage CONTAINS[c] "killed"))' 2>&1 || true
+              echo '===== recent app and widget crash/jetsam reports ====='
+            } >> "$DIAGNOSTIC_APPEND"
+
+            APP=$(find build/native-sim-app -maxdepth 1 -name '*.app' -print -quit)
+            APP_BUNDLE_ID=''
+            if [ -n "$APP" ] && [ -f "$APP/Info.plist" ]; then
+              APP_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" 2>/dev/null || true)
+            fi
+            WIDGET_BUNDLE_IDS=("")
+            if [ -n "$APP" ] && [ -d "$APP/PlugIns" ]; then
+              for WIDGET_EXTENSION in "$APP"/PlugIns/*.appex; do
+                [ -d "$WIDGET_EXTENSION" ] || continue
+                WIDGET_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WIDGET_EXTENSION/Info.plist" 2>/dev/null || true)
+                [ -n "$WIDGET_BUNDLE_ID" ] && WIDGET_BUNDLE_IDS+=("$WIDGET_BUNDLE_ID")
+              done
+            fi
+            MATCHED_REPORTS=0
+            REPORT_ROOTS=("$HOME/Library/Logs/DiagnosticReports" "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Library/Logs/CrashReporter")
+            for REPORT_ROOT in "${REPORT_ROOTS[@]}"; do
+              [ -d "$REPORT_ROOT" ] || continue
+              while IFS= read -r -d '' REPORT; do
+                REPORT_MATCH=false
+                for BUNDLE_ID in "$APP_BUNDLE_ID" "${WIDGET_BUNDLE_IDS[@]}"; do
+                  if [ -n "$BUNDLE_ID" ] && grep -Fq "$BUNDLE_ID" "$REPORT" 2>/dev/null; then
+                    REPORT_MATCH=true
+                    break
+                  fi
+                done
+                if [ "$REPORT_MATCH" = "true" ] || [[ "$(basename "$REPORT")" =~ JetsamEvent ]] || grep -Eiq 'ExpoWidgetsTarget|JetsamEvent|memorystatus|memory pressure' "$REPORT" 2>/dev/null; then
+                  {
+                    echo "===== report_file=$(basename "$REPORT") ====="
+                    cat "$REPORT"
+                  } >> "$DIAGNOSTIC_APPEND"
+                  MATCHED_REPORTS=$((MATCHED_REPORTS + 1))
+                fi
+              done < <(find "$REPORT_ROOT" -type f -mmin -60 -print0 2>/dev/null)
+            done
+
+            if [ -n "${PEEKPOP_CAPTURE_RAW:-}" ] && [ -f "$PEEKPOP_CAPTURE_RAW" ]; then
+              cat "$DIAGNOSTIC_APPEND" >> "$PEEKPOP_CAPTURE_RAW"
+              echo "Appended system diagnostics and $MATCHED_REPORTS matching recent reports to the encrypted OSLog capture."
+            else
+              echo "::warning::Widget renderer system diagnostics could not be appended because the OSLog raw capture is missing"
+            fi
+          fi
+
           case "$HOLD_OUTCOME" in
             success)
               CAPTURE_OUTCOME="completed"

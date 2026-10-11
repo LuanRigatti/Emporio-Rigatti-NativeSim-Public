@@ -185,6 +185,10 @@ module.exports = {
         './plugins/withResumoFinanceiroDiagnostics',
       ],
       [
+        // Temporary renderer/image probes are applied reproducibly to the installed Swift package sources during CNG.
+        './plugins/withResumoFinanceiroRendererDiagnostics',
+      ],
+      [
         'expo-widgets',
         {
           enablePushNotifications: false,

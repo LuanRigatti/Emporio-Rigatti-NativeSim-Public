@@ -5,6 +5,9 @@
 peekpop_capture_configure_categories() {
   local raw="${NATIVE_SIM_LOG_CATEGORIES-}"
   local mode="${NATIVE_SIM_LOG_FILTER_MODE:-subsystem}"
+  local widget_diagnostics="${NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS:-false}"
+  local app_predicate='subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence"'
+  local widget_system_predicate='((subsystem CONTAINS[c] "WidgetKit" OR subsystem CONTAINS[c] "SwiftUI" OR subsystem CONTAINS[c] "frontboard" OR subsystem CONTAINS[c] "runningboard" OR subsystem CONTAINS[c] "memorystatus") AND (messageType == error OR messageType == fault)) OR ((process == "SpringBoard" OR process == "runningboardd" OR process == "memorystatusd") AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "jetsam" OR eventMessage CONTAINS[c] "memory pressure" OR eventMessage CONTAINS[c] "killed"))'
   local category remaining final_category
   local count=0
 
@@ -14,9 +17,21 @@ peekpop_capture_configure_categories() {
   PEEKPOP_CAPTURE_SUBSYSTEMS_JSON='[{"match":"prefix","value":"com.pareact.mobile"},{"match":"exact","value":"NativeAppleIntelligence"}]'
   PEEKPOP_CAPTURE_SUBSYSTEMS=('prefix|com.pareact.mobile' 'exact|NativeAppleIntelligence')
   PEEKPOP_CAPTURE_FILTER_MODE="subsystem"
-  PEEKPOP_CAPTURE_PREDICATE='subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence"'
+  PEEKPOP_CAPTURE_PREDICATE="$app_predicate"
+  PEEKPOP_CAPTURE_WIDGET_DIAGNOSTICS=false
+
+  if [ "$widget_diagnostics" != "true" ] && [ "$widget_diagnostics" != "false" ]; then
+    echo "::error::NATIVE_SIM_WIDGET_RENDER_DIAGNOSTICS must be true or false"
+    return 1
+  fi
+  if [ "$widget_diagnostics" = "true" ]; then
+    PEEKPOP_CAPTURE_WIDGET_DIAGNOSTICS=true
+  fi
 
   if [ "$mode" = "subsystem" ]; then
+    if [ "$widget_diagnostics" = "true" ]; then
+      PEEKPOP_CAPTURE_PREDICATE="($app_predicate) OR ($widget_system_predicate)"
+    fi
     return 0
   fi
   if [ "$mode" != "category" ]; then
@@ -86,6 +101,9 @@ peekpop_capture_configure_categories() {
   done
 
   PEEKPOP_CAPTURE_CATEGORIES_JSON+="]"
+  if [ "$widget_diagnostics" = "true" ]; then
+    PEEKPOP_CAPTURE_PREDICATE="($PEEKPOP_CAPTURE_PREDICATE) OR ($widget_system_predicate)"
+  fi
 }
 
 peekpop_capture_preflight() {
@@ -259,7 +277,7 @@ peekpop_capture_finish() {
   fi
 
   local event_count finish_at ciphertext_sha256
-  event_count=$(awk '!/^[[:space:]]*(Filtering the log data using|Timestamp[[:space:]]+Thread|[-=]{3,})/ && NF { records += 1 } END { print records + 0 }' "$PEEKPOP_CAPTURE_RAW")
+  event_count=$(awk '/^===== widget renderer system diagnostics =====/ { exit } !/^[[:space:]]*(Filtering the log data using|Timestamp[[:space:]]+Thread|[-=]{3,})/ && NF { records += 1 } END { print records + 0 }' "$PEEKPOP_CAPTURE_RAW")
   finish_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
   if ! age -r "$PEEKPOP_LOG_AGE_RECIPIENT" \

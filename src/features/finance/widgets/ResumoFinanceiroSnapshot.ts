@@ -16,6 +16,19 @@ export type ResumoFinanceiroWidgetProps = {
   retail: FinanceWidgetDomainSnapshot;
 };
 
+export type FinanceWidgetDomainTimelineProps = {
+  faturamento?: string;
+  lucroLiquido?: string;
+};
+
+export type ResumoFinanceiroWidgetTimelineProps = Pick<
+  ResumoFinanceiroWidgetProps,
+  'monthKey' | 'monthLabel'
+> & {
+  wholesale: FinanceWidgetDomainTimelineProps;
+  retail: FinanceWidgetDomainTimelineProps;
+};
+
 export function getFinanceWidgetMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
@@ -52,18 +65,45 @@ export function unavailableFinanceWidgetProps(monthKey: string): ResumoFinanceir
   };
 }
 
+function serializeFinanceWidgetDomain(
+  domain: FinanceWidgetDomainSnapshot,
+): FinanceWidgetDomainTimelineProps {
+  const props: FinanceWidgetDomainTimelineProps = {};
+
+  if (typeof domain.faturamento === 'string') {
+    props.faturamento = domain.faturamento;
+  }
+  if (typeof domain.lucroLiquido === 'string') {
+    props.lucroLiquido = domain.lucroLiquido;
+  }
+
+  return props;
+}
+
+function serializeFinanceWidgetProps(
+  snapshot: ResumoFinanceiroWidgetProps,
+): ResumoFinanceiroWidgetTimelineProps {
+  return {
+    monthKey: snapshot.monthKey,
+    monthLabel: snapshot.monthLabel,
+    wholesale: serializeFinanceWidgetDomain(snapshot.wholesale),
+    retail: serializeFinanceWidgetDomain(snapshot.retail),
+  };
+}
+
 export function createFinanceWidgetTimeline(
   current: ResumoFinanceiroWidgetProps,
   now: Date,
-): WidgetTimelineEntry<ResumoFinanceiroWidgetProps>[] {
+): WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[] {
   const [year, month] = current.monthKey.split('-').map(Number);
   const nextMonth = getNextFinanceWidgetMonth(current.monthKey);
+  const nextMonthSnapshot = unavailableFinanceWidgetProps(nextMonth);
 
   return [
-    { date: now, props: current },
+    { date: now, props: serializeFinanceWidgetProps(current) },
     {
       date: new Date(year, month, 1),
-      props: unavailableFinanceWidgetProps(nextMonth),
+      props: serializeFinanceWidgetProps(nextMonthSnapshot),
     },
   ];
 }

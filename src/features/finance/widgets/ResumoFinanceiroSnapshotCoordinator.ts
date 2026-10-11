@@ -30,6 +30,7 @@ import {
   getFinanceWidgetMonthLabel,
   unavailableFinanceWidgetProps,
   type ResumoFinanceiroWidgetProps,
+  type ResumoFinanceiroWidgetTimelineProps,
 } from './ResumoFinanceiroSnapshot';
 import {
   recordFinanceWidgetPublishResult,
@@ -76,9 +77,9 @@ class ResumoFinanceiroSnapshotCoordinator {
   private generation = 0;
   private wholesaleRevision = 0;
   private updateWidgetTimeline:
-    ((entries: WidgetTimelineEntry<ResumoFinanceiroWidgetProps>[]) => void) | null = null;
+    ((entries: WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[]) => void) | null = null;
   private readWidgetTimeline:
-    (() => Promise<WidgetTimelineEntry<ResumoFinanceiroWidgetProps>[]>) | null = null;
+    (() => Promise<WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[]>) | null = null;
   private snapshot: ResumoFinanceiroWidgetProps = unavailableFinanceWidgetProps(
     getFinanceWidgetMonthKey(new Date()),
   );

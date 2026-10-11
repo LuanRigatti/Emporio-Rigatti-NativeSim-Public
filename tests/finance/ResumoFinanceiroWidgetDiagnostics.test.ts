@@ -15,8 +15,8 @@ describe('ResumoFinanceiro widget diagnostic timeline summary', () => {
         props: {
           monthKey: '2026-10',
           monthLabel: 'OUTUBRO 2026',
-          wholesale: { faturamento: 'R$ 1.234,56', lucroLiquido: null },
-          retail: { faturamento: null, lucroLiquido: null },
+          wholesale: { faturamento: 'R$ 1.234,56' },
+          retail: {},
         },
       },
       {
@@ -24,8 +24,8 @@ describe('ResumoFinanceiro widget diagnostic timeline summary', () => {
         props: {
           monthKey: '2026-11',
           monthLabel: 'NOVEMBRO 2026',
-          wholesale: { faturamento: null, lucroLiquido: null },
-          retail: { faturamento: null, lucroLiquido: null },
+          wholesale: {},
+          retail: {},
         },
       },
       { date: new Date('invalid'), props: {} },
@@ -33,6 +33,31 @@ describe('ResumoFinanceiro widget diagnostic timeline summary', () => {
     ]);
 
     expect(summary).toEqual({ entryCount: 4, validEntryCount: 2 });
+  });
+
+  it('rejects null and undefined metric values in serialized timeline props', () => {
+    expect(
+      summarizeFinanceWidgetTimeline([
+        {
+          date: new Date('2026-10-01T12:00:00.000Z'),
+          props: {
+            monthKey: '2026-10',
+            monthLabel: 'OUTUBRO 2026',
+            wholesale: { faturamento: null },
+            retail: {},
+          },
+        },
+        {
+          date: new Date('2026-10-01T12:00:00.000Z'),
+          props: {
+            monthKey: '2026-10',
+            monthLabel: 'OUTUBRO 2026',
+            wholesale: { lucroLiquido: undefined },
+            retail: {},
+          },
+        },
+      ]),
+    ).toEqual({ entryCount: 2, validEntryCount: 0 });
   });
 
   it('reports an empty summary for a missing or malformed timeline result', () => {

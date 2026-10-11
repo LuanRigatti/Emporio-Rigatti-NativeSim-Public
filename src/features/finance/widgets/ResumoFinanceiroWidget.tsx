@@ -11,14 +11,17 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget } from 'expo-widgets';
 
-import type { FinanceWidgetMode, ResumoFinanceiroWidgetProps } from './ResumoFinanceiroSnapshot';
+import type {
+  FinanceWidgetMode,
+  ResumoFinanceiroWidgetTimelineProps,
+} from './ResumoFinanceiroSnapshot';
 
 type ResumoFinanceiroConfiguration = {
   mode: FinanceWidgetMode;
 };
 
 function ResumoFinanceiroWidget(
-  props: Partial<ResumoFinanceiroWidgetProps> | null | undefined,
+  props: Partial<ResumoFinanceiroWidgetTimelineProps> | null | undefined,
   environment:
     { configuration?: ResumoFinanceiroConfiguration | null; date?: Date | null } | null | undefined,
 ) {
@@ -130,6 +133,6 @@ function ResumoFinanceiroWidget(
 }
 
 export const resumoFinanceiroWidget = createWidget<
-  ResumoFinanceiroWidgetProps,
+  ResumoFinanceiroWidgetTimelineProps,
   ResumoFinanceiroConfiguration
 >('ResumoFinanceiro', ResumoFinanceiroWidget);

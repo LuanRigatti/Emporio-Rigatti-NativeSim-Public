@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { WidgetTimelineEntry } from 'expo-widgets';
 
-import type { ResumoFinanceiroWidgetProps } from './ResumoFinanceiroSnapshot';
+import type { ResumoFinanceiroWidgetTimelineProps } from './ResumoFinanceiroSnapshot';
 
 type PublishStage = 'update_timeline' | 'widget_module_load';
 
@@ -50,12 +50,13 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isMetricShape(value: unknown): boolean {
-  return value === null || typeof value === 'string';
-}
-
 function isFinanceDomainShape(value: unknown): boolean {
-  return isRecord(value) && isMetricShape(value.faturamento) && isMetricShape(value.lucroLiquido);
+  if (!isRecord(value)) return false;
+
+  const isOptionalString = (key: 'faturamento' | 'lucroLiquido'): boolean =>
+    !Object.prototype.hasOwnProperty.call(value, key) || typeof value[key] === 'string';
+
+  return isOptionalString('faturamento') && isOptionalString('lucroLiquido');
 }
 
 function isWidgetPropsShape(value: unknown): boolean {
@@ -139,7 +140,7 @@ function safelyLog(action: (module: NativeWidgetDiagnosticsModule) => void): voi
 }
 
 export function recordFinanceWidgetPublishStart(
-  entries: WidgetTimelineEntry<ResumoFinanceiroWidgetProps>[],
+  entries: WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[],
 ): void {
   const props = entries[0]?.props;
   safelyLog((module) =>

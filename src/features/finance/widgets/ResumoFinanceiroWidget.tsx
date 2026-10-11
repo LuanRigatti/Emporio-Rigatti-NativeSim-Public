@@ -8,6 +8,7 @@ import {
   lineLimit,
   minimumScaleFactor,
   monospacedDigit,
+  widgetURL,
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget } from 'expo-widgets';
 
@@ -28,8 +29,8 @@ function ResumoFinanceiroWidget(
   'widget';
 
   const safeProps = props && typeof props === 'object' ? props : undefined;
-  const selectedDomain =
-    environment?.configuration?.mode === 'retail' ? safeProps?.retail : safeProps?.wholesale;
+  const mode = environment?.configuration?.mode === 'retail' ? 'retail' : 'wholesale';
+  const selectedDomain = mode === 'retail' ? safeProps?.retail : safeProps?.wholesale;
   const values = selectedDomain && typeof selectedDomain === 'object' ? selectedDomain : undefined;
   const monthNames = [
     'JANEIRO',
@@ -49,11 +50,39 @@ function ResumoFinanceiroWidget(
     environment?.date instanceof Date && !Number.isNaN(environment.date.getTime())
       ? environment.date
       : new Date();
+  const monthKeyParts =
+    typeof safeProps?.monthKey === 'string' ? safeProps.monthKey.split('-') : [];
+  const monthKeyYear = monthKeyParts[0];
+  const monthKeyMonth = Number(monthKeyParts[1]);
+  const monthKeyIsValid =
+    monthKeyParts.length === 2 &&
+    typeof monthKeyYear === 'string' &&
+    monthKeyYear.length === 4 &&
+    monthKeyYear.split('').every((digit) => digit >= '0' && digit <= '9') &&
+    Number.isInteger(monthKeyMonth) &&
+    monthKeyMonth >= 1 &&
+    monthKeyMonth <= 12 &&
+    monthKeyParts[1] === String(monthKeyMonth).padStart(2, '0');
   const providedMonthLabel = safeProps?.monthLabel;
-  const monthLabel =
-    typeof providedMonthLabel === 'string' && providedMonthLabel.trim().length > 0
-      ? providedMonthLabel
+  const normalizedProvidedMonthLabel =
+    typeof providedMonthLabel === 'string' ? providedMonthLabel.trim() : '';
+  const providedMonthLabelParts = normalizedProvidedMonthLabel.split(' ').filter(Boolean);
+  const providedYear = providedMonthLabelParts[providedMonthLabelParts.length - 1];
+  const providedMonthLabelIsComplete =
+    providedMonthLabelParts.length >= 2 &&
+    typeof providedYear === 'string' &&
+    providedYear.length === 4 &&
+    providedYear.split('').every((digit) => digit >= '0' && digit <= '9');
+  const monthLabel = monthKeyIsValid
+    ? `${monthNames[monthKeyMonth - 1]} ${monthKeyYear}`
+    : providedMonthLabelIsComplete
+      ? normalizedProvidedMonthLabel
       : `${monthNames[environmentDate.getMonth()]} ${environmentDate.getFullYear()}`;
+  const financeRouteURL = safeProps?.financeRouteURL;
+  const destinationURL =
+    typeof financeRouteURL === 'string' && financeRouteURL.trim().length > 0
+      ? `${financeRouteURL}${financeRouteURL.includes('?') ? '&' : '?'}mode=${mode}`
+      : undefined;
   const faturamento = values?.faturamento;
   const lucroLiquido = values?.lucroLiquido;
   const faturamentoLabel =
@@ -64,29 +93,33 @@ function ResumoFinanceiroWidget(
   return (
     <VStack
       alignment="leading"
-      spacing={0}
-      modifiers={[containerBackground({ type: 'material', material: 'regular' }, 'widget')]}
+      spacing={4}
+      modifiers={[
+        containerBackground({ type: 'material', material: 'regular' }, 'widget'),
+        ...(destinationURL ? [widgetURL(destinationURL)] : []),
+      ]}
     >
       <HStack>
         <Spacer minLength={0} />
         <Text
           modifiers={[
-            font({ weight: 'medium', size: 9 }),
-            foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-            kerning(1),
+            font({ weight: 'medium', size: 10 }),
+            foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+            kerning(0.4),
             lineLimit(1),
+            minimumScaleFactor(0.75),
+            allowsTightening(true),
           ]}
         >
           {monthLabel}
         </Text>
       </HStack>
-      <Spacer minLength={5} />
-      <VStack alignment="leading" spacing={1}>
+      <VStack alignment="leading" spacing={2}>
         <Text
           modifiers={[
-            font({ weight: 'medium', size: 9 }),
-            foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-            kerning(1.2),
+            font({ weight: 'semibold', size: 10 }),
+            foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+            kerning(0.9),
             lineLimit(1),
           ]}
         >
@@ -94,7 +127,8 @@ function ResumoFinanceiroWidget(
         </Text>
         <Text
           modifiers={[
-            font({ weight: 'semibold', size: 25 }),
+            font({ weight: 'semibold', size: 27 }),
+            foregroundStyle({ type: 'hierarchical', style: 'primary' }),
             monospacedDigit(),
             lineLimit(1),
             minimumScaleFactor(0.55),
@@ -104,13 +138,12 @@ function ResumoFinanceiroWidget(
           {faturamentoLabel}
         </Text>
       </VStack>
-      <Spacer minLength={5} />
-      <VStack alignment="leading" spacing={1}>
+      <VStack alignment="leading" spacing={2}>
         <Text
           modifiers={[
-            font({ weight: 'medium', size: 9 }),
-            foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-            kerning(1.2),
+            font({ weight: 'semibold', size: 10 }),
+            foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+            kerning(0.9),
             lineLimit(1),
           ]}
         >
@@ -118,7 +151,8 @@ function ResumoFinanceiroWidget(
         </Text>
         <Text
           modifiers={[
-            font({ weight: 'semibold', size: 25 }),
+            font({ weight: 'semibold', size: 27 }),
+            foregroundStyle({ type: 'hierarchical', style: 'primary' }),
             monospacedDigit(),
             lineLimit(1),
             minimumScaleFactor(0.55),
@@ -128,6 +162,7 @@ function ResumoFinanceiroWidget(
           {lucroLiquidoLabel}
         </Text>
       </VStack>
+      <Spacer minLength={0} />
     </VStack>
   );
 }

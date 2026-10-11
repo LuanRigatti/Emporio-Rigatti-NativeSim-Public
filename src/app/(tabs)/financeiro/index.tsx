@@ -1,6 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  router,
+  Stack,
+  useFocusEffect,
+  useIsFocused,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Loading } from '@/components/feedback';
@@ -40,7 +47,37 @@ import { todayIso } from '@/utils/data';
 import { getFinanceWidgetMonthKey } from '@/features/finance/widgets/ResumoFinanceiroSnapshot';
 
 export default function FinanceiroRoute() {
-  const { mode } = useAppMode();
+  const { mode: requestedModeParam } = useLocalSearchParams<{ mode?: string | string[] }>();
+  const { isReady, mode, setMode } = useAppMode();
+  const modeIntentState = useRef<'idle' | 'applying' | 'consumed'>('idle');
+  const requestedMode =
+    requestedModeParam === 'wholesale' || requestedModeParam === 'retail'
+      ? requestedModeParam
+      : undefined;
+
+  useEffect(() => {
+    if (!requestedMode) {
+      modeIntentState.current = 'idle';
+      return;
+    }
+    if (!isReady) return;
+
+    if (mode !== requestedMode) {
+      if (modeIntentState.current !== 'applying') {
+        modeIntentState.current = 'applying';
+        setMode(requestedMode);
+      }
+      return;
+    }
+
+    if (modeIntentState.current !== 'consumed') {
+      modeIntentState.current = 'consumed';
+      router.setParams({ mode: undefined });
+    }
+  }, [isReady, mode, requestedMode, setMode]);
+
+  if (requestedMode && (!isReady || mode !== requestedMode)) return null;
+
   return mode === 'retail' ? <RetailFinanceScreen /> : <WholesaleFinanceScreen />;
 }
 

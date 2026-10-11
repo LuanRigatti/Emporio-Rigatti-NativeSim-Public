@@ -17,7 +17,10 @@ jest.mock('expo-widgets', () => ({
 
 type WidgetTreeNode = {
   type: string;
-  props?: { children?: unknown };
+  props?: {
+    children?: unknown;
+    modifiers?: { args?: unknown[]; name: string }[];
+  };
 };
 
 type WidgetMode = 'wholesale' | 'retail';
@@ -52,6 +55,7 @@ function renderWidget(props: unknown, mode: WidgetMode) {
     minimumScaleFactor: modifier('minimumScaleFactor'),
     monospacedDigit: modifier('monospacedDigit'),
     allowsTightening: modifier('allowsTightening'),
+    widgetURL: modifier('widgetURL'),
   });
 }
 
@@ -112,6 +116,39 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         ]);
       }
     }
+  });
+
+  it('uses monthKey to render a complete month and year when the saved label has only a year', () => {
+    expect(
+      collectText(renderWidget({ monthKey: '2026-11', monthLabel: '2026' }, 'wholesale'))[0],
+    ).toBe('NOVEMBRO 2026');
+  });
+
+  it('does not display a year-only label when monthKey is unavailable', () => {
+    expect(collectText(renderWidget({ monthLabel: '2026' }, 'wholesale'))[0]).toBe('OUTUBRO 2026');
+  });
+
+  it.each(['wholesale', 'retail'] as const)(
+    'sets the native widget URL for the configured %s mode',
+    (mode) => {
+      const tree = renderWidget(
+        { financeRouteURL: 'pareact://financeiro' },
+        mode,
+      ) as WidgetTreeNode;
+      const routeModifier = tree.props?.modifiers?.find(({ name }) => name === 'widgetURL');
+
+      expect(routeModifier?.args).toEqual([`pareact://financeiro?mode=${mode}`]);
+    },
+  );
+
+  it('appends the configured mode when the app URL already contains query parameters', () => {
+    const tree = renderWidget(
+      { financeRouteURL: 'pareact://financeiro?channel=development' },
+      'retail',
+    ) as WidgetTreeNode;
+    const routeModifier = tree.props?.modifiers?.find(({ name }) => name === 'widgetURL');
+
+    expect(routeModifier?.args).toEqual(['pareact://financeiro?channel=development&mode=retail']);
   });
 
   it.each([

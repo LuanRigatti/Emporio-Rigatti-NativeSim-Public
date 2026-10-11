@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import type { WidgetTimelineEntry } from 'expo-widgets';
+import * as Linking from 'expo-linking';
 
 import { getHistoryMonthRange } from '@/features/history/utils/historyPeriodUtils';
 import {
@@ -113,9 +114,6 @@ class ResumoFinanceiroSnapshotCoordinator {
     if (!normalizedUid) return;
 
     this.refreshRetailSnapshot();
-    void this.refreshWholesaleFromCache(normalizedUid, sessionVersion, generation).catch(
-      () => undefined,
-    );
     void retailFinanceDatasetService
       .hydrateFromCache(normalizedUid, sessionVersion)
       .then(() => {
@@ -124,6 +122,17 @@ class ResumoFinanceiroSnapshotCoordinator {
         }
       })
       .catch(() => undefined);
+  }
+
+  public refreshAvailableSnapshotsFromCache(uid: string, sessionVersion?: number): void {
+    const normalizedUid = uid.trim();
+    const generation = this.generation;
+    if (!normalizedUid || !this.isCurrentSession(normalizedUid, sessionVersion, generation)) return;
+
+    this.refreshRetailSnapshot();
+    void this.refreshWholesaleFromCache(normalizedUid, sessionVersion, generation).catch(
+      () => undefined,
+    );
   }
 
   public publishWholesale(snapshot: WholesaleFinanceSnapshot): void {
@@ -260,7 +269,11 @@ class ResumoFinanceiroSnapshotCoordinator {
       ...this.snapshot,
       monthLabel: getFinanceWidgetMonthLabel(this.snapshot.monthKey),
     };
-    const entries = createFinanceWidgetTimeline(this.snapshot, new Date());
+    const entries = createFinanceWidgetTimeline(
+      this.snapshot,
+      new Date(),
+      Linking.createURL('/financeiro'),
+    );
     recordFinanceWidgetPublishStart(entries);
     try {
       updateWidgetTimeline(entries);

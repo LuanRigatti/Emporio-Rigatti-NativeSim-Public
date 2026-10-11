@@ -25,6 +25,7 @@ export type ResumoFinanceiroWidgetTimelineProps = Pick<
   ResumoFinanceiroWidgetProps,
   'monthKey' | 'monthLabel'
 > & {
+  financeRouteURL?: string;
   wholesale: FinanceWidgetDomainTimelineProps;
   retail: FinanceWidgetDomainTimelineProps;
 };
@@ -82,10 +83,12 @@ function serializeFinanceWidgetDomain(
 
 function serializeFinanceWidgetProps(
   snapshot: ResumoFinanceiroWidgetProps,
+  financeRouteURL?: string,
 ): ResumoFinanceiroWidgetTimelineProps {
   return {
     monthKey: snapshot.monthKey,
     monthLabel: snapshot.monthLabel,
+    ...(financeRouteURL ? { financeRouteURL } : {}),
     wholesale: serializeFinanceWidgetDomain(snapshot.wholesale),
     retail: serializeFinanceWidgetDomain(snapshot.retail),
   };
@@ -94,16 +97,17 @@ function serializeFinanceWidgetProps(
 export function createFinanceWidgetTimeline(
   current: ResumoFinanceiroWidgetProps,
   now: Date,
+  financeRouteURL?: string,
 ): WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[] {
   const [year, month] = current.monthKey.split('-').map(Number);
   const nextMonth = getNextFinanceWidgetMonth(current.monthKey);
   const nextMonthSnapshot = unavailableFinanceWidgetProps(nextMonth);
 
   return [
-    { date: now, props: serializeFinanceWidgetProps(current) },
+    { date: now, props: serializeFinanceWidgetProps(current, financeRouteURL) },
     {
       date: new Date(year, month, 1),
-      props: serializeFinanceWidgetProps(nextMonthSnapshot),
+      props: serializeFinanceWidgetProps(nextMonthSnapshot, financeRouteURL),
     },
   ];
 }

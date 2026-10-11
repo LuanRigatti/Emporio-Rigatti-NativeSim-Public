@@ -3,7 +3,14 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ComponentType, type ReactNode } from 'react';
 
-const mockAppMode = { mode: 'wholesale' as 'wholesale' | 'retail' };
+const mockSetAppMode = jest.fn();
+const mockAppMode = {
+  isReady: true,
+  mode: 'wholesale' as 'wholesale' | 'retail',
+  setMode: mockSetAppMode,
+};
+const mockFinanceRouteParams: { mode?: string | string[] } = {};
+const mockRouterSetParams = jest.fn();
 const mockIsFocused = { value: true };
 const mockFuelCostsState = { isReady: false };
 let mockFocusEffectCallback: (() => void | (() => void)) | undefined;
@@ -118,11 +125,13 @@ const mockExpenseQueryForWholesaleFinanceSelection = jest.fn(
 );
 
 jest.mock('expo-router', () => ({
+  router: { setParams: mockRouterSetParams },
   Stack: {
     Toolbar: mockToolbar,
   },
   useFocusEffect: mockUseFocusEffect,
   useIsFocused: () => mockIsFocused.value,
+  useLocalSearchParams: () => mockFinanceRouteParams,
   useRouter: () => ({ push: mockRouterPush }),
 }));
 jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
@@ -255,6 +264,8 @@ const FinanceiroRoute = require('@/app/(tabs)/financeiro/index').default as Comp
 describe('Financeiro AppMode routing', () => {
   beforeEach(() => {
     mockAppMode.mode = 'wholesale';
+    mockAppMode.isReady = true;
+    mockFinanceRouteParams.mode = undefined;
     mockIsFocused.value = true;
     mockFuelCostsState.isReady = false;
     mockFocusEffectCallback = undefined;
@@ -279,6 +290,8 @@ describe('Financeiro AppMode routing', () => {
     mockFinancialData.mockClear();
     mockExpenseQueryForWholesaleFinanceSelection.mockClear();
     mockRouterPush.mockClear();
+    mockRouterSetParams.mockClear();
+    mockSetAppMode.mockClear();
     mockCalculateResumo.mockReset();
     mockCompareCalendarMonths.mockReset();
   });
@@ -303,6 +316,24 @@ describe('Financeiro AppMode routing', () => {
     expect(renderer.root.findAll((node) => String(node.type) === 'premium-screen')).toHaveLength(1);
     expect(mockRetailFinance).not.toHaveBeenCalled();
   });
+
+  it.each(['wholesale', 'retail'] as const)(
+    'applies and consumes the %s mode from the widget deep link',
+    (requestedMode) => {
+      mockAppMode.mode = requestedMode === 'retail' ? 'wholesale' : 'retail';
+      mockFinanceRouteParams.mode = requestedMode;
+
+      const renderer = renderRoute();
+      expect(mockSetAppMode).toHaveBeenCalledWith(requestedMode);
+
+      act(() => {
+        mockAppMode.mode = requestedMode;
+        renderer.update(createElement(FinanceiroRoute));
+      });
+
+      expect(mockRouterSetParams).toHaveBeenCalledWith({ mode: undefined });
+    },
+  );
 
   it('renders the Wholesale period selector in the canonical order with month selected', () => {
     const renderer = renderRoute();

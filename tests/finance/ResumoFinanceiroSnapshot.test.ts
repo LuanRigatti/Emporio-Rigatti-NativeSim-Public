@@ -116,6 +116,17 @@ describe('ResumoFinanceiro widget snapshot', () => {
     expect(timeline[0]?.props.retail.lucroLiquido).toBe(formatCurrency(0));
   });
 
+  it('includes the app-generated Finance route in both timeline entries', () => {
+    const timeline = createFinanceWidgetTimeline(
+      unavailableFinanceWidgetProps('2026-10'),
+      new Date(2026, 9, 15, 10, 30),
+      'pareact://financeiro',
+    );
+
+    expect(timeline[0]?.props.financeRouteURL).toBe('pareact://financeiro');
+    expect(timeline[1]?.props.financeRouteURL).toBe('pareact://financeiro');
+  });
+
   it('keeps both entries recursively property-list compatible', () => {
     const snapshots = [
       unavailableFinanceWidgetProps('2026-10'),

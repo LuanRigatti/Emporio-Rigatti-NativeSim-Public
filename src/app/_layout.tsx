@@ -8,7 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Font from 'expo-font';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -163,11 +163,42 @@ function AppShell() {
 
   useEffect(() => {
     if (!sessionUid) return;
-    const today = new Date();
-    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    void financialPeriodSnapshotCache.read(sessionUid, currentMonth);
+
+    let active = true;
+    const initialToday = new Date();
+    const currentMonth = `${initialToday.getFullYear()}-${String(initialToday.getMonth() + 1).padStart(2, '0')}`;
+    const refreshWidgetFromCache = () => {
+      if (Platform.OS !== 'ios') return;
+      const today = new Date();
+      const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      void financialPeriodSnapshotCache
+        .read(sessionUid, currentMonth)
+        .then(() =>
+          import('@/features/finance/widgets/ResumoFinanceiroSnapshotCoordinator').then(
+            ({ resumoFinanceiroSnapshotCoordinator }) => {
+              if (active) {
+                resumoFinanceiroSnapshotCoordinator.refreshAvailableSnapshotsFromCache(
+                  sessionUid,
+                  sessionVersion,
+                );
+              }
+            },
+          ),
+        )
+        .catch(() => undefined);
+    };
+
+    refreshWidgetFromCache();
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') refreshWidgetFromCache();
+    });
     void stockPeriodSnapshotCache.read(sessionUid, currentMonth);
-  }, [sessionKey, sessionUid]);
+
+    return () => {
+      active = false;
+      appStateSubscription.remove();
+    };
+  }, [sessionKey, sessionUid, sessionVersion]);
 
   return (
     <InitialCacheHydrationContext.Provider value={isCacheHydrated}>

@@ -594,10 +594,19 @@ function Get-ValidatedManifest {
     }
     $seen += $value
   }
+  $widgetSystemPredicate = '((subsystem CONTAINS[c] "WidgetKit" OR subsystem CONTAINS[c] "SwiftUI" OR subsystem CONTAINS[c] "frontboard" OR subsystem CONTAINS[c] "runningboard" OR subsystem CONTAINS[c] "memorystatus") AND (messageType == error OR messageType == fault)) OR ((process == "SpringBoard" OR process == "runningboardd" OR process == "memorystatusd") AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "jetsam" OR eventMessage CONTAINS[c] "memory pressure" OR eventMessage CONTAINS[c] "killed"))'
+  $widgetDiagnosticsSelected = $false
+  $rigattiWidgetCategorySelected = $false
   if ($filterMode -eq 'category') {
     $expectedPredicate = (@($categories | ForEach-Object { 'category == "' + [string]$_ + '"' }) -join ' OR ')
-    if ([string]$manifest.predicate -ne $expectedPredicate) { throw 'manifest.json predicate does not exactly match its category list.' }
+    $diagnosticPredicate = '(' + $expectedPredicate + ') OR (' + $widgetSystemPredicate + ')'
+    if ([string]$manifest.predicate -eq $diagnosticPredicate) {
+      $widgetDiagnosticsSelected = $true
+    } elseif ([string]$manifest.predicate -ne $expectedPredicate) {
+      throw 'manifest.json predicate does not exactly match its category list or the approved widget diagnostics extension.'
+    }
     if ([string]$manifest.category -ne [string]$categories[0]) { throw 'manifest.json primary category does not match its category list.' }
+    $rigattiWidgetCategorySelected = $categories -contains 'RigattiWidgetSync'
     if ($schemaVersion -eq 3 -and @($manifest.subsystems).Count -ne 0) {
       throw 'Category-filtered manifest must have an empty subsystem list.'
     }
@@ -632,8 +641,17 @@ function Get-ValidatedManifest {
       throw 'manifest.json omits an expected app-owned subsystem selector.'
     }
     $expectedPredicate = $selectorParts -join ' OR '
-    if ([string]$manifest.predicate -ne $expectedPredicate) { throw 'manifest.json predicate does not exactly match its subsystem selectors.' }
+    $diagnosticPredicate = '(' + $expectedPredicate + ') OR (' + $widgetSystemPredicate + ')'
+    if ([string]$manifest.predicate -eq $diagnosticPredicate) {
+      $widgetDiagnosticsSelected = $true
+    } elseif ([string]$manifest.predicate -ne $expectedPredicate) {
+      throw 'manifest.json predicate does not exactly match its subsystem selectors or the approved widget diagnostics extension.'
+    }
+    $rigattiWidgetCategorySelected = $selectorKeys.Contains('prefix|com.pareact.mobile')
   }
+
+  $manifest | Add-Member -NotePropertyName widget_renderer_diagnostics_selected -NotePropertyValue $widgetDiagnosticsSelected -Force
+  $manifest | Add-Member -NotePropertyName rigatti_widget_sync_category_selected -NotePropertyValue $rigattiWidgetCategorySelected -Force
 
   $eventCount = 0
   if (-not [int]::TryParse([string]$manifest.event_count, [ref]$eventCount) -or $eventCount -lt 0) {
@@ -693,19 +711,65 @@ function Get-SanitizedLogAnalysis {
   $timestampFirst = ''
   $timestampLast = ''
   $truncationMarkers = 0
+  $supplementalDiagnosticsPresent = $false
+  $processSnapshotPresent = $false
+  $systemLogsSectionPresent = $false
+  $crashReportsSectionPresent = $false
+  $systemLogRecordCount = 0
+  $systemQueryFailureCount = 0
+  $crashReportCount = 0
+  $inSupplementalDiagnostics = $false
+  $supplementalSection = ''
   $categoryPattern = @($categories | ForEach-Object { [Regex]::Escape($_) }) -join '|'
   if ($filterMode -eq 'subsystem') {
     $categoryRecordRegex = [Regex]::new('\[(?<subsystem>[A-Za-z0-9][A-Za-z0-9.-]{0,254}):(?<category>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]')
-    $eventRegex = [Regex]::new('\[(?<label>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]\s+(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)')
+    $eventRegex = [Regex]::new('\[(?<label>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]\s+(?:event=)?(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)')
   } else {
     $categoryRecordRegex = [Regex]::new("\[(?:[^\]\r\n]*:)?(?<category>$categoryPattern)\]")
-    $eventRegex = [Regex]::new("\[(?<label>$categoryPattern|PeekPopReturn)\]\s+(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)")
+    $eventRegex = [Regex]::new("\[(?<label>$categoryPattern|PeekPopReturn)\]\s+(?:event=)?(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)")
   }
   $timestampRegex = [Regex]::new('^\s*(?<timestamp>\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)')
 
   $reader = New-Object IO.StreamReader($LogPath, [Text.Encoding]::UTF8, $true)
   try {
     while ($null -ne ($line = $reader.ReadLine())) {
+      if ([string]::Equals($line, '===== widget renderer system diagnostics =====', [StringComparison]::Ordinal)) {
+        $supplementalDiagnosticsPresent = $true
+        $inSupplementalDiagnostics = $true
+        continue
+      }
+
+      if ($inSupplementalDiagnostics) {
+        if ([string]::Equals($line, '===== simulator process snapshot =====', [StringComparison]::Ordinal)) {
+          $processSnapshotPresent = $true
+          $supplementalSection = 'process'
+          continue
+        }
+        if ([string]::Equals($line, '===== WidgetKit, SwiftUI, and termination OSLog errors =====', [StringComparison]::Ordinal)) {
+          $systemLogsSectionPresent = $true
+          $supplementalSection = 'system_logs'
+          continue
+        }
+        if ([string]::Equals($line, '===== recent app and widget crash/jetsam reports =====', [StringComparison]::Ordinal)) {
+          $crashReportsSectionPresent = $true
+          $supplementalSection = 'crash_reports'
+          continue
+        }
+        if ($supplementalSection -eq 'crash_reports' -and $line -match '^\s*={3,}\s*report_file=[^/\\\r\n]+\s*={3,}\s*$') {
+          $crashReportCount++
+          continue
+        }
+        if ($supplementalSection -eq 'system_logs' -and
+            -not [string]::IsNullOrWhiteSpace($line) -and
+            $line -notmatch '^\s*(Filtering the log data using\b|Timestamp\s+Thread\b|[-=]{3,}\s*$)') {
+          $systemLogRecordCount++
+          if ($line -match '^\s*(?i:log:\s*error:|xcrun:\s*error:|Error Domain=|Usage:|usage:)') {
+            $systemQueryFailureCount++
+          }
+        }
+        continue
+      }
+
       if ([string]::IsNullOrWhiteSpace($line)) {
         $blankLines++
         continue
@@ -759,6 +823,14 @@ function Get-SanitizedLogAnalysis {
       if ($eventMatch.Success) {
         $eventName = $eventMatch.Groups['event'].Value
         $safeEventLabel = $eventName -cmatch '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$' -or
+          $eventName -cin @(
+            'publish_start', 'publish_result', 'publish_error_metadata',
+            'provider_placeholder', 'provider_call', 'provider_result',
+            'timeline_read', 'renderer_redaction', 'renderer_redaction_node',
+            'layout_evaluation', 'renderer_enter', 'renderer_complete',
+            'renderer_appeared', 'renderer_failure', 'image_load_start',
+            'image_load_result', 'image_load_failure'
+          ) -or
           $eventName -cin @('willShow', 'didShow', 'viewDidLoad', 'viewWillAppear', 'viewDidDisappear')
       }
 
@@ -811,6 +883,25 @@ function Get-SanitizedLogAnalysis {
   if ([string]$Manifest.capture_outcome -notin @('completed', 'graceful-stop')) {
     $warnings.Add("Capture outcome is '$($Manifest.capture_outcome)', which may indicate partial evidence.")
   }
+  if (-not [bool]$Manifest.widget_renderer_diagnostics_selected) {
+    $warnings.Add('The widget_renderer_diagnostics system filter is not selected in the manifest predicate.')
+  } elseif (-not $supplementalDiagnosticsPresent) {
+    $warnings.Add('The widget_renderer_diagnostics filter is selected but its encrypted-artifact supplement is missing; system capture is incomplete.')
+  } elseif (-not $processSnapshotPresent -or -not $systemLogsSectionPresent -or -not $crashReportsSectionPresent) {
+    $warnings.Add('The widget_renderer_diagnostics supplement is present but one or more required sections are missing.')
+  }
+  if ($supplementalDiagnosticsPresent -and -not [bool]$Manifest.widget_renderer_diagnostics_selected) {
+    $warnings.Add('A widget diagnostics supplement exists, but the manifest predicate does not prove the profile was selected.')
+  }
+  if (-not [bool]$Manifest.rigatti_widget_sync_category_selected) {
+    $warnings.Add('The manifest does not select RigattiWidgetSync; app and extension widget events may be absent.')
+  }
+  if ($systemQueryFailureCount -gt 0) {
+    $warnings.Add("The supplemental system-log query contains $systemQueryFailureCount command error indicator(s); its records may be incomplete.")
+  }
+  if ([bool]$Manifest.widget_renderer_diagnostics_selected -or $supplementalDiagnosticsPresent) {
+    $warnings.Add('The NativeSim profile captures WidgetKit/SwiftUI error and fault records plus matching crash/Jetsam reports; it does not capture every warning-level system message.')
+  }
   if ($truncationMarkers -gt 0) { $warnings.Add("Found $truncationMarkers possible truncation/drop marker(s) in event records.") }
   if ($observedCategories.Count -eq 0 -and $eventLines -gt 0) {
     if ($filterMode -eq 'subsystem') {
@@ -846,6 +937,15 @@ function Get-SanitizedLogAnalysis {
     EventNameSummary = $eventNameSummary
     EventSequence = $sequenceText
     TruncationMarkers = $truncationMarkers
+    WidgetDiagnosticsSelected = [bool]$Manifest.widget_renderer_diagnostics_selected
+    RigattiWidgetSyncSelected = [bool]$Manifest.rigatti_widget_sync_category_selected
+    SupplementalDiagnosticsPresent = $supplementalDiagnosticsPresent
+    ProcessSnapshotPresent = $processSnapshotPresent
+    SystemLogsSectionPresent = $systemLogsSectionPresent
+    CrashReportsSectionPresent = $crashReportsSectionPresent
+    SystemLogRecordCount = $systemLogRecordCount
+    SystemQueryFailureCount = $systemQueryFailureCount
+    CrashReportCount = $crashReportCount
     Warnings = @($warnings)
   }
 }
@@ -889,6 +989,16 @@ function Write-TechnicalReport {
 - Header / blank lines: $($Analysis.HeaderLines) / $($Analysis.BlankLines)
 - Time span: $(if ($Analysis.TimestampFirst) { "$($Analysis.TimestampFirst) through $($Analysis.TimestampLast)" } else { 'timestamps not recognized' })
 - Ciphertext SHA-256: $($Manifest.ciphertext_sha256)
+
+## Widget renderer system capture
+
+- System diagnostics predicate selected: $($Analysis.WidgetDiagnosticsSelected)
+- RigattiWidgetSync category included: $($Analysis.RigattiWidgetSyncSelected)
+- Supplemental artifact block present: $($Analysis.SupplementalDiagnosticsPresent)
+- Process snapshot / system-log / crash-report sections present: $($Analysis.ProcessSnapshotPresent) / $($Analysis.SystemLogsSectionPresent) / $($Analysis.CrashReportsSectionPresent)
+- Sanitized system-log record count / query-error indicators: $($Analysis.SystemLogRecordCount) / $($Analysis.SystemQueryFailureCount)
+- Matching crash/Jetsam report markers: $($Analysis.CrashReportCount)
+- Profile limitation: system capture selects errors/faults and matching crash/Jetsam reports; warning-level system messages are not comprehensively collected.
 
 ## Category counts
 
@@ -954,6 +1064,19 @@ function Write-CategoryTechnicalReport {
   }
   if ($categoryAnalysis.TruncationMarkers -gt 0) {
     $warnings.Add("Found $($categoryAnalysis.TruncationMarkers) possible truncation/drop marker(s) in explicitly labeled records for this category.")
+  }
+  if ([string]::Equals($Category, 'RigattiWidgetSync', [StringComparison]::Ordinal)) {
+    if (-not $Analysis.WidgetDiagnosticsSelected) {
+      $warnings.Add('The widget_renderer_diagnostics system filter is not selected; WidgetKit/SwiftUI system errors and crash/Jetsam evidence may be absent.')
+    } elseif (-not $Analysis.SupplementalDiagnosticsPresent -or -not $Analysis.ProcessSnapshotPresent -or -not $Analysis.SystemLogsSectionPresent -or -not $Analysis.CrashReportsSectionPresent) {
+      $warnings.Add('The widget_renderer_diagnostics filter is selected but its system evidence block is missing or incomplete.')
+    }
+    if (-not $Analysis.RigattiWidgetSyncSelected) {
+      $warnings.Add('The capture predicate does not include the RigattiWidgetSync category.')
+    }
+    if ($Analysis.WidgetDiagnosticsSelected) {
+      $warnings.Add('The Public profile captures system errors/faults and matching crash/Jetsam reports, but not every warning-level system message.')
+    }
   }
 
   $recordCountText = if ($categoryAttributionUnknown) { 'unknown (category not encoded per record)' } else { [string]$categoryAnalysis.RecordCount }

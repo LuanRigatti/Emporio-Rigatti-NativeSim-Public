@@ -19,7 +19,7 @@ const imageViewSource = fs.readFileSync(
 );
 
 describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
-  it('instruments renderer entry, swallowed props/children failures, host construction and appearance', () => {
+  it('instruments only this widget renderer, child redaction, failures and host lifecycle', () => {
     const instrumented = transformDynamicViewSource(dynamicViewSource);
 
     expect(instrumented).toContain('category: "RigattiWidgetSync"');
@@ -29,11 +29,29 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
     expect(instrumented).toContain('stage=children_attach');
     expect(instrumented).toContain('stage=host_constructed');
     expect(instrumented).toContain('event=renderer_appeared');
+    expect(instrumented).toContain('event=renderer_redaction_node');
+    expect(instrumented).toContain('widgetRedactionReasons.contains(.placeholder)');
+    expect(instrumented).toContain('widgetRedactionReasons.contains(.privacy)');
     expect(instrumented).toContain('stage=unsupported_node');
+    expect(instrumented).toContain('guard isResumoFinanceiroDiagnostic(name, kind) else');
+    expect(instrumented).toContain('fallback=empty_view');
+    expect(instrumented).toContain('stage=host_constructed');
     expect(instrumented).toContain('NSURLErrorDomain');
     expect(instrumented).not.toContain('localizedDescription');
     expect(instrumented).not.toContain('print(error)');
     expect(transformDynamicViewSource(instrumented)).toBe(instrumented);
+  });
+
+  it('rejects older renderer instrumentation rather than accepting stale coverage', () => {
+    const instrumented = transformDynamicViewSource(dynamicViewSource);
+    const legacyInstrumented = instrumented.replace(
+      '// TEMPORARY ResumoFinanceiro renderer diagnostics v2',
+      '// TEMPORARY ResumoFinanceiro renderer diagnostics',
+    );
+
+    expect(() => transformDynamicViewSource(legacyInstrumented)).toThrow(
+      'found legacy DynamicView instrumentation',
+    );
   });
 
   it('instruments image loading with dimensions and byte count without recording the image path', () => {
@@ -47,9 +65,22 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
     expect(instrumented).toContain('pixel_width=');
     expect(instrumented).toContain('pixel_height=');
     expect(instrumented).toContain('bytes=');
+    expect(instrumented).toContain('rgba_estimate_bytes=');
     expect(instrumented).not.toContain('source, privacy:');
     expect(instrumented).not.toContain('props.uiImage, privacy:');
     expect(transformImageViewSource(instrumented)).toBe(instrumented);
+  });
+
+  it('rejects older image instrumentation rather than retaining missing asset diagnostics', () => {
+    const instrumented = transformImageViewSource(imageViewSource);
+    const legacyInstrumented = instrumented.replace(
+      '// TEMPORARY ResumoFinanceiro image loading diagnostics v2',
+      '// TEMPORARY ResumoFinanceiro image loading diagnostics',
+    );
+
+    expect(() => transformImageViewSource(legacyInstrumented)).toThrow(
+      'found legacy ImageView instrumentation',
+    );
   });
 
   it('fails clearly if the installed Expo renderer structure changes', () => {

@@ -18,6 +18,7 @@ export function useCompanyProfile() {
   const previousProfile = useRef<CompanyProfile | null>(null);
   const remoteUserId = useRef<string | undefined>(undefined);
   const skipRemoteSync = useRef(false);
+  const localEditRevision = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -34,14 +35,21 @@ export function useCompanyProfile() {
       setRemoteActive(false);
 
       if (ENABLE_FIRESTORE_COMPANY_PROFILE && userId) {
+        const editRevisionAtRemoteLoad = localEditRevision.current;
         try {
           const remoteProfile = await firestoreCompanyProfileDataSource.load(userId);
           if (!isMounted) return;
           if (remoteProfile) {
             previousProfile.current = remoteProfile;
-            setProfile(remoteProfile);
+            if (localEditRevision.current === editRevisionAtRemoteLoad) {
+              setProfile(remoteProfile);
+              skipRemoteSync.current = true;
+            } else {
+              skipRemoteSync.current = false;
+            }
+          } else {
+            skipRemoteSync.current = true;
           }
-          skipRemoteSync.current = true;
           remoteUserId.current = userId;
           setRemoteActive(true);
         } catch (error) {
@@ -81,6 +89,7 @@ export function useCompanyProfile() {
 
   const updateField = useCallback(
     <K extends keyof CompanyProfile>(field: K, value: CompanyProfile[K]) => {
+      localEditRevision.current += 1;
       setProfile((current) => ({ ...current, [field]: value }));
     },
     [],

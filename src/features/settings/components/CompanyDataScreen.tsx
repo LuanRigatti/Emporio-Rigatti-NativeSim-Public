@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { NativeGlassHeader } from '@/components/layout';
 import { NativeTextField } from '@/components/native';
@@ -8,14 +8,29 @@ import { useAppTheme } from '@/theme';
 
 export function CompanyDataScreen() {
   const { theme } = useAppTheme();
-  const { profile, updateField } = useCompanyProfile();
+  const { isHydrated, profile, updateField } = useCompanyProfile();
+  const { width: windowWidth } = useWindowDimensions();
+  const cardWidth = Math.max(0, windowWidth - theme.layout.screenHorizontalPadding * 2);
+  const legalNameFieldWidth = Math.max(0, cardWidth - theme.spacing.lg * 2);
   const header = <NativeGlassHeader mode="transparent" title="Dados da Empresa" />;
 
   return (
     <PremiumScreen contentContainerStyle={styles.content} overlayHeader={header} progressiveBlur>
-      <GlassCard style={[styles.card, { marginTop: theme.spacing.md }]}>
+      <GlassCard
+        style={[
+          styles.card,
+          {
+            borderRadius: theme.radius.xl + theme.spacing.xxs,
+            marginTop: theme.spacing.md,
+            width: cardWidth,
+          },
+        ]}
+      >
         <CompanyField
           label="Razão social"
+          layoutWidth={legalNameFieldWidth}
+          ready={isHydrated}
+          multiline
           onChangeText={(value) => updateField('legalName', value)}
           placeholder="Informe a razão social"
           value={profile.legalName}
@@ -47,20 +62,23 @@ export function CompanyDataScreen() {
 type CompanyFieldProps = {
   label: string;
   keyboardType?: React.ComponentProps<typeof NativeTextField>['keyboardType'];
+  layoutWidth?: number;
+  multiline?: boolean;
   onChangeText: (value: string) => void;
   placeholder: string;
+  ready?: boolean;
   value: string;
 };
 
-function CompanyField({ label, ...props }: CompanyFieldProps) {
+function CompanyField({ label, layoutWidth, ready = true, ...props }: CompanyFieldProps) {
   const { theme } = useAppTheme();
 
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, layoutWidth === undefined ? undefined : { width: layoutWidth }]}>
       <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
         {label}
       </Text>
-      <NativeTextField accessibilityLabel={label} {...props} />
+      {ready ? <NativeTextField accessibilityLabel={label} {...props} /> : null}
     </View>
   );
 }

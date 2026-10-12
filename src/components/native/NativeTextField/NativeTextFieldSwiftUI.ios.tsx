@@ -3,7 +3,9 @@ import { useEffect, useRef } from 'react';
 import {
   autocorrectionDisabled,
   disabled as disabledModifier,
+  fixedSize,
   keyboardType as keyboardTypeModifier,
+  lineLimit,
 } from '@expo/ui/swift-ui/modifiers';
 
 import type { NativeTextFieldProps } from '@/types/native-ui';
@@ -15,6 +17,7 @@ export default function NativeTextFieldSwiftUI({
   onChangeText,
   onBlurReady,
   placeholder,
+  multiline,
   value,
 }: NativeTextFieldProps) {
   const swiftKeyboardType =
@@ -38,14 +41,18 @@ export default function NativeTextFieldSwiftUI({
   }, [onBlurReady]);
 
   return (
-    <Host matchContents>
+    <Host
+      matchContents={multiline ? { vertical: true } : true}
+      style={multiline ? { width: '100%' } : undefined}
+    >
       <TextField
         ref={textFieldRef}
-        axis="horizontal"
+        axis={multiline ? 'vertical' : 'horizontal'}
         modifiers={[
           roundedFont({ textStyle: 'body' }),
           autocorrectionDisabled(true),
           ...(disabled ? [disabledModifier(true)] : []),
+          ...(multiline ? [lineLimit(), fixedSize({ horizontal: false, vertical: true })] : []),
           keyboardTypeModifier(swiftKeyboardType),
         ]}
         onTextChange={onChangeText}

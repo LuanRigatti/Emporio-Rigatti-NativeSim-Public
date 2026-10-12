@@ -4,8 +4,10 @@ const { withDangerousMod } = require('expo/config-plugins');
 
 const EXPO_WIDGETS_VERSION = '57.0.22';
 const EXPO_UI_VERSION = '57.0.21';
-const DYNAMIC_VIEW_MARKER = '// TEMPORARY ResumoFinanceiro renderer diagnostics';
-const IMAGE_VIEW_MARKER = '// TEMPORARY ResumoFinanceiro image loading diagnostics';
+const LEGACY_DYNAMIC_VIEW_MARKER = '// TEMPORARY ResumoFinanceiro renderer diagnostics';
+const LEGACY_IMAGE_VIEW_MARKER = '// TEMPORARY ResumoFinanceiro image loading diagnostics';
+const DYNAMIC_VIEW_MARKER = `${LEGACY_DYNAMIC_VIEW_MARKER} v2`;
+const IMAGE_VIEW_MARKER = `${LEGACY_IMAGE_VIEW_MARKER} v2`;
 
 function replaceExactlyOnce(source, anchor, replacement, label) {
   const matches = source.split(anchor).length - 1;
@@ -47,11 +49,19 @@ function transformDynamicViewSource(source) {
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
   let transformed = source.replace(/\r\n/g, '\n');
 
+  if (transformed.includes(`${LEGACY_DYNAMIC_VIEW_MARKER}\n`)) {
+    throw new Error(
+      'ResumoFinanceiro renderer diagnostics found legacy DynamicView instrumentation. Restore the installed expo-widgets source before building.',
+    );
+  }
+
   if (transformed.includes(DYNAMIC_VIEW_MARKER)) {
     const expectedEvents = [
       'event=renderer_enter',
       'event=renderer_complete',
       'event=renderer_appeared',
+      'event=renderer_redaction_node',
+      'fallback=empty_view',
       'event=renderer_failure stage=props_decode',
       'event=renderer_failure stage=children_attach',
       'event=renderer_failure stage=unsupported_node',
@@ -74,6 +84,12 @@ function transformDynamicViewSource(source) {
   );
   transformed = replaceExactlyOnce(
     transformed,
+    'public struct WidgetsDynamicView: View, ExpoSwiftUI.AnyChild {\n  let node: [String: Any]',
+    'public struct WidgetsDynamicView: View, ExpoSwiftUI.AnyChild {\n  @Environment(\\.redactionReasons) private var widgetRedactionReasons\n  let node: [String: Any]',
+    'DynamicView redaction environment',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
     'import ExpoUI\n',
     [
       'import ExpoUI',
@@ -83,6 +99,16 @@ function transformDynamicViewSource(source) {
       '  subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",',
       '  category: "RigattiWidgetSync"',
       ')',
+      '',
+      'private func isResumoFinanceiroDiagnostic(_ name: String, _ kind: WidgetsKind) -> Bool {',
+      '  name == "ResumoFinanceiro" && kind == .widget',
+      '}',
+      '',
+      'private func resumoFinanceiroUnsupportedNodeFallback(name: String, kind: WidgetsKind, logger: Logger) -> EmptyView {',
+      '  guard isResumoFinanceiroDiagnostic(name, kind) else { return EmptyView() }',
+      '  let _ = logger.error("event=renderer_failure stage=unsupported_node fallback=empty_view")',
+      '  return EmptyView()',
+      '}',
       '',
       'private func resumoFinanceiroRendererToken(_ value: String) -> String {',
       '  var token = ""',
@@ -119,8 +145,7 @@ function transformDynamicViewSource(source) {
   const unknownNodeReplacement = [
     '#else',
     '    default:',
-    '      let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=unsupported_node")',
-    '      EmptyView()',
+    '      resumoFinanceiroUnsupportedNodeFallback(name: name, kind: kind, logger: resumoFinanceiroRendererLogger)',
     '#endif',
   ].join('\n');
   transformed = replaceExactlyOnce(
@@ -147,10 +172,20 @@ function transformDynamicViewSource(source) {
     '  where P: UIBaseViewProps, V: ExpoSwiftUI.View, V.Props == P {',
     '    {',
     '      let viewName = String(describing: V.self)',
+    '      let shouldTrace = isResumoFinanceiroDiagnostic(name, kind)',
+    '      let isRedactionInspectableView = ["TextView", "ImageView", "RoundedRectangleView", "VStackView", "HStackView"].contains(viewName)',
+    '      if shouldTrace && isRedactionInspectableView {',
+    '        let hasPlaceholderRedaction = widgetRedactionReasons.contains(.placeholder)',
+    '        let hasPrivacyRedaction = widgetRedactionReasons.contains(.privacy)',
+    '        let _ = resumoFinanceiroRendererLogger.info("event=renderer_redaction_node view=\\(viewName, privacy: .public) placeholder=\\(hasPlaceholderRedaction, privacy: .public) privacy=\\(hasPrivacyRedaction, privacy: .public)")',
+    '      }',
     '      let propsPresent = node["props"] is [String: Any]',
-    '      let _ = resumoFinanceiroRendererLogger.info("event=renderer_enter view=\\(viewName, privacy: .public) props_present=\\(propsPresent, privacy: .public)")',
+    '      let rawProps = node["props"] as? [String: Any]',
+    '      let childrenCount = (rawProps?["children"] as? [Any])?.count ?? 0',
+    '      let modifierCount = (rawProps?["modifiers"] as? [Any])?.count ?? 0',
+    '      if shouldTrace { let _ = resumoFinanceiroRendererLogger.info("event=renderer_enter view=\\(viewName, privacy: .public) props_present=\\(propsPresent, privacy: .public) children_count=\\(childrenCount, privacy: .public) modifier_count=\\(modifierCount, privacy: .public)") }',
     '      guard let rawProps = node["props"] as? [String: Any] else {',
-    '        let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=missing_props view=\\(viewName, privacy: .public)")',
+    '        if shouldTrace { let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=missing_props fallback=empty_view view=\\(viewName, privacy: .public)") }',
     '        return AnyView(EmptyView())',
     '      }',
     '',
@@ -159,7 +194,7 @@ function transformDynamicViewSource(source) {
     '        props = try propsType.init(rawProps: rawProps, context: WidgetsContext.shared.context)',
     '      } catch {',
     '        let fields = resumoFinanceiroRendererErrorFields(error)',
-    '        let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=props_decode view=\\(viewName, privacy: .public) error_type=\\(fields.type, privacy: .public) error_domain=\\(fields.domain, privacy: .public) error_code=\\(fields.code, privacy: .public)")',
+    '        if shouldTrace { let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=props_decode fallback=empty_view view=\\(viewName, privacy: .public) error_type=\\(fields.type, privacy: .public) error_domain=\\(fields.domain, privacy: .public) error_code=\\(fields.code, privacy: .public)") }',
     '        return AnyView(EmptyView())',
     '      }',
     '',
@@ -167,16 +202,16 @@ function transformDynamicViewSource(source) {
     '        try updateProps?(props)',
     '      } catch {',
     '        let fields = resumoFinanceiroRendererErrorFields(error)',
-    '        let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=children_attach view=\\(viewName, privacy: .public) error_type=\\(fields.type, privacy: .public) error_domain=\\(fields.domain, privacy: .public) error_code=\\(fields.code, privacy: .public)")',
+    '        if shouldTrace { let _ = resumoFinanceiroRendererLogger.error("event=renderer_failure stage=children_attach fallback=empty_view view=\\(viewName, privacy: .public) error_type=\\(fields.type, privacy: .public) error_domain=\\(fields.domain, privacy: .public) error_code=\\(fields.code, privacy: .public)") }',
     '        return AnyView(EmptyView())',
     '      }',
     '',
     '      let host = UIBaseView<P, V>(props: props)',
     '        .transition(.identity)',
     '        .onAppear {',
-    '          let _ = resumoFinanceiroRendererLogger.info("event=renderer_appeared view=\\(viewName, privacy: .public)")',
+    '          if shouldTrace { let _ = resumoFinanceiroRendererLogger.info("event=renderer_appeared view=\\(viewName, privacy: .public)") }',
     '        }',
-    '      let _ = resumoFinanceiroRendererLogger.info("event=renderer_complete view=\\(viewName, privacy: .public) stage=host_constructed")',
+    '      if shouldTrace { let _ = resumoFinanceiroRendererLogger.info("event=renderer_complete view=\\(viewName, privacy: .public) stage=host_constructed") }',
     '      return AnyView(host)',
     '    }()',
     '  }',
@@ -190,11 +225,18 @@ function transformImageViewSource(source) {
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
   let transformed = source.replace(/\r\n/g, '\n');
 
+  if (transformed.includes(`${LEGACY_IMAGE_VIEW_MARKER}\n`)) {
+    throw new Error(
+      'ResumoFinanceiro renderer diagnostics found legacy ImageView instrumentation. Restore the installed @expo/ui source before building.',
+    );
+  }
+
   if (transformed.includes(IMAGE_VIEW_MARKER)) {
     const expectedEvents = [
       'event=image_load_start',
       'event=image_load_result',
       'event=image_load_failure',
+      'rgba_estimate_bytes=',
     ];
     const missingEvents = expectedEvents.filter((event) => !transformed.includes(event));
     if (missingEvents.length > 0) {
@@ -225,15 +267,18 @@ function transformImageViewSource(source) {
       '    category: "RigattiWidgetSync"',
       '  )',
       '',
-      '  private var isWidgetExtensionProcess: Bool { Bundle.main.bundleURL.pathExtension == "appex" }',
+      '  private func isResumoFinanceiroSplashImage(_ source: String?) -> Bool {',
+      '    guard Bundle.main.bundleURL.pathExtension == "appex", let source else { return false }',
+      '    return source.hasSuffix("resumo-financeiro-splash-light.png") || source.hasSuffix("resumo-financeiro-splash-dark.png")',
+      '  }',
       '',
       '  private func logImageInfo(_ message: String) {',
-      '    guard isWidgetExtensionProcess else { return }',
+      '    guard let source = props.uiImage, isResumoFinanceiroSplashImage(source) else { return }',
       '    let _ = imageDiagnosticsLogger.info("\\(message, privacy: .public)")',
       '  }',
       '',
       '  private func logImageError(_ message: String) {',
-      '    guard isWidgetExtensionProcess else { return }',
+      '    guard let source = props.uiImage, isResumoFinanceiroSplashImage(source) else { return }',
       '    let _ = imageDiagnosticsLogger.error("\\(message, privacy: .public)")',
       '  }',
       '',
@@ -251,6 +296,10 @@ function transformImageViewSource(source) {
       '',
       '  private func loadDiagnosticImage(_ source: String?) -> UIImage? {',
       '    guard let source else { return nil }',
+      '    guard isResumoFinanceiroSplashImage(source) else {',
+      '      guard let url = URL(string: source), let data = try? Data(contentsOf: url) else { return nil }',
+      '      return UIImage(data: data)',
+      '    }',
       '    logImageInfo("event=image_load_start source_present=true")',
       '    guard let url = URL(string: source) else {',
       '      logImageError("event=image_load_failure stage=invalid_url")',
@@ -270,7 +319,8 @@ function transformImageViewSource(source) {
       '    }',
       '    let pixelWidth = Int(image.size.width * image.scale)',
       '    let pixelHeight = Int(image.size.height * image.scale)',
-      '    logImageInfo("event=image_load_result success=true pixel_width=\\(pixelWidth) pixel_height=\\(pixelHeight) bytes=\\(data.count)")',
+      '    let estimatedRgbaBytes = pixelWidth * pixelHeight * 4',
+      '    logImageInfo("event=image_load_result success=true pixel_width=\\(pixelWidth) pixel_height=\\(pixelHeight) bytes=\\(data.count) rgba_estimate_bytes=\\(estimatedRgbaBytes)")',
       '    return image',
       '  }',
     ].join('\n'),

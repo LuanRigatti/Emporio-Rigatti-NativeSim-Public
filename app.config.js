@@ -212,6 +212,22 @@ module.exports = {
                       ],
                       default: 'wholesale',
                     },
+                    diagnosticVariant: {
+                      title: 'Variante de diagnóstico temporária',
+                      type: 'enum',
+                      values: [
+                        { name: 'A · Layout atual completo', value: 'full' },
+                        { name: 'B · Layout atual sem imagem', value: 'without_image' },
+                        { name: 'C · Conteúdo estático de teste', value: 'static_test' },
+                        { name: 'D · Layout vertical anterior', value: 'previous_layout' },
+                        { name: 'E · Redaction estático', value: 'redaction' },
+                        {
+                          name: 'E · Redaction estático unredacted',
+                          value: 'redaction_unredacted',
+                        },
+                      ],
+                      default: 'full',
+                    },
                   },
                 },
               },

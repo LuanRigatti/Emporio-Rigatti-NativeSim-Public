@@ -35,6 +35,13 @@ function renderWidget(
   mode: WidgetMode,
   colorScheme: 'light' | 'dark' = 'light',
   widgetsDirectory: string | null = 'file:///group/ExpoWidgets',
+  diagnosticVariant:
+    | 'full'
+    | 'without_image'
+    | 'static_test'
+    | 'previous_layout'
+    | 'redaction'
+    | 'redaction_unredacted' = 'full',
 ) {
   const jsx = (type: string, componentProps: Record<string, unknown>) => ({
     type,
@@ -46,7 +53,12 @@ function renderWidget(
 
   return runInNewContext(`(${serializedLayout})(props, environment)`, {
     props,
-    environment: { configuration: { mode }, date: fixedDate, colorScheme, widgetsDirectory },
+    environment: {
+      configuration: { mode, diagnosticVariant },
+      date: fixedDate,
+      colorScheme,
+      widgetsDirectory,
+    },
     Date,
     _jsx: jsx,
     _jsxs: jsx,
@@ -62,6 +74,7 @@ function renderWidget(
     frame: modifier('frame'),
     font: modifier('font'),
     foregroundStyle: modifier('foregroundStyle'),
+    kerning: modifier('kerning'),
     lineLimit: modifier('lineLimit'),
     minimumScaleFactor: modifier('minimumScaleFactor'),
     monospacedDigit: modifier('monospacedDigit'),
@@ -72,6 +85,7 @@ function renderWidget(
     shapes: {
       roundedRectangle: (args: unknown) => ({ name: 'roundedRectangle', args }),
     },
+    unredacted: modifier('unredacted'),
     widgetURL: modifier('widgetURL'),
   });
 }
@@ -295,4 +309,122 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     }
     expect(text).not.toContain('—');
   });
+
+  it.each(['wholesale', 'retail'] as const)(
+    'variant B preserves the new card layout and removes only the splash image in %s mode',
+    (mode) => {
+      const tree = renderWidget(
+        { financeRouteURL: 'pareact://financeiro' },
+        mode,
+        'light',
+        'file:///group/ExpoWidgets',
+        'without_image',
+      ) as WidgetTreeNode;
+
+      expect(collectText(tree)).toEqual([
+        'Empório Rigatti',
+        'Faturamento',
+        '—',
+        'Lucro líquido',
+        '—',
+      ]);
+      expect(collectNodes(tree, 'Image')).toHaveLength(0);
+      expect(tree.props?.modifiers?.find(({ name }) => name === 'widgetURL')?.args).toEqual([
+        `pareact://financeiro?mode=${mode}`,
+      ]);
+      expect(
+        collectNodes(tree, 'VStack').filter(({ props }) =>
+          props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
+        ),
+      ).toHaveLength(2);
+      expect(
+        collectNodes(tree, 'Spacer').some(({ props }) =>
+          props?.modifiers?.some(
+            ({ name, args }) =>
+              name === 'frame' &&
+              (args?.[0] as { width?: number; height?: number } | undefined)?.width === 32 &&
+              (args?.[0] as { width?: number; height?: number } | undefined)?.height === 32,
+          ),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('variant C shows only clearly marked fictitious static content', () => {
+    const tree = renderWidget(
+      { wholesale: { faturamento: 'R$ 999.999,99', lucroLiquido: 'R$ 888.888,88' } },
+      'wholesale',
+      'light',
+      'file:///group/ExpoWidgets',
+      'static_test',
+    );
+    const text = collectText(tree);
+
+    expect(text).toContain('DIAGNÓSTICO C · TESTE');
+    expect(text).toContain('FATURAMENTO FICTÍCIO · R$ 123,45');
+    expect(text).toContain('LUCRO FICTÍCIO · R$ 67,89');
+    expect(text).toContain('DADOS INVENTADOS PARA TESTE');
+    expect(text).not.toContain('R$ 999.999,99');
+    expect(text).not.toContain('R$ 888.888,88');
+    expect(collectNodes(tree, 'Image')).toHaveLength(0);
+  });
+
+  it.each(['wholesale', 'retail'] as const)(
+    'variant D reproduces the previous vertical visual using the current %s snapshot',
+    (mode) => {
+      const tree = renderWidget(
+        {
+          monthKey: '2026-10',
+          wholesale: { faturamento: 'R$ 150,00', lucroLiquido: 'R$ 45,00' },
+          retail: { faturamento: 'R$ 50,00', lucroLiquido: 'R$ 15,00' },
+        },
+        mode,
+        'light',
+        'file:///group/ExpoWidgets',
+        'previous_layout',
+      );
+
+      expect(collectText(tree)).toEqual([
+        'OUTUBRO 2026',
+        'FATURAMENTO',
+        mode === 'wholesale' ? 'R$ 150,00' : 'R$ 50,00',
+        'LUCRO LÍQUIDO',
+        mode === 'wholesale' ? 'R$ 45,00' : 'R$ 15,00',
+      ]);
+      expect(collectNodes(tree, 'Image')).toHaveLength(0);
+      expect(
+        collectNodes(tree, 'VStack').filter(({ props }) =>
+          props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
+        ),
+      ).toHaveLength(0);
+      expect(JSON.stringify(tree)).toContain('"name":"kerning"');
+      expect(serializedLayout).not.toContain('toLocaleDateString');
+    },
+  );
+
+  it.each([
+    ['redaction', false],
+    ['redaction_unredacted', true],
+  ] as const)(
+    'variant E uses only static non-sensitive content; unredacted=%s',
+    (variant, unredactedExpected) => {
+      const tree = renderWidget(
+        { retail: { faturamento: 'R$ 999.999,99', lucroLiquido: 'R$ 888.888,88' } },
+        'retail',
+        'light',
+        'file:///group/ExpoWidgets',
+        variant,
+      );
+      const text = collectText(tree);
+      const rootModifiers = (tree as WidgetTreeNode).props?.modifiers ?? [];
+
+      expect(text).toContain('DIAGNÓSTICO E · REDACTION');
+      expect(text).toContain('TEXTO ESTÁTICO NÃO SENSÍVEL');
+      expect(text).toContain('SEM DADOS FINANCEIROS');
+      expect(text).not.toContain('R$ 999.999,99');
+      expect(text).not.toContain('R$ 888.888,88');
+      expect(rootModifiers.some(({ name }) => name === 'unredacted')).toBe(unredactedExpected);
+      expect(collectNodes(tree, 'Image')).toHaveLength(0);
+    },
+  );
 });

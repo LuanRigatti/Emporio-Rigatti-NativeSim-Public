@@ -321,6 +321,64 @@ try {
   Assert-Test ($multiWidgetText -match 'Manifest event count across all selected categories: 3' -and $multiWidgetText -match 'Records explicitly labeled for this category: 1' -and $multiWidgetText -match 'timeline-published') 'widget report should contain its own attributed records and labels'
   Assert-Test (($multiReportText + $multiPeekText + $multiWidgetText) -notmatch 'PRIVATE_SENTINEL|FINANCIAL_SENTINEL|9876\.54|SESSION_PRIVATE_SENTINEL') 'all reports must omit raw customer, financial, and arbitrary session values'
   Assert-Test ($multiPeekText -notmatch 'timeline-published' -and $multiWidgetText -notmatch 'willShow|didShow') 'the two category reports must not mix event sequences'
+  Assert-Test ($multiReportText -match 'widget_renderer_diagnostics system filter is not selected') 'base predicate must clearly report that the widget system profile is disabled'
+
+  $widgetSystemPredicate = '((subsystem CONTAINS[c] "WidgetKit" OR subsystem CONTAINS[c] "SwiftUI" OR subsystem CONTAINS[c] "frontboard" OR subsystem CONTAINS[c] "runningboard" OR subsystem CONTAINS[c] "memorystatus") AND (messageType == error OR messageType == fault)) OR ((process == "SpringBoard" OR process == "runningboardd" OR process == "memorystatusd") AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "jetsam" OR eventMessage CONTAINS[c] "memory pressure" OR eventMessage CONTAINS[c] "killed"))'
+  Set-Content -LiteralPath $plainFixture -Value @(
+    '2026-10-10 12:00:00.000+0000 App[1:2] [com.pareact.mobile:RigattiWidgetSync] [RigattiWidgetSync] event=publish_start entry_count=2'
+    '2026-10-10 12:00:01.000+0000 Widget[3:4] [com.pareact.mobile.ExpoWidgetsTarget:RigattiWidgetSync] [RigattiWidgetSync] event=renderer_redaction variant_name=static_test entry_index=0'
+    '2026-10-10 12:00:02.000+0000 Widget[3:4] [com.pareact.mobile.ExpoWidgetsTarget:RigattiWidgetSync] [RigattiWidgetSync] event=renderer_enter view=TextView props_present=true'
+    '===== widget renderer system diagnostics ====='
+    '===== simulator process snapshot ====='
+    '321 SpringBoard /private/var/PRIVATE_PROCESS_SENTINEL'
+    '===== WidgetKit, SwiftUI, and termination OSLog errors ====='
+    'Filtering the log data using the specified predicate'
+    '2026-10-10 12:00:03.000+0000 WidgetKit[4:5] system-error PRIVATE_SYSTEM_SENTINEL'
+    '===== recent app and widget crash/jetsam reports ====='
+    '===== report_file=Widget-PRIVATE_DEVICE.ips ====='
+    'PRIVATE_REPORT_SENTINEL'
+  ) -Encoding UTF8
+  $diagnosticManifest = Get-Content -LiteralPath $manifestFixture -Raw | ConvertFrom-Json
+  $diagnosticManifest.schema_version = 3
+  $diagnosticManifest | Add-Member -NotePropertyName filter_mode -NotePropertyValue 'subsystem' -Force
+  $diagnosticManifest.category = $null
+  $diagnosticManifest.categories = @()
+  $diagnosticSubsystems = @(
+    [pscustomobject]@{ match = 'prefix'; value = 'com.pareact.mobile' },
+    [pscustomobject]@{ match = 'exact'; value = 'NativeAppleIntelligence' }
+  )
+  $diagnosticManifest | Add-Member -NotePropertyName subsystems -NotePropertyValue $diagnosticSubsystems -Force
+  $diagnosticManifest.predicate = '(subsystem BEGINSWITH "com.pareact.mobile" OR subsystem == "NativeAppleIntelligence") OR (' + $widgetSystemPredicate + ')'
+  $diagnosticManifest.event_count = 3
+  $diagnosticManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
+  $diagnosticCapture = Invoke-Collector -Scenario 'widget-system-diagnostics' -ExtraArguments @('-RunId', $runId) -OutputName 'widget-system-diagnostics'
+  Assert-Test ($diagnosticCapture.ExitCode -eq 0) 'approved subsystem diagnostics predicate and supplemental block should be accepted'
+  $diagnosticReport = Get-ChildItem -LiteralPath $diagnosticCapture.OutputRoot -Recurse -Filter analysis-report.md | Select-Object -First 1
+  $diagnosticReportText = Get-Content -LiteralPath $diagnosticReport.FullName -Raw
+  $diagnosticWidgetReport = Get-ChildItem -LiteralPath $diagnosticCapture.OutputRoot -Recurse -Filter analysis-widget.md | Select-Object -First 1
+  $diagnosticWidgetText = Get-Content -LiteralPath $diagnosticWidgetReport.FullName -Raw
+  Assert-Test ($diagnosticReportText -match 'System diagnostics predicate selected: True' -and $diagnosticReportText -match 'Supplemental artifact block present: True') 'system profile selection and supplement marker should be reported'
+  Assert-Test ($diagnosticReportText -match '1 / 0' -and $diagnosticReportText -match 'Matching crash/Jetsam report markers: 1') 'supplementary system and crash metadata counts should be reported without parsing raw records'
+  Assert-Test ($diagnosticReportText -match 'Manifest event count: 3' -and $diagnosticReportText -notmatch 'differ from manifest event_count') 'supplementary lines must not be counted as log stream events'
+  Assert-Test ($diagnosticWidgetText -match 'publish_start' -and $diagnosticWidgetText -match 'renderer_redaction' -and $diagnosticWidgetText -match 'renderer_enter') 'event= labels with underscores should be recognized for the widget category'
+  Assert-Test (($diagnosticReportText + $diagnosticWidgetText) -notmatch 'PRIVATE_PROCESS_SENTINEL|PRIVATE_SYSTEM_SENTINEL|PRIVATE_REPORT_SENTINEL|PRIVATE_DEVICE') 'supplementary raw system logs, process details, report contents and filenames must not enter reports'
+
+  Set-Content -LiteralPath $plainFixture -Value @(
+    '2026-10-10 12:00:00.000+0000 App[1:2] [com.example:OpenPaymentPeekPopReturn] [PeekPopReturn] willShow customer=PRIVATE_SENTINEL'
+  ) -Encoding UTF8
+  $incompleteManifest = Get-Content -LiteralPath $manifestFixture -Raw | ConvertFrom-Json
+  $incompleteManifest.predicate = '(category == "OpenPaymentPeekPopReturn") OR (' + $widgetSystemPredicate + ')'
+  $incompleteManifest.categories = @('OpenPaymentPeekPopReturn')
+  $incompleteManifest.category = 'OpenPaymentPeekPopReturn'
+  $incompleteManifest | Add-Member -NotePropertyName filter_mode -NotePropertyValue 'category' -Force
+  $incompleteManifest | Add-Member -NotePropertyName subsystems -NotePropertyValue @() -Force
+  $incompleteManifest.event_count = 1
+  $incompleteManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
+  $incompleteCapture = Invoke-Collector -Scenario 'widget-system-incomplete' -ExtraArguments @('-RunId', $runId) -OutputName 'widget-system-incomplete'
+  Assert-Test ($incompleteCapture.ExitCode -eq 0) 'approved category predicate should be accepted when RigattiWidgetSync is omitted'
+  $incompleteReport = Get-ChildItem -LiteralPath $incompleteCapture.OutputRoot -Recurse -Filter analysis-report.md | Select-Object -First 1
+  $incompleteReportText = Get-Content -LiteralPath $incompleteReport.FullName -Raw
+  Assert-Test ($incompleteReportText -match 'filter is selected but its encrypted-artifact supplement is missing' -and $incompleteReportText -match 'does not select RigattiWidgetSync') 'missing system supplement and widget category should be explicit'
 
   Set-Content -LiteralPath $plainFixture -Value @(
     '2026-10-10 12:00:03.000+0000 App[1:2] [com.pareact.mobile:AppDiagnostics] [AppDiagnostics] app-start PRIVATE_SENTINEL'

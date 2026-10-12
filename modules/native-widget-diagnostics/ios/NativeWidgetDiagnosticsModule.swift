@@ -3,7 +3,7 @@ import Foundation
 import os
 
 public final class NativeWidgetDiagnosticsModule: Module {
-  private let logger = Logger(
+  private let logger = os.Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "NativeWidgetDiagnostics",
     category: "RigattiWidgetSync"
   )

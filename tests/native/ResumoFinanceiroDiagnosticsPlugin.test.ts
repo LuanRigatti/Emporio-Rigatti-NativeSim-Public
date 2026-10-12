@@ -8,6 +8,25 @@ const generatedWidgetSource = [
   'import AppIntents',
   'internal import ExpoWidgets',
   '',
+  'struct ResumoFinanceiroConfigurationAppIntent: WidgetConfigurationIntent {',
+  '}',
+  'enum ResumoFinanceiroModeEnum: String, CaseIterable, AppEnum {',
+  '  case wholesale',
+  '  case retail',
+  '}',
+  'enum ResumoFinanceiroDiagnosticVariantEnum: String, CaseIterable, AppEnum {',
+  '  case full',
+  '  case without_image',
+  '  case static_test',
+  '  case previous_layout',
+  '  case redaction',
+  '  case redaction_unredacted',
+  '}',
+  'struct ResumoFinanceiroTimelineEntry: TimelineEntry {',
+  '  let date: Date',
+  '  let configuration: ResumoFinanceiroConfigurationAppIntent',
+  '}',
+  '',
   'struct ResumoFinanceiroTimelineProvider: AppIntentTimelineProvider {',
   '  func placeholder(in context: Context) -> ResumoFinanceiroTimelineEntry {',
   '    ResumoFinanceiroTimelineEntry(date: Date(), name: "ResumoFinanceiro", props: nil, entryIndex: nil, configuration: ResumoFinanceiroConfigurationAppIntent())',
@@ -73,6 +92,11 @@ const generatedWidgetSource = [
   '    }',
   '  }',
   '}',
+  '',
+  '@available(iOS 17.0, *)',
+  'struct ResumoFinanceiro: Widget {',
+  '  var body: some WidgetConfiguration { EmptyWidgetConfiguration() }',
+  '}',
 ].join('\n');
 
 describe('ResumoFinanceiro diagnostics CNG plugin', () => {
@@ -83,6 +107,19 @@ describe('ResumoFinanceiro diagnostics CNG plugin', () => {
     )?.[1];
 
     expect(instrumented).toContain('category: "RigattiWidgetSync"');
+    expect(instrumented).toContain('import os');
+    expect(instrumented).toContain('resumoFinanceiroDiagnosticsLogger = os.Logger(');
+    expect(instrumented).not.toMatch(/(?:=|:\s*)Logger\b/);
+    for (const declaration of [
+      'struct ResumoFinanceiroConfigurationAppIntent: WidgetConfigurationIntent {',
+      'enum ResumoFinanceiroModeEnum: String, CaseIterable, AppEnum {',
+      'enum ResumoFinanceiroDiagnosticVariantEnum: String, CaseIterable, AppEnum {',
+      'struct ResumoFinanceiroTimelineEntry: TimelineEntry {',
+      'struct ResumoFinanceiroTimelineProvider: AppIntentTimelineProvider {',
+      'struct ResumoFinanceiroEntryView: View {',
+    ]) {
+      expect(instrumented).toContain(`@available(iOS 17.0, *)\n${declaration}`);
+    }
     expect(instrumented).toContain('event=provider_placeholder');
     expect(instrumented).toContain('event=provider_call path=snapshot');
     expect(instrumented).toContain('event=provider_result path=snapshot');
@@ -111,6 +148,37 @@ describe('ResumoFinanceiro diagnostics CNG plugin', () => {
     expect(transformResumoFinanceiroWidgetSource(instrumented)).toBe(instrumented);
   });
 
+  it('migrates cached v2 output to a qualified Logger without losing diagnostics', () => {
+    const instrumented = transformResumoFinanceiroWidgetSource(generatedWidgetSource);
+    let staleV2 = instrumented;
+    for (const declaration of [
+      'struct ResumoFinanceiroConfigurationAppIntent: WidgetConfigurationIntent {',
+      'enum ResumoFinanceiroModeEnum: String, CaseIterable, AppEnum {',
+      'enum ResumoFinanceiroDiagnosticVariantEnum: String, CaseIterable, AppEnum {',
+      'struct ResumoFinanceiroTimelineEntry: TimelineEntry {',
+      'struct ResumoFinanceiroTimelineProvider: AppIntentTimelineProvider {',
+      'struct ResumoFinanceiroEntryView: View {',
+    ]) {
+      staleV2 = staleV2.replace(`@available(iOS 17.0, *)\n${declaration}`, declaration);
+    }
+    staleV2 = staleV2
+      .replace(
+        '// TEMPORARY ResumoFinanceiro OSLog diagnostics v3',
+        '// TEMPORARY ResumoFinanceiro OSLog diagnostics v2',
+      )
+      .replace('os.Logger(', 'Logger(');
+
+    const migrated = transformResumoFinanceiroWidgetSource(staleV2);
+
+    expect(migrated).toContain('ResumoFinanceiro OSLog diagnostics v3');
+    expect(migrated).toContain('resumoFinanceiroDiagnosticsLogger = os.Logger(');
+    expect(migrated).not.toMatch(/(?:=|:\s*)Logger\b/);
+    expect(migrated).toContain(
+      '@available(iOS 17.0, *)\nstruct ResumoFinanceiroTimelineProvider: AppIntentTimelineProvider {',
+    );
+    expect(transformResumoFinanceiroWidgetSource(migrated)).toBe(migrated);
+  });
+
   it('preserves CRLF and fails clearly when the expo-widgets template changes', () => {
     const windowsSource = generatedWidgetSource.replace(/\n/g, '\r\n');
     const instrumented = transformResumoFinanceiroWidgetSource(windowsSource);
@@ -130,7 +198,7 @@ describe('ResumoFinanceiro diagnostics CNG plugin', () => {
   it('rejects older instrumentation instead of silently retaining incomplete coverage', () => {
     const instrumented = transformResumoFinanceiroWidgetSource(generatedWidgetSource);
     const legacyInstrumented = instrumented.replace(
-      '// TEMPORARY ResumoFinanceiro OSLog diagnostics v2',
+      '// TEMPORARY ResumoFinanceiro OSLog diagnostics v3',
       '// TEMPORARY ResumoFinanceiro OSLog diagnostics',
     );
 

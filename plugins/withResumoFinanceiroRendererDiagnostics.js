@@ -6,8 +6,14 @@ const EXPO_WIDGETS_VERSION = '57.0.22';
 const EXPO_UI_VERSION = '57.0.21';
 const LEGACY_DYNAMIC_VIEW_MARKER = '// TEMPORARY ResumoFinanceiro renderer diagnostics';
 const LEGACY_IMAGE_VIEW_MARKER = '// TEMPORARY ResumoFinanceiro image loading diagnostics';
-const DYNAMIC_VIEW_MARKER = `${LEGACY_DYNAMIC_VIEW_MARKER} v2`;
-const IMAGE_VIEW_MARKER = `${LEGACY_IMAGE_VIEW_MARKER} v2`;
+const PREVIOUS_DYNAMIC_VIEW_MARKER = `${LEGACY_DYNAMIC_VIEW_MARKER} v2`;
+const PREVIOUS_IMAGE_VIEW_MARKER = `${LEGACY_IMAGE_VIEW_MARKER} v2`;
+const DYNAMIC_VIEW_MARKER = `${LEGACY_DYNAMIC_VIEW_MARKER} v3`;
+const IMAGE_VIEW_MARKER = `${LEGACY_IMAGE_VIEW_MARKER} v3`;
+
+function hasUnqualifiedLoggerType(source) {
+  return /(?:=|:\s*)Logger\b/.test(source);
+}
 
 function replaceExactlyOnce(source, anchor, replacement, label) {
   const matches = source.split(anchor).length - 1;
@@ -55,6 +61,56 @@ function transformDynamicViewSource(source) {
     );
   }
 
+  if (transformed.includes(PREVIOUS_DYNAMIC_VIEW_MARKER)) {
+    const previousEvents = [
+      'event=renderer_enter',
+      'event=renderer_complete',
+      'event=renderer_appeared',
+      'event=renderer_redaction_node',
+      'event=renderer_failure stage=props_decode',
+      'event=renderer_failure stage=children_attach',
+      'event=renderer_failure stage=unsupported_node',
+    ];
+    const missingEvents = previousEvents.filter((event) => !transformed.includes(event));
+    if (missingEvents.length > 0) {
+      throw new Error(
+        'ResumoFinanceiro renderer diagnostics found partial v2 DynamicView instrumentation: ' +
+          missingEvents.join(', '),
+      );
+    }
+
+    transformed = replaceExactlyOnce(
+      transformed,
+      'import OSLog\n',
+      'import os\n',
+      'v2 DynamicView OSLog import migration',
+    );
+    transformed = replaceExactlyOnce(
+      transformed,
+      'private let resumoFinanceiroRendererLogger = Logger(',
+      'private let resumoFinanceiroRendererLogger = os.Logger(',
+      'v2 DynamicView logger qualification',
+    );
+    transformed = replaceExactlyOnce(
+      transformed,
+      'logger: Logger',
+      'logger: os.Logger',
+      'v2 DynamicView logger parameter qualification',
+    );
+    transformed = replaceExactlyOnce(
+      transformed,
+      PREVIOUS_DYNAMIC_VIEW_MARKER,
+      DYNAMIC_VIEW_MARKER,
+      'v2 DynamicView marker upgrade',
+    );
+    if (hasUnqualifiedLoggerType(transformed)) {
+      throw new Error(
+        'ResumoFinanceiro renderer diagnostics could not qualify every Logger reference in v2 DynamicView instrumentation.',
+      );
+    }
+    return newline === '\n' ? transformed : transformed.replace(/\n/g, newline);
+  }
+
   if (transformed.includes(DYNAMIC_VIEW_MARKER)) {
     const expectedEvents = [
       'event=renderer_enter',
@@ -65,12 +121,18 @@ function transformDynamicViewSource(source) {
       'event=renderer_failure stage=props_decode',
       'event=renderer_failure stage=children_attach',
       'event=renderer_failure stage=unsupported_node',
+      'import os',
+      'resumoFinanceiroRendererLogger = os.Logger(',
+      'logger: os.Logger',
     ];
     const missingEvents = expectedEvents.filter((event) => !transformed.includes(event));
-    if (missingEvents.length > 0) {
+    if (missingEvents.length > 0 || hasUnqualifiedLoggerType(transformed)) {
       throw new Error(
         'ResumoFinanceiro renderer diagnostics found a partial DynamicView marker: ' +
-          missingEvents.join(', '),
+          [
+            ...missingEvents,
+            ...(hasUnqualifiedLoggerType(transformed) ? ['qualified os.Logger'] : []),
+          ].join(', '),
       );
     }
     return source;
@@ -79,8 +141,8 @@ function transformDynamicViewSource(source) {
   transformed = replaceExactlyOnce(
     transformed,
     'import SwiftUI\n',
-    'import SwiftUI\nimport OSLog\n',
-    'DynamicView OSLog import',
+    'import SwiftUI\nimport os\n',
+    'DynamicView os.Logger import',
   );
   transformed = replaceExactlyOnce(
     transformed,
@@ -95,7 +157,7 @@ function transformDynamicViewSource(source) {
       'import ExpoUI',
       '',
       DYNAMIC_VIEW_MARKER,
-      'private let resumoFinanceiroRendererLogger = Logger(',
+      'private let resumoFinanceiroRendererLogger = os.Logger(',
       '  subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",',
       '  category: "RigattiWidgetSync"',
       ')',
@@ -104,7 +166,7 @@ function transformDynamicViewSource(source) {
       '  name == "ResumoFinanceiro" && kind == .widget',
       '}',
       '',
-      'private func resumoFinanceiroUnsupportedNodeFallback(name: String, kind: WidgetsKind, logger: Logger) -> EmptyView {',
+      'private func resumoFinanceiroUnsupportedNodeFallback(name: String, kind: WidgetsKind, logger: os.Logger) -> EmptyView {',
       '  guard isResumoFinanceiroDiagnostic(name, kind) else { return EmptyView() }',
       '  let _ = logger.error("event=renderer_failure stage=unsupported_node fallback=empty_view")',
       '  return EmptyView()',
@@ -231,18 +293,64 @@ function transformImageViewSource(source) {
     );
   }
 
+  if (transformed.includes(PREVIOUS_IMAGE_VIEW_MARKER)) {
+    const previousEvents = [
+      'event=image_load_start',
+      'event=image_load_result',
+      'event=image_load_failure',
+      'rgba_estimate_bytes=',
+    ];
+    const missingEvents = previousEvents.filter((event) => !transformed.includes(event));
+    if (missingEvents.length > 0) {
+      throw new Error(
+        'ResumoFinanceiro renderer diagnostics found partial v2 ImageView instrumentation: ' +
+          missingEvents.join(', '),
+      );
+    }
+
+    transformed = replaceExactlyOnce(
+      transformed,
+      'import OSLog\n',
+      'import os\n',
+      'v2 ImageView OSLog import migration',
+    );
+    transformed = replaceExactlyOnce(
+      transformed,
+      'private let imageDiagnosticsLogger = Logger(',
+      'private let imageDiagnosticsLogger = os.Logger(',
+      'v2 ImageView logger qualification',
+    );
+    transformed = replaceExactlyOnce(
+      transformed,
+      PREVIOUS_IMAGE_VIEW_MARKER,
+      IMAGE_VIEW_MARKER,
+      'v2 ImageView marker upgrade',
+    );
+    if (hasUnqualifiedLoggerType(transformed)) {
+      throw new Error(
+        'ResumoFinanceiro renderer diagnostics could not qualify every Logger reference in v2 ImageView instrumentation.',
+      );
+    }
+    return newline === '\n' ? transformed : transformed.replace(/\n/g, newline);
+  }
+
   if (transformed.includes(IMAGE_VIEW_MARKER)) {
     const expectedEvents = [
       'event=image_load_start',
       'event=image_load_result',
       'event=image_load_failure',
       'rgba_estimate_bytes=',
+      'import os',
+      'imageDiagnosticsLogger = os.Logger(',
     ];
     const missingEvents = expectedEvents.filter((event) => !transformed.includes(event));
-    if (missingEvents.length > 0) {
+    if (missingEvents.length > 0 || hasUnqualifiedLoggerType(transformed)) {
       throw new Error(
         'ResumoFinanceiro renderer diagnostics found a partial ImageView marker: ' +
-          missingEvents.join(', '),
+          [
+            ...missingEvents,
+            ...(hasUnqualifiedLoggerType(transformed) ? ['qualified os.Logger'] : []),
+          ].join(', '),
       );
     }
     return source;
@@ -251,8 +359,8 @@ function transformImageViewSource(source) {
   transformed = replaceExactlyOnce(
     transformed,
     'import SwiftUI\n',
-    'import SwiftUI\nimport OSLog\n',
-    'ImageView OSLog import',
+    'import SwiftUI\nimport os\n',
+    'ImageView os.Logger import',
   );
   transformed = replaceExactlyOnce(
     transformed,
@@ -262,7 +370,7 @@ function transformImageViewSource(source) {
       '  @ObservedObject public var props: ImageViewProps',
       '',
       IMAGE_VIEW_MARKER,
-      '  private let imageDiagnosticsLogger = Logger(',
+      '  private let imageDiagnosticsLogger = os.Logger(',
       '    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",',
       '    category: "RigattiWidgetSync"',
       '  )',

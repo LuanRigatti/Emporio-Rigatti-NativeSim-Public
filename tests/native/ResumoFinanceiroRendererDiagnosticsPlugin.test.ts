@@ -17,12 +17,21 @@ const imageViewSource = fs.readFileSync(
   path.join(repoRoot, 'node_modules/@expo/ui/ios/ImageView.swift'),
   'utf8',
 );
+const widgetDiagnosticsModuleSource = fs.readFileSync(
+  path.join(repoRoot, 'modules/native-widget-diagnostics/ios/NativeWidgetDiagnosticsModule.swift'),
+  'utf8',
+);
 
 describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
   it('instruments only this widget renderer, child redaction, failures and host lifecycle', () => {
     const instrumented = transformDynamicViewSource(dynamicViewSource);
 
     expect(instrumented).toContain('category: "RigattiWidgetSync"');
+    expect(instrumented).toContain('import os');
+    expect(instrumented).not.toContain('import OSLog');
+    expect(instrumented).toContain('resumoFinanceiroRendererLogger = os.Logger(');
+    expect(instrumented).toContain('logger: os.Logger');
+    expect(instrumented).not.toMatch(/(?:=|:\s*)Logger\b/);
     expect(instrumented).toContain('event=renderer_enter');
     expect(instrumented).toContain('stage=missing_props');
     expect(instrumented).toContain('stage=props_decode');
@@ -45,7 +54,7 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
   it('rejects older renderer instrumentation rather than accepting stale coverage', () => {
     const instrumented = transformDynamicViewSource(dynamicViewSource);
     const legacyInstrumented = instrumented.replace(
-      '// TEMPORARY ResumoFinanceiro renderer diagnostics v2',
+      '// TEMPORARY ResumoFinanceiro renderer diagnostics v3',
       '// TEMPORARY ResumoFinanceiro renderer diagnostics',
     );
 
@@ -54,10 +63,35 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
     );
   });
 
+  it('migrates cached v2 DynamicView output to qualified Logger types', () => {
+    const instrumented = transformDynamicViewSource(dynamicViewSource);
+    const staleV2 = instrumented
+      .replace(
+        '// TEMPORARY ResumoFinanceiro renderer diagnostics v3',
+        '// TEMPORARY ResumoFinanceiro renderer diagnostics v2',
+      )
+      .replace('import os\n', 'import OSLog\n')
+      .replace('os.Logger(', 'Logger(')
+      .replace('logger: os.Logger', 'logger: Logger');
+
+    const migrated = transformDynamicViewSource(staleV2);
+
+    expect(migrated).toContain('ResumoFinanceiro renderer diagnostics v3');
+    expect(migrated).toContain('import os');
+    expect(migrated).toContain('resumoFinanceiroRendererLogger = os.Logger(');
+    expect(migrated).toContain('logger: os.Logger');
+    expect(migrated).not.toMatch(/(?:=|:\s*)Logger\b/);
+    expect(transformDynamicViewSource(migrated)).toBe(migrated);
+  });
+
   it('instruments image loading with dimensions and byte count without recording the image path', () => {
     const instrumented = transformImageViewSource(imageViewSource);
 
     expect(instrumented).toContain('event=image_load_start');
+    expect(instrumented).toContain('import os');
+    expect(instrumented).not.toContain('import OSLog');
+    expect(instrumented).toContain('imageDiagnosticsLogger = os.Logger(');
+    expect(instrumented).not.toMatch(/(?:=|:\s*)Logger\b/);
     expect(instrumented).toContain('event=image_load_result success=true');
     expect(instrumented).toContain('event=image_load_failure stage=decode');
     expect(instrumented).toContain('Bundle.main.bundleURL.pathExtension == "appex"');
@@ -71,10 +105,34 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
     expect(transformImageViewSource(instrumented)).toBe(instrumented);
   });
 
+  it('migrates cached v2 ImageView output to a qualified Logger', () => {
+    const instrumented = transformImageViewSource(imageViewSource);
+    const staleV2 = instrumented
+      .replace(
+        '// TEMPORARY ResumoFinanceiro image loading diagnostics v3',
+        '// TEMPORARY ResumoFinanceiro image loading diagnostics v2',
+      )
+      .replace('import os\n', 'import OSLog\n')
+      .replace('os.Logger(', 'Logger(');
+
+    const migrated = transformImageViewSource(staleV2);
+
+    expect(migrated).toContain('ResumoFinanceiro image loading diagnostics v3');
+    expect(migrated).toContain('import os');
+    expect(migrated).toContain('imageDiagnosticsLogger = os.Logger(');
+    expect(migrated).not.toMatch(/(?:=|:\s*)Logger\b/);
+    expect(transformImageViewSource(migrated)).toBe(migrated);
+  });
+
+  it('keeps the app-owned widget diagnostics module explicitly qualified', () => {
+    expect(widgetDiagnosticsModuleSource).toContain('private let logger = os.Logger(');
+    expect(widgetDiagnosticsModuleSource).not.toMatch(/(?:=|:\s*)Logger\b/);
+  });
+
   it('rejects older image instrumentation rather than retaining missing asset diagnostics', () => {
     const instrumented = transformImageViewSource(imageViewSource);
     const legacyInstrumented = instrumented.replace(
-      '// TEMPORARY ResumoFinanceiro image loading diagnostics v2',
+      '// TEMPORARY ResumoFinanceiro image loading diagnostics v3',
       '// TEMPORARY ResumoFinanceiro image loading diagnostics',
     );
 
@@ -100,6 +158,12 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
     expect(() => assertPackageVersion(packageJson, 'expo-widgets', '57.0.22')).not.toThrow();
     expect(() => assertPackageVersion(packageJson, 'expo-widgets', '57.0.21')).toThrow(
       'requires expo-widgets@57.0.21',
+    );
+
+    const expoUiPackageJson = path.join(repoRoot, 'node_modules/@expo/ui/package.json');
+    expect(() => assertPackageVersion(expoUiPackageJson, '@expo/ui', '57.0.21')).not.toThrow();
+    expect(() => assertPackageVersion(expoUiPackageJson, '@expo/ui', '57.0.22')).toThrow(
+      'requires @expo/ui@57.0.22',
     );
   });
 });

@@ -4,7 +4,36 @@ const { withDangerousMod } = require('expo/config-plugins');
 
 const WIDGET_SOURCE_NAME = 'ResumoFinanceiro.swift';
 const LEGACY_INSTRUMENTATION_MARKER = '// TEMPORARY ResumoFinanceiro OSLog diagnostics';
-const INSTRUMENTATION_MARKER = `${LEGACY_INSTRUMENTATION_MARKER} v2`;
+const PREVIOUS_INSTRUMENTATION_MARKER = `${LEGACY_INSTRUMENTATION_MARKER} v2`;
+const INSTRUMENTATION_MARKER = `${LEGACY_INSTRUMENTATION_MARKER} v3`;
+
+function hasUnqualifiedLoggerType(source) {
+  return /(?:=|:\s*)Logger\b/.test(source);
+}
+
+const IOS_17_WIDGET_DECLARATIONS = [
+  'struct ResumoFinanceiroConfigurationAppIntent: WidgetConfigurationIntent {',
+  'enum ResumoFinanceiroModeEnum: String, CaseIterable, AppEnum {',
+  'enum ResumoFinanceiroDiagnosticVariantEnum: String, CaseIterable, AppEnum {',
+  'struct ResumoFinanceiroTimelineEntry: TimelineEntry {',
+  'struct ResumoFinanceiroTimelineProvider: AppIntentTimelineProvider {',
+  'struct ResumoFinanceiroEntryView: View {',
+];
+
+function addIOS17Availability(source) {
+  let transformed = source;
+  for (const declaration of IOS_17_WIDGET_DECLARATIONS) {
+    const annotatedDeclaration = `@available(iOS 17.0, *)\n${declaration}`;
+    if (transformed.includes(annotatedDeclaration)) continue;
+    transformed = replaceExactlyOnce(
+      transformed,
+      declaration,
+      annotatedDeclaration,
+      `iOS 17 availability for ${declaration.split(' ').slice(1, 3).join(' ')}`,
+    );
+  }
+  return transformed;
+}
 
 function replaceExactlyOnce(source, anchor, replacement, label) {
   const matches = source.split(anchor).length - 1;
@@ -31,6 +60,46 @@ function transformResumoFinanceiroWidgetSource(source) {
     );
   }
 
+  if (transformed.includes(PREVIOUS_INSTRUMENTATION_MARKER)) {
+    const previousEvents = [
+      'event=provider_placeholder',
+      'event=provider_call path=snapshot',
+      'event=provider_result path=snapshot',
+      'event=provider_call path=timeline',
+      'event=provider_result path=timeline',
+      'event=timeline_read source=extension',
+      'event=renderer_redaction',
+      'event=layout_evaluation phase=returned',
+    ];
+    const missingEvents = previousEvents.filter((event) => !transformed.includes(event));
+    if (missingEvents.length > 0) {
+      throw new Error(
+        'ResumoFinanceiro diagnostics CNG plugin found partial v2 instrumentation: ' +
+          missingEvents.join(', '),
+      );
+    }
+
+    transformed = replaceExactlyOnce(
+      transformed,
+      'private let resumoFinanceiroDiagnosticsLogger = Logger(',
+      'private let resumoFinanceiroDiagnosticsLogger = os.Logger(',
+      'v2 OSLog logger qualification',
+    );
+    transformed = replaceExactlyOnce(
+      transformed,
+      PREVIOUS_INSTRUMENTATION_MARKER,
+      INSTRUMENTATION_MARKER,
+      'v2 diagnostics marker upgrade',
+    );
+    transformed = addIOS17Availability(transformed);
+    if (hasUnqualifiedLoggerType(transformed)) {
+      throw new Error(
+        'ResumoFinanceiro diagnostics CNG plugin could not qualify every Logger reference in v2 instrumentation.',
+      );
+    }
+    return newline === '\n' ? transformed : transformed.replace(/\n/g, newline);
+  }
+
   if (transformed.includes(INSTRUMENTATION_MARKER)) {
     const expectedEvents = [
       'event=provider_placeholder',
@@ -46,12 +115,19 @@ function transformResumoFinanceiroWidgetSource(source) {
       'event=layout_evaluation phase=returned',
       'event=layout_evaluation phase=failed',
       'event=layout_evaluation phase=layout_missing',
+      'import os',
+      'resumoFinanceiroDiagnosticsLogger = os.Logger(',
+      ...IOS_17_WIDGET_DECLARATIONS.map((declaration) => `@available(iOS 17.0, *)\n${declaration}`),
+      '@available(iOS 17.0, *)\nstruct ResumoFinanceiro: Widget {',
     ];
     const missingEvents = expectedEvents.filter((event) => !transformed.includes(event));
-    if (missingEvents.length > 0) {
+    if (missingEvents.length > 0 || hasUnqualifiedLoggerType(transformed)) {
       throw new Error(
         'ResumoFinanceiro diagnostics CNG plugin found a partial instrumentation marker: ' +
-          missingEvents.join(', '),
+          [
+            ...missingEvents,
+            ...(hasUnqualifiedLoggerType(transformed) ? ['qualified os.Logger'] : []),
+          ].join(', '),
       );
     }
     return source;
@@ -64,7 +140,7 @@ function transformResumoFinanceiroWidgetSource(source) {
     'internal import ExpoWidgets',
     '',
     INSTRUMENTATION_MARKER,
-    'private let resumoFinanceiroDiagnosticsLogger = Logger(',
+    'private let resumoFinanceiroDiagnosticsLogger = os.Logger(',
     '  subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",',
     '  category: "RigattiWidgetSync"',
     ')',
@@ -229,6 +305,8 @@ function transformResumoFinanceiroWidgetSource(source) {
     missingLayoutReplacement,
     'missing layout branch',
   );
+
+  transformed = addIOS17Availability(transformed);
 
   return newline === '\n' ? transformed : transformed.replace(/\n/g, newline);
 }

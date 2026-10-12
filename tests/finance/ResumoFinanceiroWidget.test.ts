@@ -43,6 +43,7 @@ function renderWidget(
     | 'previous_layout'
     | 'redaction'
     | 'redaction_unredacted' = 'full',
+  widgetFamily: 'systemSmall' | 'systemMedium' = 'systemMedium',
 ) {
   const jsx = (type: string, componentProps: Record<string, unknown>) => ({
     type,
@@ -58,6 +59,7 @@ function renderWidget(
       configuration: { mode, diagnosticVariant },
       date: fixedDate,
       colorScheme,
+      widgetFamily,
       widgetsDirectory,
     },
     Date,
@@ -79,6 +81,7 @@ function renderWidget(
     minimumScaleFactor: modifier('minimumScaleFactor'),
     monospacedDigit: modifier('monospacedDigit'),
     allowsTightening: modifier('allowsTightening'),
+    offset: modifier('offset'),
     resizable: modifier('resizable'),
     padding: modifier('padding'),
     shapes: {
@@ -128,6 +131,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     (mode) => {
       expect(collectText(renderWidget({}, mode))).toEqual([
         'Empório Rigatti',
+        '•',
+        'Outubro 2026',
         'Faturamento',
         '—',
         'Lucro líquido',
@@ -135,6 +140,69 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       ]);
     },
   );
+
+  it.each([
+    {
+      mode: 'wholesale',
+      expected: ['R$ 150,00', 'R$ 45,00'],
+      otherMode: ['R$ 90,00', 'R$ 27,00'],
+    },
+    {
+      mode: 'retail',
+      expected: ['R$ 90,00', 'R$ 27,00'],
+      otherMode: ['R$ 150,00', 'R$ 45,00'],
+    },
+  ] as const)(
+    'renders configured $mode metrics in systemSmall',
+    ({ mode, expected, otherMode }) => {
+      const tree = renderWidget(
+        {
+          financeRouteURL: 'pareact://financeiro',
+          wholesale: { faturamento: 'R$ 150,00', lucroLiquido: 'R$ 45,00' },
+          retail: { faturamento: 'R$ 90,00', lucroLiquido: 'R$ 27,00' },
+        },
+        mode,
+        'light',
+        'file:///group/ExpoWidgets',
+        'full',
+        'systemSmall',
+      ) as WidgetTreeNode;
+      const text = collectText(tree);
+      const card = collectNodes(tree, 'VStack').find(({ props }) =>
+        props?.modifiers?.some(({ name }) => name === 'background'),
+      );
+
+      expect(text).toEqual([
+        'Empório Rigatti',
+        'Faturamento',
+        ...expected.slice(0, 1),
+        'Lucro líquido',
+        expected[1],
+      ]);
+      for (const value of otherMode) expect(text).not.toContain(value);
+      expect(text).not.toContain('Outubro 2026');
+      expect(
+        card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[1],
+      ).toMatchObject({
+        name: 'roundedRectangle',
+        args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
+      });
+      expect(tree.props?.modifiers?.find(({ name }) => name === 'widgetURL')?.args).toEqual([
+        `pareact://financeiro?mode=${mode}`,
+      ]);
+      const logo = collectNodes(tree, 'Image')[0];
+      expect(logo?.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
+        width: 24,
+        height: 24,
+      });
+    },
+  );
+
+  it('keeps the systemSmall fallback for missing financial values', () => {
+    expect(
+      collectText(renderWidget({}, 'retail', 'light', undefined, 'full', 'systemSmall')),
+    ).toEqual(['Empório Rigatti', 'Faturamento', '—', 'Lucro líquido', '—']);
+  });
 
   it('safely renders missing and invalid props in both modes', () => {
     const invalidProps = [
@@ -155,6 +223,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         expect(() => renderWidget(props, mode)).not.toThrow();
         expect(collectText(renderWidget(props, mode))).toEqual([
           'Empório Rigatti',
+          '•',
+          'Outubro 2026',
           'Faturamento',
           '—',
           'Lucro líquido',
@@ -164,7 +234,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     }
   });
 
-  it('renders two equal rounded metric cards and omits the month label', () => {
+  it('renders two equal rounded metric cards and the complete month label', () => {
     const tree = renderWidget(
       {
         monthKey: '2026-10',
@@ -176,6 +246,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
 
     expect(collectText(tree)).toEqual([
       'Empório Rigatti',
+      '•',
+      'Outubro 2026',
       'Faturamento',
       'R$ 150,00',
       'Lucro líquido',
@@ -214,7 +286,11 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       const image = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'Image')[0];
 
       expect(image?.props?.uiImage).toBe(`file:///group/ExpoWidgets/${fileName}`);
-      expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual(['resizable', 'frame']);
+      expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual([
+        'resizable',
+        'frame',
+        'offset',
+      ]);
       expect(image?.props?.modifiers?.[1]?.args?.[0]).toEqual({ width: 32, height: 32 });
     },
   );
@@ -224,7 +300,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     const title = collectNodes(header, 'Text')[0];
 
     expect(header.props?.alignment).toBe('top');
-    expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 12 }] }]);
+    expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 16 }] }]);
+    expect(collectText(header)).toEqual(['Empório Rigatti', '•', 'Outubro 2026']);
     expect(title.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]).toEqual({
       weight: 'semibold',
       size: 16,
@@ -237,6 +314,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     expect(collectNodes(tree, 'Image')).toHaveLength(0);
     expect(collectText(tree)).toEqual([
       'Empório Rigatti',
+      '•',
+      'Outubro 2026',
       'Faturamento',
       '—',
       'Lucro líquido',
@@ -333,6 +412,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
 
       expect(collectText(tree)).toEqual([
         'Empório Rigatti',
+        '•',
+        'Outubro 2026',
         'Faturamento',
         '—',
         'Lucro líquido',

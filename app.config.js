@@ -198,7 +198,7 @@ module.exports = {
               displayName: 'Resumo Financeiro',
               description: 'Faturamento e lucro líquido do mês.',
               ios: {
-                supportedFamilies: ['systemMedium'],
+                supportedFamilies: ['systemSmall', 'systemMedium'],
                 configuration: {
                   title: 'Modo Financeiro',
                   description: 'Escolha os dados de Atacado ou Varejo.',
@@ -230,6 +230,14 @@ module.exports = {
                     },
                   },
                 },
+              },
+            },
+            {
+              name: 'EntregasDoDia',
+              displayName: 'Entregas do Dia',
+              description: 'Resumo das entregas de hoje.',
+              ios: {
+                supportedFamilies: ['systemSmall', 'systemMedium'],
               },
             },
           ],

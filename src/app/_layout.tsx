@@ -108,6 +108,13 @@ function AppShell() {
           if (active) resumoFinanceiroSnapshotCoordinator.setSession(widgetUid, sessionVersion);
         })
         .catch(() => undefined);
+      if (Platform.OS === 'ios') {
+        void import('@/features/deliveries/widgets/EntregasDoDiaSnapshotCoordinator')
+          .then(({ entregasDoDiaSnapshotCoordinator }) => {
+            if (active) entregasDoDiaSnapshotCoordinator.setSession(widgetUid, sessionVersion);
+          })
+          .catch(() => undefined);
+      }
       void wholesaleDeliveryLiveActivityCoordinator.setSession(
         isAuthenticated ? (sessionUid ?? null) : null,
         sessionVersion,
@@ -193,6 +200,13 @@ function AppShell() {
             },
           ),
         )
+        .catch(() => undefined);
+      void import('@/features/deliveries/widgets/EntregasDoDiaSnapshotCoordinator')
+        .then(({ entregasDoDiaSnapshotCoordinator }) => {
+          if (active) {
+            entregasDoDiaSnapshotCoordinator.refreshAvailableSnapshot(sessionUid, sessionVersion);
+          }
+        })
         .catch(() => undefined);
     };
 

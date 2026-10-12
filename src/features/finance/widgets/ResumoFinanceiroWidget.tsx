@@ -11,13 +11,14 @@ import {
   lineLimit,
   minimumScaleFactor,
   monospacedDigit,
+  offset,
   padding,
   resizable,
   shapes,
   unredacted,
   widgetURL,
 } from '@expo/ui/swift-ui/modifiers';
-import { createWidget } from 'expo-widgets';
+import { createWidget, type WidgetFamily } from 'expo-widgets';
 
 import type {
   FinanceWidgetMode,
@@ -42,6 +43,7 @@ function ResumoFinanceiroWidget(
         configuration?: ResumoFinanceiroConfiguration | null;
         colorScheme?: 'light' | 'dark';
         date?: Date | null;
+        widgetFamily?: WidgetFamily;
         widgetsDirectory?: string | null;
       }
     | null
@@ -119,6 +121,31 @@ function ResumoFinanceiroWidget(
     typeof faturamento === 'string' && faturamento.trim().length > 0 ? faturamento : '—';
   const lucroLiquidoLabel =
     typeof lucroLiquido === 'string' && lucroLiquido.trim().length > 0 ? lucroLiquido : '—';
+  const suppliedMonthLabel =
+    typeof safeProps?.monthLabel === 'string' ? safeProps.monthLabel.trim() : '';
+  const monthNames = [
+    'janeiro',
+    'fevereiro',
+    'março',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro',
+  ];
+  const environmentDate =
+    environment?.date instanceof Date && !Number.isNaN(environment.date.getTime())
+      ? environment.date
+      : new Date();
+  const rawMonthLabel =
+    suppliedMonthLabel ||
+    `${monthNames[environmentDate.getMonth()]} ${environmentDate.getFullYear()}`;
+  const normalizedMonthLabel = rawMonthLabel.toLowerCase();
+  const mediumMonthLabel = `${normalizedMonthLabel.charAt(0).toUpperCase()}${normalizedMonthLabel.slice(1)}`;
 
   if (diagnosticVariant === 'previous_layout') {
     const monthNames = [
@@ -256,16 +283,110 @@ function ResumoFinanceiroWidget(
       : undefined;
   const cardBackground = environment?.colorScheme === 'dark' ? '#2C2C2E' : '#F5F3F1';
 
+  if (environment?.widgetFamily === 'systemSmall') {
+    return (
+      <VStack
+        alignment="leading"
+        spacing={8}
+        modifiers={[
+          containerBackground({ type: 'material', material: 'regular' }, 'widget'),
+          ...(destinationURL ? [widgetURL(destinationURL)] : []),
+        ]}
+      >
+        <HStack alignment="center" spacing={8} modifiers={[padding({ horizontal: 12 })]}>
+          <Text
+            modifiers={[
+              font({ weight: 'semibold', size: 13 }),
+              foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+              lineLimit(1),
+              minimumScaleFactor(0.75),
+              allowsTightening(true),
+            ]}
+          >
+            Empório Rigatti
+          </Text>
+          <Spacer minLength={0} />
+          {diagnosticVariant === 'full' && brandImageURI ? (
+            <Image
+              uiImage={brandImageURI}
+              modifiers={[resizable(), frame({ width: 24, height: 24 })]}
+            />
+          ) : (
+            <Spacer modifiers={[frame({ width: 24, height: 24 })]} />
+          )}
+        </HStack>
+        <VStack
+          alignment="leading"
+          spacing={7}
+          modifiers={[
+            padding({ all: 10 }),
+            background(
+              cardBackground,
+              shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
+            ),
+          ]}
+        >
+          <VStack alignment="leading" spacing={2}>
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 9 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}
+            >
+              Faturamento
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 18 }),
+                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                monospacedDigit(),
+                lineLimit(1),
+                minimumScaleFactor(0.42),
+                allowsTightening(true),
+              ]}
+            >
+              {faturamentoLabel}
+            </Text>
+          </VStack>
+          <VStack alignment="leading" spacing={2}>
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 9 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}
+            >
+              Lucro líquido
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 18 }),
+                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                monospacedDigit(),
+                lineLimit(1),
+                minimumScaleFactor(0.42),
+                allowsTightening(true),
+              ]}
+            >
+              {lucroLiquidoLabel}
+            </Text>
+          </VStack>
+        </VStack>
+      </VStack>
+    );
+  }
+
   return (
     <VStack
       alignment="leading"
-      spacing={12}
+      spacing={8}
       modifiers={[
         containerBackground({ type: 'material', material: 'regular' }, 'widget'),
         ...(destinationURL ? [widgetURL(destinationURL)] : []),
       ]}
     >
-      <HStack alignment="top" spacing={8} modifiers={[padding({ horizontal: 12 })]}>
+      <HStack alignment="top" spacing={6} modifiers={[padding({ horizontal: 16 })]}>
         <Text
           modifiers={[
             font({ weight: 'semibold', size: 16 }),
@@ -277,11 +398,31 @@ function ResumoFinanceiroWidget(
         >
           Empório Rigatti
         </Text>
+        <Text
+          modifiers={[
+            font({ weight: 'medium', size: 11 }),
+            foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
+            lineLimit(1),
+          ]}
+        >
+          •
+        </Text>
+        <Text
+          modifiers={[
+            font({ weight: 'medium', size: 11 }),
+            foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+            lineLimit(1),
+            minimumScaleFactor(0.75),
+            allowsTightening(true),
+          ]}
+        >
+          {mediumMonthLabel}
+        </Text>
         <Spacer minLength={0} />
         {diagnosticVariant === 'full' && brandImageURI ? (
           <Image
             uiImage={brandImageURI}
-            modifiers={[resizable(), frame({ width: 32, height: 32 })]}
+            modifiers={[resizable(), frame({ width: 32, height: 32 }), offset({ y: -2 })]}
           />
         ) : (
           <Spacer modifiers={[frame({ width: 32, height: 32 })]} />
@@ -290,9 +431,9 @@ function ResumoFinanceiroWidget(
       <HStack alignment="center" spacing={12}>
         <VStack
           alignment="leading"
-          spacing={7}
+          spacing={5}
           modifiers={[
-            padding({ all: 12 }),
+            padding({ vertical: 9, horizontal: 12 }),
             containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 12 }),
             background(
               cardBackground,
@@ -324,9 +465,9 @@ function ResumoFinanceiroWidget(
         </VStack>
         <VStack
           alignment="leading"
-          spacing={7}
+          spacing={5}
           modifiers={[
-            padding({ all: 12 }),
+            padding({ vertical: 9, horizontal: 12 }),
             containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 12 }),
             background(
               cardBackground,

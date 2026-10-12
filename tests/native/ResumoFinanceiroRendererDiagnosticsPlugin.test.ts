@@ -94,6 +94,10 @@ describe('ResumoFinanceiro renderer diagnostics CNG plugin', () => {
     expect(instrumented).not.toMatch(/(?:=|:\s*)Logger\b/);
     expect(instrumented).toContain('event=image_load_result success=true');
     expect(instrumented).toContain('event=image_load_failure stage=decode');
+    expect(instrumented).toContain('source.hasSuffix("resumo-financeiro-mark-light.png")');
+    expect(instrumented).toContain('source.hasSuffix("resumo-financeiro-mark-dark.png")');
+    expect(instrumented).not.toContain('resumo-financeiro-splash-light.png');
+    expect(instrumented).not.toContain('resumo-financeiro-splash-dark.png');
     expect(instrumented).toContain('Bundle.main.bundleURL.pathExtension == "appex"');
     expect(instrumented).toContain('event=image_load_failure stage=read error_type=');
     expect(instrumented).toContain('pixel_width=');

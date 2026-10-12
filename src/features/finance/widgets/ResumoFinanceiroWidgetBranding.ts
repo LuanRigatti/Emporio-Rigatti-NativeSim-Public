@@ -2,14 +2,14 @@ import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
 import { widgetsDirectory } from 'expo-widgets';
 
-const splashBrandAssets = [
+const widgetBrandAssets = [
   {
-    module: require('../../../../assets/branding/splash-light.png'),
-    filename: 'resumo-financeiro-splash-light.png',
+    module: require('../../../../assets/branding/resumo-financeiro-mark-light.png'),
+    filename: 'resumo-financeiro-mark-light.png',
   },
   {
-    module: require('../../../../assets/branding/splash-dark.png'),
-    filename: 'resumo-financeiro-splash-dark.png',
+    module: require('../../../../assets/branding/resumo-financeiro-mark-dark.png'),
+    filename: 'resumo-financeiro-mark-dark.png',
   },
 ] as const;
 
@@ -19,7 +19,7 @@ function assetDestination(directory: string, filename: string): string {
   return `${directory.endsWith('/') ? directory : `${directory}/`}${filename}`;
 }
 
-async function copySplashBrandAsset(directory: string, sourceModule: number, filename: string) {
+async function copyWidgetBrandAsset(directory: string, sourceModule: number, filename: string) {
   const asset = await Asset.fromModule(sourceModule).downloadAsync();
   if (!asset.localUri) return;
 
@@ -39,8 +39,8 @@ export function prepareResumoFinanceiroWidgetBranding(): Promise<void> {
   if (preparationPromise) return preparationPromise;
 
   preparationPromise = Promise.all(
-    splashBrandAssets.map(({ module, filename }) =>
-      copySplashBrandAsset(widgetsDirectory, module, filename),
+    widgetBrandAssets.map(({ module, filename }) =>
+      copyWidgetBrandAsset(widgetsDirectory, module, filename),
     ),
   )
     .then(() => undefined)

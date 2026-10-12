@@ -19,6 +19,7 @@ jest.mock('expo-widgets', () => ({
 type WidgetTreeNode = {
   type: string;
   props?: {
+    alignment?: string;
     children?: unknown;
     modifiers?: { args?: unknown[]; name: string }[];
     uiImage?: string;
@@ -69,7 +70,6 @@ function renderWidget(
     Text: 'Text',
     containerBackground: modifier('containerBackground'),
     background: modifier('background'),
-    clipped: modifier('clipped'),
     containerRelativeFrame: modifier('containerRelativeFrame'),
     frame: modifier('frame'),
     font: modifier('font'),
@@ -80,7 +80,6 @@ function renderWidget(
     monospacedDigit: modifier('monospacedDigit'),
     allowsTightening: modifier('allowsTightening'),
     resizable: modifier('resizable'),
-    scaleEffect: modifier('scaleEffect'),
     padding: modifier('padding'),
     shapes: {
       roundedRectangle: (args: unknown) => ({ name: 'roundedRectangle', args }),
@@ -207,18 +206,29 @@ describe('ResumoFinanceiro isolated widget layout', () => {
   });
 
   it.each([
-    ['light', 'resumo-financeiro-splash-light.png'],
-    ['dark', 'resumo-financeiro-splash-dark.png'],
-  ] as const)('uses the canonical splash logo for %s appearance', (colorScheme, fileName) => {
-    const image = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'Image')[0];
+    ['light', 'resumo-financeiro-mark-light.png'],
+    ['dark', 'resumo-financeiro-mark-dark.png'],
+  ] as const)(
+    'uses the optimized canonical splash mark for %s appearance',
+    (colorScheme, fileName) => {
+      const image = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'Image')[0];
 
-    expect(image?.props?.uiImage).toBe(`file:///group/ExpoWidgets/${fileName}`);
-    expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual([
-      'resizable',
-      'frame',
-      'scaleEffect',
-      'clipped',
-    ]);
+      expect(image?.props?.uiImage).toBe(`file:///group/ExpoWidgets/${fileName}`);
+      expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual(['resizable', 'frame']);
+      expect(image?.props?.modifiers?.[1]?.args?.[0]).toEqual({ width: 32, height: 32 });
+    },
+  );
+
+  it('aligns the brand header with the card content and raises the title in the icon row', () => {
+    const header = collectNodes(renderWidget({}, 'wholesale'), 'HStack')[0];
+    const title = collectNodes(header, 'Text')[0];
+
+    expect(header.props?.alignment).toBe('top');
+    expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 12 }] }]);
+    expect(title.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]).toEqual({
+      weight: 'semibold',
+      size: 16,
+    });
   });
 
   it('keeps the values and placeholders when the shared logo directory is unavailable', () => {
@@ -347,6 +357,35 @@ describe('ResumoFinanceiro isolated widget layout', () => {
           ),
         ),
       ).toBe(true);
+    },
+  );
+
+  it.each(['wholesale', 'retail'] as const)(
+    'variant A and B share the same financial cards for %s mode',
+    (mode) => {
+      const snapshot = {
+        wholesale: { faturamento: 'R$ 150,00', lucroLiquido: 'R$ 45,00' },
+        retail: { faturamento: 'R$ 90,00', lucroLiquido: 'R$ 27,00' },
+      };
+      const fullTree = renderWidget(snapshot, mode, 'light', 'file:///group/ExpoWidgets', 'full');
+      const noImageTree = renderWidget(
+        snapshot,
+        mode,
+        'light',
+        'file:///group/ExpoWidgets',
+        'without_image',
+      );
+      const cardModifiers = (tree: unknown) =>
+        collectNodes(tree, 'VStack')
+          .filter(({ props }) =>
+            props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
+          )
+          .map(({ props }) => props?.modifiers);
+
+      expect(collectText(fullTree)).toEqual(collectText(noImageTree));
+      expect(cardModifiers(fullTree)).toEqual(cardModifiers(noImageTree));
+      expect(collectNodes(fullTree, 'Image')).toHaveLength(1);
+      expect(collectNodes(noImageTree, 'Image')).toHaveLength(0);
     },
   );
 

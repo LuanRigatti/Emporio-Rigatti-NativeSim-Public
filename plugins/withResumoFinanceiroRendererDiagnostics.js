@@ -377,7 +377,7 @@ function transformImageViewSource(source) {
       '',
       '  private func isResumoFinanceiroSplashImage(_ source: String?) -> Bool {',
       '    guard Bundle.main.bundleURL.pathExtension == "appex", let source else { return false }',
-      '    return source.hasSuffix("resumo-financeiro-splash-light.png") || source.hasSuffix("resumo-financeiro-splash-dark.png")',
+      '    return source.hasSuffix("resumo-financeiro-mark-light.png") || source.hasSuffix("resumo-financeiro-mark-dark.png")',
       '  }',
       '',
       '  private func logImageInfo(_ message: String) {',

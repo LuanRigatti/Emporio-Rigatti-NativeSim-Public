@@ -2,7 +2,6 @@ import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   allowsTightening,
   background,
-  clipped,
   containerBackground,
   containerRelativeFrame,
   frame,
@@ -14,7 +13,6 @@ import {
   monospacedDigit,
   padding,
   resizable,
-  scaleEffect,
   shapes,
   unredacted,
   widgetURL,
@@ -250,8 +248,8 @@ function ResumoFinanceiroWidget(
   const sharedImageDirectory = environment?.widgetsDirectory;
   const brandImageName =
     environment?.colorScheme === 'dark'
-      ? 'resumo-financeiro-splash-dark.png'
-      : 'resumo-financeiro-splash-light.png';
+      ? 'resumo-financeiro-mark-dark.png'
+      : 'resumo-financeiro-mark-light.png';
   const brandImageURI =
     typeof sharedImageDirectory === 'string' && sharedImageDirectory.startsWith('file://')
       ? `${sharedImageDirectory.endsWith('/') ? sharedImageDirectory : `${sharedImageDirectory}/`}${brandImageName}`
@@ -267,10 +265,10 @@ function ResumoFinanceiroWidget(
         ...(destinationURL ? [widgetURL(destinationURL)] : []),
       ]}
     >
-      <HStack alignment="center" spacing={8}>
+      <HStack alignment="top" spacing={8} modifiers={[padding({ horizontal: 12 })]}>
         <Text
           modifiers={[
-            font({ weight: 'semibold', size: 15 }),
+            font({ weight: 'semibold', size: 16 }),
             foregroundStyle({ type: 'hierarchical', style: 'primary' }),
             lineLimit(1),
             minimumScaleFactor(0.8),
@@ -283,7 +281,7 @@ function ResumoFinanceiroWidget(
         {diagnosticVariant === 'full' && brandImageURI ? (
           <Image
             uiImage={brandImageURI}
-            modifiers={[resizable(), frame({ width: 32, height: 32 }), scaleEffect(2.8), clipped()]}
+            modifiers={[resizable(), frame({ width: 32, height: 32 })]}
           />
         ) : (
           <Spacer modifiers={[frame({ width: 32, height: 32 })]} />

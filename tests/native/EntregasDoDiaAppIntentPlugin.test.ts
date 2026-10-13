@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const {
+  applyExpoWidgetsTemplateTransforms,
   addKeychainAccessGroup,
   transformButtonsSource,
   transformWidgetEnvironmentSource,
@@ -11,6 +12,7 @@ const {
   updateExtensionPlists,
   DELIVERY_ACTION_SWIFT,
 } = jest.requireActual<{
+  applyExpoWidgetsTemplateTransforms: (projectRoot: string) => void;
   addKeychainAccessGroup: (
     entitlements: Record<string, unknown>,
     accessGroup: string,
@@ -42,6 +44,61 @@ const podsLinkingPath = path.join(
 );
 
 describe('EntregasDoDia App Intent CNG integration', () => {
+  it('generates mutable revoke session version Swift from installed templates idempotently', () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rigatti-widget-swift-'));
+    const iosRoot = path.join(projectRoot, 'ios');
+    const installedPackageRoot = path.join(root, 'node_modules/expo-widgets');
+    const fixturePackageRoot = path.join(projectRoot, 'node_modules/expo-widgets');
+    const templatePaths = [
+      'package.json',
+      'ios/Widgets/Buttons.swift',
+      'ios/WidgetsModule.swift',
+      'ios/WidgetObject.swift',
+      'ios/Widgets/Utils.swift',
+      'ios/ExpoWidgets.podspec',
+    ];
+
+    fs.mkdirSync(iosRoot, { recursive: true });
+    try {
+      for (const relativePath of templatePaths) {
+        const destination = path.join(fixturePackageRoot, relativePath);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(path.join(installedPackageRoot, relativePath), destination);
+      }
+
+      applyExpoWidgetsTemplateTransforms(iosRoot);
+
+      const intentPath = path.join(
+        fixturePackageRoot,
+        'ios/Widgets/DeliveryWidgetCompletionIntent.swift',
+      );
+      const generatedSwift = fs.readFileSync(intentPath, 'utf8');
+      expect(generatedSwift).toMatch(
+        /var currentVersion = readAppSession\(\)\?\.sessionVersion \?\? 0/,
+      );
+      expect(generatedSwift).toMatch(/if currentVersion == Int\.max \{\s*currentVersion = -1\s*\}/);
+      expect(generatedSwift).toContain('let nextVersion = currentVersion + 1');
+      expect(generatedSwift).not.toMatch(/let currentVersion\s*=/);
+
+      const generatedPaths = [
+        'ios/Widgets/Buttons.swift',
+        'ios/WidgetsModule.swift',
+        'ios/WidgetObject.swift',
+        'ios/Widgets/Utils.swift',
+        'ios/Widgets/DeliveryWidgetCompletionIntent.swift',
+      ].map((relativePath) => path.join(fixturePackageRoot, relativePath));
+      const firstPass = generatedPaths.map((filePath) => fs.readFileSync(filePath, 'utf8'));
+
+      applyExpoWidgetsTemplateTransforms(iosRoot);
+
+      expect(generatedPaths.map((filePath) => fs.readFileSync(filePath, 'utf8'))).toEqual(
+        firstPass,
+      );
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it('transforms the installed expo-widgets@57.0.22 Swift templates idempotently', () => {
     const buttons = transformButtonsSource(fs.readFileSync(buttonsPath, 'utf8'));
     const module = transformWidgetModuleSource(fs.readFileSync(modulePath, 'utf8'));

@@ -333,7 +333,7 @@ enum RigattiDeliveryWidgetKeychain {
     let credential: RigattiDeliveryWidgetCredential?
     do {
       credential = try withTimelineMutationLock {
-        let currentVersion = readAppSession()?.sessionVersion ?? 0
+        var currentVersion = readAppSession()?.sessionVersion ?? 0
         if currentVersion == Int.max { currentVersion = -1 }
         let nextVersion = currentVersion + 1
         try writeData(

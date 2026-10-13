@@ -164,7 +164,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build/native-widget-diagnostics-preflight/xcodebuild.log
 
-      - name: Verify generated WidgetKit extension and diagnostics
+      - name: Verify generated WidgetKit configuration
         timeout-minutes: 5
         run: |
           set -euo pipefail
@@ -173,9 +173,17 @@ jobs:
           WIDGET_DIR="ios/ExpoWidgetsTarget"
           WIDGET_INFO_PLIST="$WIDGET_DIR/Info.plist"
           WIDGET_SWIFT="$WIDGET_DIR/ResumoFinanceiro.swift"
+          DELIVERIES_WIDGET_SWIFT="$WIDGET_DIR/EntregasDoDia.swift"
+          WIDGET_ENTITLEMENTS="$WIDGET_DIR/ExpoWidgetsTarget.entitlements"
+          WIDGETS_UTILS_SWIFT="node_modules/expo-widgets/ios/Widgets/Utils.swift"
+          WIDGETS_ENTRY_VIEW_SWIFT="node_modules/expo-widgets/ios/Widgets/EntryView.swift"
           [ -d "$APP_PROJECT" ] || { echo "::error::Generated app project not found at $APP_PROJECT"; exit 1; }
           [ -f "$WIDGET_INFO_PLIST" ] || { echo "::error::Generated WidgetKit Info.plist not found at $WIDGET_INFO_PLIST"; exit 1; }
           [ -f "$WIDGET_SWIFT" ] || { echo "::error::Generated widget Swift source not found at $WIDGET_SWIFT"; exit 1; }
+          [ -f "$DELIVERIES_WIDGET_SWIFT" ] || { echo "::error::Generated deliveries widget Swift source not found at $DELIVERIES_WIDGET_SWIFT"; exit 1; }
+          [ -f "$WIDGET_ENTITLEMENTS" ] || { echo "::error::Generated WidgetKit App Group entitlements not found at $WIDGET_ENTITLEMENTS"; exit 1; }
+          [ -f "$WIDGETS_UTILS_SWIFT" ] || { echo "::error::Expo Widgets shared environment source not found at $WIDGETS_UTILS_SWIFT"; exit 1; }
+          [ -f "$WIDGETS_ENTRY_VIEW_SWIFT" ] || { echo "::error::Expo Widgets shared entry view source not found at $WIDGETS_ENTRY_VIEW_SWIFT"; exit 1; }
 
           ruby - "$APP_PROJECT" "$WIDGET_TARGET" <<'RUBY'
           require 'xcodeproj'
@@ -203,35 +211,89 @@ jobs:
             exit 1
           }
 
+          node - "$WIDGET_SWIFT" "$DELIVERIES_WIDGET_SWIFT" "$WIDGETS_UTILS_SWIFT" "$WIDGETS_ENTRY_VIEW_SWIFT" <<'NODE'
+          const fs = require('node:fs');
+
+          const [financePath, deliveriesPath, utilsPath, entryViewPath] = process.argv.slice(2);
+          const finance = fs.readFileSync(financePath, 'utf8');
+          const deliveries = fs.readFileSync(deliveriesPath, 'utf8');
+          const utils = fs.readFileSync(utilsPath, 'utf8');
+          const entryView = fs.readFileSync(entryViewPath, 'utf8');
+          const count = (source, fragment) => source.split(fragment).length - 1;
+
+          for (const [path, source, fragments] of [
+            [financePath, finance, ['AppIntentConfiguration(', 'getWidgetEnvironment(environment: environment)']],
+            [deliveriesPath, deliveries, ['StaticConfiguration(', 'WidgetsEntryView(entry: entry)']],
+          ]) {
+            for (const fragment of fragments) {
+              if (!source.includes(fragment)) {
+                throw new Error(`::error::Generated widget source is missing ${fragment} in ${path}`);
+              }
+            }
+          }
+
+          const declarations = [
+            'struct ResumoFinanceiroConfigurationAppIntent: WidgetConfigurationIntent {',
+            'enum ResumoFinanceiroModeEnum: String, CaseIterable, AppEnum {',
+            'struct ResumoFinanceiroTimelineEntry: TimelineEntry {',
+            'struct ResumoFinanceiroTimelineProvider: AppIntentTimelineProvider {',
+            'struct ResumoFinanceiroEntryView: View {',
+          ];
+          const financeLines = finance.split(/\r?\n/).map((line) => line.trim());
+          for (const declaration of declarations) {
+            const indices = financeLines.flatMap((line, index) => line === declaration ? [index] : []);
+            if (
+              indices.length !== 1 ||
+              indices[0] === 0 ||
+              financeLines[indices[0] - 1] !== '@available(iOS 17.0, *)'
+            ) {
+              throw new Error(`::error::Generated finance widget is missing its iOS 17 availability annotation: ${declaration}`);
+            }
+          }
+
+          const brandingFragments = [
+            '// ResumoFinanceiro shared branding image directory',
+            'Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String',
+            'FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)',
+            'env["widgetsDirectory"] = appGroupContainer.appendingPathComponent("ExpoWidgets", isDirectory: true).absoluteString',
+          ];
+          for (const fragment of brandingFragments) {
+            if (count(utils, fragment) !== 1) {
+              throw new Error(`::error::Expo Widgets shared environment is missing or duplicates branding fragment: ${fragment}`);
+            }
+          }
+          if (count(entryView, 'getWidgetEnvironment(environment: environment)') !== 1) {
+            throw new Error('::error::Expo Widgets shared entry view is not using the shared environment helper');
+          }
+
+          console.log('Confirmed both generated widget sources, finance iOS 17 annotations, and shared branding environment');
+          NODE
+
+          WIDGET_APP_GROUP=$(/usr/libexec/PlistBuddy -c 'Print :ExpoWidgetsAppGroupIdentifier' "$WIDGET_INFO_PLIST")
+          WIDGET_ENTITLEMENT_GROUP=$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$WIDGET_ENTITLEMENTS")
+          [ -n "$WIDGET_APP_GROUP" ] && [ "$WIDGET_APP_GROUP" = "$WIDGET_ENTITLEMENT_GROUP" ] || {
+            echo '::error::WidgetKit Info.plist App Group identifier does not match its generated App Group entitlement'
+            exit 1
+          }
+
+          mkdir -p build/widgetkit-preflight
           xcodebuild \
             -showBuildSettings \
             -project "$APP_PROJECT" \
             -target "$WIDGET_TARGET" \
             -configuration Release \
             -sdk iphonesimulator \
-            > build/native-widget-diagnostics-preflight/widget-build-settings.txt
-          grep -Fq 'CONFIGURATION = Release' build/native-widget-diagnostics-preflight/widget-build-settings.txt || {
+            > build/widgetkit-preflight/widget-build-settings.txt
+          grep -Fq 'CONFIGURATION = Release' build/widgetkit-preflight/widget-build-settings.txt || {
             echo '::error::ExpoWidgetsTarget did not resolve to the Release configuration'
             exit 1
           }
-          grep -Fq 'SDKROOT = iphonesimulator' build/native-widget-diagnostics-preflight/widget-build-settings.txt || {
+          grep -Fq 'SDKROOT = iphonesimulator' build/widgetkit-preflight/widget-build-settings.txt || {
             echo '::error::ExpoWidgetsTarget did not resolve to the iOS Simulator SDK'
             exit 1
           }
 
-          for marker in \
-            'category: "RigattiWidgetSync"' \
-            'event=timeline_read source=extension' \
-            'event=layout_evaluation phase=start' \
-            'event=layout_evaluation phase=returned' \
-            'event=layout_evaluation phase=layout_missing'; do
-            grep -Fq "$marker" "$WIDGET_SWIFT" || {
-              echo "::error::Expected RigattiWidgetSync instrumentation missing from $WIDGET_SWIFT: $marker"
-              exit 1
-            }
-          done
-
-          echo "Confirmed WidgetKit target $WIDGET_TARGET, extension point $EXTENSION_POINT, and RigattiWidgetSync instrumentation"
+          echo "Confirmed WidgetKit target $WIDGET_TARGET, extension point $EXTENSION_POINT, Release / iphonesimulator, and matching App Group configuration"
 
       - name: Compile WidgetKit CocoaPods dependencies only
         timeout-minutes: 45
@@ -239,7 +301,7 @@ jobs:
           set -euo pipefail
           PODS_PROJECT="ios/Pods/Pods.xcodeproj"
           PODS_TARGET="Pods-ExpoWidgetsTarget"
-          mkdir -p build/native-widget-diagnostics-preflight
+          mkdir -p build/widgetkit-preflight
           [ -d "$PODS_PROJECT" ] || { echo "::error::CocoaPods project not found at $PODS_PROJECT"; exit 1; }
 
           TARGETS_JSON=$(xcodebuild -list -json -project "$PODS_PROJECT")
@@ -264,12 +326,12 @@ jobs:
             -target "$PODS_TARGET" \
             -configuration Release \
             -sdk iphonesimulator \
-            > build/native-widget-diagnostics-preflight/pods-widget-build-settings.txt
-          grep -Fq 'CONFIGURATION = Release' build/native-widget-diagnostics-preflight/pods-widget-build-settings.txt || {
+            > build/widgetkit-preflight/pods-widget-build-settings.txt
+          grep -Fq 'CONFIGURATION = Release' build/widgetkit-preflight/pods-widget-build-settings.txt || {
             echo "::error::$PODS_TARGET did not resolve to the Release configuration"
             exit 1
           }
-          grep -Fq 'SDKROOT = iphonesimulator' build/native-widget-diagnostics-preflight/pods-widget-build-settings.txt || {
+          grep -Fq 'SDKROOT = iphonesimulator' build/widgetkit-preflight/pods-widget-build-settings.txt || {
             echo "::error::$PODS_TARGET did not resolve to the iOS Simulator SDK"
             exit 1
           }
@@ -280,7 +342,7 @@ jobs:
             -configuration Release \
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee build/native-widget-diagnostics-preflight/widget-pods-xcodebuild.log
+            build 2>&1 | tee build/widgetkit-preflight/widget-pods-xcodebuild.log
 
           for module_map in \
             ios/build/Release-iphonesimulator/Expo/Expo.modulemap \
@@ -298,11 +360,11 @@ jobs:
         timeout-minutes: 45
         run: |
           set -euo pipefail
-          mkdir -p build/native-widget-diagnostics-preflight
+          mkdir -p build/widgetkit-preflight
           xcodebuild \
             -project ios/emporiorigatti.xcodeproj \
             -target ExpoWidgetsTarget \
             -configuration Release \
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee build/native-widget-diagnostics-preflight/widget-extension-xcodebuild.log
+            build 2>&1 | tee build/widgetkit-preflight/widget-extension-xcodebuild.log

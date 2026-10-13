@@ -20,6 +20,7 @@ type WidgetTreeNode = {
   type: string;
   props?: {
     alignment?: string;
+    spacing?: number;
     children?: unknown;
     modifiers?: { args?: unknown[]; name: string }[];
     uiImage?: string;
@@ -77,11 +78,11 @@ function renderWidget(
     font: modifier('font'),
     foregroundStyle: modifier('foregroundStyle'),
     kerning: modifier('kerning'),
+    layoutPriority: modifier('layoutPriority'),
     lineLimit: modifier('lineLimit'),
     minimumScaleFactor: modifier('minimumScaleFactor'),
     monospacedDigit: modifier('monospacedDigit'),
     allowsTightening: modifier('allowsTightening'),
-    offset: modifier('offset'),
     resizable: modifier('resizable'),
     padding: modifier('padding'),
     shapes: {
@@ -142,6 +143,19 @@ describe('ResumoFinanceiro isolated widget layout', () => {
   );
 
   it.each([
+    ['light', '#F5F3F1'],
+    ['dark', '#2C2C2E'],
+  ] as const)('keeps the metric card contrast in %s mode', (colorScheme, expectedBackground) => {
+    const card = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'VStack').find(
+      ({ props }) => props?.modifiers?.some(({ name }) => name === 'background'),
+    );
+
+    expect(card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[0]).toBe(
+      expectedBackground,
+    );
+  });
+
+  it.each([
     {
       mode: 'wholesale',
       expected: ['R$ 150,00', 'R$ 45,00'],
@@ -190,10 +204,16 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       expect(tree.props?.modifiers?.find(({ name }) => name === 'widgetURL')?.args).toEqual([
         `pareact://financeiro?mode=${mode}`,
       ]);
+      expect(card?.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
+        { all: 12 },
+      ]);
+      const header = collectNodes(tree, 'HStack')[0];
+      expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 2 }] }]);
+      expect(header.props?.spacing).toBe(4);
       const logo = collectNodes(tree, 'Image')[0];
       expect(logo?.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
-        width: 24,
-        height: 24,
+        width: 22,
+        height: 22,
       });
     },
   );
@@ -266,7 +286,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         axes: 'horizontal',
         count: 2,
         span: 1,
-        spacing: 12,
+        spacing: 28,
       });
       const cardBackground = card.props?.modifiers?.find(({ name }) => name === 'background');
       expect(cardBackground?.args?.[1]).toMatchObject({
@@ -277,6 +297,25 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     expect(collectNodes(tree, 'Divider')).toHaveLength(0);
   });
 
+  it.each(['SETEMBRO 2026', 'FEVEREIRO 2026'])(
+    'keeps the complete long month and year in the medium header: %s',
+    (monthLabel) => {
+      const tree = renderWidget({ monthLabel }, 'wholesale');
+      const header = collectNodes(tree, 'HStack')[0];
+
+      expect(collectText(header)).toEqual([
+        'Empório Rigatti',
+        '•',
+        monthLabel[0] + monthLabel.slice(1).toLowerCase(),
+      ]);
+      expect(
+        collectNodes(header, 'Text')[2]?.props?.modifiers?.find(
+          ({ name }) => name === 'layoutPriority',
+        )?.args,
+      ).toEqual([1]);
+    },
+  );
+
   it.each([
     ['light', 'resumo-financeiro-mark-light.png'],
     ['dark', 'resumo-financeiro-mark-dark.png'],
@@ -286,11 +325,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       const image = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'Image')[0];
 
       expect(image?.props?.uiImage).toBe(`file:///group/ExpoWidgets/${fileName}`);
-      expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual([
-        'resizable',
-        'frame',
-        'offset',
-      ]);
+      expect(image?.props?.modifiers?.map(({ name }) => name)).toEqual(['resizable', 'frame']);
       expect(image?.props?.modifiers?.[1]?.args?.[0]).toEqual({ width: 32, height: 32 });
     },
   );
@@ -299,13 +334,20 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     const header = collectNodes(renderWidget({}, 'wholesale'), 'HStack')[0];
     const title = collectNodes(header, 'Text')[0];
 
-    expect(header.props?.alignment).toBe('top');
-    expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 16 }] }]);
+    expect(header.props?.alignment).toBe('center');
+    expect(header.props?.modifiers).toEqual([
+      { name: 'padding', args: [{ leading: 22, trailing: 16 }] },
+    ]);
     expect(collectText(header)).toEqual(['Empório Rigatti', '•', 'Outubro 2026']);
     expect(title.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]).toEqual({
       weight: 'semibold',
-      size: 16,
+      size: 15,
     });
+    expect(
+      collectNodes(header, 'Text')[2]?.props?.modifiers?.find(
+        ({ name }) => name === 'layoutPriority',
+      )?.args,
+    ).toEqual([1]);
   });
 
   it('keeps the values and placeholders when the shared logo directory is unavailable', () => {

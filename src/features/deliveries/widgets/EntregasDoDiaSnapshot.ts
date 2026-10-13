@@ -9,17 +9,23 @@ import {
 import { formatClientName, formatCurrency, todayIso } from '@/utils/data';
 
 export type EntregasDoDiaWidgetRow = {
+  id: string;
   clientName: string;
   quantityLabel: string;
   valueLabel: string;
+  completionURL?: string;
 };
+
+export type EntregasDoDiaWidgetState = 'pending' | 'all_completed' | 'empty' | 'unavailable';
 
 export type EntregasDoDiaWidgetProps = {
   date: string;
-  availability: 'available' | 'unavailable';
+  state: EntregasDoDiaWidgetState;
   deliveryCount: number;
   deliveries: EntregasDoDiaWidgetRow[];
   deliveryRouteURL?: string;
+  actionSessionId?: string;
+  actionRevision?: number;
 };
 
 export type EntregasDoDiaWidgetTimelineProps = Omit<
@@ -35,7 +41,7 @@ export function unavailableEntregasDoDiaWidgetProps(
 ): EntregasDoDiaWidgetProps {
   return {
     date,
-    availability: 'unavailable',
+    state: 'unavailable',
     deliveryCount: 0,
     deliveries: [],
     ...(deliveryRouteURL ? { deliveryRouteURL } : {}),
@@ -45,29 +51,40 @@ export function unavailableEntregasDoDiaWidgetProps(
 export function projectEntregasDoDiaSnapshot(
   snapshot: CompleteDeliveryDateSnapshot,
   deliveryRouteURL?: string,
+  completionURLForDelivery?: (deliveryId: string, date: string) => string,
 ): EntregasDoDiaWidgetProps {
-  const deliveries = deliveryQueryService.filter([...snapshot.deliveries], {
+  if (snapshot.deliveries.some((delivery) => typeof delivery.entregue !== 'boolean')) {
+    throw new Error('O snapshot de entregas do dia está incompleto.');
+  }
+  const dayDeliveries = deliveryQueryService.filter([...snapshot.deliveries], {
     mode: 'today',
     date: snapshot.date,
   });
+  const pendingDeliveries = dayDeliveries.filter((delivery) => delivery.entregue === false);
   const canonicalSummary = projectWholesaleDeliverySnapshot({
     ...snapshot,
-    deliveries,
+    deliveries: pendingDeliveries,
   });
+  const state: EntregasDoDiaWidgetState =
+    pendingDeliveries.length > 0 ? 'pending' : dayDeliveries.length > 0 ? 'all_completed' : 'empty';
 
   return {
     date: snapshot.date,
-    availability: 'available',
+    state,
     deliveryCount: canonicalSummary.deliveryCount,
-    deliveries: deliveries.map((delivery) => {
+    deliveries: pendingDeliveries.map((delivery) => {
       const quantity = Number.isFinite(delivery.quantidade)
         ? new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(delivery.quantidade)
         : '—';
 
       return {
+        id: delivery.id,
         clientName: formatClientName(delivery.cliente),
         quantityLabel: `${quantity} ${delivery.quantidade === 1 ? 'balde' : 'baldes'}`,
         valueLabel: Number.isFinite(delivery.valor) ? formatCurrency(delivery.valor) : '—',
+        ...(completionURLForDelivery
+          ? { completionURL: completionURLForDelivery(delivery.id, snapshot.date) }
+          : {}),
       };
     }),
     ...(deliveryRouteURL ? { deliveryRouteURL } : {}),
@@ -82,10 +99,12 @@ export function createEntregasDoDiaTimeline(
   const nextDate = todayIso(nextLocalMidnight(current.date));
   const currentProps: EntregasDoDiaWidgetTimelineProps = {
     date: current.date,
-    availability: current.availability,
+    state: current.state,
     deliveryCount: current.deliveryCount,
     deliveries: current.deliveries,
     ...(deliveryRouteURL ? { deliveryRouteURL } : {}),
+    ...(current.actionSessionId ? { actionSessionId: current.actionSessionId } : {}),
+    ...(current.actionRevision !== undefined ? { actionRevision: current.actionRevision } : {}),
   };
   const nextProps = unavailableEntregasDoDiaWidgetProps(nextDate, deliveryRouteURL);
 
@@ -95,7 +114,7 @@ export function createEntregasDoDiaTimeline(
       date: nextLocalMidnight(current.date),
       props: {
         date: nextProps.date,
-        availability: nextProps.availability,
+        state: nextProps.state,
         deliveryCount: nextProps.deliveryCount,
         deliveries: nextProps.deliveries,
         ...(nextProps.deliveryRouteURL ? { deliveryRouteURL: nextProps.deliveryRouteURL } : {}),

@@ -22,6 +22,7 @@ export default function HistoryLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ gestureEnabled: false, headerShown: true }} />
+      <Stack.Screen name="entrega/[deliveryId]" options={{ headerShown: false }} />
     </Stack>
   );
 }

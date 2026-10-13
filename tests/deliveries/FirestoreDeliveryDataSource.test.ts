@@ -38,6 +38,10 @@ jest.mock('firebase/firestore', () => ({
   setDoc: jest.fn(async () => undefined),
   deleteDoc: jest.fn(async () => undefined),
   updateDoc: jest.fn(async () => undefined),
+  runTransaction: jest.fn(
+    async (_database: unknown, updateFunction: (transaction: never) => unknown) =>
+      updateFunction({} as never),
+  ),
   limit: jest.fn((n: number) => ({ type: 'limit', value: n })),
   orderBy: jest.fn((field: string, dir: string) => ({ type: 'orderBy', field, dir })),
   query: jest.fn((...args: unknown[]) => ({ type: 'query', args })),
@@ -50,6 +54,7 @@ const mockedGetDocs = jest.mocked(firestoreModule.getDocs);
 const mockedGetDoc = jest.mocked(firestoreModule.getDoc);
 const mockedSetDoc = jest.mocked(firestoreModule.setDoc);
 const mockedUpdateDoc = jest.mocked(firestoreModule.updateDoc);
+const mockedRunTransaction = jest.mocked(firestoreModule.runTransaction);
 
 describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
   beforeAll(() => {
@@ -62,6 +67,10 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedRunTransaction.mockReset();
+    mockedRunTransaction.mockImplementation(async (_database, updateFunction) =>
+      updateFunction({} as never),
+    );
     mockAsyncStorage.clear();
     firestoreHistoricalDeliveryCache.clearMemory();
   });
@@ -463,8 +472,8 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     await dataSource.hydrateFromCache('uid-test', '2026-08-29');
 
     expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toEqual([
-      dailyUpdate,
       historicalDeliveries[1],
+      dailyUpdate,
     ]);
   });
 
@@ -919,7 +928,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     const revisionBeforeSet = dataSource.getRevision();
     await dataSource.setDelivered('uid-test', 'delivery-pending', true);
 
-    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockedRunTransaction).not.toHaveBeenCalled();
     expect(mockedUpdateDoc.mock.calls[0]?.[1]).toEqual({
       delivered: true,
       updatedAt: { type: 'serverTimestamp' },
@@ -943,9 +952,218 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     const revisionAfterSet = dataSource.getRevision();
     await dataSource.setDelivered('uid-test', 'delivery-pending', true);
 
-    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockedRunTransaction).not.toHaveBeenCalled();
     expect(dataSource.getRevision()).toBe(revisionAfterSet);
     expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
     invalidateFinancialMonth.mockRestore();
+  });
+
+  it('accepts an already confirmed widget completion without writing it twice', async () => {
+    const dataSource = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [
+      {
+        cliente: 'André',
+        data: '2026-09-21',
+        entregue: false,
+        id: 'delivery-concurrent-set',
+        quantidade: 1,
+        status: 'Não Pago',
+        valor: 50,
+      },
+    ]);
+    await dataSource.hydrateFromCache('uid-test', '2026-09-21');
+    await dataSource.setDelivered('uid-test', 'delivery-concurrent-set', true);
+
+    expect(mockedRunTransaction).not.toHaveBeenCalled();
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ delivered: true }),
+    );
+    expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toMatchObject([
+      { id: 'delivery-concurrent-set', entregue: true },
+    ]);
+  });
+
+  it('does not let a stale bulk delivered edit reverse a widget completion', async () => {
+    const dataSource = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [
+      {
+        cliente: 'André',
+        data: '2026-09-21',
+        entregue: false,
+        id: 'delivery-concurrent-bulk',
+        quantidade: 1,
+        status: 'Não Pago',
+        valor: 50,
+      },
+    ]);
+    await dataSource.hydrateFromCache('uid-test', '2026-09-21');
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({ exists: () => true, data: () => ({ delivered: true }) }),
+        update: transactionUpdate,
+      } as never),
+    );
+
+    await expect(
+      dataSource.editMany('uid-test', ['delivery-concurrent-bulk'], { entregue: false }),
+    ).rejects.toThrow('A entrega foi alterada em outra operação. Atualize e tente novamente.');
+
+    expect(transactionUpdate).not.toHaveBeenCalled();
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite a delivery completion that races with a stale edit form', async () => {
+    const staleRemoteDocument = {
+      clientId: 'client-ana',
+      clientNameSnapshot: 'Ana',
+      date: '2026-10-15',
+      quantity: 2,
+      totalValue: 100,
+      status: 'Não Pago',
+      delivered: false,
+    };
+    mockedGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      id: 'delivery-race',
+      data: () => staleRemoteDocument,
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    const updated = await dataSource.update('uid-test', 'delivery-race', {
+      clientId: 'client:ana',
+      clientName: 'Ana Atualizada',
+      address: 'Rua Atualizada',
+      addressConfirmed: true,
+      date: '2026-10-15',
+      quantity: 3,
+      value: 150,
+      valueWasManuallyChanged: true,
+      status: 'Não Pago',
+      delivered: false,
+      invoiceStatus: 'a_emitir',
+    });
+
+    expect(mockedRunTransaction).not.toHaveBeenCalled();
+    expect(mockedUpdateDoc.mock.calls[0]?.[1]).not.toHaveProperty('delivered');
+    expect(updated.entregue).toBe(false);
+    expect(dataSource.getCached({ mode: 'today', date: '2026-10-15' }, 'uid-test')).toMatchObject([
+      { id: 'delivery-race', entregue: false, quantidade: 3, valor: 150 },
+    ]);
+  });
+
+  it('persists a deliberate delivered toggle from the edit form', async () => {
+    mockedGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      id: 'delivery-form-toggle',
+      data: () => ({
+        clientId: 'client-ana',
+        clientNameSnapshot: 'Ana',
+        date: '2026-10-15',
+        quantity: 2,
+        totalValue: 100,
+        status: 'Não Pago',
+        delivered: false,
+      }),
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    const updated = await dataSource.update('uid-test', 'delivery-form-toggle', {
+      clientId: 'client:ana',
+      clientName: 'Ana',
+      address: 'Rua A',
+      addressConfirmed: true,
+      date: '2026-10-15',
+      quantity: 2,
+      value: 100,
+      valueWasManuallyChanged: false,
+      status: 'Não Pago',
+      delivered: true,
+      invoiceStatus: 'a_emitir',
+    });
+
+    expect(mockedRunTransaction).not.toHaveBeenCalled();
+    expect(mockedUpdateDoc.mock.calls[0]?.[1]).toMatchObject({ delivered: true });
+    expect(updated.entregue).toBe(true);
+  });
+
+  it('persists a deliberate unmark from the edit form with a conflict-checked transaction', async () => {
+    mockedGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      id: 'delivery-form-unmark',
+      data: () => ({
+        clientId: 'client-ana',
+        clientNameSnapshot: 'Ana',
+        date: '2026-10-15',
+        quantity: 2,
+        totalValue: 100,
+        status: 'Não Pago',
+        delivered: true,
+      }),
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({ exists: () => true, data: () => ({ delivered: true }) }),
+        update: transactionUpdate,
+      } as never),
+    );
+
+    const updated = await new FirestoreDeliveryDataSource().update(
+      'uid-test',
+      'delivery-form-unmark',
+      {
+        clientId: 'client:ana',
+        clientName: 'Ana',
+        address: 'Rua A',
+        addressConfirmed: true,
+        date: '2026-10-15',
+        quantity: 2,
+        value: 100,
+        valueWasManuallyChanged: false,
+        status: 'Não Pago',
+        delivered: false,
+        invoiceStatus: 'a_emitir',
+      },
+    );
+
+    expect(mockedRunTransaction).toHaveBeenCalledTimes(1);
+    expect(transactionUpdate.mock.calls[0]?.[1]).toMatchObject({ delivered: false });
+    expect(updated.entregue).toBe(false);
+  });
+
+  it('requires a remote transaction before an explicit unmark of a completed delivery', async () => {
+    await firestoreHistoricalDeliveryCache.write('uid-test', [
+      {
+        cliente: 'André',
+        data: '2026-09-21',
+        entregue: true,
+        id: 'delivery-explicit-unmark',
+        quantidade: 1,
+        status: 'Não Pago',
+        valor: 50,
+      },
+    ]);
+    const dataSource = new FirestoreDeliveryDataSource();
+    await dataSource.hydrateFromCache('uid-test', '2026-09-21');
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({ exists: () => true, data: () => ({ delivered: true }) }),
+        update: transactionUpdate,
+      } as never),
+    );
+
+    await dataSource.setDelivered('uid-test', 'delivery-explicit-unmark', false);
+
+    expect(mockedRunTransaction).toHaveBeenCalledTimes(1);
+    expect(transactionUpdate.mock.calls[0]?.[1]).toEqual({
+      delivered: false,
+      updatedAt: { type: 'serverTimestamp' },
+    });
   });
 });

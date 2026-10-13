@@ -3,6 +3,12 @@ export {
   DeliveryNormalizationService,
 } from './DeliveryNormalizationService';
 export { DeliveryMutationService } from './DeliveryMutationService';
+export { deliveryWidgetAuthorizationService } from './DeliveryWidgetAuthorizationService';
+export type {
+  DeliveryWidgetActionsNativeModule,
+  DeliveryWidgetActionReceipt,
+  DeliveryWidgetAuthorizationMetadata,
+} from './DeliveryWidgetActionsNative';
 export {
   FirestoreDeliveryCacheService,
   firestoreDeliveryCacheService,

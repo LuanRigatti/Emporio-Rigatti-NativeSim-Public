@@ -13,6 +13,7 @@ import { authDataSource } from '@/services/auth/AuthDataSource';
 import { AuthUserFacingError, mapAuthError } from '@/services/auth/AuthErrorMapper';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
 import { setRouteTrackingSession } from '@/services/routes/RouteTrackingSessionBridge';
+import { deliveryWidgetAuthorizationService } from '@/services/deliveries/DeliveryWidgetAuthorizationService';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
 
@@ -58,6 +59,9 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       sessionUidRef.current = nextUid;
       sessionVersionRef.current += 1;
       setSessionVersion(sessionVersionRef.current);
+      void deliveryWidgetAuthorizationService
+        .activateSession(nextUid, sessionVersionRef.current)
+        .catch(() => undefined);
     }
     setRouteTrackingSession(nextUid, sessionVersionRef.current);
     setUser(nextUser);
@@ -123,6 +127,19 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
       unsubscribe();
     };
   }, [commitSession, dataSource]);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    void deliveryWidgetAuthorizationService
+      .activateSession(status === 'authenticated' ? (user?.id ?? null) : null, sessionVersion)
+      .then(async () => {
+        if (status !== 'authenticated' || !user?.id) return;
+        const { entregasDoDiaSnapshotCoordinator } =
+          await import('@/features/deliveries/widgets/EntregasDoDiaSnapshotCoordinator');
+        entregasDoDiaSnapshotCoordinator.refreshAvailableSnapshot(user.id, sessionVersion);
+      })
+      .catch(() => undefined);
+  }, [sessionVersion, status, user?.id]);
 
   const runAuthentication = useCallback(
     async (
@@ -221,6 +238,7 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
     setOperationLoading(true);
     setError(null);
     try {
+      await deliveryWidgetAuthorizationService.revokeBeforeLogout().catch(() => undefined);
       await dataSource.signOut();
       commitSession(null, 'unauthenticated');
     } catch (authError) {

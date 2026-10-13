@@ -38,6 +38,10 @@ const selectedGoogleReversedClientId = readPlistString(
   selectedGoogleServicesPath,
   'REVERSED_CLIENT_ID',
 );
+const selectedGoogleProjectId = readPlistString(selectedGoogleServicesPath, 'PROJECT_ID');
+const deliveryWidgetActionsEndpoint = selectedGoogleProjectId
+  ? `https://us-central1-${selectedGoogleProjectId}.cloudfunctions.net/deliveryWidgetActions`
+  : undefined;
 const configuredScheme =
   isIsolatedIosVariant && selectedGoogleReversedClientId
     ? [appScheme, selectedGoogleReversedClientId]
@@ -122,6 +126,7 @@ module.exports = {
       ...(isFinalVariant ? { appVariant: 'final' } : {}),
       ...(isReleaseVariant ? { appVariant: 'release' } : {}),
       ...(selectedGoogleIosClientId ? { googleIosClientId: selectedGoogleIosClientId } : {}),
+      ...(deliveryWidgetActionsEndpoint ? { deliveryWidgetActionsEndpoint } : {}),
     },
     plugins: [
       'expo-router',
@@ -174,6 +179,13 @@ module.exports = {
         {
           defaultChannel: 'default',
           enableBackgroundRemoteNotifications: true,
+        },
+      ],
+      [
+        './plugins/withEntregasDoDiaAppIntent',
+        {
+          bundleIdentifier: appBundleIdentifier,
+          endpoint: deliveryWidgetActionsEndpoint,
         },
       ],
       [

@@ -43,36 +43,64 @@ function expectPropertyListValue(value: unknown): void {
 }
 
 describe('EntregasDoDia snapshot', () => {
-  it('projects only the selected date with canonical ordering and existing delivery values', () => {
+  it('projects only pending deliveries in canonical order with stable IDs and exact row links', () => {
     const snapshot: CompleteDeliveryDateSnapshot = {
       uid: 'user-a',
       date: '2026-10-15',
       completedAt: 1,
       deliveries: [
-        delivery('late', 'Cliente Z', '2026-10-15', 2, 60, true),
+        delivery('late', 'Cliente Z', '2026-10-15', 2, 60),
+        delivery('done', 'Cliente B', '2026-10-15', 3, 90, true),
         delivery('other-day', 'Outro Dia', '2026-10-14', 10, 300),
         delivery('early', 'Cliente A', '2026-10-15', 1, 30),
       ],
     };
 
-    const projected = projectEntregasDoDiaSnapshot(snapshot, 'pareact://historico?mode=wholesale');
+    const projected = projectEntregasDoDiaSnapshot(
+      snapshot,
+      'pareact://historico?mode=wholesale',
+      (id, date) => `pareact://historico/entrega/${id}?date=${date}`,
+    );
 
     expect(projected).toMatchObject({
       date: '2026-10-15',
-      availability: 'available',
+      state: 'pending',
       deliveryCount: 2,
       deliveryRouteURL: 'pareact://historico?mode=wholesale',
       deliveries: [
-        { clientName: 'Cliente A', quantityLabel: '1 balde' },
-        { clientName: 'Cliente Z', quantityLabel: '2 baldes' },
+        {
+          id: 'early',
+          clientName: 'Cliente A',
+          quantityLabel: '1 balde',
+          completionURL: 'pareact://historico/entrega/early?date=2026-10-15',
+        },
+        {
+          id: 'late',
+          clientName: 'Cliente Z',
+          quantityLabel: '2 baldes',
+          completionURL: 'pareact://historico/entrega/late?date=2026-10-15',
+        },
       ],
     });
     expect(projected.deliveries[0]?.valueLabel).toBe('R$ 30,00');
     expect(projected.deliveries[1]?.valueLabel).toBe('R$ 60,00');
+    expect(projected.deliveries.some(({ id }) => id === 'done')).toBe(false);
   });
 
-  it('distinguishes a complete empty day from data that is unavailable', () => {
-    const completeEmpty = projectEntregasDoDiaSnapshot({
+  it('distinguishes pending, all-completed, truly empty, and unavailable days', () => {
+    const pending = projectEntregasDoDiaSnapshot({
+      uid: 'user-a',
+      date: '2026-10-15',
+      completedAt: 1,
+      deliveries: [delivery('pending', 'Cliente A', '2026-10-15', 1, 30)],
+    });
+    const allCompleted = projectEntregasDoDiaSnapshot({
+      uid: 'user-a',
+      date: '2026-10-15',
+      completedAt: 1,
+      deliveries: [delivery('done', 'Cliente A', '2026-10-15', 1, 30, true)],
+    });
+    const empty = projectEntregasDoDiaSnapshot({
       uid: 'user-a',
       date: '2026-10-15',
       completedAt: 1,
@@ -80,17 +108,32 @@ describe('EntregasDoDia snapshot', () => {
     });
     const unavailable = unavailableEntregasDoDiaWidgetProps('2026-10-15');
 
-    expect(completeEmpty).toMatchObject({
-      availability: 'available',
+    expect(pending.state).toBe('pending');
+    expect(allCompleted).toMatchObject({
+      state: 'all_completed',
       deliveryCount: 0,
       deliveries: [],
     });
-    expect(unavailable).toMatchObject({
-      availability: 'unavailable',
-      deliveryCount: 0,
-      deliveries: [],
-    });
-    expect(completeEmpty.availability).not.toBe(unavailable.availability);
+    expect(empty).toMatchObject({ state: 'empty', deliveryCount: 0, deliveries: [] });
+    expect(unavailable).toMatchObject({ state: 'unavailable', deliveryCount: 0, deliveries: [] });
+    expect(new Set([pending.state, allCompleted.state, empty.state, unavailable.state]).size).toBe(
+      4,
+    );
+  });
+
+  it('does not classify a malformed delivery snapshot as all-completed', () => {
+    const malformed = {
+      uid: 'user-a',
+      date: '2026-10-15',
+      completedAt: 1,
+      deliveries: [
+        { ...delivery('unknown', 'Cliente A', '2026-10-15', 1, 30), entregue: undefined },
+      ],
+    } as unknown as CompleteDeliveryDateSnapshot;
+
+    expect(() => projectEntregasDoDiaSnapshot(malformed)).toThrow(
+      'O snapshot de entregas do dia está incompleto.',
+    );
   });
 
   it('keeps two timeline entries, rollover date, and property-list-safe props', () => {
@@ -102,6 +145,7 @@ describe('EntregasDoDia snapshot', () => {
         deliveries: [delivery('one', 'Cliente A', '2026-10-15', 1, 30)],
       },
       'pareact://historico?mode=wholesale',
+      (id, date) => `pareact://historico/entrega/${id}?date=${date}`,
     );
     const timeline = createEntregasDoDiaTimeline(
       current,
@@ -112,8 +156,11 @@ describe('EntregasDoDia snapshot', () => {
     expect(timeline).toHaveLength(2);
     expect(timeline[0]?.date).toEqual(new Date(2026, 9, 15, 12));
     expect(timeline[1]?.date).toEqual(new Date(2026, 9, 16));
-    expect(timeline[0]?.props).toMatchObject({ date: '2026-10-15', availability: 'available' });
-    expect(timeline[1]?.props).toMatchObject({ date: '2026-10-16', availability: 'unavailable' });
+    expect(timeline[0]?.props).toMatchObject({ date: '2026-10-15', state: 'pending' });
+    expect(timeline[0]?.props.deliveries[0]?.completionURL).toBe(
+      'pareact://historico/entrega/one?date=2026-10-15',
+    );
+    expect(timeline[1]?.props).toMatchObject({ date: '2026-10-16', state: 'unavailable' });
     for (const entry of timeline) expectPropertyListValue(entry.props);
   });
 });

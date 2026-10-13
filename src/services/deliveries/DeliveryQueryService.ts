@@ -41,7 +41,8 @@ export class DeliveryQueryService {
       .sort(
         (left, right) =>
           right.data.localeCompare(left.data) ||
-          formatClientName(left.cliente).localeCompare(formatClientName(right.cliente), 'pt-BR'),
+          formatClientName(left.cliente).localeCompare(formatClientName(right.cliente), 'pt-BR') ||
+          left.id.localeCompare(right.id),
       );
   }
 }

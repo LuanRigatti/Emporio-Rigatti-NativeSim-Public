@@ -34,6 +34,7 @@ import {
 import { retailClientDataSource } from '@/services/retail-clients';
 import { retailOrderDataSource, retailPaymentDataSource } from '@/services/retail-orders';
 import { firestoreDeliveryDataSource } from '@/services/deliveries';
+import { deliveryWidgetAuthorizationService } from '@/services/deliveries/DeliveryWidgetAuthorizationService';
 import { wholesaleDeliveryLiveActivityCoordinator } from '@/features/deliveries/liveActivity/LiveActivityCoordinator';
 import { firestoreFactoryReceiptDataSource } from '@/services/factory-purchases';
 import { carSettingsStorage } from '@/services/car';
@@ -207,6 +208,21 @@ function AppShell() {
             entregasDoDiaSnapshotCoordinator.refreshAvailableSnapshot(sessionUid, sessionVersion);
           }
         })
+        .catch(() => undefined);
+      void deliveryWidgetAuthorizationService
+        .ensureCurrent(sessionUid, sessionVersion)
+        .then(() =>
+          import('@/features/deliveries/widgets/EntregasDoDiaSnapshotCoordinator').then(
+            ({ entregasDoDiaSnapshotCoordinator }) => {
+              if (active) {
+                entregasDoDiaSnapshotCoordinator.refreshAvailableSnapshot(
+                  sessionUid,
+                  sessionVersion,
+                );
+              }
+            },
+          ),
+        )
         .catch(() => undefined);
     };
 

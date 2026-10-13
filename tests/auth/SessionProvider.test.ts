@@ -3,11 +3,19 @@ import { createElement, useEffect } from 'react';
 
 import { SessionProvider, useSession } from '@/providers/SessionProvider';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
+import { deliveryWidgetAuthorizationService } from '@/services/deliveries/DeliveryWidgetAuthorizationService';
 
 jest.mock('@/services/auth/AuthDataSource', () => ({
   authDataSource: {
     getCurrentUser: () => null,
     subscribe: () => () => undefined,
+  },
+}));
+
+jest.mock('@/services/deliveries/DeliveryWidgetAuthorizationService', () => ({
+  deliveryWidgetAuthorizationService: {
+    activateSession: jest.fn().mockResolvedValue(undefined),
+    revokeBeforeLogout: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -298,11 +306,17 @@ describe('SessionProvider startup resolution', () => {
     );
 
     source.signOutCall.mockResolvedValue(undefined);
+    const revokeCallCount = jest.mocked(deliveryWidgetAuthorizationService.revokeBeforeLogout).mock
+      .calls.length;
     await act(async () => {
       await signOut?.();
     });
 
     expect(source.signOutCall).toHaveBeenCalledTimes(1);
+    const revokeOrder = jest.mocked(deliveryWidgetAuthorizationService.revokeBeforeLogout).mock
+      .invocationCallOrder[revokeCallCount];
+    const signOutOrder = source.signOutCall.mock.invocationCallOrder[0];
+    expect(revokeOrder).toBeLessThan(signOutOrder as number);
     expect(source.googleNativeSignIn).not.toHaveBeenCalled();
 
     await act(async () => {

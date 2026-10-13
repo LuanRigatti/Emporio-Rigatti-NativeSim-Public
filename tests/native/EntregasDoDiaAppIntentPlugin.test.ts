@@ -1,0 +1,225 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const {
+  addKeychainAccessGroup,
+  transformButtonsSource,
+  transformWidgetEnvironmentSource,
+  transformWidgetModuleSource,
+  transformWidgetObjectSource,
+  updateExtensionPlists,
+  DELIVERY_ACTION_SWIFT,
+} = jest.requireActual<{
+  addKeychainAccessGroup: (
+    entitlements: Record<string, unknown>,
+    accessGroup: string,
+  ) => Record<string, unknown>;
+  transformButtonsSource: (source: string) => string;
+  transformWidgetEnvironmentSource: (source: string) => string;
+  transformWidgetModuleSource: (source: string) => string;
+  transformWidgetObjectSource: (source: string) => string;
+  updateExtensionPlists: (root: string, accessGroup: string, endpoint: string) => void;
+  DELIVERY_ACTION_SWIFT: string;
+}>('../../plugins/withEntregasDoDiaAppIntent');
+
+const plist = jest.requireActual<{
+  default: {
+    build: (value: Record<string, unknown>) => string;
+    parse: (value: string) => Record<string, unknown>;
+  };
+}>('@expo/plist').default;
+
+const root = path.resolve(__dirname, '../..');
+const buttonsPath = path.join(root, 'node_modules/expo-widgets/ios/Widgets/Buttons.swift');
+const modulePath = path.join(root, 'node_modules/expo-widgets/ios/WidgetsModule.swift');
+const environmentPath = path.join(root, 'node_modules/expo-widgets/ios/Widgets/Utils.swift');
+const widgetObjectPath = path.join(root, 'node_modules/expo-widgets/ios/WidgetObject.swift');
+const podspecPath = path.join(root, 'node_modules/expo-widgets/ios/ExpoWidgets.podspec');
+const podsLinkingPath = path.join(
+  root,
+  'node_modules/expo-widgets/plugin/src/ios/withPodsLinking.ts',
+);
+
+describe('EntregasDoDia App Intent CNG integration', () => {
+  it('transforms the installed expo-widgets@57.0.22 Swift templates idempotently', () => {
+    const buttons = transformButtonsSource(fs.readFileSync(buttonsPath, 'utf8'));
+    const module = transformWidgetModuleSource(fs.readFileSync(modulePath, 'utf8'));
+    const environment = transformWidgetEnvironmentSource(fs.readFileSync(environmentPath, 'utf8'));
+    const widgetObject = transformWidgetObjectSource(fs.readFileSync(widgetObjectPath, 'utf8'));
+
+    expect(buttons).toMatch(/^import AppIntents$/m);
+    expect(buttons).toContain('RigattiDeliveryCompletionIntent.parseTarget(props.target)');
+    expect(buttons).toContain('RigattiDeliveryCompletionIntent(');
+    expect(buttons).toContain('WidgetUserInteraction(');
+    expect(buttons).toContain('struct LiveActivityButtonView');
+    expect(transformButtonsSource(buttons)).toBe(buttons);
+
+    expect(module).toContain('AsyncFunction("storeDeliveryWidgetAuthorization")');
+    expect(module).toContain('Function("prepareDeliveryWidgetAuthorizationSession")');
+    expect(module).toContain('AsyncFunction("revokeDeliveryWidgetAuthorization")');
+    expect(module).toContain('Function("pendingDeliveryWidgetActionReceipts")');
+    expect(module).toContain('Function("deliveryWidgetActionRevision")');
+    expect(transformWidgetModuleSource(module)).toBe(module);
+
+    expect(environment).toContain('env["deliveryActionsAvailable"] = true');
+    expect(environment).toContain('env["deliveryActionsAvailable"] = false');
+    expect(environment).toContain('env["widgetContentMargins"]');
+    expect(transformWidgetEnvironmentSource(environment)).toBe(environment);
+    expect(widgetObject).toContain('withTimelineMutationLock');
+    expect(widgetObject).toContain('shouldAcceptAppTimeline');
+    expect(widgetObject).toContain('RIGATTI_DELIVERY_WIDGET_OBJECT_LOCK_V1');
+    expect(transformWidgetObjectSource(widgetObject)).toBe(widgetObject);
+    expect(fs.readFileSync(podspecPath, 'utf8')).toContain('s.source_files = "**/*.{h,m,swift}"');
+    expect(fs.readFileSync(podsLinkingPath, 'utf8')).toContain('use_expo_modules_widgets!');
+  });
+
+  it('migrates an already-transformed template by adding the AppIntents import once', () => {
+    const transformed = transformButtonsSource(fs.readFileSync(buttonsPath, 'utf8'));
+    const previousTransform = transformed.replace(/^import AppIntents\r?\n/m, '');
+
+    const migrated = transformButtonsSource(previousTransform);
+
+    expect(migrated).toBe(transformed);
+    expect(migrated.match(/^import AppIntents$/gm)).toHaveLength(1);
+    expect(transformButtonsSource(migrated)).toBe(migrated);
+  });
+
+  it('uses a native AppIntent, protected shared Keychain, server confirmation, and local timeline reload', () => {
+    expect(DELIVERY_ACTION_SWIFT).toContain('struct RigattiDeliveryCompletionIntent: AppIntent');
+    expect(DELIVERY_ACTION_SWIFT).toContain('enum RigattiDeliveryWidgetKeychain {');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'private static let appSessionAccount = "active-app-session"',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'static func prepareAppSession(uid: String?, sessionVersion: Int) -> Bool',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'isCurrentAppSession(_ credential: RigattiDeliveryWidgetCredential)',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('let sessionVersion: Int');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'appSession.uid == uid, appSession.sessionVersion == sessionVersion',
+    );
+    expect(DELIVERY_ACTION_SWIFT).not.toContain('private enum RigattiDeliveryWidgetKeychain');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      '@available(iOS 26.0, *)\nextension RigattiDeliveryCompletionIntent',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'static var supportedModes: IntentModes = [.background]',
+    );
+    const iOS17IntentStart = DELIVERY_ACTION_SWIFT.indexOf(
+      '@available(iOS 17.0, *)\nstruct RigattiDeliveryCompletionIntent',
+    );
+    const iOS26ModesStart = DELIVERY_ACTION_SWIFT.indexOf(
+      '@available(iOS 26.0, *)\nextension RigattiDeliveryCompletionIntent',
+    );
+    expect(iOS17IntentStart).toBeGreaterThanOrEqual(0);
+    expect(iOS26ModesStart).toBeGreaterThan(iOS17IntentStart);
+    const iOS17Intent = DELIVERY_ACTION_SWIFT.slice(iOS17IntentStart, iOS26ModesStart);
+    const iOS26Modes = DELIVERY_ACTION_SWIFT.slice(iOS26ModesStart);
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication',
+    );
+    expect(iOS17Intent).toContain(
+      'static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication',
+    );
+    expect(iOS26Modes).not.toContain('authenticationPolicy');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'fileprivate static func activeCredential() throws -> RigattiDeliveryWidgetCredential',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'fileprivate static func renew(_ credential: RigattiDeliveryWidgetCredential',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('static var openAppWhenRun: Bool = false');
+    expect(DELIVERY_ACTION_SWIFT).toContain('.requiresLocalDeviceAuthentication');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'guard props["actionSessionId"] as? String == credential.sessionId else',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessGroup as String: accessGroup');
+    expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly');
+    expect(DELIVERY_ACTION_SWIFT).toContain('URLSession.shared.data(for: request)');
+    expect(DELIVERY_ACTION_SWIFT).toContain('snapshotComplete');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('WidgetsStorage.set(updatedTimeline');
+    expect(DELIVERY_ACTION_SWIFT).not.toMatch(/import\s+Firebase|refreshToken|adminCredential/i);
+    expect(DELIVERY_ACTION_SWIFT).not.toContain('UIApplication.shared');
+    const receiptStorage = DELIVERY_ACTION_SWIFT.slice(
+      DELIVERY_ACTION_SWIFT.indexOf('static func recordReceipt'),
+    );
+    expect(receiptStorage).toContain('"sessionId": sessionId');
+    expect(receiptStorage).not.toContain('"uid"');
+  });
+
+  it('adds the shared Keychain access group without dropping existing capabilities', () => {
+    const existing = {
+      'com.apple.security.application-groups': ['group.com.pareact.mobile'],
+      'keychain-access-groups': ['$(AppIdentifierPrefix)com.pareact.mobile'],
+    };
+    const updated = addKeychainAccessGroup(
+      existing,
+      '$(AppIdentifierPrefix)com.pareact.mobile.delivery-widget-actions',
+    );
+
+    expect(updated['com.apple.security.application-groups']).toEqual(['group.com.pareact.mobile']);
+    expect(updated['keychain-access-groups']).toEqual([
+      '$(AppIdentifierPrefix)com.pareact.mobile.delivery-widget-actions',
+      '$(AppIdentifierPrefix)com.pareact.mobile',
+    ]);
+  });
+
+  it('adds endpoint and shared Keychain entitlement to the generated widget target idempotently', () => {
+    const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'rigatti-widget-cng-'));
+    const targetRoot = path.join(projectRoot, 'ExpoWidgetsTarget');
+    const entitlementPath = path.join(targetRoot, 'ExpoWidgetsTarget.entitlements');
+    const infoPath = path.join(targetRoot, 'Info.plist');
+    const accessGroup = '$(AppIdentifierPrefix)com.pareact.mobile.delivery-widget-actions';
+    const endpoint =
+      'https://us-central1-venda-e-faturamento.cloudfunctions.net/deliveryWidgetActions';
+    fs.mkdirSync(targetRoot);
+    fs.writeFileSync(
+      entitlementPath,
+      plist.build({ 'com.apple.security.application-groups': ['group.com.pareact.mobile'] }),
+    );
+    fs.writeFileSync(
+      infoPath,
+      plist.build({
+        CFBundleIdentifier: 'com.pareact.mobile.ExpoWidgetsTarget',
+        NSExtension: { NSExtensionPointIdentifier: 'com.apple.widgetkit-extension' },
+      }),
+    );
+
+    try {
+      updateExtensionPlists(projectRoot, accessGroup, endpoint);
+      updateExtensionPlists(projectRoot, accessGroup, endpoint);
+      const entitlements = plist.parse(fs.readFileSync(entitlementPath, 'utf8'));
+      const info = plist.parse(fs.readFileSync(infoPath, 'utf8'));
+
+      expect(entitlements['com.apple.security.application-groups']).toEqual([
+        'group.com.pareact.mobile',
+      ]);
+      expect(entitlements['keychain-access-groups']).toEqual([accessGroup]);
+      expect(info.RigattiDeliveryWidgetActionsURL).toBe(endpoint);
+      expect(info.RigattiDeliveryWidgetKeychainAccessGroup).toBe(accessGroup);
+      expect(info.NSExtension).toEqual({
+        NSExtensionPointIdentifier: 'com.apple.widgetkit-extension',
+      });
+    } finally {
+      fs.rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('fails if future templates lose the WidgetKit action insertion points', () => {
+    expect(() => transformButtonsSource('struct WidgetButtonView {}')).toThrow(
+      'Could not find the unique expo-widgets WidgetButtonView template.',
+    );
+    expect(() => transformWidgetModuleSource('Name("OtherModule")')).toThrow(
+      'ExpoWidgets delivery action module methods: expected one template insertion point, found 0.',
+    );
+    expect(() => transformWidgetObjectSource('struct WidgetObject {}')).toThrow(
+      'Could not find the unique expo-widgets WidgetObject.updateTimeline template.',
+    );
+  });
+});

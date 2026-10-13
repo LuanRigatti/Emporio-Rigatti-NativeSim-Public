@@ -901,34 +901,62 @@ export class FirestoreDeliveryDataSource {
       request.generation,
     );
     const nextDateWasComplete = this.isDateComplete(request.uid, delivery.data, request.generation);
-    const { doc, setDoc, serverTimestamp } = await getFirestoreOps();
-    await setDoc(
-      doc(await collectionFor(request.uid), deliveryId),
-      {
-        ...toDocument(delivery),
+    const { doc, runTransaction, serverTimestamp, updateDoc } = await getFirestoreOps();
+    const reference = doc(await collectionFor(request.uid), deliveryId);
+    const { delivered: draftDelivered, ...editableDocument } = toDocument(delivery);
+    const changedDelivered = delivery.entregue !== current.entregue;
+    let persistedDelivered = current.entregue;
+
+    if (changedDelivered && !draftDelivered) {
+      const database = firestoreDbOverride
+        ? (firestoreDbOverride as Parameters<typeof runTransaction>[0])
+        : (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+      persistedDelivered = await runTransaction(database, async (transaction) => {
+        const remoteSnapshot = await transaction.get(reference);
+        if (!remoteSnapshot.exists()) throw new Error('Entrega não encontrada.');
+        const remoteDelivered = remoteSnapshot.data()?.delivered;
+        if (typeof remoteDelivered !== 'boolean') {
+          throw new Error('O estado da entrega está indisponível. Atualize e tente novamente.');
+        }
+        if (remoteDelivered !== current.entregue && remoteDelivered !== draftDelivered) {
+          throw new Error('A entrega foi alterada em outra operação. Atualize e tente novamente.');
+        }
+        transaction.update(reference, {
+          ...editableDocument,
+          delivered: draftDelivered,
+          updatedAt: serverTimestamp(),
+        });
+        return draftDelivered;
+      });
+    } else {
+      await updateDoc(reference, {
+        ...editableDocument,
+        ...(changedDelivered ? { delivered: draftDelivered } : {}),
         updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+      });
+      if (changedDelivered) persistedDelivered = draftDelivered;
+    }
     this.assertSessionRequestCurrent(request);
-    this.records.set(deliveryId, delivery);
+    const persistedDelivery = { ...delivery, entregue: persistedDelivered };
+    this.records.set(deliveryId, persistedDelivery);
     this.publish();
     this.publishMutatedCompleteDates(
       request.uid,
       [
         currentDateWasComplete ? current.data : undefined,
-        nextDateWasComplete ? delivery.data : undefined,
+        nextDateWasComplete ? persistedDelivery.data : undefined,
       ],
       request.generation,
     );
     void this.persistDateCache(request, current.data);
-    if (current.data !== delivery.data) void this.persistDateCache(request, delivery.data);
-    void financialPeriodSnapshotCache.invalidate(request.uid, delivery.data.slice(0, 7));
-    if (current.data.slice(0, 7) !== delivery.data.slice(0, 7)) {
+    if (current.data !== persistedDelivery.data)
+      void this.persistDateCache(request, persistedDelivery.data);
+    void financialPeriodSnapshotCache.invalidate(request.uid, persistedDelivery.data.slice(0, 7));
+    if (current.data.slice(0, 7) !== persistedDelivery.data.slice(0, 7)) {
       void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
     }
     void firestoreHistoricalDeliveryCache.invalidate(request.uid);
-    return delivery;
+    return persistedDelivery;
   }
 
   public async remove(uid: string, deliveryId: string): Promise<void> {
@@ -970,13 +998,34 @@ export class FirestoreDeliveryDataSource {
     current: Delivery,
     delivered: boolean,
   ): Promise<void> {
-    const { doc, serverTimestamp, updateDoc } = await getFirestoreOps();
-    await updateDoc(doc(await collectionFor(request.uid), current.id), {
-      delivered,
-      updatedAt: serverTimestamp(),
-    });
+    const { doc, runTransaction, serverTimestamp, updateDoc } = await getFirestoreOps();
+    const reference = doc(await collectionFor(request.uid), current.id);
+    let persistedDelivered = delivered;
+    if (delivered) {
+      // Marking delivered is monotonic; an offline write cannot undo a newer widget completion.
+      await updateDoc(reference, { delivered: true, updatedAt: serverTimestamp() });
+    } else {
+      const database = firestoreDbOverride
+        ? (firestoreDbOverride as Parameters<typeof runTransaction>[0])
+        : (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+      persistedDelivered = await runTransaction(database, async (transaction) => {
+        const snapshot = await transaction.get(reference);
+        if (!snapshot.exists()) throw new Error('Entrega não encontrada.');
+        const remoteDelivered = snapshot.data()?.delivered;
+        if (typeof remoteDelivered !== 'boolean') {
+          throw new Error('O estado da entrega está indisponível. Atualize e tente novamente.');
+        }
+        if (remoteDelivered !== current.entregue && remoteDelivered !== delivered) {
+          throw new Error('A entrega foi alterada em outra operação. Atualize e tente novamente.');
+        }
+        if (remoteDelivered !== delivered) {
+          transaction.update(reference, { delivered, updatedAt: serverTimestamp() });
+        }
+        return delivered;
+      });
+    }
     this.assertSessionRequestCurrent(request);
-    this.records.set(current.id, { ...current, entregue: delivered });
+    this.records.set(current.id, { ...current, entregue: persistedDelivered });
     this.publish();
     void this.persistDateCache(request, current.data);
     void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
@@ -1066,19 +1115,41 @@ export class FirestoreDeliveryDataSource {
     patch: DeliveryBulkPatch,
   ): Promise<void> {
     const request = this.captureSessionRequest(uid);
-    const { doc, serverTimestamp, updateDoc } = await getFirestoreOps();
+    const { doc, runTransaction, serverTimestamp, updateDoc } = await getFirestoreOps();
     const deliveryCollection = await collectionFor(request.uid);
     await Promise.all(
       ids.map(async (id) => {
         const current = await this.ensure(uid, id);
         this.assertSessionRequestCurrent(request);
-        await updateDoc(doc(deliveryCollection, id), {
+        const reference = doc(deliveryCollection, id);
+        const patchFields = {
           ...(patch.status ? { status: patch.status } : {}),
           ...(patch.entregue === undefined ? {} : { delivered: patch.entregue }),
           ...(patch.invoiceStatus ? { invoiceStatus: patch.invoiceStatus } : {}),
           ...(patch.boletoStatus ? { boletoStatus: patch.boletoStatus } : {}),
           updatedAt: serverTimestamp(),
-        });
+        };
+        if (patch.entregue !== false) {
+          await updateDoc(reference, patchFields);
+        } else {
+          const database = firestoreDbOverride
+            ? (firestoreDbOverride as Parameters<typeof runTransaction>[0])
+            : (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+          await runTransaction(database, async (transaction) => {
+            const snapshot = await transaction.get(reference);
+            if (!snapshot.exists()) throw new Error('Entrega não encontrada.');
+            const remoteDelivered = snapshot.data()?.delivered;
+            if (typeof remoteDelivered !== 'boolean') {
+              throw new Error('O estado da entrega está indisponível. Atualize e tente novamente.');
+            }
+            if (remoteDelivered !== current.entregue && remoteDelivered !== patch.entregue) {
+              throw new Error(
+                'A entrega foi alterada em outra operação. Atualize e tente novamente.',
+              );
+            }
+            transaction.update(reference, patchFields);
+          });
+        }
         this.assertSessionRequestCurrent(request);
         this.records.set(id, { ...current, ...patch });
         void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));

@@ -8,10 +8,10 @@ import {
   font,
   foregroundStyle,
   kerning,
+  layoutPriority,
   lineLimit,
   minimumScaleFactor,
   monospacedDigit,
-  offset,
   padding,
   resizable,
   shapes,
@@ -293,10 +293,10 @@ function ResumoFinanceiroWidget(
           ...(destinationURL ? [widgetURL(destinationURL)] : []),
         ]}
       >
-        <HStack alignment="center" spacing={8} modifiers={[padding({ horizontal: 12 })]}>
+        <HStack alignment="center" spacing={4} modifiers={[padding({ horizontal: 2 })]}>
           <Text
             modifiers={[
-              font({ weight: 'semibold', size: 13 }),
+              font({ weight: 'semibold', size: 12 }),
               foregroundStyle({ type: 'hierarchical', style: 'primary' }),
               lineLimit(1),
               minimumScaleFactor(0.75),
@@ -309,17 +309,17 @@ function ResumoFinanceiroWidget(
           {diagnosticVariant === 'full' && brandImageURI ? (
             <Image
               uiImage={brandImageURI}
-              modifiers={[resizable(), frame({ width: 24, height: 24 })]}
+              modifiers={[resizable(), frame({ width: 22, height: 22 })]}
             />
           ) : (
-            <Spacer modifiers={[frame({ width: 24, height: 24 })]} />
+            <Spacer modifiers={[frame({ width: 22, height: 22 })]} />
           )}
         </HStack>
         <VStack
           alignment="leading"
           spacing={7}
           modifiers={[
-            padding({ all: 10 }),
+            padding({ all: 12 }),
             background(
               cardBackground,
               shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
@@ -386,13 +386,13 @@ function ResumoFinanceiroWidget(
         ...(destinationURL ? [widgetURL(destinationURL)] : []),
       ]}
     >
-      <HStack alignment="top" spacing={6} modifiers={[padding({ horizontal: 16 })]}>
+      <HStack alignment="center" spacing={6} modifiers={[padding({ leading: 22, trailing: 16 })]}>
         <Text
           modifiers={[
-            font({ weight: 'semibold', size: 16 }),
+            font({ weight: 'semibold', size: 15 }),
             foregroundStyle({ type: 'hierarchical', style: 'primary' }),
             lineLimit(1),
-            minimumScaleFactor(0.8),
+            minimumScaleFactor(0.78),
             allowsTightening(true),
           ]}
         >
@@ -412,8 +412,9 @@ function ResumoFinanceiroWidget(
             font({ weight: 'medium', size: 11 }),
             foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
             lineLimit(1),
-            minimumScaleFactor(0.75),
+            minimumScaleFactor(0.82),
             allowsTightening(true),
+            layoutPriority(1),
           ]}
         >
           {mediumMonthLabel}
@@ -422,7 +423,7 @@ function ResumoFinanceiroWidget(
         {diagnosticVariant === 'full' && brandImageURI ? (
           <Image
             uiImage={brandImageURI}
-            modifiers={[resizable(), frame({ width: 32, height: 32 }), offset({ y: -2 })]}
+            modifiers={[resizable(), frame({ width: 32, height: 32 })]}
           />
         ) : (
           <Spacer modifiers={[frame({ width: 32, height: 32 })]} />
@@ -434,7 +435,7 @@ function ResumoFinanceiroWidget(
           spacing={5}
           modifiers={[
             padding({ vertical: 9, horizontal: 12 }),
-            containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 12 }),
+            containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 28 }),
             background(
               cardBackground,
               shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
@@ -468,7 +469,7 @@ function ResumoFinanceiroWidget(
           spacing={5}
           modifiers={[
             padding({ vertical: 9, horizontal: 12 }),
-            containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 12 }),
+            containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 28 }),
             background(
               cardBackground,
               shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),

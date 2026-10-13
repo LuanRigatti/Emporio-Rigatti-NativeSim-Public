@@ -100,9 +100,9 @@ function EntregasDoDiaWidget(
       return (
         <Button
           target={`rigatti-delivery-complete:${safeProps?.date}:${encodeURIComponent(row.id)}`}
-          modifiers={[buttonStyle('plain'), frame({ width: 22, height: 22 })]}
+          modifiers={[buttonStyle('plain'), frame({ width: 24, height: 24 })]}
         >
-          <Image systemName="circle" color="#8E8E93" size={13} />
+          <Image systemName="circle" color="#8E8E93" size={14} />
         </Button>
       );
     }
@@ -111,14 +111,14 @@ function EntregasDoDiaWidget(
       return (
         <Link
           destination={row.completionURL || routeURL || ''}
-          modifiers={[frame({ width: 22, height: 22 })]}
+          modifiers={[frame({ width: 24, height: 24 })]}
         >
-          <Image systemName="circle" color="#8E8E93" size={13} />
+          <Image systemName="circle" color="#8E8E93" size={14} />
         </Link>
       );
     }
 
-    return <Image systemName="circle" color="#8E8E93" size={13} />;
+    return <Image systemName="circle" color="#8E8E93" size={14} />;
   };
 
   return (
@@ -188,7 +188,7 @@ function EntregasDoDiaWidget(
           alignment="leading"
           spacing={5}
           modifiers={[
-            padding({ all: 9 }),
+            padding({ top: 9, bottom: 9, leading: 9, trailing: 15 }),
             background(
               cardBackground,
               shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
@@ -321,6 +321,7 @@ function EntregasDoDiaWidget(
           ) : null}
         </VStack>
       )}
+      {!isSmall ? <Spacer minLength={0} /> : null}
     </VStack>
   );
 }

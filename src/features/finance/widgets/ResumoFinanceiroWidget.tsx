@@ -3,7 +3,6 @@ import {
   allowsTightening,
   background,
   containerBackground,
-  containerRelativeFrame,
   frame,
   font,
   foregroundStyle,
@@ -319,7 +318,7 @@ function ResumoFinanceiroWidget(
           alignment="leading"
           spacing={7}
           modifiers={[
-            padding({ all: 12 }),
+            padding({ top: 12, bottom: 12, leading: 12, trailing: 18 }),
             background(
               cardBackground,
               shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
@@ -429,75 +428,75 @@ function ResumoFinanceiroWidget(
           <Spacer modifiers={[frame({ width: 32, height: 32 })]} />
         )}
       </HStack>
-      <HStack alignment="center" spacing={12}>
-        <VStack
-          alignment="leading"
-          spacing={5}
+      <HStack alignment="center" spacing={0}>
+        <Spacer minLength={0} />
+        <HStack
+          alignment="center"
+          spacing={16}
           modifiers={[
-            padding({ vertical: 9, horizontal: 12 }),
-            containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 28 }),
+            padding({ vertical: 8, horizontal: 12 }),
             background(
               cardBackground,
               shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
             ),
           ]}
         >
-          <Text
-            modifiers={[
-              font({ weight: 'medium', size: 11 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-            ]}
+          <VStack
+            alignment="leading"
+            spacing={5}
+            modifiers={[padding({ vertical: 1, horizontal: 4 })]}
           >
-            Faturamento
-          </Text>
-          <Text
-            modifiers={[
-              font({ weight: 'bold', size: 24 }),
-              foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-              monospacedDigit(),
-              lineLimit(1),
-              minimumScaleFactor(0.52),
-              allowsTightening(true),
-            ]}
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 11 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}
+            >
+              Faturamento
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 22 }),
+                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                monospacedDigit(),
+                lineLimit(1),
+                minimumScaleFactor(0.52),
+                allowsTightening(true),
+              ]}
+            >
+              {faturamentoLabel}
+            </Text>
+          </VStack>
+          <VStack
+            alignment="leading"
+            spacing={5}
+            modifiers={[padding({ vertical: 1, horizontal: 4 })]}
           >
-            {faturamentoLabel}
-          </Text>
-        </VStack>
-        <VStack
-          alignment="leading"
-          spacing={5}
-          modifiers={[
-            padding({ vertical: 9, horizontal: 12 }),
-            containerRelativeFrame({ axes: 'horizontal', count: 2, span: 1, spacing: 28 }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
-            ),
-          ]}
-        >
-          <Text
-            modifiers={[
-              font({ weight: 'medium', size: 11 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-            ]}
-          >
-            Lucro líquido
-          </Text>
-          <Text
-            modifiers={[
-              font({ weight: 'bold', size: 24 }),
-              foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-              monospacedDigit(),
-              lineLimit(1),
-              minimumScaleFactor(0.52),
-              allowsTightening(true),
-            ]}
-          >
-            {lucroLiquidoLabel}
-          </Text>
-        </VStack>
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 11 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}
+            >
+              Lucro líquido
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 22 }),
+                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                monospacedDigit(),
+                lineLimit(1),
+                minimumScaleFactor(0.52),
+                allowsTightening(true),
+              ]}
+            >
+              {lucroLiquidoLabel}
+            </Text>
+          </VStack>
+        </HStack>
+        <Spacer minLength={0} />
       </HStack>
     </VStack>
   );

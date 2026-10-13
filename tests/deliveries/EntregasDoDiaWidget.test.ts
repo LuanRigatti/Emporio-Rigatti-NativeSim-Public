@@ -26,6 +26,7 @@ type TreeNode = {
     uiImage?: string;
     destination?: string;
     target?: string;
+    size?: number;
   };
 };
 
@@ -36,6 +37,7 @@ function renderWidget(
   widgetFamily: 'systemSmall' | 'systemMedium' = 'systemMedium',
   colorScheme: 'light' | 'dark' = 'light',
   deliveryActionsAvailable = false,
+  widgetsDirectory: string | null = 'file:///group/ExpoWidgets',
 ) {
   const jsx = (type: string, componentProps: Record<string, unknown>) => ({
     type,
@@ -51,7 +53,7 @@ function renderWidget(
       deliveryActionsAvailable,
       widgetFamily,
       colorScheme,
-      widgetsDirectory: 'file:///group/ExpoWidgets',
+      widgetsDirectory,
     },
     _jsx: jsx,
     _jsxs: jsx,
@@ -204,6 +206,95 @@ describe('EntregasDoDia isolated widget layout', () => {
       'pareact://historico/entrega/delivery-a?date=2026-10-15',
       'pareact://historico/entrega/delivery-b?date=2026-10-15',
     ]);
+    for (const link of collectNodes(tree, 'Link')) {
+      expect(link.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
+        width: 24,
+        height: 24,
+      });
+      expect(collectNodes(link, 'Image')[0]?.props?.size).toBe(14);
+    }
+    expect(
+      collectNodes(tree, 'VStack')
+        .find(({ props }) => props?.modifiers?.some(({ name }) => name === 'background'))
+        ?.props?.modifiers?.find(({ name }) => name === 'padding')?.args,
+    ).toEqual([{ top: 9, bottom: 9, leading: 9, trailing: 15 }]);
+  });
+
+  it.each([
+    ['systemSmall', 22],
+    ['systemMedium', 32],
+  ] as const)('uses the canonical brand mark in the %s header', (widgetFamily, size) => {
+    for (const [colorScheme, fileName] of [
+      ['light', 'resumo-financeiro-mark-light.png'],
+      ['dark', 'resumo-financeiro-mark-dark.png'],
+    ] as const) {
+      const logo = collectNodes(
+        renderWidget(
+          { date: '2026-10-15', state: 'empty', deliveries: [] },
+          widgetFamily,
+          colorScheme,
+        ),
+        'Image',
+      ).find(({ props }) => props?.uiImage);
+
+      expect(logo?.props?.uiImage).toBe(`file:///group/ExpoWidgets/${fileName}`);
+      expect(logo?.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
+        width: size,
+        height: size,
+      });
+    }
+  });
+
+  it.each([
+    ['systemSmall', 22],
+    ['systemMedium', 32],
+  ] as const)(
+    'reserves the logo frame when the App Group directory is unavailable in %s',
+    (widgetFamily, size) => {
+      const tree = renderWidget(
+        { date: '2026-10-15', state: 'empty', deliveries: [] },
+        widgetFamily,
+        'dark',
+        false,
+        null,
+      );
+
+      expect(collectNodes(tree, 'Image').some(({ props }) => props?.uiImage)).toBe(false);
+      expect(
+        collectNodes(tree, 'Spacer').some(({ props }) =>
+          props?.modifiers?.some(
+            ({ name, args }) =>
+              name === 'frame' &&
+              (args?.[0] as { width?: number; height?: number } | undefined)?.width === size &&
+              (args?.[0] as { width?: number; height?: number } | undefined)?.height === size,
+          ),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it('keeps the medium header first and anchors it above variable delivery content', () => {
+    for (const rows of [[], [deliveries[0]!], deliveries.slice(0, 3)]) {
+      const tree = renderWidget(
+        {
+          date: '2026-10-15',
+          state: rows.length === 0 ? 'empty' : 'pending',
+          deliveryCount: rows.length,
+          deliveries: rows,
+        },
+        'systemMedium',
+      ) as TreeNode;
+      const children = tree.props?.children;
+
+      expect(Array.isArray(children)).toBe(true);
+      expect((children as TreeNode[])[0]?.type).toBe('HStack');
+      expect((children as TreeNode[])[(children as TreeNode[]).length - 1]?.type).toBe('Spacer');
+      expect(collectText((children as TreeNode[])[0])).toEqual([
+        'Empório Rigatti',
+        '•',
+        'Entregas',
+      ]);
+    }
   });
 
   it.each(['systemSmall', 'systemMedium'] as const)(
@@ -227,6 +318,13 @@ describe('EntregasDoDia isolated widget layout', () => {
       expect(buttons).toHaveLength(visibleCount);
       expect(collectNodes(tree, 'Link')).toHaveLength(0);
       expect(buttons[0]?.props?.target).toBe('rigatti-delivery-complete:2026-10-15:delivery%2Fa');
+      for (const button of buttons) {
+        expect(button.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
+          width: 24,
+          height: 24,
+        });
+        expect(collectNodes(button, 'Image')[0]?.props?.size).toBe(14);
+      }
       expect(
         buttons.every(({ props }) =>
           props?.modifiers?.some(

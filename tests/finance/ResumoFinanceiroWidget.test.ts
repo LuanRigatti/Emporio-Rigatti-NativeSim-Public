@@ -110,7 +110,7 @@ function collectText(node: unknown): string[] {
   return collectText(element.props?.children);
 }
 
-function collectNodes(node: unknown, type: string): WidgetTreeNode[] {
+function collectNodes(node: unknown, type?: string): WidgetTreeNode[] {
   if (Array.isArray(node)) {
     return node.flatMap((child) => collectNodes(child, type));
   }
@@ -121,7 +121,7 @@ function collectNodes(node: unknown, type: string): WidgetTreeNode[] {
 
   const element = node as WidgetTreeNode;
   return [
-    ...(element.type === type ? [element] : []),
+    ...(type === undefined || element.type === type ? [element] : []),
     ...collectNodes(element.props?.children, type),
   ];
 }
@@ -146,8 +146,8 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     ['light', '#F5F3F1'],
     ['dark', '#2C2C2E'],
   ] as const)('keeps the metric card contrast in %s mode', (colorScheme, expectedBackground) => {
-    const card = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'VStack').find(
-      ({ props }) => props?.modifiers?.some(({ name }) => name === 'background'),
+    const card = collectNodes(renderWidget({}, 'wholesale', colorScheme)).find(({ props }) =>
+      props?.modifiers?.some(({ name }) => name === 'background'),
     );
 
     expect(card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[0]).toBe(
@@ -205,7 +205,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         `pareact://financeiro?mode=${mode}`,
       ]);
       expect(card?.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
-        { all: 12 },
+        { top: 12, bottom: 12, leading: 12, trailing: 18 },
       ]);
       const header = collectNodes(tree, 'HStack')[0];
       expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 2 }] }]);
@@ -254,7 +254,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     }
   });
 
-  it('renders two equal rounded metric cards and the complete month label', () => {
+  it('renders both metrics inside one compact rounded card and the complete month label', () => {
     const tree = renderWidget(
       {
         monthKey: '2026-10',
@@ -274,26 +274,32 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       'R$ 45,00',
     ]);
 
-    const cards = collectNodes(tree, 'VStack').filter(({ props }) =>
-      props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
+    const card = collectNodes(tree, 'HStack').find(({ props }) =>
+      props?.modifiers?.some(({ name }) => name === 'background'),
     );
-    expect(cards).toHaveLength(2);
-    for (const card of cards) {
-      const cardFrame = card.props?.modifiers?.find(
-        ({ name }) => name === 'containerRelativeFrame',
-      );
-      expect(cardFrame?.args?.[0]).toEqual({
-        axes: 'horizontal',
-        count: 2,
-        span: 1,
-        spacing: 28,
-      });
-      const cardBackground = card.props?.modifiers?.find(({ name }) => name === 'background');
-      expect(cardBackground?.args?.[1]).toMatchObject({
-        name: 'roundedRectangle',
-        args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
-      });
-    }
+    expect(card).toBeDefined();
+    expect(card?.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
+      { vertical: 8, horizontal: 12 },
+    ]);
+    expect(
+      card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[1],
+    ).toMatchObject({
+      name: 'roundedRectangle',
+      args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
+    });
+    expect(
+      collectNodes(tree, 'VStack').filter(({ props }) =>
+        props?.modifiers?.some(({ name }) => name === 'background'),
+      ),
+    ).toHaveLength(0);
+    expect(collectNodes(card, 'VStack')).toHaveLength(2);
+    const valueFonts = collectNodes(card, 'Text')
+      .filter(({ props }) => typeof props?.children === 'string' && props.children.startsWith('R$'))
+      .map(({ props }) => props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]);
+    expect(valueFonts).toEqual([
+      { weight: 'bold', size: 22 },
+      { weight: 'bold', size: 22 },
+    ]);
     expect(collectNodes(tree, 'Divider')).toHaveLength(0);
   });
 
@@ -465,11 +471,16 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       expect(tree.props?.modifiers?.find(({ name }) => name === 'widgetURL')?.args).toEqual([
         `pareact://financeiro?mode=${mode}`,
       ]);
+      const card = collectNodes(tree, 'HStack').find(({ props }) =>
+        props?.modifiers?.some(({ name }) => name === 'background'),
+      );
+      expect(card).toBeDefined();
       expect(
-        collectNodes(tree, 'VStack').filter(({ props }) =>
-          props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
-        ),
-      ).toHaveLength(2);
+        card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[1],
+      ).toMatchObject({
+        name: 'roundedRectangle',
+        args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
+      });
       expect(
         collectNodes(tree, 'Spacer').some(({ props }) =>
           props?.modifiers?.some(
@@ -499,11 +510,9 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         'without_image',
       );
       const cardModifiers = (tree: unknown) =>
-        collectNodes(tree, 'VStack')
-          .filter(({ props }) =>
-            props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
-          )
-          .map(({ props }) => props?.modifiers);
+        collectNodes(tree, 'HStack').find(({ props }) =>
+          props?.modifiers?.some(({ name }) => name === 'background'),
+        )?.props?.modifiers;
 
       expect(collectText(fullTree)).toEqual(collectText(noImageTree));
       expect(cardModifiers(fullTree)).toEqual(cardModifiers(noImageTree));

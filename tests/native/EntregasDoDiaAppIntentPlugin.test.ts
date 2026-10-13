@@ -193,6 +193,18 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(DELIVERY_ACTION_SWIFT).toContain(
       'guard props["actionSessionId"] as? String == credential.sessionId else',
     );
+    const performStart = DELIVERY_ACTION_SWIFT.indexOf(
+      'func perform() async throws -> some IntentResult',
+    );
+    const performEnd = DELIVERY_ACTION_SWIFT.indexOf(
+      '\n  }\n\n  private static func validSnapshot',
+      performStart,
+    );
+    expect(performStart).toBeGreaterThanOrEqual(0);
+    expect(performEnd).toBeGreaterThan(performStart);
+    const perform = DELIVERY_ACTION_SWIFT.slice(performStart, performEnd);
+    expect(perform).not.toContain('RigattiDeliveryWidgetActionAPI.renew');
+    expect(perform).toContain('RigattiDeliveryWidgetActionAPI.complete');
     expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessGroup as String: accessGroup');
     expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly');
     expect(DELIVERY_ACTION_SWIFT).toContain('URLSession.shared.data(for: request)');
@@ -208,6 +220,63 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     );
     expect(receiptStorage).toContain('"sessionId": sessionId');
     expect(receiptStorage).not.toContain('"uid"');
+  });
+
+  it('fences local authorization before queueing logout revocation and preserves retry state', () => {
+    const prepareStart = DELIVERY_ACTION_SWIFT.indexOf(
+      'static func prepareAppSession(uid: String?, sessionVersion: Int) -> Bool',
+    );
+    const prepareEnd = DELIVERY_ACTION_SWIFT.indexOf(
+      '\n  private static func writeCredential',
+      prepareStart,
+    );
+    const prepareSession = DELIVERY_ACTION_SWIFT.slice(prepareStart, prepareEnd);
+    const localFence = prepareSession.indexOf(
+      'RigattiDeliveryWidgetAppSession(uid: nil, sessionVersion: sessionVersion)',
+    );
+    const queueRevocation = prepareSession.indexOf('try addPendingRevocation(currentCredential)');
+    const deleteActiveCredential = prepareSession.indexOf(
+      'guard deleteData(account: activeAccount) else',
+    );
+    const activateNewSession = prepareSession.indexOf(
+      'RigattiDeliveryWidgetAppSession(uid: uid, sessionVersion: sessionVersion)',
+    );
+
+    expect(prepareStart).toBeGreaterThanOrEqual(0);
+    expect(prepareEnd).toBeGreaterThan(prepareStart);
+    expect(localFence).toBeGreaterThanOrEqual(0);
+    expect(queueRevocation).toBeGreaterThan(localFence);
+    expect(deleteActiveCredential).toBeGreaterThan(queueRevocation);
+    expect(activateNewSession).toBeGreaterThan(deleteActiveCredential);
+    expect(prepareSession).toContain(
+      'if let credential = readCredential(), isCurrentAppSession(credential)',
+    );
+
+    const revokeStart = DELIVERY_ACTION_SWIFT.indexOf('static func revokeActive() async -> Bool');
+    const revokeEnd = DELIVERY_ACTION_SWIFT.indexOf(
+      '\n  static func flushPendingRevocations()',
+      revokeStart,
+    );
+    const revokeActive = DELIVERY_ACTION_SWIFT.slice(revokeStart, revokeEnd);
+    expect(
+      revokeActive.indexOf(
+        'RigattiDeliveryWidgetAppSession(uid: nil, sessionVersion: nextVersion)',
+      ),
+    ).toBeGreaterThanOrEqual(0);
+    expect(revokeActive.indexOf('try addPendingRevocation(current)')).toBeGreaterThan(
+      revokeActive.indexOf(
+        'RigattiDeliveryWidgetAppSession(uid: nil, sessionVersion: nextVersion)',
+      ),
+    );
+    expect(revokeActive.indexOf('guard deleteData(account: activeAccount) else')).toBeGreaterThan(
+      revokeActive.indexOf('try addPendingRevocation(current)'),
+    );
+    expect(revokeActive).toContain(
+      'if let credential = readCredential(), isCurrentAppSession(credential)',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'return status == errSecSuccess || status == errSecItemNotFound',
+    );
   });
 
   it('adds the shared Keychain access group without dropping existing capabilities', () => {

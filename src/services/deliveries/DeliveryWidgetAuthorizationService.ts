@@ -8,7 +8,9 @@ import {
   type DeliveryWidgetActionsNativeModule,
 } from './DeliveryWidgetActionsNative';
 
-const AUTHORIZATION_REISSUE_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const AUTHORIZATION_REISSUE_WINDOW_MS = 6 * 60 * 60 * 1000;
+const MAX_AUTHORIZATION_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const AUTHORIZATION_CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000;
 const AUTHORIZATION_REQUEST_TIMEOUT_MS = 12_000;
 
 type IssuedAuthorization = {
@@ -47,7 +49,9 @@ function isIssuedAuthorization(
     isFiniteNumber(authorization.expiresAt) &&
     authorization.expiresAt > now &&
     isFiniteNumber(authorization.absoluteExpiresAt) &&
-    authorization.absoluteExpiresAt >= authorization.expiresAt
+    authorization.absoluteExpiresAt === authorization.expiresAt &&
+    authorization.absoluteExpiresAt - now <=
+      MAX_AUTHORIZATION_LIFETIME_MS + AUTHORIZATION_CLOCK_SKEW_TOLERANCE_MS
   );
 }
 
@@ -62,6 +66,12 @@ export class DeliveryWidgetAuthorizationService {
   private generation = 0;
   private queue: Promise<void> = Promise.resolve();
   private pendingIssueController: AbortController | null = null;
+  private issuedAuthorization: {
+    uid: string;
+    sessionVersion: number;
+    sessionId: string;
+    absoluteExpiresAt: number;
+  } | null = null;
 
   public constructor(dependencies: DeliveryWidgetAuthorizationDependencies) {
     this.native = dependencies.native ?? null;
@@ -85,6 +95,7 @@ export class DeliveryWidgetAuthorizationService {
     if (identityChanged) {
       this.pendingIssueController?.abort();
       this.activeSession = nextSession;
+      this.issuedAuthorization = null;
       this.generation += 1;
     }
     if (needsPreparation && this.native) {
@@ -129,9 +140,13 @@ export class DeliveryWidgetAuthorizationService {
     return this.enqueue(() => this.ensureAuthorization(normalizedUid, sessionVersion, generation));
   }
 
-  /** Clears the local credential before Firebase signs out; server revocation is queued if offline. */
+  /**
+   * Clears local authority before Firebase signs out. Offline logout cannot revoke remotely until
+   * connectivity returns; the server independently limits each capability to 24 hours.
+   */
   public revokeBeforeLogout(): Promise<void> {
     this.activeSession = null;
+    this.issuedAuthorization = null;
     this.generation += 1;
     this.pendingIssueController?.abort();
     try {
@@ -180,9 +195,16 @@ export class DeliveryWidgetAuthorizationService {
       if (!revocationsFlushed || !this.isCurrent(uid, sessionVersion, generation)) return;
       const metadata = native.deliveryWidgetAuthorizationMetadata();
       const reusable =
+        this.issuedAuthorization?.uid === uid &&
+        this.issuedAuthorization.sessionVersion === sessionVersion &&
+        this.issuedAuthorization.sessionId === metadata?.sessionId &&
+        this.issuedAuthorization.absoluteExpiresAt === metadata?.absoluteExpiresAt &&
         metadata?.uid === uid &&
         metadata.sessionVersion === sessionVersion &&
-        metadata.absoluteExpiresAt > this.now() + AUTHORIZATION_REISSUE_WINDOW_MS;
+        metadata.expiresAt === metadata.absoluteExpiresAt &&
+        metadata.absoluteExpiresAt > this.now() + AUTHORIZATION_REISSUE_WINDOW_MS &&
+        metadata.absoluteExpiresAt <=
+          this.now() + MAX_AUTHORIZATION_LIFETIME_MS + AUTHORIZATION_CLOCK_SKEW_TOLERANCE_MS;
       if (reusable) return;
 
       if (!this.isCurrent(uid, sessionVersion, generation)) return;
@@ -230,6 +252,13 @@ export class DeliveryWidgetAuthorizationService {
 
       if (!this.isCurrent(uid, sessionVersion, generation)) {
         await this.revokeLocalAuthorization();
+      } else {
+        this.issuedAuthorization = {
+          uid,
+          sessionVersion,
+          sessionId: authorization.sessionId,
+          absoluteExpiresAt: authorization.absoluteExpiresAt,
+        };
       }
     } catch (error) {
       if (!this.isCurrent(uid, sessionVersion, generation)) return;

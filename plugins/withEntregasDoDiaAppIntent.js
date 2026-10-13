@@ -137,9 +137,11 @@ enum RigattiDeliveryWidgetKeychain {
     }
   }
 
-  private static func deleteData(account: String) {
-    guard let itemQuery = query(account: account) else { return }
-    SecItemDelete(itemQuery as CFDictionary)
+  @discardableResult
+  private static func deleteData(account: String) -> Bool {
+    guard let itemQuery = query(account: account) else { return false }
+    let status = SecItemDelete(itemQuery as CFDictionary)
+    return status == errSecSuccess || status == errSecItemNotFound
   }
 
   private static func readCredential() -> RigattiDeliveryWidgetCredential? {
@@ -169,21 +171,25 @@ enum RigattiDeliveryWidgetKeychain {
         }
 
         try writeData(
-          JSONEncoder().encode(RigattiDeliveryWidgetAppSession(uid: uid, sessionVersion: sessionVersion)),
+          JSONEncoder().encode(RigattiDeliveryWidgetAppSession(uid: nil, sessionVersion: sessionVersion)),
           account: appSessionAccount
         )
         if let currentCredential {
-          do {
-            try addPendingRevocation(currentCredential)
-          } catch {
-            deleteData(account: activeAccount)
-            throw error
+          try addPendingRevocation(currentCredential)
+          guard deleteData(account: activeAccount) else {
+            throw RigattiDeliveryWidgetActionError.storageFailure
           }
-          deleteData(account: activeAccount)
         }
+        try writeData(
+          JSONEncoder().encode(RigattiDeliveryWidgetAppSession(uid: uid, sessionVersion: sessionVersion)),
+          account: appSessionAccount
+        )
       }
       return true
     } catch {
+      if let credential = readCredential(), isCurrentAppSession(credential) {
+        _ = deleteData(account: activeAccount)
+      }
       return false
     }
   }
@@ -341,13 +347,19 @@ enum RigattiDeliveryWidgetKeychain {
           account: appSessionAccount
         )
         let current = readCredential()
-        if let current { try addPendingRevocation(current) }
-        deleteData(account: activeAccount)
+        if let current {
+          try addPendingRevocation(current)
+          guard deleteData(account: activeAccount) else {
+            throw RigattiDeliveryWidgetActionError.storageFailure
+          }
+        }
         return current
       }
     } catch {
-      // Remove active access even if a deferred server-revocation record cannot be saved.
-      deleteData(account: activeAccount)
+      // Keep an already fenced credential so the next app session can retry queue persistence.
+      if let credential = readCredential(), isCurrentAppSession(credential) {
+        _ = deleteData(account: activeAccount)
+      }
       return false
     }
     guard credential != nil else { return await flushPendingRevocations() }
@@ -562,8 +574,6 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
     guard props["actionSessionId"] as? String == credential.sessionId else {
       throw RigattiDeliveryWidgetActionError.staleCredential
     }
-    let renewedExpiry = try await RigattiDeliveryWidgetActionAPI.renew(credential)
-    try RigattiDeliveryWidgetKeychain.renew(credential, expiresAt: renewedExpiry)
     guard RigattiDeliveryWidgetKeychain.isActive(sessionId: credential.sessionId) else {
       throw RigattiDeliveryWidgetActionError.staleCredential
     }

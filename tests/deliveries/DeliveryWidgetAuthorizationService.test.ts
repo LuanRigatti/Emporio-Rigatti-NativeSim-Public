@@ -10,14 +10,15 @@ jest.mock('@/services/firebase/auth', () => ({
 
 const NOW = 1_800_000_000_000;
 const ENDPOINT = 'https://us-central1-venda-e-faturamento.cloudfunctions.net/deliveryWidgetActions';
+const AUTHORIZATION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 function makeAuthorization(uid: string, sessionId = `session-${uid}`) {
   return {
     sessionId,
     uid,
     refreshCapability: `opaque-capability-${uid}-01234567890123456789`,
-    expiresAt: NOW + 30 * 24 * 60 * 60 * 1000,
-    absoluteExpiresAt: NOW + 90 * 24 * 60 * 60 * 1000,
+    expiresAt: NOW + AUTHORIZATION_LIFETIME_MS,
+    absoluteExpiresAt: NOW + AUTHORIZATION_LIFETIME_MS,
   };
 }
 
@@ -32,12 +33,15 @@ function makeHarness(
       uid: string;
       sessionId: string;
       sessionVersion: number;
+      expiresAt: number;
       absoluteExpiresAt: number;
     } | null;
     request?: DeliveryWidgetAuthorizationDependencies['request'];
   } = {},
 ) {
   let metadata = options.metadata ?? null;
+  let remoteOnline = true;
+  let pendingRevocation = false;
   const stored: string[] = [];
   const native: DeliveryWidgetActionsNativeModule = {
     deliveryWidgetAuthorizationMetadata: () => metadata as never,
@@ -52,16 +56,24 @@ function makeHarness(
         uid,
         sessionId,
         sessionVersion,
-        absoluteExpiresAt: NOW + 90 * 24 * 60 * 60 * 1000,
+        expiresAt: NOW + AUTHORIZATION_LIFETIME_MS,
+        absoluteExpiresAt: NOW + AUTHORIZATION_LIFETIME_MS,
       };
       stored.push(uid);
       return true;
     }),
     revokeDeliveryWidgetAuthorization: jest.fn(async () => {
       metadata = null;
+      pendingRevocation = true;
+      if (!remoteOnline) throw new Error('offline');
+      pendingRevocation = false;
       return true;
     }),
-    flushDeliveryWidgetRevocations: jest.fn(async () => true),
+    flushDeliveryWidgetRevocations: jest.fn(async () => {
+      if (pendingRevocation && !remoteOnline) return false;
+      pendingRevocation = false;
+      return true;
+    }),
     deliveryWidgetActionRevision: jest.fn(() => 0),
     pendingDeliveryWidgetActionReceipts: jest.fn(() => []),
     acknowledgeDeliveryWidgetActionReceipts: jest.fn(),
@@ -76,7 +88,16 @@ function makeHarness(
     now: () => NOW,
   });
 
-  return { service, native, request: jest.mocked(request), stored };
+  return {
+    service,
+    native,
+    request: jest.mocked(request),
+    stored,
+    setRemoteOnline: (online: boolean) => {
+      remoteOnline = online;
+    },
+    hasPendingRevocation: () => pendingRevocation,
+  };
 }
 
 describe('DeliveryWidgetAuthorizationService', () => {
@@ -115,6 +136,33 @@ describe('DeliveryWidgetAuthorizationService', () => {
     );
   });
 
+  it('replaces persisted authorization when a fresh app runtime starts', async () => {
+    const request = jest.fn(async () => response(makeAuthorization('uid-a', 'new-session')));
+    const harness = makeHarness({
+      uid: 'uid-a',
+      metadata: {
+        uid: 'uid-a',
+        sessionId: 'persisted-session',
+        sessionVersion: 3,
+        expiresAt: NOW + AUTHORIZATION_LIFETIME_MS,
+        absoluteExpiresAt: NOW + AUTHORIZATION_LIFETIME_MS,
+      },
+      request,
+    });
+
+    await harness.service.activateSession('uid-a', 3);
+
+    expect(harness.request).toHaveBeenCalledTimes(1);
+    expect(harness.native.storeDeliveryWidgetAuthorization).toHaveBeenCalledWith(
+      'new-session',
+      'uid-a',
+      3,
+      expect.any(String),
+      NOW + AUTHORIZATION_LIFETIME_MS,
+      NOW + AUTHORIZATION_LIFETIME_MS,
+    );
+  });
+
   it('revokes the previous account locally before issuing for a different UID', async () => {
     const request = jest.fn(async () => response(makeAuthorization('uid-b')));
     const harness = makeHarness({
@@ -123,6 +171,7 @@ describe('DeliveryWidgetAuthorizationService', () => {
         uid: 'uid-a',
         sessionId: 'old-session',
         sessionVersion: 3,
+        expiresAt: NOW + 100_000_000,
         absoluteExpiresAt: NOW + 100_000_000,
       },
       request,
@@ -145,6 +194,7 @@ describe('DeliveryWidgetAuthorizationService', () => {
         uid: 'uid-a',
         sessionId: 'old-session',
         sessionVersion: 3,
+        expiresAt: NOW + 100_000_000,
         absoluteExpiresAt: NOW + 100_000_000,
       },
     });
@@ -164,6 +214,7 @@ describe('DeliveryWidgetAuthorizationService', () => {
         uid: 'uid-a',
         sessionId: 'near-expiry',
         sessionVersion: 5,
+        expiresAt: NOW + 1_000,
         absoluteExpiresAt: NOW + 1_000,
       },
       request,
@@ -257,24 +308,35 @@ describe('DeliveryWidgetAuthorizationService', () => {
     ]);
   });
 
-  it('removes local authority on logout even when remote revocation is offline', async () => {
+  it('removes local authority offline and retries queued revocation before issuing again', async () => {
     const harness = makeHarness({
+      uid: 'uid-b',
       metadata: {
         uid: 'uid-a',
         sessionId: 'active-session',
         sessionVersion: 1,
+        expiresAt: NOW + 50_000,
         absoluteExpiresAt: NOW + 50_000,
       },
     });
-    jest
-      .mocked(harness.native.revokeDeliveryWidgetAuthorization)
-      .mockRejectedValueOnce(new Error('offline'));
+    harness.setRemoteOnline(false);
 
     await expect(harness.service.revokeBeforeLogout()).resolves.toBeUndefined();
-    await harness.service.ensureCurrent('uid-a', 1);
+    expect(harness.native.deliveryWidgetAuthorizationMetadata()).toBeNull();
+    expect(harness.hasPendingRevocation()).toBe(true);
+
+    const requestCountBeforeOfflineRetry = harness.request.mock.calls.length;
+    await harness.service.activateSession('uid-b', 2);
+    expect(harness.request).toHaveBeenCalledTimes(requestCountBeforeOfflineRetry);
+    expect(harness.hasPendingRevocation()).toBe(true);
+
+    harness.setRemoteOnline(true);
+    await harness.service.ensureCurrent('uid-b', 2);
 
     expect(harness.native.revokeDeliveryWidgetAuthorization).toHaveBeenCalledTimes(1);
-    expect(harness.stored).toEqual([]);
+    expect(harness.hasPendingRevocation()).toBe(false);
+    expect(harness.request).toHaveBeenCalledTimes(requestCountBeforeOfflineRetry + 1);
+    expect(harness.stored).toEqual(['uid-b']);
   });
 
   it('cancels pending authorization on logout and does not block local revocation', async () => {

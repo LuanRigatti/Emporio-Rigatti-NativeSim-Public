@@ -193,12 +193,8 @@ module.exports = {
         './plugins/withResumoFinanceiroBranding',
       ],
       [
-        // CNG dangerous mods run in reverse plugin order; this patches Swift after expo-widgets generates it.
-        './plugins/withResumoFinanceiroDiagnostics',
-      ],
-      [
-        // Temporary renderer/image probes are applied reproducibly to the installed Swift package sources during CNG.
-        './plugins/withResumoFinanceiroRendererDiagnostics',
+        // CNG dangerous mods run in reverse plugin order; annotate generated App Intents for iOS 17.
+        './plugins/withResumoFinanceiroAvailability',
       ],
       [
         'expo-widgets',
@@ -223,22 +219,6 @@ module.exports = {
                         { name: 'Varejo', value: 'retail' },
                       ],
                       default: 'wholesale',
-                    },
-                    diagnosticVariant: {
-                      title: 'Variante de diagnóstico temporária',
-                      type: 'enum',
-                      values: [
-                        { name: 'A · Layout atual completo', value: 'full' },
-                        { name: 'B · Layout atual sem imagem', value: 'without_image' },
-                        { name: 'C · Conteúdo estático de teste', value: 'static_test' },
-                        { name: 'D · Layout vertical anterior', value: 'previous_layout' },
-                        { name: 'E · Redaction estático', value: 'redaction' },
-                        {
-                          name: 'E · Redaction estático unredacted',
-                          value: 'redaction_unredacted',
-                        },
-                      ],
-                      default: 'full',
                     },
                   },
                 },

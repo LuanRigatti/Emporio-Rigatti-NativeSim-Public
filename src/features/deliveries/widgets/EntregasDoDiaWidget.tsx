@@ -1,7 +1,6 @@
 import { Button, HStack, Image, Link, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   allowsTightening,
-  background,
   buttonStyle,
   containerBackground,
   font,
@@ -12,7 +11,6 @@ import {
   monospacedDigit,
   padding,
   resizable,
-  shapes,
   widgetURL,
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetFamily } from 'expo-widgets';
@@ -45,7 +43,7 @@ function EntregasDoDiaWidget(
       ? safeProps.deliveryCount
       : null;
   const sourceRows: unknown[] = Array.isArray(safeProps?.deliveries) ? safeProps.deliveries : [];
-  const visibleLimit = isSmall ? 2 : 3;
+  const visibleLimit = 3;
   const parsedRows = sourceRows.filter((row): row is EntregasDoDiaWidgetRow => {
     if (!row || typeof row !== 'object') return false;
     return (
@@ -86,8 +84,6 @@ function EntregasDoDiaWidget(
     typeof directory === 'string' && directory.startsWith('file://')
       ? `${directory.endsWith('/') ? directory : `${directory}/`}${markName}`
       : undefined;
-  const cardBackground = environment?.colorScheme === 'dark' ? '#2C2C2E' : '#F5F3F1';
-
   const emptyMessage =
     state === 'all_completed'
       ? 'Todas as entregas concluídas'
@@ -100,9 +96,12 @@ function EntregasDoDiaWidget(
       return (
         <Button
           target={`rigatti-delivery-complete:${safeProps?.date}:${encodeURIComponent(row.id)}`}
-          modifiers={[buttonStyle('plain'), frame({ width: 24, height: 24 })]}
+          modifiers={[
+            buttonStyle('plain'),
+            frame({ width: isSmall ? 30 : 32, height: isSmall ? 30 : 32 }),
+          ]}
         >
-          <Image systemName="circle" color="#8E8E93" size={14} />
+          <Image systemName="circle" color="#8E8E93" size={18} />
         </Button>
       );
     }
@@ -111,14 +110,14 @@ function EntregasDoDiaWidget(
       return (
         <Link
           destination={row.completionURL || routeURL || ''}
-          modifiers={[frame({ width: 24, height: 24 })]}
+          modifiers={[frame({ width: isSmall ? 30 : 32, height: isSmall ? 30 : 32 })]}
         >
-          <Image systemName="circle" color="#8E8E93" size={14} />
+          <Image systemName="circle" color="#8E8E93" size={18} />
         </Link>
       );
     }
 
-    return <Image systemName="circle" color="#8E8E93" size={14} />;
+    return <Image systemName="circle" color="#8E8E93" size={18} />;
   };
 
   return (
@@ -133,7 +132,7 @@ function EntregasDoDiaWidget(
       <HStack
         alignment="center"
         spacing={isSmall ? 4 : 6}
-        modifiers={[padding(isSmall ? { horizontal: 2 } : { leading: 22, trailing: 16 })]}
+        modifiers={[padding(isSmall ? { horizontal: 2 } : { top: 4, leading: 22, trailing: 16 })]}
       >
         <Text
           modifiers={[
@@ -184,17 +183,7 @@ function EntregasDoDiaWidget(
       </HStack>
 
       {isSmall ? (
-        <VStack
-          alignment="leading"
-          spacing={5}
-          modifiers={[
-            padding({ top: 9, bottom: 9, leading: 9, trailing: 15 }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
-            ),
-          ]}
-        >
+        <VStack alignment="leading" spacing={3} modifiers={[padding({ horizontal: 2 })]}>
           <Text
             modifiers={[
               font({ weight: 'medium', size: 9 }),
@@ -206,22 +195,22 @@ function EntregasDoDiaWidget(
           </Text>
           {rows.length > 0 ? (
             rows.map((row) => (
-              <HStack key={row.id} alignment="center" spacing={5}>
+              <HStack key={row.id} alignment="center" spacing={4}>
                 {completionControl(row)}
                 <VStack alignment="leading" spacing={1}>
                   <Text
                     modifiers={[
-                      font({ weight: 'semibold', size: 10 }),
+                      font({ weight: 'semibold', size: 11 }),
                       foregroundStyle({ type: 'hierarchical', style: 'primary' }),
                       lineLimit(1),
-                      minimumScaleFactor(0.6),
+                      minimumScaleFactor(0.7),
                     ]}
                   >
                     {row.clientName}
                   </Text>
                   <Text
                     modifiers={[
-                      font({ size: 8 }),
+                      font({ size: 9 }),
                       foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
                       lineLimit(1),
                     ]}
@@ -246,7 +235,7 @@ function EntregasDoDiaWidget(
           {additionalCount > 0 ? (
             <Text
               modifiers={[
-                font({ size: 8 }),
+                font({ size: 9 }),
                 foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
                 lineLimit(1),
               ]}
@@ -258,25 +247,19 @@ function EntregasDoDiaWidget(
       ) : (
         <VStack
           alignment="leading"
-          spacing={8}
-          modifiers={[
-            padding({ vertical: 10, horizontal: 12 }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
-            ),
-          ]}
+          spacing={4}
+          modifiers={[padding({ leading: 22, trailing: 16 })]}
         >
           {rows.length > 0 ? (
             rows.map((row) => (
-              <HStack key={row.id} alignment="center" spacing={8}>
+              <HStack key={row.id} alignment="center" spacing={6}>
                 {completionControl(row)}
                 <Text
                   modifiers={[
-                    font({ weight: 'medium', size: 12 }),
+                    font({ weight: 'medium', size: 14 }),
                     foregroundStyle({ type: 'hierarchical', style: 'primary' }),
                     lineLimit(1),
-                    minimumScaleFactor(0.55),
+                    minimumScaleFactor(0.68),
                     allowsTightening(true),
                   ]}
                 >
@@ -289,7 +272,7 @@ function EntregasDoDiaWidget(
                     foregroundStyle({ type: 'hierarchical', style: 'primary' }),
                     monospacedDigit(),
                     lineLimit(1),
-                    minimumScaleFactor(0.55),
+                    minimumScaleFactor(0.68),
                     allowsTightening(true),
                   ]}
                 >
@@ -311,7 +294,7 @@ function EntregasDoDiaWidget(
           {additionalCount > 0 ? (
             <Text
               modifiers={[
-                font({ size: 9 }),
+                font({ size: 10 }),
                 foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
                 lineLimit(1),
               ]}

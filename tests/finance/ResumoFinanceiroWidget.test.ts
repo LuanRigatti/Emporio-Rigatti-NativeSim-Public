@@ -22,6 +22,7 @@ type WidgetTreeNode = {
     alignment?: string;
     spacing?: number;
     children?: unknown;
+    minLength?: number;
     modifiers?: { args?: unknown[]; name: string }[];
     uiImage?: string;
   };
@@ -37,13 +38,6 @@ function renderWidget(
   mode: WidgetMode,
   colorScheme: 'light' | 'dark' = 'light',
   widgetsDirectory: string | null = 'file:///group/ExpoWidgets',
-  diagnosticVariant:
-    | 'full'
-    | 'without_image'
-    | 'static_test'
-    | 'previous_layout'
-    | 'redaction'
-    | 'redaction_unredacted' = 'full',
   widgetFamily: 'systemSmall' | 'systemMedium' = 'systemMedium',
 ) {
   const jsx = (type: string, componentProps: Record<string, unknown>) => ({
@@ -57,7 +51,7 @@ function renderWidget(
   return runInNewContext(`(${serializedLayout})(props, environment)`, {
     props,
     environment: {
-      configuration: { mode, diagnosticVariant },
+      configuration: { mode },
       date: fixedDate,
       colorScheme,
       widgetFamily,
@@ -73,11 +67,9 @@ function renderWidget(
     Text: 'Text',
     containerBackground: modifier('containerBackground'),
     background: modifier('background'),
-    containerRelativeFrame: modifier('containerRelativeFrame'),
     frame: modifier('frame'),
     font: modifier('font'),
     foregroundStyle: modifier('foregroundStyle'),
-    kerning: modifier('kerning'),
     layoutPriority: modifier('layoutPriority'),
     lineLimit: modifier('lineLimit'),
     minimumScaleFactor: modifier('minimumScaleFactor'),
@@ -88,7 +80,6 @@ function renderWidget(
     shapes: {
       roundedRectangle: (args: unknown) => ({ name: 'roundedRectangle', args }),
     },
-    unredacted: modifier('unredacted'),
     widgetURL: modifier('widgetURL'),
   });
 }
@@ -146,13 +137,16 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     ['light', '#F5F3F1'],
     ['dark', '#2C2C2E'],
   ] as const)('keeps the metric card contrast in %s mode', (colorScheme, expectedBackground) => {
-    const card = collectNodes(renderWidget({}, 'wholesale', colorScheme)).find(({ props }) =>
-      props?.modifiers?.some(({ name }) => name === 'background'),
+    const cards = collectNodes(renderWidget({}, 'wholesale', colorScheme), 'VStack').filter(
+      ({ props }) => props?.modifiers?.some(({ name }) => name === 'background'),
     );
 
-    expect(card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[0]).toBe(
-      expectedBackground,
-    );
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[0]).toBe(
+        expectedBackground,
+      );
+    }
   });
 
   it.each([
@@ -178,7 +172,6 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         mode,
         'light',
         'file:///group/ExpoWidgets',
-        'full',
         'systemSmall',
       ) as WidgetTreeNode;
       const text = collectText(tree);
@@ -205,7 +198,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
         `pareact://financeiro?mode=${mode}`,
       ]);
       expect(card?.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
-        { top: 12, bottom: 12, leading: 12, trailing: 18 },
+        { all: 12 },
       ]);
       const header = collectNodes(tree, 'HStack')[0];
       expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 2 }] }]);
@@ -219,9 +212,13 @@ describe('ResumoFinanceiro isolated widget layout', () => {
   );
 
   it('keeps the systemSmall fallback for missing financial values', () => {
-    expect(
-      collectText(renderWidget({}, 'retail', 'light', undefined, 'full', 'systemSmall')),
-    ).toEqual(['Empório Rigatti', 'Faturamento', '—', 'Lucro líquido', '—']);
+    expect(collectText(renderWidget({}, 'retail', 'light', undefined, 'systemSmall'))).toEqual([
+      'Empório Rigatti',
+      'Faturamento',
+      '—',
+      'Lucro líquido',
+      '—',
+    ]);
   });
 
   it('safely renders missing and invalid props in both modes', () => {
@@ -254,7 +251,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     }
   });
 
-  it('renders both metrics inside one compact rounded card and the complete month label', () => {
+  it('renders metrics in separate balanced rounded cards with the complete month label', () => {
     const tree = renderWidget(
       {
         monthKey: '2026-10',
@@ -274,26 +271,28 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       'R$ 45,00',
     ]);
 
-    const card = collectNodes(tree, 'HStack').find(({ props }) =>
+    const cards = collectNodes(tree, 'VStack').filter(({ props }) =>
       props?.modifiers?.some(({ name }) => name === 'background'),
     );
-    expect(card).toBeDefined();
-    expect(card?.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
-      { vertical: 8, horizontal: 12 },
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
+        { vertical: 9, horizontal: 12 },
+      ]);
+      expect(
+        card.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[1],
+      ).toMatchObject({
+        name: 'roundedRectangle',
+        args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
+      });
+      expect(collectNodes(card, 'VStack')).toHaveLength(1);
+    }
+    const cardsRow = collectNodes(tree, 'HStack').find(({ props }) => props?.spacing === 0);
+    expect(collectNodes(cardsRow, 'Spacer').map(({ props }) => props?.minLength)).toEqual([
+      0, 12, 0,
     ]);
-    expect(
-      card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[1],
-    ).toMatchObject({
-      name: 'roundedRectangle',
-      args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
-    });
-    expect(
-      collectNodes(tree, 'VStack').filter(({ props }) =>
-        props?.modifiers?.some(({ name }) => name === 'background'),
-      ),
-    ).toHaveLength(0);
-    expect(collectNodes(card, 'VStack')).toHaveLength(2);
-    const valueFonts = collectNodes(card, 'Text')
+    const valueFonts = cards
+      .flatMap((card) => collectNodes(card, 'Text'))
       .filter(({ props }) => typeof props?.children === 'string' && props.children.startsWith('R$'))
       .map(({ props }) => props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]);
     expect(valueFonts).toEqual([
@@ -342,7 +341,7 @@ describe('ResumoFinanceiro isolated widget layout', () => {
 
     expect(header.props?.alignment).toBe('center');
     expect(header.props?.modifiers).toEqual([
-      { name: 'padding', args: [{ leading: 22, trailing: 16 }] },
+      { name: 'padding', args: [{ top: 4, leading: 22, trailing: 16 }] },
     ]);
     expect(collectText(header)).toEqual(['Empório Rigatti', '•', 'Outubro 2026']);
     expect(title.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]).toEqual({
@@ -446,156 +445,4 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     }
     expect(text).not.toContain('—');
   });
-
-  it.each(['wholesale', 'retail'] as const)(
-    'variant B preserves the new card layout and removes only the splash image in %s mode',
-    (mode) => {
-      const tree = renderWidget(
-        { financeRouteURL: 'pareact://financeiro' },
-        mode,
-        'light',
-        'file:///group/ExpoWidgets',
-        'without_image',
-      ) as WidgetTreeNode;
-
-      expect(collectText(tree)).toEqual([
-        'Empório Rigatti',
-        '•',
-        'Outubro 2026',
-        'Faturamento',
-        '—',
-        'Lucro líquido',
-        '—',
-      ]);
-      expect(collectNodes(tree, 'Image')).toHaveLength(0);
-      expect(tree.props?.modifiers?.find(({ name }) => name === 'widgetURL')?.args).toEqual([
-        `pareact://financeiro?mode=${mode}`,
-      ]);
-      const card = collectNodes(tree, 'HStack').find(({ props }) =>
-        props?.modifiers?.some(({ name }) => name === 'background'),
-      );
-      expect(card).toBeDefined();
-      expect(
-        card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[1],
-      ).toMatchObject({
-        name: 'roundedRectangle',
-        args: { cornerRadius: 18, roundedCornerStyle: 'continuous' },
-      });
-      expect(
-        collectNodes(tree, 'Spacer').some(({ props }) =>
-          props?.modifiers?.some(
-            ({ name, args }) =>
-              name === 'frame' &&
-              (args?.[0] as { width?: number; height?: number } | undefined)?.width === 32 &&
-              (args?.[0] as { width?: number; height?: number } | undefined)?.height === 32,
-          ),
-        ),
-      ).toBe(true);
-    },
-  );
-
-  it.each(['wholesale', 'retail'] as const)(
-    'variant A and B share the same financial cards for %s mode',
-    (mode) => {
-      const snapshot = {
-        wholesale: { faturamento: 'R$ 150,00', lucroLiquido: 'R$ 45,00' },
-        retail: { faturamento: 'R$ 90,00', lucroLiquido: 'R$ 27,00' },
-      };
-      const fullTree = renderWidget(snapshot, mode, 'light', 'file:///group/ExpoWidgets', 'full');
-      const noImageTree = renderWidget(
-        snapshot,
-        mode,
-        'light',
-        'file:///group/ExpoWidgets',
-        'without_image',
-      );
-      const cardModifiers = (tree: unknown) =>
-        collectNodes(tree, 'HStack').find(({ props }) =>
-          props?.modifiers?.some(({ name }) => name === 'background'),
-        )?.props?.modifiers;
-
-      expect(collectText(fullTree)).toEqual(collectText(noImageTree));
-      expect(cardModifiers(fullTree)).toEqual(cardModifiers(noImageTree));
-      expect(collectNodes(fullTree, 'Image')).toHaveLength(1);
-      expect(collectNodes(noImageTree, 'Image')).toHaveLength(0);
-    },
-  );
-
-  it('variant C shows only clearly marked fictitious static content', () => {
-    const tree = renderWidget(
-      { wholesale: { faturamento: 'R$ 999.999,99', lucroLiquido: 'R$ 888.888,88' } },
-      'wholesale',
-      'light',
-      'file:///group/ExpoWidgets',
-      'static_test',
-    );
-    const text = collectText(tree);
-
-    expect(text).toContain('DIAGNÓSTICO C · TESTE');
-    expect(text).toContain('FATURAMENTO FICTÍCIO · R$ 123,45');
-    expect(text).toContain('LUCRO FICTÍCIO · R$ 67,89');
-    expect(text).toContain('DADOS INVENTADOS PARA TESTE');
-    expect(text).not.toContain('R$ 999.999,99');
-    expect(text).not.toContain('R$ 888.888,88');
-    expect(collectNodes(tree, 'Image')).toHaveLength(0);
-  });
-
-  it.each(['wholesale', 'retail'] as const)(
-    'variant D reproduces the previous vertical visual using the current %s snapshot',
-    (mode) => {
-      const tree = renderWidget(
-        {
-          monthKey: '2026-10',
-          wholesale: { faturamento: 'R$ 150,00', lucroLiquido: 'R$ 45,00' },
-          retail: { faturamento: 'R$ 50,00', lucroLiquido: 'R$ 15,00' },
-        },
-        mode,
-        'light',
-        'file:///group/ExpoWidgets',
-        'previous_layout',
-      );
-
-      expect(collectText(tree)).toEqual([
-        'OUTUBRO 2026',
-        'FATURAMENTO',
-        mode === 'wholesale' ? 'R$ 150,00' : 'R$ 50,00',
-        'LUCRO LÍQUIDO',
-        mode === 'wholesale' ? 'R$ 45,00' : 'R$ 15,00',
-      ]);
-      expect(collectNodes(tree, 'Image')).toHaveLength(0);
-      expect(
-        collectNodes(tree, 'VStack').filter(({ props }) =>
-          props?.modifiers?.some(({ name }) => name === 'containerRelativeFrame'),
-        ),
-      ).toHaveLength(0);
-      expect(JSON.stringify(tree)).toContain('"name":"kerning"');
-      expect(serializedLayout).not.toContain('toLocaleDateString');
-    },
-  );
-
-  it.each([
-    ['redaction', false],
-    ['redaction_unredacted', true],
-  ] as const)(
-    'variant E uses only static non-sensitive content; unredacted=%s',
-    (variant, unredactedExpected) => {
-      const tree = renderWidget(
-        { retail: { faturamento: 'R$ 999.999,99', lucroLiquido: 'R$ 888.888,88' } },
-        'retail',
-        'light',
-        'file:///group/ExpoWidgets',
-        variant,
-      );
-      const text = collectText(tree);
-      const rootModifiers = (tree as WidgetTreeNode).props?.modifiers ?? [];
-
-      expect(text).toContain('DIAGNÓSTICO E · REDACTION');
-      expect(text).toContain('TEXTO ESTÁTICO NÃO SENSÍVEL');
-      expect(text).toContain('SEM DADOS FINANCEIROS');
-      expect(text).not.toContain('R$ 999.999,99');
-      expect(text).not.toContain('R$ 888.888,88');
-      expect(rootModifiers.some(({ name }) => name === 'unredacted')).toBe(unredactedExpected);
-      expect(collectNodes(tree, 'Image')).toHaveLength(0);
-    },
-  );
 });

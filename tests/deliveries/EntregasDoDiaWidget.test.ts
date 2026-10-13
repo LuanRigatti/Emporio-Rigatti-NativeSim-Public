@@ -178,7 +178,7 @@ describe('EntregasDoDia isolated widget layout', () => {
     ).toBe(false);
   });
 
-  it('renders at most two small rows without money and links each circle by stable ID', () => {
+  it('renders at most three small rows without money and links each circle by stable ID', () => {
     const tree = renderWidget(
       {
         date: '2026-10-15',
@@ -197,27 +197,30 @@ describe('EntregasDoDia isolated widget layout', () => {
       '1 balde',
       'Cliente B',
       '2 baldes',
+      'Cliente C',
+      '3 baldes',
       '+',
-      '2',
+      '1',
       ' entregas',
     ]);
     expect(text.some((value) => value.startsWith('R$'))).toBe(false);
     expect(collectNodes(tree, 'Link').map(({ props }) => props?.destination)).toEqual([
       'pareact://historico/entrega/delivery-a?date=2026-10-15',
       'pareact://historico/entrega/delivery-b?date=2026-10-15',
+      'pareact://historico/entrega/delivery-c?date=2026-10-15',
     ]);
     for (const link of collectNodes(tree, 'Link')) {
       expect(link.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
-        width: 24,
-        height: 24,
+        width: 30,
+        height: 30,
       });
-      expect(collectNodes(link, 'Image')[0]?.props?.size).toBe(14);
+      expect(collectNodes(link, 'Image')[0]?.props?.size).toBe(18);
     }
     expect(
-      collectNodes(tree, 'VStack')
-        .find(({ props }) => props?.modifiers?.some(({ name }) => name === 'background'))
-        ?.props?.modifiers?.find(({ name }) => name === 'padding')?.args,
-    ).toEqual([{ top: 9, bottom: 9, leading: 9, trailing: 15 }]);
+      collectNodes(tree).some(({ props }) =>
+        props?.modifiers?.some(({ name }) => name === 'background'),
+      ),
+    ).toBe(false);
   });
 
   it.each([
@@ -294,6 +297,15 @@ describe('EntregasDoDia isolated widget layout', () => {
         '•',
         'Entregas',
       ]);
+      expect((children as TreeNode[])[0]?.props?.modifiers).toContainEqual({
+        name: 'padding',
+        args: [{ top: 4, leading: 22, trailing: 16 }],
+      });
+      expect(
+        collectNodes(tree).some(({ props }) =>
+          props?.modifiers?.some(({ name }) => name === 'background'),
+        ),
+      ).toBe(false);
     }
   });
 
@@ -313,17 +325,18 @@ describe('EntregasDoDia isolated widget layout', () => {
         true,
       );
       const buttons = collectNodes(tree, 'Button');
-      const visibleCount = widgetFamily === 'systemSmall' ? 2 : 3;
+      const visibleCount = 3;
+      const touchTargetSize = widgetFamily === 'systemSmall' ? 30 : 32;
 
       expect(buttons).toHaveLength(visibleCount);
       expect(collectNodes(tree, 'Link')).toHaveLength(0);
       expect(buttons[0]?.props?.target).toBe('rigatti-delivery-complete:2026-10-15:delivery%2Fa');
       for (const button of buttons) {
         expect(button.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
-          width: 24,
-          height: 24,
+          width: touchTargetSize,
+          height: touchTargetSize,
         });
-        expect(collectNodes(button, 'Image')[0]?.props?.size).toBe(14);
+        expect(collectNodes(button, 'Image')[0]?.props?.size).toBe(18);
       }
       expect(
         buttons.every(({ props }) =>
@@ -435,12 +448,10 @@ describe('EntregasDoDia isolated widget layout', () => {
     );
   });
 
-  it.each([
-    ['light', '#F5F3F1'],
-    ['dark', '#2C2C2E'],
-  ] as const)('keeps delivery card contrast in %s mode', (colorScheme, expectedBackground) => {
-    const card = collectNodes(
-      renderWidget(
+  it.each(['light', 'dark'] as const)(
+    'keeps the delivery list on the widget surface in %s mode',
+    (colorScheme) => {
+      const tree = renderWidget(
         {
           date: '2026-10-15',
           state: 'pending',
@@ -449,12 +460,14 @@ describe('EntregasDoDia isolated widget layout', () => {
         },
         'systemMedium',
         colorScheme,
-      ),
-      'VStack',
-    ).find(({ props }) => props?.modifiers?.some(({ name }) => name === 'background'));
+      );
 
-    expect(card?.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[0]).toBe(
-      expectedBackground,
-    );
-  });
+      expect(collectText(tree)).toContain('Cliente A');
+      expect(
+        collectNodes(tree).some(({ props }) =>
+          props?.modifiers?.some(({ name }) => name === 'background'),
+        ),
+      ).toBe(false);
+    },
+  );
 });

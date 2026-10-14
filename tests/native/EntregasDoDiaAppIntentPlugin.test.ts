@@ -73,6 +73,12 @@ describe('EntregasDoDia App Intent CNG integration', () => {
         'ios/Widgets/DeliveryWidgetCompletionIntent.swift',
       );
       const generatedSwift = fs.readFileSync(intentPath, 'utf8');
+      expect(generatedSwift).toContain('import os');
+      expect(generatedSwift).toContain('category: "DeliveryCompletion"');
+      expect(generatedSwift).toContain('completion.intent.started');
+      expect(generatedSwift).toContain('completion.remote.http_status=');
+      expect(generatedSwift).toContain('completion.timeline.storage_updated');
+      expect(generatedSwift).toContain('completion.timeline.reload_requested');
       expect(generatedSwift).toMatch(
         /var currentVersion = readAppSession\(\)\?\.sessionVersion \?\? 0/,
       );
@@ -220,6 +226,35 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     );
     expect(receiptStorage).toContain('"sessionId": sessionId');
     expect(receiptStorage).not.toContain('"uid"');
+  });
+
+  it('adds privacy-safe OSLog markers for each delivery-completion stage', () => {
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'subsystem: "com.pareact.mobile.ExpoWidgetsTarget",\n    category: "DeliveryCompletion"',
+    );
+
+    for (const marker of [
+      'completion.intent.started',
+      'completion.intent.input_rejected',
+      'completion.authorization.local_credential_rejected',
+      'completion.authorization.session_active',
+      'completion.remote.request_started',
+      'completion.remote.transport_failed',
+      'completion.remote.response_rejected',
+      'completion.remote.snapshot_validated',
+      'completion.receipt.persisted',
+      'completion.timeline.storage_updated',
+      'completion.timeline.reload_requested',
+    ]) {
+      expect(DELIVERY_ACTION_SWIFT).toContain(marker);
+    }
+
+    const logStatements = DELIVERY_ACTION_SWIFT.split('\n').filter((line) =>
+      /(?:\.logger\.|logger\.(?:info|notice|error)\()/.test(line),
+    );
+    expect(logStatements.join('\n')).not.toMatch(
+      /capability|sessionId|\buid\b|deliveryId|clientName|localizedDescription/i,
+    );
   });
 
   it('fences local authorization before queueing logout revocation and preserves retry state', () => {

@@ -10,6 +10,7 @@ export type BoletoStatus = 'emitido' | 'a_emitir';
 
 export interface Delivery {
   id: string;
+  dateAddedAt?: number;
   createdAt?: number;
   clientId?: ClientId;
   cliente: string;

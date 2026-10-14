@@ -8,6 +8,7 @@ jest.mock('@expo/ui/swift-ui', () => ({
   Spacer: 'Spacer',
   Text: 'Text',
   VStack: 'VStack',
+  ZStack: 'ZStack',
 }));
 
 jest.mock('@expo/ui/swift-ui/modifiers', () => ({}));
@@ -61,6 +62,7 @@ function renderWidget(
     _jsx: jsx,
     _jsxs: jsx,
     VStack: 'VStack',
+    ZStack: 'ZStack',
     HStack: 'HStack',
     Image: 'Image',
     Spacer: 'Spacer',
@@ -94,6 +96,9 @@ function collectText(node: unknown): string[] {
   }
 
   const element = node as WidgetTreeNode;
+  if (element.type === 'ZStack' && Array.isArray(element.props?.children)) {
+    return [...element.props.children].reverse().flatMap(collectText);
+  }
   if (element.type === 'Text' && typeof element.props?.children === 'string') {
     return [element.props.children];
   }
@@ -200,7 +205,9 @@ describe('ResumoFinanceiro isolated widget layout', () => {
       expect(card?.props?.modifiers?.find(({ name }) => name === 'padding')?.args).toEqual([
         { all: 12 },
       ]);
-      const header = collectNodes(tree, 'HStack')[0];
+      const header = collectNodes(tree, 'HStack').find((node) =>
+        collectText(node).includes('Empório Rigatti'),
+      )!;
       expect(header.props?.modifiers).toEqual([{ name: 'padding', args: [{ horizontal: 2 }] }]);
       expect(header.props?.spacing).toBe(4);
       const logo = collectNodes(tree, 'Image')[0];
@@ -306,7 +313,9 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     'keeps the complete long month and year in the medium header: %s',
     (monthLabel) => {
       const tree = renderWidget({ monthLabel }, 'wholesale');
-      const header = collectNodes(tree, 'HStack')[0];
+      const header = collectNodes(tree, 'HStack').find((node) =>
+        collectText(node).includes('Empório Rigatti'),
+      );
 
       expect(collectText(header)).toEqual([
         'Empório Rigatti',
@@ -335,10 +344,18 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     },
   );
 
-  it('aligns the brand header with the card content and raises the title in the icon row', () => {
-    const header = collectNodes(renderWidget({}, 'wholesale'), 'HStack')[0];
+  it('anchors the header at the top independently from the unchanged finance card row', () => {
+    const tree = renderWidget({}, 'wholesale') as WidgetTreeNode;
+    const layers = tree.props?.children as WidgetTreeNode[];
+    const cardsColumn = layers[0];
+    const cardsChildren = cardsColumn?.props?.children as WidgetTreeNode[];
+    const header = layers[1]!;
     const title = collectNodes(header, 'Text')[0];
 
+    expect(tree.type).toBe('ZStack');
+    expect(tree.props?.alignment).toBe('topLeading');
+    expect(layers.map(({ type }) => type)).toEqual(['VStack', 'HStack']);
+    expect(cardsChildren.map(({ type }) => type)).toEqual(['Spacer', 'HStack']);
     expect(header.props?.alignment).toBe('center');
     expect(header.props?.modifiers).toEqual([
       { name: 'padding', args: [{ top: 4, leading: 22, trailing: 16 }] },

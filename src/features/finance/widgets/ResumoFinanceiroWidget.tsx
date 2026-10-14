@@ -1,4 +1,4 @@
-import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { HStack, Image, Spacer, Text, VStack, ZStack } from '@expo/ui/swift-ui';
 import {
   allowsTightening,
   background,
@@ -188,14 +188,87 @@ function ResumoFinanceiroWidget(
   }
 
   return (
-    <VStack
-      alignment="leading"
-      spacing={8}
+    <ZStack
+      alignment="topLeading"
       modifiers={[
         containerBackground({ type: 'material', material: 'regular' }, 'widget'),
         ...(destinationURL ? [widgetURL(destinationURL)] : []),
       ]}
     >
+      <VStack alignment="leading" spacing={0}>
+        <Spacer minLength={0} />
+        <HStack alignment="center" spacing={0}>
+          <Spacer minLength={0} />
+          <VStack
+            alignment="leading"
+            spacing={5}
+            modifiers={[
+              padding({ vertical: 9, horizontal: 12 }),
+              background(
+                cardBackground,
+                shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
+              ),
+            ]}
+          >
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 11 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}
+            >
+              Faturamento
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 22 }),
+                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                monospacedDigit(),
+                lineLimit(1),
+                minimumScaleFactor(0.52),
+                allowsTightening(true),
+              ]}
+            >
+              {faturamentoLabel}
+            </Text>
+          </VStack>
+          <Spacer minLength={12} />
+          <VStack
+            alignment="leading"
+            spacing={5}
+            modifiers={[
+              padding({ vertical: 9, horizontal: 12 }),
+              background(
+                cardBackground,
+                shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
+              ),
+            ]}
+          >
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 11 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+              ]}
+            >
+              Lucro líquido
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 22 }),
+                foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                monospacedDigit(),
+                lineLimit(1),
+                minimumScaleFactor(0.52),
+                allowsTightening(true),
+              ]}
+            >
+              {lucroLiquidoLabel}
+            </Text>
+          </VStack>
+          <Spacer minLength={0} />
+        </HStack>
+      </VStack>
       <HStack
         alignment="center"
         spacing={6}
@@ -243,78 +316,7 @@ function ResumoFinanceiroWidget(
           <Spacer modifiers={[frame({ width: 32, height: 32 })]} />
         )}
       </HStack>
-      <HStack alignment="center" spacing={0}>
-        <Spacer minLength={0} />
-        <VStack
-          alignment="leading"
-          spacing={5}
-          modifiers={[
-            padding({ vertical: 9, horizontal: 12 }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
-            ),
-          ]}
-        >
-          <Text
-            modifiers={[
-              font({ weight: 'medium', size: 11 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-            ]}
-          >
-            Faturamento
-          </Text>
-          <Text
-            modifiers={[
-              font({ weight: 'bold', size: 22 }),
-              foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-              monospacedDigit(),
-              lineLimit(1),
-              minimumScaleFactor(0.52),
-              allowsTightening(true),
-            ]}
-          >
-            {faturamentoLabel}
-          </Text>
-        </VStack>
-        <Spacer minLength={12} />
-        <VStack
-          alignment="leading"
-          spacing={5}
-          modifiers={[
-            padding({ vertical: 9, horizontal: 12 }),
-            background(
-              cardBackground,
-              shapes.roundedRectangle({ cornerRadius: 18, roundedCornerStyle: 'continuous' }),
-            ),
-          ]}
-        >
-          <Text
-            modifiers={[
-              font({ weight: 'medium', size: 11 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-            ]}
-          >
-            Lucro líquido
-          </Text>
-          <Text
-            modifiers={[
-              font({ weight: 'bold', size: 22 }),
-              foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-              monospacedDigit(),
-              lineLimit(1),
-              minimumScaleFactor(0.52),
-              allowsTightening(true),
-            ]}
-          >
-            {lucroLiquidoLabel}
-          </Text>
-        </VStack>
-        <Spacer minLength={0} />
-      </HStack>
-    </VStack>
+    </ZStack>
   );
 }
 

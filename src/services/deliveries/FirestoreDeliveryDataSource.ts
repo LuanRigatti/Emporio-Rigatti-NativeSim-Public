@@ -31,6 +31,7 @@ type FirestoreDeliveryDocument = {
   paymentMethod?: PaymentMethod;
   observation?: string;
   legacyFields?: Record<string, unknown>;
+  dateAddedAt?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -106,9 +107,11 @@ async function collectionFor(uid: string) {
 }
 
 function mapDocument(id: string, value: FirestoreDeliveryDocument): Delivery {
-  const createdAt = normalizeCreatedAt(value.createdAt);
+  const dateAddedAt = normalizeTimestampMillis(value.dateAddedAt);
+  const createdAt = normalizeTimestampMillis(value.createdAt);
 
   return {
+    ...(dateAddedAt === undefined ? {} : { dateAddedAt }),
     id,
     ...(createdAt === undefined ? {} : { createdAt }),
     ...(value.clientId ? { clientId: `client:${value.clientId}` } : {}),
@@ -128,9 +131,12 @@ function mapDocument(id: string, value: FirestoreDeliveryDocument): Delivery {
   };
 }
 
-function normalizeCreatedAt(value: unknown): number | undefined {
+function normalizeTimestampMillis(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-  if (value instanceof Date) return value.getTime();
+  if (value instanceof Date) {
+    const milliseconds = value.getTime();
+    return Number.isFinite(milliseconds) ? milliseconds : undefined;
+  }
   if (!value || typeof value !== 'object') return undefined;
 
   const timestamp = value as {
@@ -171,6 +177,12 @@ function toDocument(delivery: Delivery): FirestoreDeliveryDocument {
     ...(delivery.observacao ? { observation: delivery.observacao } : {}),
     ...(delivery.legacyFields ? { legacyFields: delivery.legacyFields } : {}),
   };
+}
+
+function withoutDateAddedAt(delivery: Delivery): Delivery {
+  const copy = { ...delivery };
+  delete copy.dateAddedAt;
+  return copy;
 }
 
 export class FirestoreDeliveryDataSource {
@@ -870,9 +882,21 @@ export class FirestoreDeliveryDataSource {
     const delivery = createDeliveryFromDraft(draft);
     const { doc, serverTimestamp, setDoc } = await getFirestoreOps();
     const reference = doc(await collectionFor(request.uid));
-    await setDoc(reference, { ...toDocument(delivery), createdAt: serverTimestamp() });
+    await setDoc(reference, {
+      ...toDocument(delivery),
+      createdAt: serverTimestamp(),
+      dateAddedAt: serverTimestamp(),
+    });
     this.assertSessionRequestCurrent(request);
-    const created = { ...delivery, id: reference.id };
+    const serverSnapshot = this.records.get(reference.id);
+    const created = {
+      ...delivery,
+      id: reference.id,
+      ...(serverSnapshot?.createdAt === undefined ? {} : { createdAt: serverSnapshot.createdAt }),
+      ...(serverSnapshot?.dateAddedAt === undefined
+        ? {}
+        : { dateAddedAt: serverSnapshot.dateAddedAt }),
+    };
     this.records.set(created.id, created);
     this.publish();
     this.publishMutatedCompleteDates(request.uid, [created.data], request.generation);
@@ -891,10 +915,12 @@ export class FirestoreDeliveryDataSource {
     this.assertSessionRequestCurrent(request);
     const current = this.records.get(deliveryId);
     if (!current) throw new Error('Entrega não encontrada.');
-    const delivery = createDeliveryFromDraft(
+    const draftedDelivery = createDeliveryFromDraft(
       { ...draft, id: deliveryId, clientId: draft.clientId ?? current.clientId },
       current,
     );
+    const dateChanged = draftedDelivery.data !== current.data;
+    const delivery = dateChanged ? withoutDateAddedAt(draftedDelivery) : draftedDelivery;
     const currentDateWasComplete = this.isDateComplete(
       request.uid,
       current.data,
@@ -923,6 +949,7 @@ export class FirestoreDeliveryDataSource {
         }
         transaction.update(reference, {
           ...editableDocument,
+          ...(dateChanged ? { dateAddedAt: serverTimestamp() } : {}),
           delivered: draftDelivered,
           updatedAt: serverTimestamp(),
         });
@@ -931,6 +958,7 @@ export class FirestoreDeliveryDataSource {
     } else {
       await updateDoc(reference, {
         ...editableDocument,
+        ...(dateChanged ? { dateAddedAt: serverTimestamp() } : {}),
         ...(changedDelivered ? { delivered: draftDelivered } : {}),
         updatedAt: serverTimestamp(),
       });

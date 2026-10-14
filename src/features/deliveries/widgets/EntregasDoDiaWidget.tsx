@@ -68,9 +68,7 @@ function EntregasDoDiaWidget(
         parsedRows.length === 0) ||
       (safeProps?.state === 'unavailable' && reportedCount === 0 && parsedRows.length === 0));
   const state = structurallyComplete ? safeProps?.state : 'unavailable';
-  const count = state === 'pending' && reportedCount !== null ? reportedCount : 0;
   const rows = state === 'pending' ? parsedRows.slice(0, visibleLimit) : [];
-  const additionalCount = Math.max(0, count - rows.length);
   const routeURL =
     typeof safeProps?.deliveryRouteURL === 'string' && safeProps.deliveryRouteURL.trim()
       ? safeProps.deliveryRouteURL
@@ -96,12 +94,9 @@ function EntregasDoDiaWidget(
       return (
         <Button
           target={`rigatti-delivery-complete:${safeProps?.date}:${encodeURIComponent(row.id)}`}
-          modifiers={[
-            buttonStyle('plain'),
-            frame({ width: isSmall ? 30 : 32, height: isSmall ? 30 : 32 }),
-          ]}
+          modifiers={[buttonStyle('plain'), frame({ width: 34, height: 34 })]}
         >
-          <Image systemName="circle" color="#8E8E93" size={18} />
+          <Image systemName="circle" color="#8E8E93" size={20} />
         </Button>
       );
     }
@@ -110,20 +105,20 @@ function EntregasDoDiaWidget(
       return (
         <Link
           destination={row.completionURL || routeURL || ''}
-          modifiers={[frame({ width: isSmall ? 30 : 32, height: isSmall ? 30 : 32 })]}
+          modifiers={[frame({ width: 34, height: 34 })]}
         >
-          <Image systemName="circle" color="#8E8E93" size={18} />
+          <Image systemName="circle" color="#8E8E93" size={20} />
         </Link>
       );
     }
 
-    return <Image systemName="circle" color="#8E8E93" size={18} />;
+    return <Image systemName="circle" color="#8E8E93" size={20} />;
   };
 
   return (
     <VStack
       alignment="leading"
-      spacing={8}
+      spacing={isSmall ? 2 : 10}
       modifiers={[
         containerBackground({ type: 'material', material: 'regular' }, 'widget'),
         ...(routeURL ? [widgetURL(routeURL)] : []),
@@ -132,7 +127,7 @@ function EntregasDoDiaWidget(
       <HStack
         alignment="center"
         spacing={isSmall ? 4 : 6}
-        modifiers={[padding(isSmall ? { horizontal: 2 } : { top: 4, leading: 22, trailing: 16 })]}
+        modifiers={[padding(isSmall ? { horizontal: 2 } : { top: 6, leading: 22, trailing: 16 })]}
       >
         <Text
           modifiers={[
@@ -183,44 +178,27 @@ function EntregasDoDiaWidget(
       </HStack>
 
       {isSmall ? (
-        <VStack alignment="leading" spacing={3} modifiers={[padding({ horizontal: 2 })]}>
-          <Text
-            modifiers={[
-              font({ weight: 'medium', size: 9 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-            ]}
-          >
-            {state === 'unavailable' ? 'Entregas' : 'Entregas de hoje'}
-          </Text>
-          {rows.length > 0 ? (
-            rows.map((row) => (
-              <HStack key={row.id} alignment="center" spacing={4}>
-                {completionControl(row)}
-                <VStack alignment="leading" spacing={1}>
-                  <Text
-                    modifiers={[
-                      font({ weight: 'semibold', size: 11 }),
-                      foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-                      lineLimit(1),
-                      minimumScaleFactor(0.7),
-                    ]}
-                  >
-                    {row.clientName}
-                  </Text>
-                  <Text
-                    modifiers={[
-                      font({ size: 9 }),
-                      foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-                      lineLimit(1),
-                    ]}
-                  >
-                    {row.quantityLabel}
-                  </Text>
-                </VStack>
-              </HStack>
-            ))
-          ) : (
+        <VStack alignment="leading" spacing={0} modifiers={[padding({ horizontal: 2 })]}>
+          {rows.length > 0 ? <Spacer minLength={0} /> : null}
+          {rows.flatMap((row, index) => [
+            ...(index > 0 ? [<Spacer key={`gap-${row.id}`} minLength={0} />] : []),
+            <HStack key={row.id} alignment="center" spacing={4}>
+              {completionControl(row)}
+              <Text
+                modifiers={[
+                  font({ weight: 'semibold', size: 12 }),
+                  foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                  lineLimit(1),
+                  minimumScaleFactor(0.72),
+                  allowsTightening(true),
+                ]}
+              >
+                {row.clientName} · {row.quantityLabel}
+              </Text>
+            </HStack>,
+          ])}
+          {rows.length > 0 ? <Spacer minLength={0} /> : null}
+          {rows.length === 0 ? (
             <Text
               modifiers={[
                 font({ weight: 'medium', size: 10 }),
@@ -231,24 +209,13 @@ function EntregasDoDiaWidget(
             >
               {emptyMessage}
             </Text>
-          )}
-          {additionalCount > 0 ? (
-            <Text
-              modifiers={[
-                font({ size: 9 }),
-                foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
-                lineLimit(1),
-              ]}
-            >
-              +{additionalCount} entregas
-            </Text>
           ) : null}
         </VStack>
       ) : (
         <VStack
           alignment="leading"
           spacing={4}
-          modifiers={[padding({ leading: 22, trailing: 16 })]}
+          modifiers={[padding({ leading: 12, trailing: 16 })]}
         >
           {rows.length > 0 ? (
             rows.map((row) => (
@@ -256,7 +223,7 @@ function EntregasDoDiaWidget(
                 {completionControl(row)}
                 <Text
                   modifiers={[
-                    font({ weight: 'medium', size: 14 }),
+                    font({ weight: 'medium', size: 15 }),
                     foregroundStyle({ type: 'hierarchical', style: 'primary' }),
                     lineLimit(1),
                     minimumScaleFactor(0.68),
@@ -291,17 +258,6 @@ function EntregasDoDiaWidget(
               {emptyMessage}
             </Text>
           )}
-          {additionalCount > 0 ? (
-            <Text
-              modifiers={[
-                font({ size: 10 }),
-                foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
-                lineLimit(1),
-              ]}
-            >
-              +{additionalCount} entregas
-            </Text>
-          ) : null}
         </VStack>
       )}
       {!isSmall ? <Spacer minLength={0} /> : null}

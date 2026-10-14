@@ -12,9 +12,13 @@ function delivery(
   quantidade: number,
   valor: number,
   entregue = false,
+  createdAt?: number,
+  dateAddedAt?: number,
 ): CompleteDeliveryDateSnapshot['deliveries'][number] {
   return {
+    ...(dateAddedAt === undefined ? {} : { dateAddedAt }),
     id,
+    ...(createdAt === undefined ? {} : { createdAt }),
     cliente,
     data,
     quantidade,
@@ -49,10 +53,10 @@ describe('EntregasDoDia snapshot', () => {
       date: '2026-10-15',
       completedAt: 1,
       deliveries: [
-        delivery('late', 'Cliente Z', '2026-10-15', 2, 60),
-        delivery('done', 'Cliente B', '2026-10-15', 3, 90, true),
+        delivery('late', 'Cliente A', '2026-10-15', 2, 60, false, 2_000),
+        delivery('done', 'Cliente B', '2026-10-15', 3, 90, true, 500),
         delivery('other-day', 'Outro Dia', '2026-10-14', 10, 300),
-        delivery('early', 'Cliente A', '2026-10-15', 1, 30),
+        delivery('early', 'Cliente Z', '2026-10-15', 1, 30, false, 1_000),
       ],
     };
 
@@ -70,13 +74,13 @@ describe('EntregasDoDia snapshot', () => {
       deliveries: [
         {
           id: 'early',
-          clientName: 'Cliente A',
+          clientName: 'Cliente Z',
           quantityLabel: '1 balde',
           completionURL: 'pareact://historico/entrega/early?date=2026-10-15',
         },
         {
           id: 'late',
-          clientName: 'Cliente Z',
+          clientName: 'Cliente A',
           quantityLabel: '2 baldes',
           completionURL: 'pareact://historico/entrega/late?date=2026-10-15',
         },
@@ -85,6 +89,33 @@ describe('EntregasDoDia snapshot', () => {
     expect(projected.deliveries[0]?.valueLabel).toBe('R$ 30,00');
     expect(projected.deliveries[1]?.valueLabel).toBe('R$ 60,00');
     expect(projected.deliveries.some(({ id }) => id === 'done')).toBe(false);
+  });
+
+  it('sorts by date-added time, falling back to creation time and stable IDs', () => {
+    const projected = projectEntregasDoDiaSnapshot({
+      uid: 'user-a',
+      date: '2026-10-15',
+      completedAt: 1,
+      deliveries: [
+        delivery('legacy-tie-b', 'Cliente A', '2026-10-15', 1, 30, false, 100),
+        delivery('unknown-b', 'Cliente A', '2026-10-15', 1, 30),
+        delivery('legacy-tie-a', 'Cliente Z', '2026-10-15', 1, 30, false, 100),
+        delivery('legacy-first', 'Cliente Z', '2026-10-15', 1, 30, false, 50),
+        delivery('added-late', 'Cliente Z', '2026-10-15', 1, 30, false, 1, 200),
+        delivery('added-early', 'Cliente Z', '2026-10-15', 1, 30, false, 900, 100),
+        delivery('unknown-a', 'Cliente Z', '2026-10-15', 1, 30),
+      ],
+    });
+
+    expect(projected.deliveries.map(({ id }) => id)).toEqual([
+      'legacy-first',
+      'added-early',
+      'legacy-tie-a',
+      'legacy-tie-b',
+      'added-late',
+      'unknown-a',
+      'unknown-b',
+    ]);
   });
 
   it('distinguishes pending, all-completed, truly empty, and unavailable days', () => {

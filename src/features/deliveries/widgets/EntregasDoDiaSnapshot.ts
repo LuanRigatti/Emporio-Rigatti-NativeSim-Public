@@ -48,6 +48,35 @@ export function unavailableEntregasDoDiaWidgetProps(
   };
 }
 
+function compareWidgetDeliveryOrder(
+  left: CompleteDeliveryDateSnapshot['deliveries'][number],
+  right: CompleteDeliveryDateSnapshot['deliveries'][number],
+): number {
+  const leftOrderTimestamp =
+    typeof left.dateAddedAt === 'number' && Number.isFinite(left.dateAddedAt)
+      ? left.dateAddedAt
+      : typeof left.createdAt === 'number' && Number.isFinite(left.createdAt)
+        ? left.createdAt
+        : undefined;
+  const rightOrderTimestamp =
+    typeof right.dateAddedAt === 'number' && Number.isFinite(right.dateAddedAt)
+      ? right.dateAddedAt
+      : typeof right.createdAt === 'number' && Number.isFinite(right.createdAt)
+        ? right.createdAt
+        : undefined;
+
+  if (leftOrderTimestamp !== undefined && rightOrderTimestamp !== undefined) {
+    return leftOrderTimestamp - rightOrderTimestamp || compareWidgetDeliveryIds(left.id, right.id);
+  }
+  if (leftOrderTimestamp !== undefined) return -1;
+  if (rightOrderTimestamp !== undefined) return 1;
+  return compareWidgetDeliveryIds(left.id, right.id);
+}
+
+function compareWidgetDeliveryIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 export function projectEntregasDoDiaSnapshot(
   snapshot: CompleteDeliveryDateSnapshot,
   deliveryRouteURL?: string,
@@ -60,7 +89,9 @@ export function projectEntregasDoDiaSnapshot(
     mode: 'today',
     date: snapshot.date,
   });
-  const pendingDeliveries = dayDeliveries.filter((delivery) => delivery.entregue === false);
+  const pendingDeliveries = dayDeliveries
+    .filter((delivery) => delivery.entregue === false)
+    .sort(compareWidgetDeliveryOrder);
   const canonicalSummary = projectWholesaleDeliverySnapshot({
     ...snapshot,
     deliveries: pendingDeliveries,

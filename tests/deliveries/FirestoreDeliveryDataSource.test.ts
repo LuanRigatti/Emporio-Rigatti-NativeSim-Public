@@ -888,7 +888,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toHaveLength(1);
 
     const dataSource = new FirestoreDeliveryDataSource();
-    await dataSource.create('uid-test', {
+    const created = await dataSource.create('uid-test', {
       clientId: 'client:novo',
       clientName: 'Novo Cliente',
       address: 'Rua Nova',
@@ -903,7 +903,138 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     });
 
     expect(mockedSetDoc).toHaveBeenCalledTimes(1);
+    expect(created).not.toHaveProperty('createdAt');
+    expect(created).not.toHaveProperty('dateAddedAt');
+    expect(dataSource.getCached({ mode: 'today', date: '2026-08-18' }, 'uid-test')).toContainEqual(
+      expect.objectContaining({ id: created.id, data: '2026-08-18' }),
+    );
+    expect(mockedSetDoc.mock.calls[0]?.[1]).toMatchObject({
+      createdAt: { type: 'serverTimestamp' },
+      dateAddedAt: { type: 'serverTimestamp' },
+    });
     expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
+  });
+
+  it('normalizes server dateAddedAt and createdAt timestamps while loading a delivery', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      docs: [
+        {
+          id: 'delivery-server-timestamps',
+          data: () => ({
+            clientId: 'client-ana',
+            clientNameSnapshot: 'Ana',
+            date: '2026-08-18',
+            dateAddedAt: { toMillis: () => 5000 },
+            createdAt: { seconds: 2, nanoseconds: 500_000_000 },
+            quantity: 1,
+            totalValue: 50,
+            status: 'Não Pago',
+            delivered: false,
+          }),
+        },
+      ],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+
+    const loaded = await new FirestoreDeliveryDataSource().load('uid-test', {
+      mode: 'today',
+      date: '2026-08-18',
+    });
+
+    expect(loaded).toMatchObject([
+      { id: 'delivery-server-timestamps', dateAddedAt: 5000, createdAt: 2500 },
+    ]);
+  });
+
+  it('updates dateAddedAt only when the selected delivery date changes', async () => {
+    const createdAt = 1_000;
+    mockedGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      id: 'delivery-rescheduled',
+      data: () => ({
+        clientId: 'client-ana',
+        clientNameSnapshot: 'Ana',
+        date: '2026-10-15',
+        dateAddedAt: 2_000,
+        createdAt,
+        quantity: 2,
+        totalValue: 100,
+        status: 'Não Pago',
+        delivered: false,
+      }),
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
+
+    const updated = await new FirestoreDeliveryDataSource().update(
+      'uid-test',
+      'delivery-rescheduled',
+      {
+        clientId: 'client:ana',
+        clientName: 'Ana Atualizada',
+        address: 'Rua Atualizada',
+        addressConfirmed: true,
+        date: '2026-10-16',
+        quantity: 2,
+        value: 100,
+        valueWasManuallyChanged: false,
+        status: 'Não Pago',
+        delivered: false,
+        invoiceStatus: 'a_emitir',
+      },
+    );
+
+    const patch = mockedUpdateDoc.mock.calls[0]?.[1];
+    expect(patch).toMatchObject({
+      date: '2026-10-16',
+      dateAddedAt: { type: 'serverTimestamp' },
+      updatedAt: { type: 'serverTimestamp' },
+    });
+    expect(patch).not.toHaveProperty('createdAt');
+    expect(updated.createdAt).toBe(createdAt);
+    expect(updated).not.toHaveProperty('dateAddedAt');
+  });
+
+  it('preserves both timestamps and omits dateAddedAt from ordinary edit patches', async () => {
+    mockedGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      id: 'delivery-ordinary-edit',
+      data: () => ({
+        clientId: 'client-ana',
+        clientNameSnapshot: 'Ana',
+        date: '2026-10-15',
+        dateAddedAt: 2_000,
+        createdAt: 1_000,
+        quantity: 2,
+        totalValue: 100,
+        status: 'Não Pago',
+        delivered: false,
+      }),
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
+
+    const updated = await new FirestoreDeliveryDataSource().update(
+      'uid-test',
+      'delivery-ordinary-edit',
+      {
+        clientId: 'client:ana',
+        clientName: 'Ana Atualizada',
+        address: 'Rua Atualizada',
+        addressConfirmed: true,
+        date: '2026-10-15',
+        quantity: 3,
+        value: 150,
+        valueWasManuallyChanged: true,
+        status: 'Não Pago',
+        delivered: false,
+        invoiceStatus: 'a_emitir',
+      },
+    );
+
+    const patch = mockedUpdateDoc.mock.calls[0]?.[1];
+    expect(patch).not.toHaveProperty('dateAddedAt');
+    expect(patch).not.toHaveProperty('createdAt');
+    expect(updated).toMatchObject({ dateAddedAt: 2_000, createdAt: 1_000 });
   });
 
   it('sets delivered idempotently, patches only delivery completion metadata, and publishes the snapshot', async () => {

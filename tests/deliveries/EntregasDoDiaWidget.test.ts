@@ -21,8 +21,11 @@ jest.mock('expo-widgets', () => ({
 type TreeNode = {
   type: string;
   props?: {
+    alignment?: string;
     children?: unknown;
     modifiers?: { args?: unknown[]; name: string }[];
+    minLength?: number;
+    spacing?: number;
     uiImage?: string;
     destination?: string;
     target?: string;
@@ -160,9 +163,6 @@ describe('EntregasDoDia isolated widget layout', () => {
       ' · ',
       '3 baldes',
       'R$ 90,00',
-      '+',
-      '1',
-      ' entregas',
     ]);
     expect(collectNodes(tree, 'Image').some(({ props }) => props?.uiImage)).toBe(true);
     expect(collectNodes(tree, 'Link').map(({ props }) => props?.destination)).toEqual([
@@ -192,18 +192,24 @@ describe('EntregasDoDia isolated widget layout', () => {
 
     expect(text).toEqual([
       'Empório Rigatti',
-      'Entregas de hoje',
       'Cliente A',
+      ' · ',
       '1 balde',
       'Cliente B',
+      ' · ',
       '2 baldes',
       'Cliente C',
+      ' · ',
       '3 baldes',
-      '+',
-      '1',
-      ' entregas',
     ]);
     expect(text.some((value) => value.startsWith('R$'))).toBe(false);
+    const firstDeliveryText = collectNodes(tree, 'Text').find(
+      ({ props }) =>
+        Array.isArray(props?.children) && props.children.join('') === 'Cliente A · 1 balde',
+    );
+    expect(
+      firstDeliveryText?.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0],
+    ).toEqual({ weight: 'semibold', size: 12 });
     expect(collectNodes(tree, 'Link').map(({ props }) => props?.destination)).toEqual([
       'pareact://historico/entrega/delivery-a?date=2026-10-15',
       'pareact://historico/entrega/delivery-b?date=2026-10-15',
@@ -211,16 +217,42 @@ describe('EntregasDoDia isolated widget layout', () => {
     ]);
     for (const link of collectNodes(tree, 'Link')) {
       expect(link.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
-        width: 30,
-        height: 30,
+        width: 34,
+        height: 34,
       });
-      expect(collectNodes(link, 'Image')[0]?.props?.size).toBe(18);
+      expect(collectNodes(link, 'Image')[0]?.props?.size).toBe(20);
     }
     expect(
       collectNodes(tree).some(({ props }) =>
         props?.modifiers?.some(({ name }) => name === 'background'),
       ),
     ).toBe(false);
+  });
+
+  it('moves only medium delivery details left while preserving the value trailing inset', () => {
+    const tree = renderWidget(
+      {
+        date: '2026-10-15',
+        state: 'pending',
+        deliveryCount: 1,
+        deliveries: deliveries.slice(0, 1),
+      },
+      'systemMedium',
+    ) as TreeNode;
+    const children = tree.props?.children as TreeNode[];
+    const list = children[1];
+    const row = collectNodes(list, 'HStack')[0];
+    const rowChildren = row?.props?.children as TreeNode[];
+
+    expect(list?.props?.modifiers).toContainEqual({
+      name: 'padding',
+      args: [{ leading: 12, trailing: 16 }],
+    });
+    expect(rowChildren.map(({ type }) => type)).toEqual(['Link', 'Text', 'Spacer', 'Text']);
+    expect(rowChildren[2]?.props?.minLength).toBe(4);
+    expect(
+      rowChildren[3]?.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0],
+    ).toEqual({ weight: 'semibold', size: 12 });
   });
 
   it.each([
@@ -299,8 +331,9 @@ describe('EntregasDoDia isolated widget layout', () => {
       ]);
       expect((children as TreeNode[])[0]?.props?.modifiers).toContainEqual({
         name: 'padding',
-        args: [{ top: 4, leading: 22, trailing: 16 }],
+        args: [{ top: 6, leading: 22, trailing: 16 }],
       });
+      expect(tree.props?.spacing).toBe(10);
       expect(
         collectNodes(tree).some(({ props }) =>
           props?.modifiers?.some(({ name }) => name === 'background'),
@@ -326,7 +359,7 @@ describe('EntregasDoDia isolated widget layout', () => {
       );
       const buttons = collectNodes(tree, 'Button');
       const visibleCount = 3;
-      const touchTargetSize = widgetFamily === 'systemSmall' ? 30 : 32;
+      const touchTargetSize = 34;
 
       expect(buttons).toHaveLength(visibleCount);
       expect(collectNodes(tree, 'Link')).toHaveLength(0);
@@ -336,7 +369,7 @@ describe('EntregasDoDia isolated widget layout', () => {
           width: touchTargetSize,
           height: touchTargetSize,
         });
-        expect(collectNodes(button, 'Image')[0]?.props?.size).toBe(18);
+        expect(collectNodes(button, 'Image')[0]?.props?.size).toBe(20);
       }
       expect(
         buttons.every(({ props }) =>

@@ -98,6 +98,16 @@ export class FirestoreHistoricalDeliveryCache {
     }
   }
 
+  public async invalidateAndReport(uid: string): Promise<boolean> {
+    this.memoryCache.delete(uid);
+    try {
+      await AsyncStorage.removeItem(this.getKey(uid));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   public clearMemory(): void {
     this.memoryCache.clear();
   }

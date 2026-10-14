@@ -755,6 +755,13 @@ export function useFinancialData(
     snapshotScopeKey,
   ]);
 
+  useEffect(() => {
+    if (!enabled || !userId) return undefined;
+    return financialPeriodSnapshotCache.subscribeToExternalChange(userId, () => {
+      void load(true);
+    });
+  }, [enabled, load, userId]);
+
   const reload = useCallback(() => load(true), [load]);
 
   return {

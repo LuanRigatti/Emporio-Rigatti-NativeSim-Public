@@ -60,6 +60,11 @@ type HistoricalFetchResult = {
   fromCache: boolean;
 };
 
+export type CommittedPaidDelivery = {
+  id: string;
+  date: string;
+};
+
 export type HistoricalDataState = 'unknown' | 'partial' | 'cache' | 'remote';
 
 type SessionRequest = {
@@ -1135,6 +1140,54 @@ export class FirestoreDeliveryDataSource {
       .filter((date): date is string => Boolean(date))
       .forEach((date) => void this.persistDateCache(request, date));
     void firestoreHistoricalDeliveryCache.invalidate(request.uid);
+  }
+
+  public async applyCommittedPaidDeliveryUpdates(
+    uid: string,
+    sessionVersion: number,
+    updates: readonly CommittedPaidDelivery[],
+  ): Promise<{ cacheInvalidationComplete: boolean }> {
+    if (
+      updates.length === 0 ||
+      new Set(updates.map(({ id }) => id)).size !== updates.length ||
+      updates.some(({ date, id }) => !id || !date)
+    ) {
+      return { cacheInvalidationComplete: false };
+    }
+    if (!this.isSessionRequestCurrent(uid, this.sessionGeneration, sessionVersion)) {
+      return { cacheInvalidationComplete: false };
+    }
+
+    const request = this.captureSessionRequest(uid);
+    const dates = new Set(updates.map(({ date }) => date));
+    updates.forEach(({ id }) => {
+      const current = this.records.get(id);
+      if (current) {
+        dates.add(current.data);
+        this.records.set(id, { ...current, status: 'Pago' });
+      }
+    });
+    this.stateVersion += 1;
+    dates.forEach((date) => this.invalidateCompleteDateSnapshot(uid, date, sessionVersion));
+    this.publish();
+
+    const months = new Set([...dates].map((date) => date.slice(0, 7)).filter(Boolean));
+    const invalidations = await Promise.allSettled([
+      ...[...dates].map((date) => firestoreDeliveryCacheService.invalidate(uid, date)),
+      ...[...months].map((month) => financialPeriodSnapshotCache.invalidate(uid, month)),
+      financialPeriodSnapshotCache.invalidateAllTime(uid, sessionVersion),
+      firestoreHistoricalDeliveryCache.invalidateAndReport(uid),
+    ]);
+    if (!this.isSessionRequestCurrent(request.uid, request.generation, request.sessionVersion)) {
+      return { cacheInvalidationComplete: false };
+    }
+    financialPeriodSnapshotCache.notifyExternalChange(uid);
+
+    return {
+      cacheInvalidationComplete: invalidations.every(
+        (result) => result.status === 'fulfilled' && result.value !== false,
+      ),
+    };
   }
 
   public async editMany(

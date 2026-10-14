@@ -73,6 +73,21 @@ export class FinancialPeriodSnapshotCache {
     string,
     FinancialPeriodSnapshotCacheEntry | FinancialAllTimeSnapshotCacheEntry
   >();
+  private readonly externalChangeListeners = new Map<string, Set<() => void>>();
+
+  public subscribeToExternalChange(uid: string, listener: () => void): () => void {
+    const listeners = this.externalChangeListeners.get(uid) ?? new Set<() => void>();
+    listeners.add(listener);
+    this.externalChangeListeners.set(uid, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.externalChangeListeners.delete(uid);
+    };
+  }
+
+  public notifyExternalChange(uid: string): void {
+    this.externalChangeListeners.get(uid)?.forEach((listener) => listener());
+  }
 
   public getKey(uid: string, displayMonth: string): string {
     return `${CACHE_PREFIX}:${uid}:${displayMonth}`;

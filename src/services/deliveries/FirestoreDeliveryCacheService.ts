@@ -62,6 +62,10 @@ export class FirestoreDeliveryCacheService {
     };
     await AsyncStorage.setItem(cacheKey(uid, date), JSON.stringify(value));
   }
+
+  public async invalidate(uid: string, date: string): Promise<void> {
+    await AsyncStorage.removeItem(cacheKey(uid, date));
+  }
 }
 
 export const firestoreDeliveryCacheService = new FirestoreDeliveryCacheService();

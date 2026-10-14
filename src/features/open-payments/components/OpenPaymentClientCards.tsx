@@ -12,6 +12,7 @@ import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import { formatDateAsDayMonthYear } from '@/utils/groupItemsByDate';
 
 import type { OpenPaymentClientCard } from '../hooks/useOpenPaymentClients';
+import { getUnambiguousCanonicalClientId } from '../utils/openPaymentBulkIdentity';
 import {
   buildOpenPaymentNativePreview,
   getOpenPaymentClientPreviewIdentifier,
@@ -24,6 +25,7 @@ export type OpenPaymentClientCardsProps = {
   paymentHistoryError?: string;
   paymentHistoryLoading: boolean;
   onMarkAsPaid: (deliveryId: string) => void;
+  onMarkAllAsPaid?: (clientId: string, visibleDeliveryIds: readonly string[]) => void;
   testModeEnabled: boolean;
   nativePreviewEnabled?: boolean;
 };
@@ -33,6 +35,7 @@ export function OpenPaymentClientCards({
   paymentHistoryError,
   paymentHistoryLoading,
   onMarkAsPaid,
+  onMarkAllAsPaid,
   nativePreviewEnabled = false,
   testModeEnabled,
 }: OpenPaymentClientCardsProps) {
@@ -192,45 +195,69 @@ export function OpenPaymentClientCards({
       ]}
     >
       <View style={[styles.cards, { gap: theme.spacing.xs }]}>
-        {clients.map((client) => (
-          <MeasuredContextMenuGeometry key={client.nome}>
-            {({ onLayout, triggerWidthStyle }) => (
-              <View onLayout={onLayout} style={{ height: cardMinHeight, width: '100%' }}>
-                <OpenPaymentClientContextMenu
-                  actions={client.deliveries.map<NativeCardContextMenuAction>((delivery) => ({
-                    id: `complete-payment-${delivery.id}`,
-                    disabled: testModeEnabled,
-                    onPress: () => onMarkAsPaid(delivery.id),
-                    systemImage: 'checkmark.circle.fill' as const,
-                    title:
-                      client.deliveries.length === 1
-                        ? 'Pago'
-                        : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
-                  }))}
-                  identifier={getOpenPaymentClientPreviewIdentifier(client)}
-                  nativePreviewEnabled={nativePreviewEnabled}
-                  nativePreview={buildOpenPaymentNativePreview(client, {
-                    cardSurfaceColor: openPaymentCardSurface,
-                    formatCurrency: maskCurrency,
-                    paymentHistoryError,
-                    paymentHistoryLoading,
-                    pageBackgroundColor: theme.colors.background,
-                  })}
-                  preview={renderPreview(client)}
-                  style={[
-                    styles.contextMenu,
-                    {
-                      borderRadius: theme.radius.xl + theme.spacing.sm,
-                      height: '100%',
-                    },
-                  ]}
-                >
-                  {renderRow(client, triggerWidthStyle)}
-                </OpenPaymentClientContextMenu>
-              </View>
-            )}
-          </MeasuredContextMenuGeometry>
-        ))}
+        {clients.map((client) => {
+          const canonicalClientId = getUnambiguousCanonicalClientId(client.deliveries);
+          const canMarkAllAsPaid =
+            Boolean(canonicalClientId && onMarkAllAsPaid) &&
+            client.deliveries.every(
+              (delivery) => delivery.status === 'Não Pago' && delivery.entregue,
+            );
+          const actions = client.deliveries.map<NativeCardContextMenuAction>((delivery) => ({
+            id: `complete-payment-${delivery.id}`,
+            disabled: testModeEnabled,
+            onPress: () => onMarkAsPaid(delivery.id),
+            systemImage: 'checkmark.circle.fill' as const,
+            title:
+              client.deliveries.length === 1
+                ? 'Pago'
+                : `Pago · ${formatDateAsDayMonthYear(delivery.data)} · ${maskCurrency(delivery.valor)}`,
+          }));
+          if (canMarkAllAsPaid && canonicalClientId && onMarkAllAsPaid) {
+            actions.push({
+              id: 'mark-all-open-payments-paid',
+              disabled: testModeEnabled,
+              onPress: () =>
+                onMarkAllAsPaid(
+                  canonicalClientId,
+                  client.deliveries.map((delivery) => delivery.id),
+                ),
+              systemImage: 'checkmark.circle.fill' as const,
+              title: 'Todos pagos',
+            });
+          }
+
+          return (
+            <MeasuredContextMenuGeometry key={client.nome}>
+              {({ onLayout, triggerWidthStyle }) => (
+                <View onLayout={onLayout} style={{ height: cardMinHeight, width: '100%' }}>
+                  <OpenPaymentClientContextMenu
+                    actions={actions}
+                    identifier={getOpenPaymentClientPreviewIdentifier(client)}
+                    nativePreviewEnabled={nativePreviewEnabled}
+                    nativePreview={buildOpenPaymentNativePreview(client, {
+                      cardSurfaceColor: openPaymentCardSurface,
+                      formatCurrency: maskCurrency,
+                      paymentHistoryError,
+                      paymentHistoryLoading,
+                      pageBackgroundColor:
+                        resolvedMode === 'dark' ? openPaymentCardSurface : theme.colors.background,
+                    })}
+                    preview={renderPreview(client)}
+                    style={[
+                      styles.contextMenu,
+                      {
+                        borderRadius: theme.radius.xl + theme.spacing.sm,
+                        height: '100%',
+                      },
+                    ]}
+                  >
+                    {renderRow(client, triggerWidthStyle)}
+                  </OpenPaymentClientContextMenu>
+                </View>
+              )}
+            </MeasuredContextMenuGeometry>
+          );
+        })}
       </View>
     </GlassCard>
   );

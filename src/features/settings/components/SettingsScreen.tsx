@@ -133,12 +133,6 @@ export function SettingsScreen() {
               systemName="gearshape"
               title="Sistema"
             />
-            <SettingItem
-              fallbackIcon="eye-outline"
-              onPress={() => router.push('/peek-pop-lab')}
-              systemName="viewfinder"
-              title="Teste de prévia nativa"
-            />
           </SettingsSection>
         </PremiumCard>
       </ProgressiveCollapsibleScreen>

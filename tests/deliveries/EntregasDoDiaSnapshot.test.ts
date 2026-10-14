@@ -118,6 +118,32 @@ describe('EntregasDoDia snapshot', () => {
     ]);
   });
 
+  it('keeps every pending delivery in the complete snapshot beyond the large widget limit', () => {
+    const projected = projectEntregasDoDiaSnapshot({
+      uid: 'user-a',
+      date: '2026-10-15',
+      completedAt: 1,
+      deliveries: Array.from({ length: 10 }, (_, index) => {
+        const order = 10 - index;
+        return delivery(
+          `delivery-${order}`,
+          `Cliente ${order}`,
+          '2026-10-15',
+          1,
+          30,
+          false,
+          1_000 - order,
+          order * 100,
+        );
+      }),
+    });
+
+    expect(projected.deliveryCount).toBe(10);
+    expect(projected.deliveries.map(({ id }) => id)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `delivery-${index + 1}`),
+    );
+  });
+
   it('distinguishes pending, all-completed, truly empty, and unavailable days', () => {
     const pending = projectEntregasDoDiaSnapshot({
       uid: 'user-a',

@@ -44,7 +44,7 @@ function EntregasDoDiaWidget(
       ? safeProps.deliveryCount
       : null;
   const sourceRows: unknown[] = Array.isArray(safeProps?.deliveries) ? safeProps.deliveries : [];
-  const visibleLimit = isLarge ? 6 : 3;
+  const visibleLimit = isLarge ? 8 : 3;
   const parsedRows = sourceRows.filter((row): row is EntregasDoDiaWidgetRow => {
     if (!row || typeof row !== 'object') return false;
     return (
@@ -119,7 +119,7 @@ function EntregasDoDiaWidget(
   return (
     <VStack
       alignment="leading"
-      spacing={isSmall ? 2 : 10}
+      spacing={isSmall || isLarge ? 2 : 10}
       modifiers={[
         containerBackground({ type: 'material', material: 'regular' }, 'widget'),
         ...(routeURL ? [widgetURL(routeURL)] : []),
@@ -215,7 +215,7 @@ function EntregasDoDiaWidget(
       ) : (
         <VStack
           alignment="leading"
-          spacing={4}
+          spacing={isLarge ? 0 : 4}
           modifiers={[padding({ leading: 12, trailing: 16 })]}
         >
           {rows.length > 0 ? (

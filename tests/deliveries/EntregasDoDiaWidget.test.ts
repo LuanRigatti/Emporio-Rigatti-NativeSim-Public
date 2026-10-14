@@ -144,6 +144,9 @@ const largeDeliveries = [
   { ...deliveries[0]!, id: 'delivery-e', clientName: 'Cliente E' },
   { ...deliveries[0]!, id: 'delivery-f', clientName: 'Cliente F' },
   { ...deliveries[0]!, id: 'delivery-g', clientName: 'Cliente G' },
+  { ...deliveries[0]!, id: 'delivery-h', clientName: 'Cliente H' },
+  { ...deliveries[0]!, id: 'delivery-i', clientName: 'Cliente I' },
+  { ...deliveries[0]!, id: 'delivery-j', clientName: 'Cliente J' },
 ];
 
 describe('EntregasDoDia isolated widget layout', () => {
@@ -368,6 +371,7 @@ describe('EntregasDoDia isolated widget layout', () => {
         args: [{ top: 6, leading: 22, trailing: 16 }],
       });
       expect(tree.props?.spacing).toBe(10);
+      expect(((children as TreeNode[])[1] as TreeNode).props?.spacing).toBe(4);
       expect(
         collectNodes(tree).some(({ props }) =>
           props?.modifiers?.some(({ name }) => name === 'background'),
@@ -419,7 +423,67 @@ describe('EntregasDoDia isolated widget layout', () => {
     },
   );
 
-  it('renders six large rows in source order and leaves the next row for subsequent data', () => {
+  it.each(['light', 'dark'] as const)(
+    'renders eight large rows in source order in %s mode and leaves later data hidden',
+    (colorScheme) => {
+      const tree = renderWidget(
+        {
+          date: '2026-10-15',
+          state: 'pending',
+          deliveryCount: largeDeliveries.length,
+          deliveries: largeDeliveries,
+        },
+        'systemLarge',
+        colorScheme,
+        true,
+      );
+      const visibleClientNames = collectText(tree).filter((value) => /^Cliente [A-J]$/.test(value));
+
+      expect(collectText(tree).slice(0, 3)).toEqual(['Empório Rigatti', '•', 'Entregas']);
+      expect(visibleClientNames).toEqual([
+        'Cliente A',
+        'Cliente B',
+        'Cliente C',
+        'Cliente D',
+        'Cliente E',
+        'Cliente F',
+        'Cliente G',
+        'Cliente H',
+      ]);
+      expect(visibleClientNames).not.toContain('Cliente I');
+      expect(visibleClientNames).not.toContain('Cliente J');
+      expect(collectNodes(tree, 'Button')).toHaveLength(8);
+      expect(collectNodes(tree, 'Link')).toHaveLength(0);
+      expect(collectText(tree).some((value) => /^\+\d/.test(value))).toBe(false);
+    },
+  );
+
+  it('shows only available large rows when fewer than eight are pending', () => {
+    const visibleRows = largeDeliveries.slice(0, 5);
+    const tree = renderWidget(
+      {
+        date: '2026-10-15',
+        state: 'pending',
+        deliveryCount: visibleRows.length,
+        deliveries: visibleRows,
+      },
+      'systemLarge',
+      'light',
+      true,
+    );
+
+    expect(collectText(tree).filter((value) => /^Cliente [A-J]$/.test(value))).toEqual([
+      'Cliente A',
+      'Cliente B',
+      'Cliente C',
+      'Cliente D',
+      'Cliente E',
+    ]);
+    expect(collectNodes(tree, 'Button')).toHaveLength(5);
+    expect(collectText(tree).some((value) => /^\+\d/.test(value))).toBe(false);
+  });
+
+  it('compacts vertical spacing only for large without reducing text or touch target sizes', () => {
     const tree = renderWidget(
       {
         date: '2026-10-15',
@@ -430,26 +494,44 @@ describe('EntregasDoDia isolated widget layout', () => {
       'systemLarge',
       'dark',
       true,
+    ) as TreeNode;
+    const children = tree.props?.children as TreeNode[];
+    const list = children[1] as TreeNode;
+    const buttons = collectNodes(tree, 'Button');
+    const clientTextNodes = collectNodes(tree, 'Text').filter((node) =>
+      String(node.props?.children).startsWith('Cliente '),
     );
-    const visibleClientNames = collectText(tree).filter((value) => /^Cliente [A-G]$/.test(value));
 
-    expect(collectText(tree).slice(0, 3)).toEqual(['Empório Rigatti', '•', 'Entregas']);
-    expect(visibleClientNames).toEqual([
-      'Cliente A',
-      'Cliente B',
-      'Cliente C',
-      'Cliente D',
-      'Cliente E',
-      'Cliente F',
-    ]);
-    expect(collectNodes(tree, 'Button')).toHaveLength(6);
-    expect(collectNodes(tree, 'Link')).toHaveLength(0);
+    expect(tree.props?.spacing).toBe(2);
+    expect(list.props?.spacing).toBe(0);
+    expect(buttons).toHaveLength(8);
+    expect(
+      buttons.every((button) =>
+        button.props?.modifiers?.some(
+          (modifier) =>
+            modifier.name === 'frame' &&
+            (modifier.args?.[0] as { width?: number; height?: number } | undefined)?.width === 34 &&
+            (modifier.args?.[0] as { width?: number; height?: number } | undefined)?.height === 34,
+        ),
+      ),
+    ).toBe(true);
+    expect(collectNodes(tree, 'Image').filter(({ props }) => props?.size === 20)).toHaveLength(8);
+    expect(clientTextNodes).toHaveLength(8);
+    expect(
+      clientTextNodes.every((node) =>
+        node.props?.modifiers?.some(
+          (modifier) =>
+            modifier.name === 'font' &&
+            (modifier.args?.[0] as { size?: number } | undefined)?.size === 15,
+        ),
+      ),
+    ).toBe(true);
   });
 
   it.each([
     ['systemSmall', 3],
     ['systemMedium', 3],
-    ['systemLarge', 6],
+    ['systemLarge', 8],
   ] as const)(
     'keeps native completion controls in %s for every visible row',
     (widgetFamily, visibleLimit) => {
@@ -467,8 +549,10 @@ describe('EntregasDoDia isolated widget layout', () => {
       );
 
       expect(collectNodes(tree, 'Button')).toHaveLength(visibleLimit);
-      expect(collectNodes(tree, 'Button')[0]?.props?.target).toMatch(
-        /^rigatti-delivery-complete:2026-10-15:/,
+      expect(collectNodes(tree, 'Button').map(({ props }) => props?.target)).toEqual(
+        sourceRows
+          .slice(0, visibleLimit)
+          .map(({ id }) => `rigatti-delivery-complete:2026-10-15:${encodeURIComponent(id)}`),
       );
       expect(collectNodes(tree, 'Link')).toHaveLength(0);
     },

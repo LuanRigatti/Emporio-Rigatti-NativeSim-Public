@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 import { entregasDoDiaWidget } from '@/features/deliveries/widgets/EntregasDoDiaWidget';
@@ -37,7 +39,7 @@ const serializedLayout = (entregasDoDiaWidget as unknown as { layout: string }).
 
 function renderWidget(
   props: unknown,
-  widgetFamily: 'systemSmall' | 'systemMedium' = 'systemMedium',
+  widgetFamily: 'systemSmall' | 'systemMedium' | 'systemLarge' = 'systemMedium',
   colorScheme: 'light' | 'dark' = 'light',
   deliveryActionsAvailable = false,
   widgetsDirectory: string | null = 'file:///group/ExpoWidgets',
@@ -137,7 +139,37 @@ const deliveries = [
   },
 ];
 
+const largeDeliveries = [
+  ...deliveries,
+  { ...deliveries[0]!, id: 'delivery-e', clientName: 'Cliente E' },
+  { ...deliveries[0]!, id: 'delivery-f', clientName: 'Cliente F' },
+  { ...deliveries[0]!, id: 'delivery-g', clientName: 'Cliente G' },
+];
+
 describe('EntregasDoDia isolated widget layout', () => {
+  it('registers large only for EntregasDoDia in the active Expo widget configuration', () => {
+    type ConfiguredWidget = {
+      name: string;
+      ios?: { supportedFamilies?: string[] };
+    };
+    const appConfig = createRequire(__filename)(resolve(__dirname, '../../app.config.js')) as {
+      expo: { plugins: unknown[] };
+    };
+    const widgetsPlugin = appConfig.expo.plugins.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-widgets',
+    ) as [string, { widgets: ConfiguredWidget[] }] | undefined;
+    const configuredWidgets = widgetsPlugin?.[1].widgets ?? [];
+    const deliveriesConfig = configuredWidgets.find(({ name }) => name === 'EntregasDoDia');
+    const financeConfig = configuredWidgets.find(({ name }) => name === 'ResumoFinanceiro');
+
+    expect(deliveriesConfig?.ios?.supportedFamilies).toEqual([
+      'systemSmall',
+      'systemMedium',
+      'systemLarge',
+    ]);
+    expect(financeConfig?.ios?.supportedFamilies).toEqual(['systemSmall', 'systemMedium']);
+  });
+
   it('renders the compact medium list with at most three deliveries and the tap destination', () => {
     const tree = renderWidget({
       date: '2026-10-15',
@@ -258,6 +290,7 @@ describe('EntregasDoDia isolated widget layout', () => {
   it.each([
     ['systemSmall', 22],
     ['systemMedium', 32],
+    ['systemLarge', 32],
   ] as const)('uses the canonical brand mark in the %s header', (widgetFamily, size) => {
     for (const [colorScheme, fileName] of [
       ['light', 'resumo-financeiro-mark-light.png'],
@@ -283,6 +316,7 @@ describe('EntregasDoDia isolated widget layout', () => {
   it.each([
     ['systemSmall', 22],
     ['systemMedium', 32],
+    ['systemLarge', 32],
   ] as const)(
     'reserves the logo frame when the App Group directory is unavailable in %s',
     (widgetFamily, size) => {
@@ -384,6 +418,76 @@ describe('EntregasDoDia isolated widget layout', () => {
       ).toEqual(['pareact://historico?mode=wholesale']);
     },
   );
+
+  it('renders six large rows in source order and leaves the next row for subsequent data', () => {
+    const tree = renderWidget(
+      {
+        date: '2026-10-15',
+        state: 'pending',
+        deliveryCount: largeDeliveries.length,
+        deliveries: largeDeliveries,
+      },
+      'systemLarge',
+      'dark',
+      true,
+    );
+    const visibleClientNames = collectText(tree).filter((value) => /^Cliente [A-G]$/.test(value));
+
+    expect(collectText(tree).slice(0, 3)).toEqual(['Empório Rigatti', '•', 'Entregas']);
+    expect(visibleClientNames).toEqual([
+      'Cliente A',
+      'Cliente B',
+      'Cliente C',
+      'Cliente D',
+      'Cliente E',
+      'Cliente F',
+    ]);
+    expect(collectNodes(tree, 'Button')).toHaveLength(6);
+    expect(collectNodes(tree, 'Link')).toHaveLength(0);
+  });
+
+  it.each([
+    ['systemSmall', 3],
+    ['systemMedium', 3],
+    ['systemLarge', 6],
+  ] as const)(
+    'keeps native completion controls in %s for every visible row',
+    (widgetFamily, visibleLimit) => {
+      const sourceRows = widgetFamily === 'systemLarge' ? largeDeliveries : deliveries;
+      const tree = renderWidget(
+        {
+          date: '2026-10-15',
+          state: 'pending',
+          deliveryCount: sourceRows.length,
+          deliveries: sourceRows,
+        },
+        widgetFamily,
+        'light',
+        true,
+      );
+
+      expect(collectNodes(tree, 'Button')).toHaveLength(visibleLimit);
+      expect(collectNodes(tree, 'Button')[0]?.props?.target).toMatch(
+        /^rigatti-delivery-complete:2026-10-15:/,
+      );
+      expect(collectNodes(tree, 'Link')).toHaveLength(0);
+    },
+  );
+
+  it.each([
+    ['all_completed', 'Todas as entregas concluídas'],
+    ['empty', 'Nenhuma entrega hoje'],
+    ['unavailable', 'Dados de hoje indisponíveis'],
+  ] as const)('keeps the %s state in systemLarge', (state, message) => {
+    expect(
+      collectText(
+        renderWidget(
+          { date: '2026-10-15', state, deliveryCount: 0, deliveries: [] },
+          'systemLarge',
+        ),
+      ),
+    ).toContain(message);
+  });
 
   it('does not turn an unknown iOS action environment into an app-opening link', () => {
     const layout = runInNewContext(`(${serializedLayout})(props, environment)`, {

@@ -229,7 +229,7 @@ module.exports = {
               displayName: 'Entregas do Dia',
               description: 'Resumo das entregas de hoje.',
               ios: {
-                supportedFamilies: ['systemSmall', 'systemMedium'],
+                supportedFamilies: ['systemSmall', 'systemMedium', 'systemLarge'],
               },
             },
           ],

@@ -36,6 +36,7 @@ function EntregasDoDiaWidget(
 
   const safeProps = props && typeof props === 'object' ? props : undefined;
   const isSmall = environment?.widgetFamily === 'systemSmall';
+  const isLarge = environment?.widgetFamily === 'systemLarge';
   const reportedCount =
     typeof safeProps?.deliveryCount === 'number' &&
     Number.isInteger(safeProps.deliveryCount) &&
@@ -43,7 +44,7 @@ function EntregasDoDiaWidget(
       ? safeProps.deliveryCount
       : null;
   const sourceRows: unknown[] = Array.isArray(safeProps?.deliveries) ? safeProps.deliveries : [];
-  const visibleLimit = 3;
+  const visibleLimit = isLarge ? 6 : 3;
   const parsedRows = sourceRows.filter((row): row is EntregasDoDiaWidgetRow => {
     if (!row || typeof row !== 'object') return false;
     return (

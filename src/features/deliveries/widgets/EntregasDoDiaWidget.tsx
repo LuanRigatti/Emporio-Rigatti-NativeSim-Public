@@ -6,9 +6,11 @@ import {
   font,
   foregroundStyle,
   frame,
+  layoutPriority,
   lineLimit,
   minimumScaleFactor,
   monospacedDigit,
+  offset,
   padding,
   resizable,
   widgetURL,
@@ -119,51 +121,67 @@ function EntregasDoDiaWidget(
   return (
     <VStack
       alignment="leading"
-      spacing={isSmall || isLarge ? 2 : 10}
+      spacing={isLarge ? 6 : isSmall ? 2 : 10}
       modifiers={[
-        containerBackground({ type: 'material', material: 'regular' }, 'widget'),
+        containerBackground(
+          environment?.colorScheme === 'dark'
+            ? '#0A0A0A'
+            : { type: 'material', material: 'regular' },
+          'widget',
+        ),
         ...(routeURL ? [widgetURL(routeURL)] : []),
       ]}
     >
       <HStack
         alignment="center"
         spacing={isSmall ? 4 : 6}
-        modifiers={[padding(isSmall ? { horizontal: 2 } : { top: 6, leading: 22, trailing: 16 })]}
+        modifiers={[
+          padding(
+            isSmall ? { horizontal: 2 } : { top: isLarge ? 2 : 6, leading: 22, trailing: 16 },
+          ),
+          ...(isSmall ? [offset({ y: -2 })] : []),
+        ]}
       >
-        <Text
-          modifiers={[
-            font({ weight: 'semibold', size: isSmall ? 12 : 15 }),
-            foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-            lineLimit(1),
-            minimumScaleFactor(0.78),
-            allowsTightening(true),
-          ]}
+        <HStack
+          alignment="center"
+          spacing={isSmall ? 0 : 6}
+          modifiers={isLarge ? [offset({ x: -4 })] : undefined}
         >
-          Empório Rigatti
-        </Text>
-        {!isSmall ? (
           <Text
             modifiers={[
-              font({ weight: 'medium', size: 11 }),
-              foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
+              font({ weight: 'semibold', size: isSmall ? 13 : 15 }),
+              foregroundStyle({ type: 'hierarchical', style: 'primary' }),
               lineLimit(1),
+              minimumScaleFactor(0.78),
+              allowsTightening(true),
             ]}
           >
-            •
+            Empório Rigatti
           </Text>
-        ) : null}
-        {!isSmall ? (
-          <Text
-            modifiers={[
-              font({ weight: 'medium', size: 11 }),
-              foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
-              lineLimit(1),
-              minimumScaleFactor(0.8),
-            ]}
-          >
-            Entregas
-          </Text>
-        ) : null}
+          {!isSmall ? (
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 11 }),
+                foregroundStyle({ type: 'hierarchical', style: 'tertiary' }),
+                lineLimit(1),
+              ]}
+            >
+              •
+            </Text>
+          ) : null}
+          {!isSmall ? (
+            <Text
+              modifiers={[
+                font({ weight: 'medium', size: 11 }),
+                foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                lineLimit(1),
+                minimumScaleFactor(0.8),
+              ]}
+            >
+              Entregas
+            </Text>
+          ) : null}
+        </HStack>
         <Spacer minLength={0} />
         {markURI ? (
           <Image
@@ -179,23 +197,50 @@ function EntregasDoDiaWidget(
       </HStack>
 
       {isSmall ? (
-        <VStack alignment="leading" spacing={0} modifiers={[padding({ horizontal: 2 })]}>
+        <VStack
+          alignment="leading"
+          spacing={0}
+          modifiers={[padding({ horizontal: 2 }), offset({ x: -4 })]}
+        >
           {rows.length > 0 ? <Spacer minLength={0} /> : null}
           {rows.flatMap((row, index) => [
-            ...(index > 0 ? [<Spacer key={`gap-${row.id}`} minLength={0} />] : []),
+            ...(index > 0 ? [<Spacer key={`gap-${row.id}`} minLength={2} />] : []),
             <HStack key={row.id} alignment="center" spacing={4}>
               {completionControl(row)}
-              <Text
-                modifiers={[
-                  font({ weight: 'semibold', size: 12 }),
-                  foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-                  lineLimit(1),
-                  minimumScaleFactor(0.72),
-                  allowsTightening(true),
-                ]}
-              >
-                {row.clientName} · {row.quantityLabel}
-              </Text>
+              <HStack alignment="center" spacing={2}>
+                <Text
+                  modifiers={[
+                    font({ weight: 'semibold', size: 14 }),
+                    foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                    lineLimit(1),
+                    minimumScaleFactor(0.55),
+                    allowsTightening(true),
+                  ]}
+                >
+                  {row.clientName}
+                </Text>
+                <Text
+                  modifiers={[
+                    font({ weight: 'medium', size: 13 }),
+                    foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                    lineLimit(1),
+                  ]}
+                >
+                  ·
+                </Text>
+                <Text
+                  modifiers={[
+                    font({ weight: 'medium', size: 13 }),
+                    foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                    lineLimit(1),
+                    minimumScaleFactor(0.72),
+                    allowsTightening(true),
+                    layoutPriority(1),
+                  ]}
+                >
+                  {row.quantityLabel}
+                </Text>
+              </HStack>
             </HStack>,
           ])}
           {rows.length > 0 ? <Spacer minLength={0} /> : null}
@@ -215,24 +260,47 @@ function EntregasDoDiaWidget(
       ) : (
         <VStack
           alignment="leading"
-          spacing={isLarge ? 0 : 4}
+          spacing={isLarge ? 2 : 4}
           modifiers={[padding({ leading: 12, trailing: 16 })]}
         >
           {rows.length > 0 ? (
             rows.map((row) => (
               <HStack key={row.id} alignment="center" spacing={6}>
                 {completionControl(row)}
-                <Text
-                  modifiers={[
-                    font({ weight: 'medium', size: 15 }),
-                    foregroundStyle({ type: 'hierarchical', style: 'primary' }),
-                    lineLimit(1),
-                    minimumScaleFactor(0.68),
-                    allowsTightening(true),
-                  ]}
-                >
-                  {row.clientName} · {row.quantityLabel}
-                </Text>
+                <HStack alignment="center" spacing={2}>
+                  <Text
+                    modifiers={[
+                      font({ weight: 'medium', size: 15 }),
+                      foregroundStyle({ type: 'hierarchical', style: 'primary' }),
+                      lineLimit(1),
+                      minimumScaleFactor(0.68),
+                      allowsTightening(true),
+                    ]}
+                  >
+                    {row.clientName}
+                  </Text>
+                  <Text
+                    modifiers={[
+                      font({ weight: 'medium', size: 14 }),
+                      foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                      lineLimit(1),
+                    ]}
+                  >
+                    ·
+                  </Text>
+                  <Text
+                    modifiers={[
+                      font({ weight: 'medium', size: 14 }),
+                      foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
+                      lineLimit(1),
+                      minimumScaleFactor(0.68),
+                      allowsTightening(true),
+                      layoutPriority(1),
+                    ]}
+                  >
+                    {row.quantityLabel}
+                  </Text>
+                </HStack>
                 <Spacer minLength={4} />
                 <Text
                   modifiers={[

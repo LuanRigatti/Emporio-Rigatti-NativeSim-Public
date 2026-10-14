@@ -99,7 +99,12 @@ function ResumoFinanceiroWidget(
         alignment="leading"
         spacing={8}
         modifiers={[
-          containerBackground({ type: 'material', material: 'regular' }, 'widget'),
+          containerBackground(
+            environment?.colorScheme === 'dark'
+              ? '#0A0A0A'
+              : { type: 'material', material: 'regular' },
+            'widget',
+          ),
           ...(destinationURL ? [widgetURL(destinationURL)] : []),
         ]}
       >
@@ -191,7 +196,12 @@ function ResumoFinanceiroWidget(
     <ZStack
       alignment="topLeading"
       modifiers={[
-        containerBackground({ type: 'material', material: 'regular' }, 'widget'),
+        containerBackground(
+          environment?.colorScheme === 'dark'
+            ? '#0A0A0A'
+            : { type: 'material', material: 'regular' },
+          'widget',
+        ),
         ...(destinationURL ? [widgetURL(destinationURL)] : []),
       ]}
     >

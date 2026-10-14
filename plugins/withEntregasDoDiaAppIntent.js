@@ -17,7 +17,6 @@ const DELIVERY_ACTION_SWIFT = String.raw`// RIGATTI_DELIVERY_WIDGET_ACTIONS_V1
 import AppIntents
 import Darwin
 import Foundation
-import os
 import Security
 import WidgetKit
 
@@ -41,13 +40,6 @@ private enum RigattiDeliveryWidgetActionError: Error {
   case invalidSnapshot
   case staleCredential
   case storageFailure
-}
-
-private enum RigattiDeliveryCompletionDiagnostics {
-  static let logger = Logger(
-    subsystem: "com.pareact.mobile.ExpoWidgetsTarget",
-    category: "DeliveryCompletion"
-  )
 }
 
 enum RigattiDeliveryWidgetKeychain {
@@ -487,27 +479,10 @@ private enum RigattiDeliveryWidgetActionAPI {
     body["sessionId"] = credential.sessionId
     request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-    let data: Data
-    let response: URLResponse
-    do {
-      (data, response) = try await URLSession.shared.data(for: request)
-    } catch {
-      if operation == "complete" {
-        RigattiDeliveryCompletionDiagnostics.logger.error("completion.remote.transport_failed")
-      }
-      throw error
-    }
-    if operation == "complete", let httpResponse = response as? HTTPURLResponse {
-      RigattiDeliveryCompletionDiagnostics.logger.info(
-        "completion.remote.http_status=\(httpResponse.statusCode, privacy: .public)"
-      )
-    }
+    let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse,
           (200..<300).contains(httpResponse.statusCode),
           let result = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-      if operation == "complete" {
-        RigattiDeliveryCompletionDiagnostics.logger.error("completion.remote.response_rejected")
-      }
       throw RigattiDeliveryWidgetActionError.unavailable
     }
     return result
@@ -581,8 +556,6 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    let logger = RigattiDeliveryCompletionDiagnostics.logger
-    logger.info("completion.intent.started")
     guard source == "EntregasDoDia",
           let entryIndex,
           let action = Self.parseTarget(target),
@@ -594,51 +567,33 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
           props["state"] as? String == "pending",
           let currentRows = props["deliveries"] as? [[String: Any]],
           currentRows.contains(where: { $0["id"] as? String == action.deliveryId }) else {
-      logger.notice("completion.intent.input_rejected")
       return .result()
     }
-    logger.info("completion.intent.input_accepted")
 
-    let credential: RigattiDeliveryWidgetCredential
-    do {
-      credential = try RigattiDeliveryWidgetKeychain.activeCredential()
-    } catch {
-      logger.notice("completion.authorization.local_credential_rejected")
-      throw error
-    }
-    logger.info("completion.authorization.local_credential_accepted")
+    let credential = try RigattiDeliveryWidgetKeychain.activeCredential()
     guard props["actionSessionId"] as? String == credential.sessionId else {
-      logger.notice("completion.authorization.timeline_session_mismatch")
       throw RigattiDeliveryWidgetActionError.staleCredential
     }
     guard RigattiDeliveryWidgetKeychain.isActive(sessionId: credential.sessionId) else {
-      logger.notice("completion.authorization.session_inactive")
       throw RigattiDeliveryWidgetActionError.staleCredential
     }
-    logger.info("completion.authorization.session_active")
 
-    logger.info("completion.remote.request_started")
     let result = try await RigattiDeliveryWidgetActionAPI.complete(
       credential,
       deliveryId: action.deliveryId,
       date: action.date
     )
-    logger.info("completion.remote.response_received")
     guard let snapshot = Self.validSnapshot(result, expectedDate: action.date) else {
-      logger.error("completion.remote.snapshot_invalid")
       throw RigattiDeliveryWidgetActionError.invalidSnapshot
     }
-    logger.info("completion.remote.snapshot_validated")
 
     try RigattiDeliveryWidgetKeychain.recordReceipt(
       sessionId: credential.sessionId,
       date: snapshot.date,
       revision: snapshot.revision
     )
-    logger.info("completion.receipt.persisted")
     let shouldReload = try RigattiDeliveryWidgetKeychain.withTimelineMutationLock {
       guard RigattiDeliveryWidgetKeychain.isActive(sessionId: credential.sessionId) else {
-        logger.notice("completion.timeline.write_skipped.session_inactive")
         return false
       }
 
@@ -657,7 +612,6 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
         date: snapshot.date
       ))
       guard snapshot.revision >= latestRevision else {
-        logger.notice("completion.timeline.write_skipped.stale_revision")
         return false
       }
 
@@ -689,14 +643,10 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
       }
       WidgetsStorage.set(updatedTimeline, forKey: "__expo_widgets_EntregasDoDia_timeline")
       WidgetsStorage.defaults?.synchronize()
-      logger.info("completion.timeline.storage_updated")
       return true
     }
     if shouldReload {
       WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")
-      logger.info("completion.timeline.reload_requested")
-    } else {
-      logger.notice("completion.timeline.reload_not_requested")
     }
     return .result()
   }

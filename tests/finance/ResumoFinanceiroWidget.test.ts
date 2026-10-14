@@ -154,6 +154,30 @@ describe('ResumoFinanceiro isolated widget layout', () => {
     }
   });
 
+  it.each(['systemSmall', 'systemMedium'] as const)(
+    'uses the explicit #0A0A0A widget background in dark mode for %s while retaining finance cards',
+    (widgetFamily) => {
+      const tree = renderWidget({}, 'wholesale', 'dark', 'file:///group/ExpoWidgets', widgetFamily);
+      const root = tree as WidgetTreeNode;
+      const containerBackground = root.props?.modifiers?.find(
+        ({ name }) => name === 'containerBackground',
+      );
+      const cards = collectNodes(tree, 'VStack').filter(({ props }) =>
+        props?.modifiers?.some(({ name }) => name === 'background'),
+      );
+
+      expect(containerBackground?.args).toEqual(['#0A0A0A', 'widget']);
+      expect(cards).toHaveLength(widgetFamily === 'systemSmall' ? 1 : 2);
+      expect(
+        cards.every(
+          (card) =>
+            card.props?.modifiers?.find(({ name }) => name === 'background')?.args?.[0] ===
+            '#2C2C2E',
+        ),
+      ).toBe(true);
+    },
+  );
+
   it.each([
     {
       mode: 'wholesale',

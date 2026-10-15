@@ -7,6 +7,10 @@ public final class NativeWidgetDiagnosticsModule: Module {
     subsystem: Bundle.main.bundleIdentifier ?? "NativeWidgetDiagnostics",
     category: "RigattiWidgetSync"
   )
+  private let deliveryLogger = os.Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",
+    category: "DeliveryWidgetSnapshot"
+  )
 
   public func definition() -> ModuleDefinition {
     Name("NativeWidgetDiagnostics")
@@ -58,6 +62,27 @@ public final class NativeWidgetDiagnosticsModule: Module {
     Function("timelineRead") { (success: Bool, entryCount: Int, validEntryCount: Int) in
       self.logger.info(
         "event=timeline_read source=app success=\(success, privacy: .public) entry_count=\(entryCount, privacy: .public) valid_entry_count=\(validEntryCount, privacy: .public)"
+      )
+    }
+
+    Function("deliverySnapshotEvent") {
+      (event: String, state: String, deliveryCount: Int, success: Bool) in
+      let safeEvents = [
+        "snapshot_refresh_started",
+        "snapshot_invalidated",
+        "snapshot_query_published",
+        "snapshot_mutation_published",
+        "snapshot_unavailable",
+        "timeline_publish_started",
+        "timeline_publish_succeeded",
+        "timeline_publish_failed",
+      ]
+      let safeStates = ["pending", "all_completed", "empty", "unavailable"]
+      let safeEvent = safeEvents.contains(event) ? event : "unknown"
+      let safeState = safeStates.contains(state) ? state : "unknown"
+      let safeCount = max(0, min(deliveryCount, 1000))
+      self.deliveryLogger.info(
+        "event=\(safeEvent, privacy: .public) state=\(safeState, privacy: .public) delivery_count=\(safeCount, privacy: .public) success=\(success, privacy: .public)"
       )
     }
   }

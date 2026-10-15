@@ -453,6 +453,20 @@ describe('LiveActivityCoordinator', () => {
     expect(coordinator.getSnapshot().canStart).toBe(false);
   });
 
+  it('keeps Live Activity invalidation behavior when a date query only begins revalidation', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const { coordinator, driver } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 1);
+    await coordinator.toggleFromToolbar();
+    await coordinator.handleDateSnapshotEvent({ type: 'refreshing', uid: 'user-a', date: TODAY });
+
+    expect(driver.instances[0]?.content).toMatchObject({ isObsolete: true });
+    expect(coordinator.getSnapshot().canStart).toBe(false);
+  });
+
   it('contains ActivityKit start, update, and end failures', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(snapshot());

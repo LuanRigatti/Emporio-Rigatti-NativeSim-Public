@@ -1089,6 +1089,221 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     invalidateFinancialMonth.mockRestore();
   });
 
+  it('publishes a complete widget snapshot after a successful History completion mutation', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      docs: [
+        {
+          id: 'history-delivery',
+          data: () => ({
+            clientId: 'client-ana',
+            clientNameSnapshot: 'Ana',
+            date: '2026-10-15',
+            quantity: 2,
+            totalValue: 100,
+            status: 'Não Pago',
+            delivered: false,
+          }),
+        },
+      ],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    const dataSource = new FirestoreDeliveryDataSource();
+    const events: unknown[] = [];
+    dataSource.subscribeDateSnapshots((event) => events.push(event));
+    await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' });
+
+    expect(events).toContainEqual(expect.objectContaining({ type: 'complete', cause: 'query' }));
+    await dataSource.setDelivered('uid-test', 'history-delivery', true);
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'complete',
+      cause: 'mutation',
+      snapshot: {
+        uid: 'uid-test',
+        date: '2026-10-15',
+        deliveries: [{ id: 'history-delivery', entregue: true }],
+      },
+    });
+  });
+
+  it('restores a delivery to the complete widget snapshot after History returns it to pending', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      docs: [
+        {
+          id: 'history-delivery-unmark',
+          data: () => ({
+            clientId: 'client-ana',
+            clientNameSnapshot: 'Ana',
+            date: '2026-10-15',
+            quantity: 1,
+            totalValue: 50,
+            status: 'Não Pago',
+            delivered: true,
+          }),
+        },
+      ],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({ exists: () => true, data: () => ({ delivered: true }) }),
+        update: jest.fn(),
+      } as never),
+    );
+    const dataSource = new FirestoreDeliveryDataSource();
+    const events: unknown[] = [];
+    dataSource.subscribeDateSnapshots((event) => events.push(event));
+    await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' });
+
+    await dataSource.setDelivered('uid-test', 'history-delivery-unmark', false);
+
+    expect(events.at(-1)).toMatchObject({
+      type: 'complete',
+      cause: 'mutation',
+      snapshot: {
+        deliveries: [{ id: 'history-delivery-unmark', entregue: false }],
+      },
+    });
+  });
+
+  it('discards a complete-date query that started while a delivery write was pending', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      docs: [
+        {
+          id: 'history-delivery-race',
+          data: () => ({
+            clientId: 'client-ana',
+            clientNameSnapshot: 'Ana',
+            date: '2026-10-15',
+            quantity: 1,
+            totalValue: 50,
+            status: 'Não Pago',
+            delivered: false,
+          }),
+        },
+      ],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    const dataSource = new FirestoreDeliveryDataSource();
+    await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' });
+
+    let resolveWrite!: () => void;
+    const writePending = new Promise<void>((resolve) => {
+      resolveWrite = resolve;
+    });
+    mockedUpdateDoc.mockImplementationOnce(async () => writePending);
+    const write = dataSource.setDelivered('uid-test', 'history-delivery-race', true);
+    for (let attempt = 0; attempt < 20 && mockedUpdateDoc.mock.calls.length === 0; attempt += 1) {
+      await Promise.resolve();
+    }
+    expect(mockedUpdateDoc).toHaveBeenCalledTimes(1);
+
+    let resolveStaleQuery!: (result: Awaited<ReturnType<typeof firestoreModule.getDocs>>) => void;
+    const staleQuery = new Promise<Awaited<ReturnType<typeof firestoreModule.getDocs>>>(
+      (resolve) => {
+        resolveStaleQuery = resolve;
+      },
+    );
+    mockedGetDocs.mockReturnValueOnce(staleQuery);
+    const readDuringWrite = dataSource.load(
+      'uid-test',
+      { mode: 'today', date: '2026-10-15' },
+      { force: true },
+    );
+
+    resolveWrite();
+    await write;
+    resolveStaleQuery({
+      empty: false,
+      docs: [
+        {
+          id: 'history-delivery-race',
+          data: () => ({
+            clientId: 'client-ana',
+            clientNameSnapshot: 'Ana',
+            date: '2026-10-15',
+            quantity: 1,
+            totalValue: 50,
+            status: 'Não Pago',
+            delivered: false,
+          }),
+        },
+      ],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    await readDuringWrite;
+
+    expect(dataSource.getCompleteDateSnapshot('uid-test', '2026-10-15')?.deliveries).toMatchObject([
+      { id: 'history-delivery-race', entregue: true },
+    ]);
+  });
+
+  it('preserves confirmed coverage while revalidating, then invalidates cache-only or failed results', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      docs: [
+        {
+          id: 'confirmed-delivery',
+          data: () => ({
+            clientId: 'client-ana',
+            clientNameSnapshot: 'Ana',
+            date: '2026-10-15',
+            quantity: 1,
+            totalValue: 50,
+            status: 'Não Pago',
+            delivered: false,
+          }),
+        },
+      ],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    const dataSource = new FirestoreDeliveryDataSource();
+    const events: unknown[] = [];
+    dataSource.subscribeDateSnapshots((event) => events.push(event));
+    await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' });
+
+    let resolveCacheResult!: (result: Awaited<ReturnType<typeof firestoreModule.getDocs>>) => void;
+    const cacheResult = new Promise<Awaited<ReturnType<typeof firestoreModule.getDocs>>>(
+      (resolve) => {
+        resolveCacheResult = resolve;
+      },
+    );
+    mockedGetDocs.mockReturnValueOnce(cacheResult);
+    const revalidation = dataSource.load(
+      'uid-test',
+      { mode: 'today', date: '2026-10-15' },
+      { force: true },
+    );
+    expect(dataSource.getCompleteDateSnapshot('uid-test', '2026-10-15')).not.toBeNull();
+    expect(events.at(-1)).toEqual({ type: 'refreshing', uid: 'uid-test', date: '2026-10-15' });
+
+    resolveCacheResult({
+      empty: true,
+      docs: [],
+      metadata: { fromCache: true },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    await revalidation;
+    expect(events.at(-1)).toEqual({ type: 'invalidated', uid: 'uid-test', date: '2026-10-15' });
+    expect(dataSource.getCompleteDateSnapshot('uid-test', '2026-10-15')).toBeNull();
+
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: true,
+      docs: [],
+      metadata: { fromCache: false },
+    } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
+    await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' }, { force: true });
+    expect(dataSource.getCompleteDateSnapshot('uid-test', '2026-10-15')).not.toBeNull();
+
+    mockedGetDocs.mockRejectedValueOnce(new Error('network unavailable'));
+    await expect(
+      dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' }, { force: true }),
+    ).rejects.toThrow('network unavailable');
+    expect(events.at(-1)).toEqual({ type: 'invalidated', uid: 'uid-test', date: '2026-10-15' });
+  });
+
   it('accepts an already confirmed widget completion without writing it twice', async () => {
     const dataSource = new FirestoreDeliveryDataSource();
     await firestoreHistoricalDeliveryCache.write('uid-test', [
@@ -1296,5 +1511,38 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
       delivered: false,
       updatedAt: { type: 'serverTimestamp' },
     });
+  });
+
+  it('applies a server-confirmed paid status locally and invalidates delivery and financial caches', async () => {
+    const delivery: Delivery = {
+      clientId: 'client:ana',
+      cliente: 'Ana',
+      data: '2026-10-10',
+      entregue: true,
+      id: 'bulk-paid-delivery',
+      metodoPagamento: 'Pix',
+      quantidade: 1,
+      status: 'Não Pago',
+      valor: 75,
+    };
+    const source = new FirestoreDeliveryDataSource();
+    source.setSessionUser('uid-test', 7);
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await firestoreDeliveryCacheService.write('uid-test', delivery.data, [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+    const startingRevision = source.getRevision();
+
+    const result = await source.applyCommittedPaidDeliveryUpdates('uid-test', 7, [
+      { id: delivery.id, date: delivery.data },
+    ]);
+
+    expect(result.cacheInvalidationComplete).toBe(true);
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test', 7)).toMatchObject([
+      { id: delivery.id, metodoPagamento: 'Pix', status: 'Pago', valor: 75 },
+    ]);
+    expect(source.getRevision()).toBeGreaterThan(startingRevision);
+    expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
+    expect(mockAsyncStorage.has('firestore-deliveries-cache-v1:uid-test:2026-10-10')).toBe(false);
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
   });
 });

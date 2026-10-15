@@ -44,7 +44,8 @@ export type CompleteDeliveryDateSnapshot = {
   completedAt: number;
 };
 export type DeliveryDateSnapshotEvent =
-  | { type: 'complete'; snapshot: CompleteDeliveryDateSnapshot }
+  | { type: 'complete'; snapshot: CompleteDeliveryDateSnapshot; cause?: 'query' | 'mutation' }
+  | { type: 'refreshing'; uid: string; date: string }
   | { type: 'invalidated'; uid: string; date: string };
 type DeliveryDateSnapshotListener = (event: DeliveryDateSnapshotEvent) => void;
 type CompleteDateCoverage = {
@@ -464,8 +465,13 @@ export class FirestoreDeliveryDataSource {
     const existing = this.inFlightLoads.get(key);
     if (existing && !options.force) return existing;
 
-    if (filters.mode === 'today' && filters.date && this.isLiveActivityDateQuery(filters)) {
-      this.invalidateCompleteDateSnapshot(uid, filters.date, sessionVersion);
+    const isCompleteLiveDateQuery =
+      filters.mode === 'today' &&
+      Boolean(filters.date) &&
+      this.isCompleteDateQuery(filters) &&
+      this.isLiveActivityDateQuery(filters);
+    if (isCompleteLiveDateQuery && filters.date) {
+      this.notifyDateSnapshotListeners({ type: 'refreshing', uid, date: filters.date });
     }
 
     const mutationEpoch = this.mutationEpoch;
@@ -512,6 +518,11 @@ export class FirestoreDeliveryDataSource {
     loadKey: string,
     loadVersion: number,
   ): Promise<Delivery[]> {
+    const isCompleteLiveDateQuery =
+      filters.mode === 'today' &&
+      Boolean(filters.date) &&
+      this.isCompleteDateQuery(filters) &&
+      this.isLiveActivityDateQuery(filters);
     const hydration = this.inFlightHydrations.get(this.requestKey(uid, sessionGeneration));
     if (hydration) await hydration;
     if (
@@ -617,7 +628,10 @@ export class FirestoreDeliveryDataSource {
       this.stateVersion += 1;
       this.publish();
       if (completeLiveActivityDateQuery && filters.date) {
-        this.publishCompleteDateSnapshot(uid, filters.date, sessionGeneration);
+        this.publishCompleteDateSnapshot(uid, filters.date, sessionGeneration, 'query');
+      } else if (isCompleteLiveDateQuery && filters.date) {
+        // A cache-only or otherwise incomplete result cannot safely replace a confirmed widget snapshot.
+        this.invalidateCompleteDateSnapshot(uid, filters.date, sessionVersion);
       }
       const result = this.getCached(filters, uid);
       if (filters.date && !fromCache) {
@@ -632,6 +646,9 @@ export class FirestoreDeliveryDataSource {
         return [];
       }
       if (!this.isLatestLoad(loadKey, loadVersion)) return this.getCached(filters, uid);
+      if (isCompleteLiveDateQuery && filters.date) {
+        this.invalidateCompleteDateSnapshot(uid, filters.date, sessionVersion);
+      }
       this.isUsingLocalFallback = false;
       throw error;
     }
@@ -825,7 +842,12 @@ export class FirestoreDeliveryDataSource {
     return completion?.uid === uid && completion.generation === generation && completion.isFresh;
   }
 
-  private publishCompleteDateSnapshot(uid: string, date: string, generation: number): void {
+  private publishCompleteDateSnapshot(
+    uid: string,
+    date: string,
+    generation: number,
+    cause: 'query' | 'mutation' = 'query',
+  ): void {
     if (
       !this.isDateComplete(uid, date, generation) ||
       !this.isSessionRequestCurrent(uid, generation)
@@ -836,6 +858,7 @@ export class FirestoreDeliveryDataSource {
     if (!completion) return;
     this.notifyDateSnapshotListeners({
       type: 'complete',
+      cause,
       snapshot: {
         uid,
         date,
@@ -859,7 +882,7 @@ export class FirestoreDeliveryDataSource {
         completedAt: Date.now(),
         isFresh: true,
       });
-      this.publishCompleteDateSnapshot(uid, date, generation);
+      this.publishCompleteDateSnapshot(uid, date, generation, 'mutation');
     }
   }
 
@@ -1058,8 +1081,11 @@ export class FirestoreDeliveryDataSource {
       });
     }
     this.assertSessionRequestCurrent(request);
+    // Fence queries that began while the Firestore write was pending before reconciling local state.
+    this.mutationEpoch += 1;
     this.records.set(current.id, { ...current, entregue: persistedDelivered });
     this.publish();
+    this.publishMutatedCompleteDates(request.uid, [current.data], request.generation);
     void this.persistDateCache(request, current.data);
     void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
     void firestoreHistoricalDeliveryCache.invalidate(request.uid);

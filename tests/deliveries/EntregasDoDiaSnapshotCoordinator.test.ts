@@ -5,6 +5,12 @@ import type {
   FirestoreDeliveryDataSource,
 } from '@/services/deliveries/FirestoreDeliveryDataSource';
 
+const mockLogDeliveryDiagnostic = jest.fn();
+
+jest.mock('@/features/deliveries/widgets/EntregasDoDiaWidgetDiagnostics', () => ({
+  logDeliveryWidgetSnapshotDiagnostic: (...args: unknown[]) => mockLogDeliveryDiagnostic(...args),
+}));
+
 jest.mock('@/services/deliveries/FirestoreDeliveryDataSource', () => ({
   firestoreDeliveryDataSource: {
     subscribeDateSnapshots: () => () => undefined,
@@ -23,16 +29,16 @@ async function flushWidgetDriver(): Promise<void> {
   await Promise.resolve();
 }
 
-function makeSnapshot(uid: string): CompleteDeliveryDateSnapshot {
+function makeSnapshot(uid: string, date = '2026-10-15'): CompleteDeliveryDateSnapshot {
   return {
     uid,
-    date: '2026-10-15',
+    date,
     completedAt: 1,
     deliveries: [
       {
         id: 'delivery-1',
         cliente: 'Cliente A',
-        data: '2026-10-15',
+        data: date,
         quantidade: 1,
         valor: 30,
         status: 'Não Pago',
@@ -45,6 +51,7 @@ function makeSnapshot(uid: string): CompleteDeliveryDateSnapshot {
 function makeHarness(initialSnapshot: CompleteDeliveryDateSnapshot | null = null) {
   let listener: ((event: DeliveryDateSnapshotEvent) => void) | null = null;
   let completeSnapshot = initialSnapshot;
+  let now = new Date(2026, 9, 15, 12);
   const source: SnapshotSource = {
     subscribeDateSnapshots: jest.fn((nextListener) => {
       listener = nextListener;
@@ -63,7 +70,7 @@ function makeHarness(initialSnapshot: CompleteDeliveryDateSnapshot | null = null
   const coordinator = new EntregasDoDiaSnapshotCoordinator({
     source,
     isIOS: true,
-    now: () => new Date(2026, 9, 15, 12),
+    now: () => now,
     routeURL: () => 'pareact://historico?mode=wholesale',
     deliveryURL: (id, date) => `pareact://historico/entrega/${id}?date=${date}`,
     loadWidget: async () => ({ updateTimeline }),
@@ -76,11 +83,16 @@ function makeHarness(initialSnapshot: CompleteDeliveryDateSnapshot | null = null
     setCompleteSnapshot: (snapshot: CompleteDeliveryDateSnapshot | null) => {
       completeSnapshot = snapshot;
     },
+    setDate: (date: Date) => {
+      now = date;
+    },
     emit: (event: DeliveryDateSnapshotEvent) => listener?.(event),
   };
 }
 
 describe('EntregasDoDiaSnapshotCoordinator', () => {
+  beforeEach(() => mockLogDeliveryDiagnostic.mockClear());
+
   it('publishes an existing complete daily snapshot without issuing a new query', async () => {
     const { coordinator, source, updateTimeline } = makeHarness(makeSnapshot('user-a'));
     coordinator.setSession('user-a', 7);
@@ -120,6 +132,24 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
       state: 'pending',
       deliveries: [{ clientName: 'Cliente A' }],
     });
+    coordinator.dispose();
+  });
+
+  it('logs unavailable when a complete source event has no matching canonical snapshot', async () => {
+    const { coordinator, updateTimeline, emit } = makeHarness();
+    coordinator.setSession('user-a', 7);
+    await flushWidgetDriver();
+    mockLogDeliveryDiagnostic.mockClear();
+
+    emit({ type: 'complete', snapshot: makeSnapshot('user-a') });
+
+    expect(updateTimeline).toHaveBeenCalledTimes(1);
+    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
+      'snapshot_unavailable',
+      'unavailable',
+      0,
+      false,
+    );
     coordinator.dispose();
   });
 
@@ -177,6 +207,69 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
     coordinator.dispose();
   });
 
+  it('keeps the last complete timeline during revalidation and publishes the confirmed mutation', async () => {
+    const initial = makeSnapshot('user-a');
+    const { coordinator, updateTimeline, setCompleteSnapshot, emit } = makeHarness(initial);
+    coordinator.setSession('user-a', 7);
+    await flushWidgetDriver();
+
+    emit({ type: 'refreshing', uid: 'user-a', date: '2026-10-15' });
+    expect(updateTimeline).toHaveBeenCalledTimes(1);
+    expect(updateTimeline.mock.calls[0]?.[0][0]?.props).toMatchObject({ state: 'pending' });
+    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
+      'snapshot_refresh_started',
+      'pending',
+      1,
+      true,
+    );
+
+    const allCompleted = {
+      ...initial,
+      deliveries: [{ ...initial.deliveries[0]!, entregue: true }],
+    };
+    setCompleteSnapshot(allCompleted);
+    emit({ type: 'complete', cause: 'mutation', snapshot: allCompleted });
+
+    expect(updateTimeline).toHaveBeenCalledTimes(2);
+    expect(updateTimeline.mock.calls[1]?.[0][0]?.props).toMatchObject({
+      state: 'all_completed',
+      deliveries: [],
+    });
+    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
+      'snapshot_mutation_published',
+      'all_completed',
+      0,
+      true,
+    );
+    coordinator.dispose();
+  });
+
+  it('distinguishes a confirmed empty day from unavailable data and resets on date change', async () => {
+    const { coordinator, updateTimeline, setCompleteSnapshot, setDate, emit } = makeHarness();
+    coordinator.setSession('user-a', 7);
+    await flushWidgetDriver();
+    expect(updateTimeline.mock.calls[0]?.[0][0]?.props).toMatchObject({ state: 'unavailable' });
+
+    const emptySnapshot = { ...makeSnapshot('user-a'), deliveries: [] };
+    setCompleteSnapshot(emptySnapshot);
+    emit({ type: 'complete', cause: 'query', snapshot: emptySnapshot });
+    expect(updateTimeline.mock.calls[1]?.[0][0]?.props).toMatchObject({ state: 'empty' });
+
+    emit({ type: 'invalidated', uid: 'user-a', date: '2026-10-15' });
+    expect(updateTimeline.mock.calls[2]?.[0][0]?.props).toMatchObject({ state: 'unavailable' });
+
+    setDate(new Date(2026, 9, 16, 12));
+    coordinator.refreshAvailableSnapshot('user-a', 7);
+    const countAfterDateChange = updateTimeline.mock.calls.length;
+    emit({ type: 'complete', cause: 'query', snapshot: makeSnapshot('user-a') });
+    expect(updateTimeline).toHaveBeenCalledTimes(countAfterDateChange);
+    expect(updateTimeline.mock.calls.at(-1)?.[0][0]?.props).toMatchObject({
+      date: '2026-10-16',
+      state: 'unavailable',
+    });
+    coordinator.dispose();
+  });
+
   it('invalidates on source invalidation and ignores events from a previous UID', async () => {
     const { coordinator, updateTimeline, setCompleteSnapshot, emit } = makeHarness(
       makeSnapshot('user-a'),
@@ -190,6 +283,12 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
     expect(updateTimeline.mock.calls[1]?.[0][0]?.props).toMatchObject({
       state: 'unavailable',
     });
+    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
+      'snapshot_invalidated',
+      'unavailable',
+      0,
+      false,
+    );
 
     coordinator.setSession('user-b', 8);
     await flushWidgetDriver();

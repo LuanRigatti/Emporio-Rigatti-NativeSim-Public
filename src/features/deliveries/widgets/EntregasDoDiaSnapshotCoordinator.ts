@@ -17,6 +17,7 @@ import {
   type EntregasDoDiaWidgetProps,
   type EntregasDoDiaWidgetTimelineProps,
 } from './EntregasDoDiaSnapshot';
+import { logDeliveryWidgetSnapshotDiagnostic } from './EntregasDoDiaWidgetDiagnostics';
 
 export type DeliverySnapshotSource = Pick<
   typeof firestoreDeliveryDataSource,
@@ -242,11 +243,39 @@ export class EntregasDoDiaSnapshotCoordinator {
     const uid = this.activeUid;
     const sessionVersion = this.activeSessionVersion;
     if (!uid || eventUid !== uid || eventDate !== today) return;
+    if (event.type === 'refreshing') {
+      logDeliveryWidgetSnapshotDiagnostic(
+        'snapshot_refresh_started',
+        this.currentSnapshot.state,
+        this.currentSnapshot.deliveries.length,
+        true,
+      );
+    } else if (event.type === 'invalidated') {
+      logDeliveryWidgetSnapshotDiagnostic('snapshot_invalidated', 'unavailable', 0, false);
+    } else {
+      const pendingCount = event.snapshot.deliveries.filter(
+        (delivery) => !delivery.entregue,
+      ).length;
+      const state =
+        pendingCount > 0
+          ? 'pending'
+          : event.snapshot.deliveries.length > 0
+            ? 'all_completed'
+            : 'empty';
+      logDeliveryWidgetSnapshotDiagnostic(
+        event.cause === 'mutation' ? 'snapshot_mutation_published' : 'snapshot_query_published',
+        state,
+        pendingCount,
+        true,
+      );
+    }
     const receipts = this.readActionReceipts(uid).filter((receipt) => receipt.date === eventDate);
     if (receipts.length > 0) {
       this.reconcileActionReceipts(uid, sessionVersion, receipts);
       return;
     }
+
+    if (event.type === 'refreshing') return;
 
     if (event.type === 'invalidated') {
       this.publishSnapshot(unavailableEntregasDoDiaWidgetProps(eventDate, this.routeURL()));
@@ -297,6 +326,14 @@ export class EntregasDoDiaSnapshotCoordinator {
     }
     this.currentSnapshot = enrichedSnapshot;
     const signature = JSON.stringify(enrichedSnapshot);
+    if (enrichedSnapshot.state === 'unavailable') {
+      logDeliveryWidgetSnapshotDiagnostic(
+        'snapshot_unavailable',
+        'unavailable',
+        enrichedSnapshot.deliveries.length,
+        false,
+      );
+    }
     if (signature === this.lastPublishedSnapshot) return;
     this.lastPublishedSnapshot = signature;
     this.publishTimeline();
@@ -381,11 +418,29 @@ export class EntregasDoDiaSnapshotCoordinator {
     if (!this.isIOS || !this.widgetDriver) return;
     const routeURL = this.currentSnapshot.deliveryRouteURL;
     const entries = createEntregasDoDiaTimeline(this.currentSnapshot, this.now(), routeURL);
+    logDeliveryWidgetSnapshotDiagnostic(
+      'timeline_publish_started',
+      this.currentSnapshot.state,
+      this.currentSnapshot.deliveries.length,
+      true,
+    );
     try {
       this.widgetDriver.updateTimeline(entries);
+      logDeliveryWidgetSnapshotDiagnostic(
+        'timeline_publish_succeeded',
+        this.currentSnapshot.state,
+        this.currentSnapshot.deliveries.length,
+        true,
+      );
     } catch {
       // Widget publishing is best-effort; a later source event or foreground refresh retries it.
       this.lastPublishedSnapshot = null;
+      logDeliveryWidgetSnapshotDiagnostic(
+        'timeline_publish_failed',
+        this.currentSnapshot.state,
+        this.currentSnapshot.deliveries.length,
+        false,
+      );
     }
   }
 

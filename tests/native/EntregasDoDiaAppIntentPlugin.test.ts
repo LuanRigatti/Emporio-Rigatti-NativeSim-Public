@@ -73,9 +73,43 @@ describe('EntregasDoDia App Intent CNG integration', () => {
         'ios/Widgets/DeliveryWidgetCompletionIntent.swift',
       );
       const generatedSwift = fs.readFileSync(intentPath, 'utf8');
-      expect(generatedSwift).not.toContain('import os');
-      expect(generatedSwift).not.toContain('category: "DeliveryCompletion"');
-      expect(generatedSwift).not.toContain('completion.intent.started');
+      expect(generatedSwift).toContain('import os');
+      expect(generatedSwift).toContain('category: "DeliveryCompletion"');
+      expect(generatedSwift).toContain(
+        'subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget"',
+      );
+      [
+        'intent_perform_started',
+        'snapshot_rejected_wrong_source',
+        'snapshot_rejected_missing_entry_index',
+        'snapshot_rejected_invalid_target',
+        'snapshot_rejected_missing_timeline',
+        'snapshot_rejected_entry_index',
+        'snapshot_rejected_invalid_entry',
+        'snapshot_rejected_date_mismatch',
+        'snapshot_rejected_not_pending',
+        'snapshot_rejected_delivery_missing',
+        'capability_validation_succeeded',
+        'capability_validation_failed',
+        'session_validation_succeeded',
+        'session_validation_failed',
+        'request_started',
+        'request_failed',
+        'http_response',
+        'remote_confirmation_received',
+        'snapshot_rejected_remote',
+        'receipt_recorded',
+        'receipt_record_failed',
+        'timeline_session_rejected',
+        'revision_accepted',
+        'revision_rejected',
+        'timeline_write_succeeded',
+        'timeline_mutation_failed',
+        'timeline_reload_requested',
+      ].forEach((marker) => expect(generatedSwift).toContain(marker));
+      expect(generatedSwift).not.toMatch(
+        /logger\.(?:info|error).*?(?:uid|deliveryId|sessionId|capability|clientName|valueLabel)/i,
+      );
       expect(generatedSwift).toMatch(
         /var currentVersion = readAppSession\(\)\?\.sessionVersion \?\? 0/,
       );
@@ -218,6 +252,7 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(DELIVERY_ACTION_SWIFT).toContain('WidgetsStorage.set(updatedTimeline');
     expect(DELIVERY_ACTION_SWIFT).not.toMatch(/import\s+Firebase|refreshToken|adminCredential/i);
     expect(DELIVERY_ACTION_SWIFT).not.toContain('UIApplication.shared');
+    expect(DELIVERY_ACTION_SWIFT).toContain('event=http_response status_code=');
     const receiptStorage = DELIVERY_ACTION_SWIFT.slice(
       DELIVERY_ACTION_SWIFT.indexOf('static func recordReceipt'),
     );

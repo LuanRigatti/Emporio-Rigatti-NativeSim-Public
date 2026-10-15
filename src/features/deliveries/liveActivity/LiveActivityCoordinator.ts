@@ -214,7 +214,7 @@ export class LiveActivityCoordinator {
         const eventDate = event.type === 'complete' ? event.snapshot.date : event.date;
         if (eventDate !== today) return;
 
-        if (event.type === 'invalidated') {
+        if (event.type === 'refreshing' || event.type === 'invalidated') {
           this.updateState({ canStart: false });
           await this.markObsoleteInternal();
           return;

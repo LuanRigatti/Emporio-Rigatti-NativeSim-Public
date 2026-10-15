@@ -373,6 +373,19 @@ Do not implement speculative fixes.
 
 # Repository Navigation
 
+Antes de alterar arquivos, cada agente deve confirmar no Git a raiz do checkout,
+a branch ativa e o estado do working tree. As branches de desenvolvimento são
+`ajustes-codex`, `Antigravity` e `opencode`; `main` é a branch de referência e
+fica sincronizada após uma execução bem-sucedida da Skill. Não deduza a branch
+pelo nome da pasta nem troque de branch automaticamente.
+
+A Skill global `$sync-codex-antigravity-main-opencode` sincroniza manualmente as
+quatro branches por fast-forward. A origem padrão é `ajustes-codex`, com
+`Antigravity` e `opencode` como origens alternativas; `main` é somente destino.
+Não há sincronização automática entre branches via GitHub Actions implementada.
+Mantenha a documentação operacional igual nas quatro branches, sem variantes
+por agente ou ambiente.
+
 Never recursively inspect the entire repository unless explicitly requested.
 
 For every task:

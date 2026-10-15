@@ -219,6 +219,25 @@ Mac apenas quando houver recompilação nativa.
 
 Mudanças apenas em TS/TSX/JS normalmente utilizam Fast Refresh.
 
+## Branches e sincronização
+
+O trabalho pode ocorrer nos checkouts `ajustes-codex`
+(`C:\Projetos\PAReact-App-Codex\Emporio-Rigatti-App-Codex`), `Antigravity`
+(`C:\Projetos\emporiorigatti-Antigravity`) ou `opencode`
+(`C:\Projetos\emporiorigatti-opencode`). `main`
+(`C:\Projetos\emporiorigatti-main`) é mantida como branch de referência e fica
+sincronizada com as branches de desenvolvimento após uma execução bem-sucedida
+da Skill; ela não é origem pela Skill atual.
+
+Antes de alterar arquivos, cada agente deve confirmar pelo Git a raiz do
+checkout, a branch ativa e o estado do working tree; nunca inferir a branch pelo
+nome da pasta ou pelo agente. A Skill global
+`$sync-codex-antigravity-main-opencode` faz a sincronização manual das quatro
+branches: usa `ajustes-codex` por padrão e aceita `Antigravity` ou `opencode`
+como origens escolhidas explicitamente. Não há automação de sincronização via
+GitHub Actions implementada. Mantenha estes documentos compartilhados nas
+quatro branches, sem cópias específicas por ambiente.
+
 ## Auditoria proporcional ao escopo
 
 Antes de qualquer alteração:

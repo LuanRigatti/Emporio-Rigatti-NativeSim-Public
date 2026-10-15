@@ -38,6 +38,7 @@ function EntregasDoDiaWidget(
 
   const safeProps = props && typeof props === 'object' ? props : undefined;
   const isSmall = environment?.widgetFamily === 'systemSmall';
+  const isMedium = environment?.widgetFamily === 'systemMedium';
   const isLarge = environment?.widgetFamily === 'systemLarge';
   const reportedCount =
     typeof safeProps?.deliveryCount === 'number' &&
@@ -72,6 +73,11 @@ function EntregasDoDiaWidget(
       (safeProps?.state === 'unavailable' && reportedCount === 0 && parsedRows.length === 0));
   const state = structurallyComplete ? safeProps?.state : 'unavailable';
   const rows = state === 'pending' ? parsedRows.slice(0, visibleLimit) : [];
+  const formatSmallQuantity = (label: string) => {
+    if (label.endsWith(' baldes')) return label.slice(0, -7);
+    if (label.endsWith(' balde')) return label.slice(0, -6);
+    return label;
+  };
   const routeURL =
     typeof safeProps?.deliveryRouteURL === 'string' && safeProps.deliveryRouteURL.trim()
       ? safeProps.deliveryRouteURL
@@ -121,8 +127,11 @@ function EntregasDoDiaWidget(
   return (
     <VStack
       alignment="leading"
-      spacing={isLarge ? 6 : isSmall ? 2 : 10}
+      spacing={isLarge ? 6 : isSmall ? 2 : isMedium ? 2 : 10}
       modifiers={[
+        ...(isMedium
+          ? [frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' })]
+          : []),
         containerBackground(
           environment?.colorScheme === 'dark'
             ? '#0A0A0A'
@@ -137,7 +146,9 @@ function EntregasDoDiaWidget(
         spacing={isSmall ? 4 : 6}
         modifiers={[
           padding(
-            isSmall ? { horizontal: 2 } : { top: isLarge ? 2 : 6, leading: 22, trailing: 16 },
+            isSmall
+              ? { horizontal: 2 }
+              : { top: isLarge ? 2 : isMedium ? 10 : 6, leading: 22, trailing: 16 },
           ),
           ...(isSmall ? [offset({ y: -2 })] : []),
         ]}
@@ -234,7 +245,7 @@ function EntregasDoDiaWidget(
                     layoutPriority(1),
                   ]}
                 >
-                  {row.quantityLabel}
+                  {formatSmallQuantity(row.quantityLabel)}
                 </Text>
               </HStack>
             </HStack>,

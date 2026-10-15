@@ -6,6 +6,31 @@ Este é o primeiro bloco a ser consultado por qualquer nova conversa ou agente
 de IA. Ele representa o estado operacional deste checkout; as seções posteriores
 preservam o histórico técnico e as decisões acumuladas.
 
+## Branches e checkouts oficiais
+
+O desenvolvimento pode ocorrer em qualquer uma destas três branches, cada uma
+com seu checkout local:
+
+- `ajustes-codex` — `C:\Projetos\PAReact-App-Codex\Emporio-Rigatti-App-Codex`
+- `Antigravity` — `C:\Projetos\emporiorigatti-Antigravity`
+- `opencode` — `C:\Projetos\emporiorigatti-opencode`
+
+A branch `main`, em `C:\Projetos\emporiorigatti-main`, é mantida como branch de
+referência e fica sincronizada com as branches de desenvolvimento após uma
+execução bem-sucedida da Skill global
+`$sync-codex-antigravity-main-opencode`. Essa Skill sincroniza manualmente as
+quatro branches e checkouts, usando `ajustes-codex` por padrão ou
+`Antigravity`/`opencode` quando uma dessas origens for escolhida explicitamente.
+`main` é destino nessa Skill, nunca origem. Essa sincronização é manual; não
+existe automação equivalente por GitHub Actions implementada.
+
+Antes de alterar arquivos, cada agente deve verificar no Git a raiz do checkout,
+a branch ativa e o estado do working tree. Não deduza a branch pelo nome da
+pasta, pelo agente ou por este snapshot. A documentação operacional é compartilhada
+pelas quatro branches; não crie variantes específicas por ambiente. As menções
+às branches nas seções posteriores deste documento registram o histórico das
+entregas e devem ser preservadas como histórico.
+
 ## Manutenção do Expo SDK 57 — concluída (2026-10-03)
 
 - A manutenção de dependências do Expo SDK 57 foi concluída e checkpointada

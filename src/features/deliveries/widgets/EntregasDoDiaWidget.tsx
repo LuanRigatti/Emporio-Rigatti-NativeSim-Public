@@ -210,11 +210,9 @@ function EntregasDoDiaWidget(
               <HStack alignment="center" spacing={2}>
                 <Text
                   modifiers={[
-                    font({ weight: 'semibold', size: 14 }),
+                    font({ weight: 'semibold', size: 15 }),
                     foregroundStyle({ type: 'hierarchical', style: 'primary' }),
                     lineLimit(1),
-                    minimumScaleFactor(0.55),
-                    allowsTightening(true),
                   ]}
                 >
                   {row.clientName}
@@ -230,11 +228,9 @@ function EntregasDoDiaWidget(
                 </Text>
                 <Text
                   modifiers={[
-                    font({ weight: 'medium', size: 13 }),
+                    font({ weight: 'medium', size: 14 }),
                     foregroundStyle({ type: 'hierarchical', style: 'secondary' }),
                     lineLimit(1),
-                    minimumScaleFactor(0.72),
-                    allowsTightening(true),
                     layoutPriority(1),
                   ]}
                 >

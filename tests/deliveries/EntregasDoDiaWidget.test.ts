@@ -259,7 +259,7 @@ describe('EntregasDoDia isolated widget layout', () => {
     );
     expect(
       firstDeliveryText?.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0],
-    ).toEqual({ weight: 'semibold', size: 14 });
+    ).toEqual({ weight: 'semibold', size: 15 });
     const firstQuantity = collectNodes(smallRows[0], 'Text').find(
       ({ props }) => props?.children === '1 balde',
     );
@@ -267,7 +267,7 @@ describe('EntregasDoDia isolated widget layout', () => {
       ({ props }) => props?.children === '·',
     );
     expect(firstQuantity?.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0]).toEqual(
-      { weight: 'medium', size: 13 },
+      { weight: 'medium', size: 14 },
     );
     expect(firstQuantity?.props?.modifiers?.find(({ name }) => name === 'lineLimit')?.args).toEqual(
       [1],
@@ -300,14 +300,14 @@ describe('EntregasDoDia isolated widget layout', () => {
     ).toBe(false);
   });
 
-  it('keeps the small header and enlarged long-name row on single lines', () => {
+  it('uses uniform fixed typography and single-line truncation across all small delivery rows', () => {
     const longName = 'Cliente com um nome muito longo para o widget pequeno';
     const tree = renderWidget(
       {
         date: '2026-10-15',
         state: 'pending',
-        deliveryCount: 1,
-        deliveries: [{ ...deliveries[0]!, clientName: longName }],
+        deliveryCount: 3,
+        deliveries: [deliveries[0]!, { ...deliveries[1]!, clientName: longName }, deliveries[2]!],
       },
       'systemSmall',
       'dark',
@@ -316,10 +316,10 @@ describe('EntregasDoDia isolated widget layout', () => {
     const header = children[0]!;
     const list = children[1]!;
     const title = collectNodes(header, 'Text')[0]!;
-    const row = collectNodes(list, 'HStack').find((node) => collectText(node).includes(longName))!;
-    const rowTexts = collectNodes(row, 'Text');
-    const client = rowTexts.find(({ props }) => props?.children === longName)!;
-    const quantity = rowTexts.find(({ props }) => props?.children === '1 balde')!;
+    const rows = collectNodes(list, 'HStack').filter((node) => {
+      const rowChildren = node.props?.children as TreeNode[];
+      return rowChildren?.[0]?.type === 'Link' || rowChildren?.[0]?.type === 'Button';
+    });
 
     expect(title.props?.modifiers).toContainEqual({
       name: 'font',
@@ -327,13 +327,81 @@ describe('EntregasDoDia isolated widget layout', () => {
     });
     expect(header.props?.modifiers).toContainEqual({ name: 'offset', args: [{ y: -2 }] });
     expect(list.props?.modifiers).toContainEqual({ name: 'offset', args: [{ x: -4 }] });
-    expect(client.props?.children).toBe(longName);
-    expect(quantity.props?.children).toBe('1 balde');
-    for (const textNode of [client, quantity]) {
-      expect(textNode.props?.modifiers).toContainEqual({ name: 'lineLimit', args: [1] });
+    expect(list.props?.spacing).toBe(0);
+    expect(rows).toHaveLength(3);
+
+    for (const row of rows) {
+      const rowTexts = collectNodes(row, 'Text');
+      const client = rowTexts.find(({ props }) => typeof props?.children === 'string')!;
+      const quantity = rowTexts.find(({ props }) =>
+        ['1 balde', '2 baldes', '3 baldes'].includes(String(props?.children)),
+      )!;
+
+      expect(client.props?.modifiers).toContainEqual({
+        name: 'font',
+        args: [{ weight: 'semibold', size: 15 }],
+      });
+      expect(quantity.props?.modifiers).toContainEqual({
+        name: 'font',
+        args: [{ weight: 'medium', size: 14 }],
+      });
+      for (const textNode of [client, quantity]) {
+        expect(textNode.props?.modifiers).toContainEqual({ name: 'lineLimit', args: [1] });
+        expect(textNode.props?.modifiers).not.toContainEqual(
+          expect.objectContaining({ name: 'minimumScaleFactor' }),
+        );
+        expect(textNode.props?.modifiers).not.toContainEqual(
+          expect.objectContaining({ name: 'allowsTightening' }),
+        );
+      }
+      expect(quantity.props?.modifiers).toContainEqual({ name: 'layoutPriority', args: [1] });
     }
-    expect(quantity.props?.modifiers).toContainEqual({ name: 'layoutPriority', args: [1] });
+    expect(collectNodes(rows[1], 'Text').some(({ props }) => props?.children === longName)).toBe(
+      true,
+    );
   });
+
+  it.each(['systemMedium', 'systemLarge'] as const)(
+    'preserves delivery typography and scaling behavior in %s',
+    (widgetFamily) => {
+      const tree = renderWidget(
+        {
+          date: '2026-10-15',
+          state: 'pending',
+          deliveryCount: 1,
+          deliveries: [deliveries[0]!],
+        },
+        widgetFamily,
+      );
+      const list = (tree.props?.children as TreeNode[])[1]!;
+      const row = collectNodes(list, 'HStack').find((node) => {
+        const rowChildren = node.props?.children as TreeNode[];
+        return rowChildren?.[0]?.type === 'Link' || rowChildren?.[0]?.type === 'Button';
+      })!;
+      const rowTexts = collectNodes(row, 'Text');
+      const client = rowTexts.find(({ props }) => props?.children === 'Cliente A')!;
+      const quantity = rowTexts.find(({ props }) => props?.children === '1 balde')!;
+
+      expect(client.props?.modifiers).toContainEqual({
+        name: 'font',
+        args: [{ weight: 'medium', size: 15 }],
+      });
+      expect(quantity.props?.modifiers).toContainEqual({
+        name: 'font',
+        args: [{ weight: 'medium', size: 14 }],
+      });
+      for (const textNode of [client, quantity]) {
+        expect(textNode.props?.modifiers).toContainEqual({
+          name: 'minimumScaleFactor',
+          args: [0.68],
+        });
+        expect(textNode.props?.modifiers).toContainEqual({
+          name: 'allowsTightening',
+          args: [true],
+        });
+      }
+    },
+  );
 
   it.each(['systemSmall', 'systemMedium', 'systemLarge'] as const)(
     'uses the explicit #0A0A0A widget background in dark mode for %s',

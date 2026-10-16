@@ -490,6 +490,7 @@ function WholesaleFinanceScreen() {
               <NativeAnimatedNumber
                 animationEnabled={faturamentoReady}
                 color={theme.colors.textPrimary}
+                ignoreSafeArea="all"
                 text={
                   displayedFaturamentoValue !== null
                     ? formatCurrency(displayedFaturamentoValue)
@@ -533,6 +534,7 @@ function WholesaleFinanceScreen() {
               <NativeAnimatedNumber
                 animationEnabled={lucroLiquidoReady}
                 color={theme.colors.textPrimary}
+                ignoreSafeArea="all"
                 text={
                   displayedLucroLiquidoValue !== null
                     ? formatCurrency(displayedLucroLiquidoValue)

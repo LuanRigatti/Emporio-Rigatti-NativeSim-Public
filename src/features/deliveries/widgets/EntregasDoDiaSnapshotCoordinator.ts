@@ -17,7 +17,10 @@ import {
   type EntregasDoDiaWidgetProps,
   type EntregasDoDiaWidgetTimelineProps,
 } from './EntregasDoDiaSnapshot';
-import { logDeliveryWidgetSnapshotDiagnostic } from './EntregasDoDiaWidgetDiagnostics';
+import {
+  logDeliveryWidgetSnapshotDiagnostic,
+  logEntregasWidgetRuntimeEvent,
+} from './EntregasDoDiaWidgetDiagnostics';
 
 export type DeliverySnapshotSource = Pick<
   typeof firestoreDeliveryDataSource,
@@ -111,6 +114,7 @@ export class EntregasDoDiaSnapshotCoordinator {
   private currentSnapshot: EntregasDoDiaWidgetProps;
   private lastPublishedSnapshot: string | null = null;
   private widgetDriver: DeliveryWidgetDriver | null = null;
+  private hasLoggedRuntimeTimelineReadback = false;
   private readonly reconcilingDates = new Set<string>();
   private readonly unsubscribeDateSnapshots: () => void;
 
@@ -158,6 +162,7 @@ export class EntregasDoDiaSnapshotCoordinator {
       return;
     }
 
+    if (this.isIOS) logEntregasWidgetRuntimeEvent('coordinator_started', true);
     this.activeUid = normalizedUid;
     this.activeSessionVersion = sessionVersion;
     const generation = ++this.generation;
@@ -432,6 +437,10 @@ export class EntregasDoDiaSnapshotCoordinator {
         this.currentSnapshot.deliveries.length,
         true,
       );
+      if (!this.hasLoggedRuntimeTimelineReadback) {
+        this.hasLoggedRuntimeTimelineReadback = true;
+        logEntregasWidgetRuntimeEvent('timeline_publish_succeeded', true);
+      }
     } catch {
       // Widget publishing is best-effort; a later source event or foreground refresh retries it.
       this.lastPublishedSnapshot = null;
@@ -441,6 +450,10 @@ export class EntregasDoDiaSnapshotCoordinator {
         this.currentSnapshot.deliveries.length,
         false,
       );
+      if (!this.hasLoggedRuntimeTimelineReadback) {
+        this.hasLoggedRuntimeTimelineReadback = true;
+        logEntregasWidgetRuntimeEvent('timeline_publish_failed', false);
+      }
     }
   }
 
@@ -490,6 +503,7 @@ export class EntregasDoDiaSnapshotCoordinator {
       const driver = await this.loadWidgetDriver();
       if (generation !== this.generation) return;
       this.widgetDriver = driver;
+      logEntregasWidgetRuntimeEvent('module_loaded', true);
       const uid = this.activeUid;
       const preservedActionTimeline = uid
         ? await this.restoreConfirmedActionTimeline(driver, uid, generation)
@@ -497,6 +511,9 @@ export class EntregasDoDiaSnapshotCoordinator {
       if (generation !== this.generation) return;
       if (!preservedActionTimeline) this.publishTimeline();
     } catch {
+      if (generation === this.generation) {
+        logEntregasWidgetRuntimeEvent('module_load_failed', false);
+      }
       // expo-widgets is an optional native module in Expo Go.
     }
   }

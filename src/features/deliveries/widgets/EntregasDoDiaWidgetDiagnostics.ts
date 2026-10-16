@@ -10,12 +10,23 @@ export type DeliveryWidgetDiagnosticEvent =
   | 'timeline_publish_started'
   | 'timeline_publish_succeeded'
   | 'timeline_publish_failed';
+type WidgetRuntimeEvent =
+  | 'coordinator_started'
+  | 'module_loaded'
+  | 'module_load_failed'
+  | 'timeline_publish_succeeded'
+  | 'timeline_publish_failed';
 
 type NativeDeliveryWidgetDiagnosticsModule = {
   deliverySnapshotEvent(
     event: DeliveryWidgetDiagnosticEvent,
     state: DeliveryWidgetSnapshotState,
     deliveryCount: number,
+    success: boolean,
+  ): void;
+  widgetRuntimeEvent(
+    widgetName: 'EntregasDoDia',
+    event: WidgetRuntimeEvent,
     success: boolean,
   ): void;
 };
@@ -37,5 +48,14 @@ export function logDeliveryWidgetSnapshotDiagnostic(
     nativeDiagnostics.deliverySnapshotEvent(event, state, safeCount, success);
   } catch {
     // Diagnostics are best-effort and must never affect snapshot publication.
+  }
+}
+
+export function logEntregasWidgetRuntimeEvent(event: WidgetRuntimeEvent, success: boolean): void {
+  if (!nativeDiagnostics) return;
+  try {
+    nativeDiagnostics.widgetRuntimeEvent('EntregasDoDia', event, success);
+  } catch {
+    // Runtime state readback is best-effort and must not affect delivery snapshots.
   }
 }

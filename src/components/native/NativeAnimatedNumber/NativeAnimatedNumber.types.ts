@@ -16,6 +16,7 @@ export type NativeAnimatedNumberProps = {
   lineHeight?: number;
   alignment?: NativeAnimatedNumberAlignment;
   horizontalSizing?: NativeAnimatedNumberHorizontalSizing;
+  ignoreSafeArea?: 'all';
   animationEnabled?: boolean;
   style?: StyleProp<TextStyle>;
 };

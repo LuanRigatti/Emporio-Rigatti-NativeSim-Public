@@ -11,6 +11,10 @@ public final class NativeWidgetDiagnosticsModule: Module {
     subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",
     category: "DeliveryWidgetSnapshot"
   )
+  private let widgetRuntimeLogger = os.Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile",
+    category: "WidgetRuntimeDiagnostics"
+  )
 
   public func definition() -> ModuleDefinition {
     Name("NativeWidgetDiagnostics")
@@ -62,6 +66,32 @@ public final class NativeWidgetDiagnosticsModule: Module {
     Function("timelineRead") { (success: Bool, entryCount: Int, validEntryCount: Int) in
       self.logger.info(
         "event=timeline_read source=app success=\(success, privacy: .public) entry_count=\(entryCount, privacy: .public) valid_entry_count=\(validEntryCount, privacy: .public)"
+      )
+    }
+
+    Function("widgetRuntimeEvent") { (widgetName: String, event: String, success: Bool) in
+      let safeWidgetName = ["ResumoFinanceiro", "EntregasDoDia"].contains(widgetName)
+        ? widgetName
+        : "unknown"
+      let safeEvent = [
+        "coordinator_started",
+        "module_loaded",
+        "module_load_failed",
+        "timeline_publish_succeeded",
+        "timeline_publish_failed",
+      ].contains(event) ? event : "unknown"
+      let groupIdentifier =
+        Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
+      let groupContainerAvailable = groupIdentifier.map {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil
+      } ?? false
+      let sharedDefaults = groupIdentifier.flatMap { UserDefaults(suiteName: $0) }
+      let layoutKey = "__expo_widgets_\(safeWidgetName)_layout"
+      let timelineKey = "__expo_widgets_\(safeWidgetName)_timeline"
+      let layoutPresent = sharedDefaults?.string(forKey: layoutKey).map { !$0.isEmpty } ?? false
+      let timelinePresent = sharedDefaults?.array(forKey: timelineKey) != nil
+      self.widgetRuntimeLogger.info(
+        "event=widget_runtime widget=\(safeWidgetName, privacy: .public) stage=\(safeEvent, privacy: .public) success=\(success, privacy: .public) app_group_configured=\(groupIdentifier != nil, privacy: .public) app_group_container=\(groupContainerAvailable, privacy: .public) defaults_suite_available=\(sharedDefaults != nil, privacy: .public) layout_present=\(layoutPresent, privacy: .public) timeline_present=\(timelinePresent, privacy: .public)"
       )
     }
 

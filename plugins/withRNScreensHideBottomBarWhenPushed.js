@@ -38,6 +38,66 @@ function patchFile(filePath, needle, replacement, marker) {
   fs.writeFileSync(filePath, contents.replace(needle, markedReplacement));
 }
 
+function replaceMarkedPatchFragment(filePath, marker, previousFragment, currentFragment) {
+  const contents = fs.readFileSync(filePath, 'utf8');
+  const markerIndex = contents.indexOf(marker);
+
+  if (markerIndex === -1) return;
+
+  const previousIndex = contents.indexOf(previousFragment, markerIndex);
+  if (previousIndex !== -1) {
+    const updatedContents =
+      contents.slice(0, previousIndex) +
+      currentFragment +
+      contents.slice(previousIndex + previousFragment.length);
+    fs.writeFileSync(filePath, updatedContents);
+    return;
+  }
+
+  if (contents.indexOf(currentFragment, markerIndex) !== -1) return;
+
+  throw new Error(`Não foi possível atualizar a integração de toolbar marcada em ${filePath}.`);
+}
+
+function upgradeSharedToolbarUITabResolvers(controller) {
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: shared toolbar ownership capture',
+    'for (UIViewController *tab in self.viewControllers)',
+    'for (UIViewController *tab in [self installedScreenControllers])',
+  );
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: shared tab toolbar index',
+    'if (selectedIndex < self.viewControllers.count) {\n    [self prepareSharedNavigationBarForViewController:self.viewControllers[selectedIndex] reason:@"tab-selection-index"];\n  }',
+    'NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];\n  if (selectedIndex < installedControllers.count) {\n    [self prepareSharedNavigationBarForViewController:installedControllers[selectedIndex] reason:@"tab-selection-index"];\n  }',
+  );
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: shared tab toolbar controller',
+    'NSInteger tabIndex = [self.viewControllers indexOfObject:viewController];',
+    'NSInteger tabIndex = [[self installedScreenControllers] indexOfObject:viewController];',
+  );
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: Home toolbar replacement policy',
+    'BOOL isSelectedHomeTab = tabIndex == 0 && self.selectedIndex == (NSUInteger)tabIndex;',
+    'BOOL isSelectedHomeTab = tabIndex == 0 && [self isScreenControllerCurrentlySelected:viewController];',
+  );
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: shared toolbar ownership reconcile',
+    '(isTransitionCompletion || (self.selectedViewController == viewController &&',
+    '(isTransitionCompletion || ([self isScreenControllerCurrentlySelected:viewController] &&',
+  );
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: shared tab toolbar controller',
+    'if (self.selectedViewController != nil) {\n    [self prepareSharedNavigationBarForViewController:self.selectedViewController reason:reason];\n  }',
+    'UIViewController *selectedViewController = [self effectiveSelectedViewController];\n  if (selectedViewController != nil) {\n    [self prepareSharedNavigationBarForViewController:selectedViewController reason:reason];\n  }',
+  );
+}
+
 function patchSharedToolbarOwnership(screensRoot) {
   const header = path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.h');
   const controller = path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm');
@@ -45,6 +105,15 @@ function patchSharedToolbarOwnership(screensRoot) {
   const stack = path.join(screensRoot, 'ios', 'RNSScreenStack.mm');
   const patch = (file, needle, replacement, name) =>
     patchFile(file, needle, replacement, `Emporio Rigatti: shared toolbar ownership ${name}`);
+
+  upgradeSharedToolbarUITabResolvers(controller);
+
+  patch(
+    controller,
+    '@property (nonatomic, readwrite) BOOL shouldProgressStateOnMoreNavigationControllerPush;',
+    `@property (nonatomic, readwrite) BOOL shouldProgressStateOnMoreNavigationControllerPush;\n- (nonnull NSArray<RNSTabsScreenViewController *> *)installedScreenControllers;\n- (nullable UIViewController *)effectiveSelectedViewController;\n- (BOOL)isScreenControllerCurrentlySelected:(nonnull UIViewController *)screenController;`,
+    'resolvers',
+  );
 
   patch(
     header,
@@ -82,7 +151,7 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
   if (navigationController == nil || navigationController.viewControllers.count != 1 ||
       navigationController.topViewController != viewController) return;
   BOOL isTabSource = NO;
-  for (UIViewController *tab in self.viewControllers) {
+  for (UIViewController *tab in [self installedScreenControllers]) {
     if (RNSFindNestedNavigationController(tab) == navigationController) {
       isTabSource = YES;
       break;
@@ -139,7 +208,7 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
     `  [sharedNavigationController setNavigationBarHidden:NO animated:NO];
   UINavigationBar *bar = sharedNavigationController.navigationBar;
   BOOL canCheckAttachment = bar.window != nil &&
-      (isTransitionCompletion || (self.selectedViewController == viewController &&
+      (isTransitionCompletion || ([self isScreenControllerCurrentlySelected:viewController] &&
        nestedNavigationController.topViewController.viewIfLoaded.window != nil &&
        (!shouldAnimateToolbarItemReplacement ||
         (RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems) &&
@@ -236,8 +305,12 @@ static RNSTabBarController *RNSFindSharedToolbarTabsController(UIViewController 
   );
 }
 
-function patchRNScreens() {
-  const screensRoot = path.dirname(require.resolve('react-native-screens/package.json'));
+function patchRNScreens(
+  screensRoot = path.dirname(require.resolve('react-native-screens/package.json')),
+) {
+  if (require(path.join(screensRoot, 'package.json')).version !== '4.30.0') {
+    throw new Error('A integração de toolbar foi validada para react-native-screens 4.30.0.');
+  }
 
   patchFile(
     path.join(screensRoot, 'src', 'fabric', 'ScreenNativeComponent.ts'),
@@ -277,7 +350,7 @@ function patchRNScreens() {
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
     '#pragma mark - Signals\n',
-    `// ${PATCH_MARKERS.sharedToolbarController}\nstatic UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)\n{\n  for (UIViewController *childViewController in rootViewController.childViewControllers) {\n    if ([childViewController isKindOfClass:[UINavigationController class]]) {\n      return static_cast<UINavigationController *>(childViewController);\n    }\n\n    UINavigationController *nestedNavigationController =\n        RNSFindNestedNavigationController(childViewController);\n    if (nestedNavigationController != nil) {\n      return nestedNavigationController;\n    }\n  }\n\n  return nil;\n}\n\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason\n{\n  NSInteger tabIndex = [self.viewControllers indexOfObject:viewController];\n  if (![viewController isKindOfClass:[RNSTabsScreenViewController class]]) {\n    return;\n  }\n\n  UIViewController *tabsScreenViewController = self.parentViewController;\n  UINavigationController *sharedNavigationController = tabsScreenViewController.navigationController;\n  if (sharedNavigationController == nil ||\n      sharedNavigationController.topViewController != tabsScreenViewController) {\n    return;\n  }\n\n  UINavigationController *nestedNavigationController =\n      RNSFindNestedNavigationController(viewController);\n  BOOL isTabRoot = nestedNavigationController == nil || nestedNavigationController.viewControllers.count <= 1;\n\n  if (!isTabRoot) {\n    [sharedNavigationController setNavigationBarHidden:YES animated:NO];\n    [nestedNavigationController setNavigationBarHidden:NO animated:NO];\n    return;\n  }\n\n  if (nestedNavigationController != nil) {\n    // The nested stack remains the source of the native items, but its root bar must not\n    // compete with the single shared bar owned by the (tabs) screen.\n    [nestedNavigationController setNavigationBarHidden:YES animated:NO];\n  }\n\n  UINavigationItem *sharedNavigationItem = sharedNavigationController.topViewController.navigationItem;\n  UINavigationItem *sourceNavigationItem = nestedNavigationController.topViewController.navigationItem;\n  NSArray<UIBarButtonItem *> *leftItems = sourceNavigationItem.leftBarButtonItems ?: @[];\n  NSArray<UIBarButtonItem *> *rightItems = sourceNavigationItem.rightBarButtonItems ?: @[];\n\n  if (![sharedNavigationItem.leftBarButtonItems isEqualToArray:leftItems]) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:YES];\n  }\n  if (![sharedNavigationItem.rightBarButtonItems isEqualToArray:rightItems]) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:YES];\n  }\n\n  // Items are installed before the shared bar is revealed or the tab controller changes\n  // its visible child, so UIKit can animate the same UINavigationBar transition.\n  [sharedNavigationController setNavigationBarHidden:NO animated:NO];\n}\n\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason\n{\n  if (self.selectedViewController != nil) {\n    [self prepareSharedNavigationBarForViewController:self.selectedViewController reason:reason];\n  }\n}\n\n#pragma mark - Signals\n`,
+    `// ${PATCH_MARKERS.sharedToolbarController}\nstatic UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)\n{\n  for (UIViewController *childViewController in rootViewController.childViewControllers) {\n    if ([childViewController isKindOfClass:[UINavigationController class]]) {\n      return static_cast<UINavigationController *>(childViewController);\n    }\n\n    UINavigationController *nestedNavigationController =\n        RNSFindNestedNavigationController(childViewController);\n    if (nestedNavigationController != nil) {\n      return nestedNavigationController;\n    }\n  }\n\n  return nil;\n}\n\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason\n{\n  NSInteger tabIndex = [[self installedScreenControllers] indexOfObject:viewController];\n  if (![viewController isKindOfClass:[RNSTabsScreenViewController class]]) {\n    return;\n  }\n\n  UIViewController *tabsScreenViewController = self.parentViewController;\n  UINavigationController *sharedNavigationController = tabsScreenViewController.navigationController;\n  if (sharedNavigationController == nil ||\n      sharedNavigationController.topViewController != tabsScreenViewController) {\n    return;\n  }\n\n  UINavigationController *nestedNavigationController =\n      RNSFindNestedNavigationController(viewController);\n  BOOL isTabRoot = nestedNavigationController == nil || nestedNavigationController.viewControllers.count <= 1;\n\n  if (!isTabRoot) {\n    [sharedNavigationController setNavigationBarHidden:YES animated:NO];\n    [nestedNavigationController setNavigationBarHidden:NO animated:NO];\n    return;\n  }\n\n  if (nestedNavigationController != nil) {\n    // The nested stack remains the source of the native items, but its root bar must not\n    // compete with the single shared bar owned by the (tabs) screen.\n    [nestedNavigationController setNavigationBarHidden:YES animated:NO];\n  }\n\n  UINavigationItem *sharedNavigationItem = sharedNavigationController.topViewController.navigationItem;\n  UINavigationItem *sourceNavigationItem = nestedNavigationController.topViewController.navigationItem;\n  NSArray<UIBarButtonItem *> *leftItems = sourceNavigationItem.leftBarButtonItems ?: @[];\n  NSArray<UIBarButtonItem *> *rightItems = sourceNavigationItem.rightBarButtonItems ?: @[];\n\n  if (![sharedNavigationItem.leftBarButtonItems isEqualToArray:leftItems]) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:YES];\n  }\n  if (![sharedNavigationItem.rightBarButtonItems isEqualToArray:rightItems]) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:YES];\n  }\n\n  // Items are installed before the shared bar is revealed or the tab controller changes\n  // its visible child, so UIKit can animate the same UINavigationBar transition.\n  [sharedNavigationController setNavigationBarHidden:NO animated:NO];\n}\n\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason\n{\n  UIViewController *selectedViewController = [self effectiveSelectedViewController];\n  if (selectedViewController != nil) {\n    [self prepareSharedNavigationBarForViewController:selectedViewController reason:reason];\n  }\n}\n\n#pragma mark - Signals\n`,
     PATCH_MARKERS.sharedToolbarController,
   );
 
@@ -291,14 +364,14 @@ function patchRNScreens() {
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
     `  if (![sharedNavigationItem.leftBarButtonItems isEqualToArray:leftItems]) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:YES];\n  }\n  if (![sharedNavigationItem.rightBarButtonItems isEqualToArray:rightItems]) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:YES];\n  }`,
-    `  // ${PATCH_MARKERS.homeToolbarReplacementPolicy}\n  NSArray<UIBarButtonItem *> *sharedLeftItems = sharedNavigationItem.leftBarButtonItems ?: @[];\n  NSArray<UIBarButtonItem *> *sharedRightItems = sharedNavigationItem.rightBarButtonItems ?: @[];\n  BOOL isSelectedHomeTab = tabIndex == 0 && self.selectedIndex == (NSUInteger)tabIndex;\n  BOOL isHeaderMaterializationResync = [reason isEqualToString:@"header-materialization/resync"];\n  BOOL areCompleteToolbarSetsSemanticallyEqual = RNSHomeToolbarItemSetsAreSemanticallyEqual(\n      leftItems, rightItems, sharedLeftItems, sharedRightItems);\n  BOOL shouldAnimateToolbarItemReplacement =\n      !(isSelectedHomeTab && isHeaderMaterializationResync && areCompleteToolbarSetsSemanticallyEqual);\n\n  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement];\n  }\n  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement];\n  }`,
+    `  // ${PATCH_MARKERS.homeToolbarReplacementPolicy}\n  NSArray<UIBarButtonItem *> *sharedLeftItems = sharedNavigationItem.leftBarButtonItems ?: @[];\n  NSArray<UIBarButtonItem *> *sharedRightItems = sharedNavigationItem.rightBarButtonItems ?: @[];\n  BOOL isSelectedHomeTab = tabIndex == 0 && [self isScreenControllerCurrentlySelected:viewController];\n  BOOL isHeaderMaterializationResync = [reason isEqualToString:@"header-materialization/resync"];\n  BOOL areCompleteToolbarSetsSemanticallyEqual = RNSHomeToolbarItemSetsAreSemanticallyEqual(\n      leftItems, rightItems, sharedLeftItems, sharedRightItems);\n  BOOL shouldAnimateToolbarItemReplacement =\n      !(isSelectedHomeTab && isHeaderMaterializationResync && areCompleteToolbarSetsSemanticallyEqual);\n\n  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement];\n  }\n  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement];\n  }`,
     PATCH_MARKERS.homeToolbarReplacementPolicy,
   );
 
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
     '- (void)setSelectedIndex:(NSUInteger)selectedIndex\n{\n  [super setSelectedIndex:selectedIndex];\n',
-    `// ${PATCH_MARKERS.sharedToolbarIndex}\n- (void)setSelectedIndex:(NSUInteger)selectedIndex\n{\n  if (selectedIndex < self.viewControllers.count) {\n    [self prepareSharedNavigationBarForViewController:self.viewControllers[selectedIndex] reason:@"tab-selection-index"];\n  }\n  [super setSelectedIndex:selectedIndex];\n`,
+    `// ${PATCH_MARKERS.sharedToolbarIndex}\n- (void)setSelectedIndex:(NSUInteger)selectedIndex\n{\n  NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];\n  if (selectedIndex < installedControllers.count) {\n    [self prepareSharedNavigationBarForViewController:installedControllers[selectedIndex] reason:@"tab-selection-index"];\n  }\n  [super setSelectedIndex:selectedIndex];\n`,
     PATCH_MARKERS.sharedToolbarIndex,
   );
 
@@ -370,8 +443,14 @@ function withRNScreensHideBottomBarWhenPushed(config) {
   ]);
 }
 
-module.exports = createRunOncePlugin(
+const withRNScreensHideBottomBarWhenPushedPlugin = createRunOncePlugin(
   withRNScreensHideBottomBarWhenPushed,
   'with-rnscreens-hide-bottom-bar-when-pushed',
-  '1.2.0',
+  '1.3.0',
 );
+
+Object.defineProperty(withRNScreensHideBottomBarWhenPushedPlugin, '__patchRNScreensForTests', {
+  value: patchRNScreens,
+});
+
+module.exports = withRNScreensHideBottomBarWhenPushedPlugin;

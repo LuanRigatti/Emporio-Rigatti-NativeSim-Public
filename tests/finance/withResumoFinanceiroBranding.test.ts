@@ -86,6 +86,7 @@ function createTemporaryProject() {
     'package.json',
     'ios/Widgets/Utils.swift',
     'ios/Widgets/EntryView.swift',
+    'ios/Widgets/TimelineProvider.swift',
   ]) {
     const sourcePath = path.join(actualExpoWidgetsPackageRoot, fileName);
     const destinationPath = path.join(packageRoot, fileName);
@@ -121,8 +122,8 @@ async function generateRealExpoWidgetsTarget(iosRoot: string) {
   return path.join(iosRoot, 'ExpoWidgetsTarget');
 }
 
-describe('ResumoFinanceiro branding CNG transform', () => {
-  it('injects the App Group directory through the real shared Expo Widgets environment helper', async () => {
+describe('Expo Widgets iOS CNG transform', () => {
+  it('adds App Group image resolution and idempotent runtime diagnostics to SDK 58 sources', async () => {
     const { iosRoot, packageRoot } = createTemporaryProject();
     const targetDirectory = await generateRealExpoWidgetsTarget(iosRoot);
     const financeSource = fs.readFileSync(
@@ -150,7 +151,13 @@ describe('ResumoFinanceiro branding CNG transform', () => {
 
     transformExpoWidgetsTarget(iosRoot, packageRoot);
     const utilsPath = path.join(packageRoot, 'ios/Widgets/Utils.swift');
+    const entryViewPath = path.join(packageRoot, 'ios/Widgets/EntryView.swift');
+    const providerPath = path.join(packageRoot, 'ios/Widgets/TimelineProvider.swift');
+    const financeWidgetPath = path.join(targetDirectory, 'ResumoFinanceiro.swift');
     const firstPass = fs.readFileSync(utilsPath, 'utf8');
+    const firstPassEntryView = fs.readFileSync(entryViewPath, 'utf8');
+    const firstPassProvider = fs.readFileSync(providerPath, 'utf8');
+    const firstPassFinanceWidget = fs.readFileSync(financeWidgetPath, 'utf8');
 
     expect(firstPass).toContain('import Foundation');
     expect(firstPass).toContain('// ResumoFinanceiro shared branding image directory');
@@ -164,9 +171,32 @@ describe('ResumoFinanceiro branding CNG transform', () => {
     expect(firstPass).toContain(
       'appGroupContainer.appendingPathComponent("ExpoWidgets", isDirectory: true)',
     );
+    expect(firstPassEntryView).toContain('event=widget_extension_entry');
+    expect(firstPassEntryView).toContain('import Foundation');
+    expect(firstPassEntryView).toContain('import os');
+    expect(firstPassEntryView).toContain('private let diagnosticsLogger = os.Logger(');
+    expect(firstPassEntryView).toContain('event=layout_evaluation');
+    expect(firstPassEntryView).toContain('event=empty_widget_view');
+    expect(firstPassProvider).toContain('event=timeline_placeholder');
+    expect(firstPassProvider).toContain('event=timeline_snapshot');
+    expect(firstPassProvider).toContain('event=timeline_refresh');
+    expect(firstPassEntryView).toContain('event=layout_lookup');
+    expect(firstPassEntryView).toContain('source=\\(layoutSource, privacy: .public)');
+    expect(firstPassEntryView).toContain('app_group_container=');
+    expect(firstPassFinanceWidget).toContain(
+      'event=widget_extension_entry widget=ResumoFinanceiro',
+    );
+    expect(firstPassFinanceWidget).toContain(
+      'private let resumoFinanceiroWidgetDiagnosticsLogger = os.Logger(',
+    );
+    expect(firstPassFinanceWidget).toContain('event=empty_widget_view widget=ResumoFinanceiro');
+    expect(firstPassFinanceWidget).toContain('event=layout_evaluation widget=ResumoFinanceiro');
 
     transformExpoWidgetsTarget(iosRoot, packageRoot);
     expect(fs.readFileSync(utilsPath, 'utf8')).toBe(firstPass);
+    expect(fs.readFileSync(entryViewPath, 'utf8')).toBe(firstPassEntryView);
+    expect(fs.readFileSync(providerPath, 'utf8')).toBe(firstPassProvider);
+    expect(fs.readFileSync(financeWidgetPath, 'utf8')).toBe(firstPassFinanceWidget);
   });
 
   it('transforms the actual installed Utils.swift template without changing its line ending style', () => {

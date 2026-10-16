@@ -5,6 +5,7 @@ const { withDangerousMod } = require('expo/config-plugins');
 const EXPO_WIDGETS_VERSION = '58.0.19';
 const WIDGET_SOURCE_NAMES = ['ResumoFinanceiro.swift', 'EntregasDoDia.swift'];
 const BRANDING_MARKER = '// ResumoFinanceiro shared branding image directory';
+const RUNTIME_DIAGNOSTICS_MARKER = '// Rigatti WidgetKit runtime diagnostics';
 const ENVIRONMENT_HELPER_ANCHOR =
   'public func getWidgetEnvironment(environment: EnvironmentValues) -> [String: Any] {';
 const ENVIRONMENT_INSERTION_ANCHOR = '  if #available(iOS 17.0, *) {';
@@ -46,6 +47,263 @@ function ensureFoundationImport(source) {
     `${importAnchor}import Foundation\n`,
     'Foundation import',
   );
+}
+
+function ensureSwiftImport(source, importName, anchor) {
+  const importLine = `import ${importName}\n`;
+  const count = countOccurrences(source, importLine);
+  if (count === 1) return source;
+  if (count > 1) {
+    throw new Error(`Widget runtime diagnostics found duplicate ${importName} imports.`);
+  }
+  return replaceExactlyOnce(source, anchor, `${anchor}${importLine}`, `${importName} import`);
+}
+
+function transformSharedWidgetEntryViewSource(source) {
+  const markerCount = countOccurrences(source, RUNTIME_DIAGNOSTICS_MARKER);
+  if (markerCount > 0) {
+    const expected = [
+      'event=widget_extension_entry',
+      'event=layout_evaluation',
+      'event=empty_widget_view',
+    ];
+    if (
+      markerCount !== 1 ||
+      expected.some((fragment) => countOccurrences(source, fragment) !== 1) ||
+      countOccurrences(source, 'event=layout_lookup') !== 2 ||
+      countOccurrences(source, 'widgetDiagnosticsName(entry.name)') < 3
+    ) {
+      throw new Error(
+        'Widget runtime diagnostics found partial shared entry view instrumentation.',
+      );
+    }
+    return source;
+  }
+
+  let transformed = ensureSwiftImport(source, 'os', 'import WidgetKit\n');
+  transformed = ensureSwiftImport(transformed, 'Foundation', 'import os\n');
+  const viewAnchor = 'public struct WidgetsEntryView: View {\n';
+  transformed = replaceExactlyOnce(
+    transformed,
+    viewAnchor,
+    `${viewAnchor}  ${RUNTIME_DIAGNOSTICS_MARKER}\n` +
+      '  private let diagnosticsLogger = os.Logger(\n' +
+      '    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
+      '    category: "WidgetRenderDiagnostics"\n' +
+      '  )\n\n' +
+      '  private func widgetDiagnosticsName(_ name: String) -> String {\n' +
+      '    ["ResumoFinanceiro", "EntregasDoDia"].contains(name) ? name : "other"\n' +
+      '  }\n\n' +
+      '  private func widgetAppGroupContainerAvailable() -> Bool {\n' +
+      '    guard let groupIdentifier = WidgetsStorage.appGroupIdentifier else { return false }\n' +
+      '    return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupIdentifier) != nil\n' +
+      '  }\n',
+    'shared widget entry view diagnostics logger',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    self.entry = entry\n',
+    '    self.entry = entry\n' +
+      '    diagnosticsLogger.info("event=widget_extension_entry widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")\n',
+    'shared widget entry initialization log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n',
+    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
+      '      let dynamicLayoutPresent = WidgetsStorage.getString(forKey: "__expo_widgets_\\(entry.name)_layout").map { !$0.isEmpty } ?? false\n' +
+      '      let layoutSource = dynamicLayoutPresent ? "app_group" : "embedded"\n' +
+      '      diagnosticsLogger.info("event=layout_lookup widget=\\(widgetDiagnosticsName(entry.name), privacy: .public) source=\\(layoutSource, privacy: .public) app_group_configured=\\(WidgetsStorage.appGroupIdentifier != nil, privacy: .public) app_group_container=\\(widgetAppGroupContainerAvailable(), privacy: .public)")\n',
+    'shared widget layout lookup log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n',
+    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n' +
+      '      let evaluationSucceeded = (node["type"] as? String) != "RedBoxView"\n' +
+      '      diagnosticsLogger.info("event=layout_evaluation widget=\\(widgetDiagnosticsName(entry.name), privacy: .public) success=\\(evaluationSucceeded, privacy: .public)")\n',
+    'shared widget layout evaluation log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    } else {\n      // No layout is stored until the app has run once after install or\n',
+    '    } else {\n' +
+      '      diagnosticsLogger.info("event=layout_lookup widget=\\(widgetDiagnosticsName(entry.name), privacy: .public) source=missing app_group_configured=\\(WidgetsStorage.appGroupIdentifier != nil, privacy: .public) app_group_container=\\(widgetAppGroupContainerAvailable(), privacy: .public)")\n' +
+      '      diagnosticsLogger.info("event=empty_widget_view widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")\n' +
+      '      // No layout is stored until the app has run once after install or\n',
+    'shared empty widget view log',
+  );
+  return transformed;
+}
+
+function transformSharedWidgetTimelineProviderSource(source) {
+  const markerCount = countOccurrences(source, RUNTIME_DIAGNOSTICS_MARKER);
+  if (markerCount > 0) {
+    const expected = [
+      'event=timeline_placeholder',
+      'event=timeline_snapshot',
+      'event=timeline_refresh',
+      'app_group_configured=',
+    ];
+    if (markerCount !== 1 || expected.some((fragment) => countOccurrences(source, fragment) < 1)) {
+      throw new Error(
+        'Widget runtime diagnostics found partial shared timeline provider instrumentation.',
+      );
+    }
+    return source;
+  }
+
+  let transformed = ensureSwiftImport(source, 'os', 'import WidgetKit\n');
+  transformed = ensureSwiftImport(transformed, 'Foundation', 'import os\n');
+  const providerAnchor = 'public struct WidgetsTimelineProvider: TimelineProvider {\n';
+  transformed = replaceExactlyOnce(
+    transformed,
+    providerAnchor,
+    `${providerAnchor}  ${RUNTIME_DIAGNOSTICS_MARKER}\n` +
+      '  private let diagnosticsLogger = os.Logger(\n' +
+      '    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
+      '    category: "WidgetRenderDiagnostics"\n' +
+      '  )\n\n' +
+      '  private func widgetDiagnosticsName(_ name: String) -> String {\n' +
+      '    ["ResumoFinanceiro", "EntregasDoDia"].contains(name) ? name : "other"\n' +
+      '  }\n',
+    'shared timeline provider diagnostics logger',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil)\n',
+    '    diagnosticsLogger.info("event=timeline_placeholder widget=\\(widgetDiagnosticsName(name), privacy: .public)")\n' +
+      '    return WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil)\n',
+    'shared timeline placeholder log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    guard let groupIdentifier else {\n      completion(WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil))\n      return\n',
+    '    guard let groupIdentifier else {\n' +
+      '      diagnosticsLogger.info("event=timeline_snapshot widget=\\(widgetDiagnosticsName(name), privacy: .public) app_group_configured=false")\n' +
+      '      completion(WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil))\n' +
+      '      return\n',
+    'shared snapshot missing app group log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    let entries = parseTimeline(identifier: groupIdentifier, name: name, family: context.family)\n    completion(entries.first ?? WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil))\n',
+    '    let entries = parseTimeline(identifier: groupIdentifier, name: name, family: context.family)\n' +
+      '    diagnosticsLogger.info("event=timeline_snapshot widget=\\(widgetDiagnosticsName(name), privacy: .public) app_group_configured=true timeline_present=\\(WidgetsStorage.getArray(forKey: "__expo_widgets_\\(name)_timeline") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")\n' +
+      '    completion(entries.first ?? WidgetsTimelineEntry(date: Date(), name: name, props: WidgetsLayoutRegistry.initialProps(for: name), entryIndex: nil))\n',
+    'shared snapshot timeline read log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    guard let groupIdentifier else {\n      fatalError("Could not get the app group identifier from Info.plist")\n',
+    '    guard let groupIdentifier else {\n' +
+      '      diagnosticsLogger.error("event=timeline_refresh widget=\\(widgetDiagnosticsName(name), privacy: .public) app_group_configured=false")\n' +
+      '      fatalError("Could not get the app group identifier from Info.plist")\n',
+    'shared timeline missing app group log',
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    let timeline = Timeline<WidgetsTimelineEntry>(entries: entries, policy: .atEnd)\n',
+    '    diagnosticsLogger.info("event=timeline_refresh widget=\\(widgetDiagnosticsName(name), privacy: .public) app_group_configured=true timeline_present=\\(WidgetsStorage.getArray(forKey: "__expo_widgets_\\(name)_timeline") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")\n' +
+      '    let timeline = Timeline<WidgetsTimelineEntry>(entries: entries, policy: .atEnd)\n',
+    'shared timeline refresh log',
+  );
+  return transformed;
+}
+
+function transformConfigurableWidgetSource(source, widgetName) {
+  const marker = `${RUNTIME_DIAGNOSTICS_MARKER}: ${widgetName}`;
+  const markerCount = countOccurrences(source, marker);
+  if (markerCount > 0) {
+    const expected = [
+      'event=timeline_placeholder',
+      'event=timeline_snapshot',
+      'event=timeline_refresh',
+      'event=widget_extension_entry',
+      'event=layout_evaluation',
+      'event=empty_widget_view',
+    ];
+    if (
+      markerCount !== 1 ||
+      expected.some((fragment) => countOccurrences(source, fragment) !== 1) ||
+      countOccurrences(source, 'event=layout_lookup') !== 2
+    ) {
+      throw new Error(`Widget runtime diagnostics found partial ${widgetName} instrumentation.`);
+    }
+    return source;
+  }
+
+  let transformed = ensureSwiftImport(source, 'os', 'import WidgetKit\n');
+  transformed = ensureSwiftImport(transformed, 'Foundation', 'import os\n');
+  const loggerName = `${widgetName[0].toLowerCase()}${widgetName.slice(1)}WidgetDiagnosticsLogger`;
+  const entryAnchor = `struct ${widgetName}TimelineEntry: TimelineEntry {\n`;
+  transformed = replaceExactlyOnce(
+    transformed,
+    entryAnchor,
+    `${marker}\nprivate let ${loggerName} = os.Logger(\n` +
+      '  subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
+      '  category: "WidgetRenderDiagnostics"\n' +
+      ')\n\n' +
+      entryAnchor,
+    `${widgetName} diagnostics logger`,
+  );
+
+  const logAtFunctionStart = (signature, statement, label) => {
+    transformed = replaceExactlyOnce(
+      transformed,
+      `${signature}\n`,
+      `${signature}\n    ${statement}\n`,
+      label,
+    );
+  };
+  logAtFunctionStart(
+    `  func placeholder(in context: Context) -> ${widgetName}TimelineEntry {`,
+    `${loggerName}.info("event=timeline_placeholder widget=${widgetName}")`,
+    `${widgetName} placeholder log`,
+  );
+
+  const timelineReadAnchor = `    let entries = parseTimeline(configuration: configuration)\n`;
+  transformed = replaceExactlyOnce(
+    transformed,
+    timelineReadAnchor,
+    `${timelineReadAnchor}    ${loggerName}.info("event=timeline_snapshot widget=${widgetName} timeline_present=\\(WidgetsStorage.getArray(forKey: \"__expo_widgets_${widgetName}_timeline\") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")\n`,
+    `${widgetName} snapshot log`,
+  );
+  const timelineRefreshAnchor = `    let entries = self.parseTimeline(configuration: configuration)\n`;
+  transformed = replaceExactlyOnce(
+    transformed,
+    timelineRefreshAnchor,
+    `${timelineRefreshAnchor}    ${loggerName}.info("event=timeline_refresh widget=${widgetName} timeline_present=\\(WidgetsStorage.getArray(forKey: \"__expo_widgets_${widgetName}_timeline\") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")\n`,
+    `${widgetName} timeline refresh log`,
+  );
+
+  transformed = replaceExactlyOnce(
+    transformed,
+    `    self.entry = entry\n`,
+    `    self.entry = entry\n    ${loggerName}.info("event=widget_extension_entry widget=${widgetName}")\n`,
+    `${widgetName} entry initialization log`,
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n',
+    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
+      `      let dynamicLayoutPresent = WidgetsStorage.getString(forKey: "__expo_widgets_\\(entry.name)_layout").map { !$0.isEmpty } ?? false\n      let groupIdentifier = WidgetsStorage.appGroupIdentifier\n      let appGroupContainerAvailable = groupIdentifier.map { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil } ?? false\n      let layoutSource = dynamicLayoutPresent ? "app_group" : "embedded"\n      ${loggerName}.info("event=layout_lookup widget=${widgetName} source=\\(layoutSource, privacy: .public) app_group_configured=\\(groupIdentifier != nil, privacy: .public) app_group_container=\\(appGroupContainerAvailable, privacy: .public)")\n`,
+    `${widgetName} layout lookup log`,
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n',
+    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n' +
+      `      let evaluationSucceeded = (node["type"] as? String) != "RedBoxView"\n      ${loggerName}.info("event=layout_evaluation widget=${widgetName} success=\\(evaluationSucceeded, privacy: .public)")\n`,
+    `${widgetName} layout evaluation log`,
+  );
+  transformed = replaceExactlyOnce(
+    transformed,
+    '    } else {\n      EmptyWidgetView()\n',
+    `    } else {\n      let groupIdentifier = WidgetsStorage.appGroupIdentifier\n      let appGroupContainerAvailable = groupIdentifier.map { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil } ?? false\n      ${loggerName}.info("event=layout_lookup widget=${widgetName} source=missing app_group_configured=\\(groupIdentifier != nil, privacy: .public) app_group_container=\\(appGroupContainerAvailable, privacy: .public)")\n      ${loggerName}.info("event=empty_widget_view widget=${widgetName}")\n      EmptyWidgetView()\n`,
+    `${widgetName} empty widget view log`,
+  );
+  return transformed;
 }
 
 function transformExpoWidgetsUtilsSource(source) {
@@ -197,6 +455,31 @@ function transformExpoWidgetsTarget(projectRoot, packageRoot) {
   if (transformedUtils !== originalUtils) {
     fs.writeFileSync(utilsPath, transformedUtils);
   }
+
+  const diagnosticsSources = [
+    {
+      filePath: path.join(targetDirectory, 'ResumoFinanceiro.swift'),
+      label: 'ResumoFinanceiro.swift',
+      transform: (source) => transformConfigurableWidgetSource(source, 'ResumoFinanceiro'),
+    },
+    {
+      filePath: path.join(resolvedPackageRoot, 'ios', 'Widgets', 'EntryView.swift'),
+      label: 'shared WidgetsEntryView',
+      transform: transformSharedWidgetEntryViewSource,
+    },
+    {
+      filePath: path.join(resolvedPackageRoot, 'ios', 'Widgets', 'TimelineProvider.swift'),
+      label: 'shared WidgetsTimelineProvider',
+      transform: transformSharedWidgetTimelineProviderSource,
+    },
+  ];
+  for (const { filePath, label, transform } of diagnosticsSources) {
+    const originalSource = readRequiredSource(filePath, label);
+    const transformedSource = transform(originalSource);
+    if (transformedSource !== originalSource) {
+      fs.writeFileSync(filePath, transformedSource);
+    }
+  }
 }
 
 function withResumoFinanceiroBranding(config) {
@@ -213,3 +496,7 @@ function withResumoFinanceiroBranding(config) {
 module.exports = withResumoFinanceiroBranding;
 module.exports.transformExpoWidgetsUtilsSource = transformExpoWidgetsUtilsSource;
 module.exports.transformExpoWidgetsTarget = transformExpoWidgetsTarget;
+module.exports.transformSharedWidgetEntryViewSource = transformSharedWidgetEntryViewSource;
+module.exports.transformSharedWidgetTimelineProviderSource =
+  transformSharedWidgetTimelineProviderSource;
+module.exports.transformConfigurableWidgetSource = transformConfigurableWidgetSource;

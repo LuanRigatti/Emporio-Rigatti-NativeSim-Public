@@ -19,6 +19,7 @@ export default function NativeAnimatedNumberSwiftUI({
   fontSize = 32,
   fontWeight = 'bold',
   horizontalSizing = 'intrinsic',
+  ignoreSafeArea,
   lineHeight = 38,
   style,
   text,
@@ -45,6 +46,7 @@ export default function NativeAnimatedNumberSwiftUI({
 
   return (
     <Host
+      ignoreSafeArea={ignoreSafeArea}
       matchContents={hostMatchContents}
       style={[
         { minHeight: lineHeight, width: useIntrinsicHorizontalSize ? undefined : '100%' },

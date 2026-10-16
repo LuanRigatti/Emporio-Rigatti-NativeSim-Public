@@ -36,6 +36,7 @@ import {
 import {
   recordFinanceWidgetPublishResult,
   recordFinanceWidgetPublishStart,
+  recordFinanceWidgetRuntimeEvent,
   recordFinanceWidgetTimelineRead,
 } from './ResumoFinanceiroWidgetDiagnostics';
 
@@ -77,6 +78,7 @@ class ResumoFinanceiroSnapshotCoordinator {
   private activeSessionScopeKey: string | null = null;
   private generation = 0;
   private wholesaleRevision = 0;
+  private hasLoggedRuntimeTimelineReadback = false;
   private updateWidgetTimeline:
     ((entries: WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[]) => void) | null = null;
   private readWidgetTimeline:
@@ -102,6 +104,7 @@ class ResumoFinanceiroSnapshotCoordinator {
       return;
     }
 
+    recordFinanceWidgetRuntimeEvent('coordinator_started', true);
     this.activeUid = normalizedUid;
     this.activeSessionVersion = sessionVersion;
     this.activeSessionScopeKey = nextSessionScopeKey;
@@ -278,8 +281,16 @@ class ResumoFinanceiroSnapshotCoordinator {
     try {
       updateWidgetTimeline(entries);
       recordFinanceWidgetPublishResult(true, 'update_timeline');
+      if (!this.hasLoggedRuntimeTimelineReadback) {
+        this.hasLoggedRuntimeTimelineReadback = true;
+        recordFinanceWidgetRuntimeEvent('timeline_publish_succeeded', true);
+      }
     } catch (error) {
       recordFinanceWidgetPublishResult(false, 'update_timeline', error);
+      if (!this.hasLoggedRuntimeTimelineReadback) {
+        this.hasLoggedRuntimeTimelineReadback = true;
+        recordFinanceWidgetRuntimeEvent('timeline_publish_failed', false);
+      }
       throw error;
     }
     this.recordPublishedTimelineRead();
@@ -294,10 +305,12 @@ class ResumoFinanceiroSnapshotCoordinator {
       this.updateWidgetTimeline =
         resumoFinanceiroWidget.updateTimeline.bind(resumoFinanceiroWidget);
       this.readWidgetTimeline = resumoFinanceiroWidget.getTimeline.bind(resumoFinanceiroWidget);
+      recordFinanceWidgetRuntimeEvent('module_loaded', true);
       this.publishTimeline();
     } catch {
       if (!this.updateWidgetTimeline) {
         recordFinanceWidgetPublishResult(false, 'widget_module_load');
+        recordFinanceWidgetRuntimeEvent('module_load_failed', false);
       }
       // expo-widgets is an optional native module in Expo Go.
     }

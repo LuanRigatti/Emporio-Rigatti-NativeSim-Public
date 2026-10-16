@@ -4,6 +4,12 @@ import type { WidgetTimelineEntry } from 'expo-widgets';
 import type { ResumoFinanceiroWidgetTimelineProps } from './ResumoFinanceiroSnapshot';
 
 type PublishStage = 'update_timeline' | 'widget_module_load';
+type WidgetRuntimeEvent =
+  | 'coordinator_started'
+  | 'module_loaded'
+  | 'module_load_failed'
+  | 'timeline_publish_succeeded'
+  | 'timeline_publish_failed';
 
 export type FinanceWidgetPublishErrorMetadata = {
   errorType: string | null;
@@ -39,6 +45,11 @@ type NativeWidgetDiagnosticsModule = {
     errorCode: string | null,
   ): void;
   timelineRead(success: boolean, entryCount: number, validEntryCount: number): void;
+  widgetRuntimeEvent(
+    widgetName: 'ResumoFinanceiro',
+    event: WidgetRuntimeEvent,
+    success: boolean,
+  ): void;
 };
 
 const nativeDiagnostics =
@@ -177,4 +188,8 @@ export function recordFinanceWidgetPublishResult(
 export function recordFinanceWidgetTimelineRead(success: boolean, entries: unknown): void {
   const summary = summarizeFinanceWidgetTimeline(entries);
   safelyLog((module) => module.timelineRead(success, summary.entryCount, summary.validEntryCount));
+}
+
+export function recordFinanceWidgetRuntimeEvent(event: WidgetRuntimeEvent, success: boolean): void {
+  safelyLog((module) => module.widgetRuntimeEvent('ResumoFinanceiro', event, success));
 }

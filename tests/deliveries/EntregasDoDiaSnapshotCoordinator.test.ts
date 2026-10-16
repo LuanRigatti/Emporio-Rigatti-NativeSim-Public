@@ -6,9 +6,11 @@ import type {
 } from '@/services/deliveries/FirestoreDeliveryDataSource';
 
 const mockLogDeliveryDiagnostic = jest.fn();
+const mockLogDeliveryRuntimeEvent = jest.fn();
 
 jest.mock('@/features/deliveries/widgets/EntregasDoDiaWidgetDiagnostics', () => ({
   logDeliveryWidgetSnapshotDiagnostic: (...args: unknown[]) => mockLogDeliveryDiagnostic(...args),
+  logEntregasWidgetRuntimeEvent: (...args: unknown[]) => mockLogDeliveryRuntimeEvent(...args),
 }));
 
 jest.mock('@/services/deliveries/FirestoreDeliveryDataSource', () => ({
@@ -91,7 +93,10 @@ function makeHarness(initialSnapshot: CompleteDeliveryDateSnapshot | null = null
 }
 
 describe('EntregasDoDiaSnapshotCoordinator', () => {
-  beforeEach(() => mockLogDeliveryDiagnostic.mockClear());
+  beforeEach(() => {
+    mockLogDeliveryDiagnostic.mockClear();
+    mockLogDeliveryRuntimeEvent.mockClear();
+  });
 
   it('publishes an existing complete daily snapshot without issuing a new query', async () => {
     const { coordinator, source, updateTimeline } = makeHarness(makeSnapshot('user-a'));
@@ -100,6 +105,9 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
 
     expect(source.getCompleteDateSnapshot).toHaveBeenCalledWith('user-a', '2026-10-15', 7);
     expect(updateTimeline).toHaveBeenCalledTimes(1);
+    expect(mockLogDeliveryRuntimeEvent).toHaveBeenNthCalledWith(1, 'coordinator_started', true);
+    expect(mockLogDeliveryRuntimeEvent).toHaveBeenCalledWith('module_loaded', true);
+    expect(mockLogDeliveryRuntimeEvent).toHaveBeenCalledWith('timeline_publish_succeeded', true);
     expect(updateTimeline.mock.calls[0]?.[0][0]?.props).toMatchObject({
       state: 'pending',
       deliveryCount: 1,

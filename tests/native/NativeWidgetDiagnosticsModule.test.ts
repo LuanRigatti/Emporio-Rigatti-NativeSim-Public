@@ -28,4 +28,19 @@ describe('shared native widget diagnostics module', () => {
       /deliverySnapshotEvent[\s\S]{0,900}(?:uid|deliveryId|sessionId|token|capability|clientName|valueLabel)/i,
     );
   });
+
+  it('records only allowlisted widget runtime state and App Group readback flags', () => {
+    expect(moduleSource).toContain('private let widgetRuntimeLogger = os.Logger(');
+    expect(moduleSource).toContain('category: "WidgetRuntimeDiagnostics"');
+    expect(moduleSource).toContain('Function("widgetRuntimeEvent")');
+    expect(moduleSource).toContain('"coordinator_started"');
+    expect(moduleSource).toContain('"module_loaded"');
+    expect(moduleSource).toContain('"module_load_failed"');
+    expect(moduleSource).toContain('layout_present=');
+    expect(moduleSource).toContain('timeline_present=');
+    expect(moduleSource).toContain('app_group_container=');
+    expect(moduleSource).not.toMatch(
+      /widgetRuntimeEvent[\s\S]{0,1500}(?:uid|deliveryId|sessionId|token|clientName|routeURL|error\.localizedDescription)/i,
+    );
+  });
 });

@@ -1,4 +1,4 @@
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 import type { WidgetTimelineEntry } from 'expo-widgets';
 
 import type { ResumoFinanceiroWidgetTimelineProps } from './ResumoFinanceiroSnapshot';

@@ -7,7 +7,7 @@ import {
   Text,
   TextInput,
   View,
-  type TextInput as TextInputType,
+  type TextInputInstance as TextInputType,
 } from 'react-native';
 import Animated, {
   FadeOut,

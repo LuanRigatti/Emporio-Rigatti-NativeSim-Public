@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, type ScrollViewInstance, StyleSheet } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { useAppTheme } from '@/theme';
@@ -23,7 +23,7 @@ export function NativeDateSelectorScroll({
   selectedDate,
 }: NativeDateSelectorScrollProps) {
   const { theme } = useAppTheme();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const initialPositionedRef = useRef(false);
   const scrollOffsetRef = useRef(0);
   const viewportWidthRef = useRef(0);

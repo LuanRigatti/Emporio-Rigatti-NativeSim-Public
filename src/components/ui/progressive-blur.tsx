@@ -1,8 +1,8 @@
-import MaskedView from '@react-native-masked-view/masked-view';
 import { BlurView, type BlurTint } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import MaskedView from './MaskedViewCompat';
 
 type ProgressiveBlurMaskProps = {
   children: ReactNode;

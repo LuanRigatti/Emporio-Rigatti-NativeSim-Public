@@ -10,7 +10,7 @@ const PATCH_MARKERS = {
   sharedToolbarController: 'Emporio Rigatti: shared tab toolbar controller',
   sharedToolbarIndex: 'Emporio Rigatti: shared tab toolbar index',
   sharedToolbarViewController: 'Emporio Rigatti: shared tab toolbar view controller',
-  sharedToolbarUpdate: 'Emporio Rigatti: shared tab toolbar update',
+  sharedToolbarTabSelection: 'Emporio Rigatti: shared tab toolbar UITab selection',
   sharedToolbarShouldSelect: 'Emporio Rigatti: shared tab toolbar should select',
   sharedToolbarFlush: 'Emporio Rigatti: shared tab toolbar flush',
   sharedToolbarConfigImport: 'Emporio Rigatti: shared tab toolbar config import',
@@ -311,9 +311,9 @@ function patchRNScreens() {
 
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
-    '  [self setSelectedViewController:nextSelectedViewController];\n  return YES;\n',
-    `  // ${PATCH_MARKERS.sharedToolbarUpdate}\n  [self prepareSharedNavigationBarForViewController:nextSelectedViewController reason:@"tab-selection-commit"];\n  [self setSelectedViewController:nextSelectedViewController];\n  return YES;\n`,
-    PATCH_MARKERS.sharedToolbarUpdate,
+    '- (void)setSelectedTab:(UITab *)selectedTab API_AVAILABLE(ios(18.0))\n{\n  [super setSelectedTab:selectedTab];\n',
+    `// ${PATCH_MARKERS.sharedToolbarTabSelection}\n- (void)setSelectedTab:(UITab *)selectedTab API_AVAILABLE(ios(18.0))\n{\n  if (selectedTab.viewController != nil) {\n    [self prepareSharedNavigationBarForViewController:selectedTab.viewController reason:@"programmatic-selection"];\n  }\n  [super setSelectedTab:selectedTab];\n`,
+    PATCH_MARKERS.sharedToolbarTabSelection,
   );
 
   patchFile(
@@ -373,5 +373,5 @@ function withRNScreensHideBottomBarWhenPushed(config) {
 module.exports = createRunOncePlugin(
   withRNScreensHideBottomBarWhenPushed,
   'with-rnscreens-hide-bottom-bar-when-pushed',
-  '1.1.0',
+  '1.2.0',
 );

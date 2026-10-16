@@ -6,6 +6,7 @@ import {
   TextInput,
   View,
   type StyleProp,
+  type TextInputInstance,
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
@@ -41,7 +42,7 @@ export function SearchBar({
 }: PremiumSearchBarProps) {
   const { theme } = useAppTheme();
   const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     if (focusRequestKey === undefined || focusRequestKey <= 0) return;

@@ -1,12 +1,11 @@
-import MaskedView from '@react-native-masked-view/masked-view';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState, type ReactNode, type Ref } from 'react';
 import {
   Platform,
-  ScrollView,
   StyleSheet,
   View,
+  type ScrollViewInstance,
   type ScrollViewProps,
   type StyleProp,
   type ViewStyle,
@@ -25,6 +24,7 @@ import { easeGradient } from 'react-native-easing-gradient';
 
 import { PREMIUM_TITLE_ACCESSIBILITY_SWITCH_AT } from '@/components/premium/PremiumScreenCollapsibleTitleConstants';
 import { useAppSafeAreaInsets } from '@/providers';
+import MaskedView from '@/components/ui/MaskedViewCompat';
 import { useAppTheme } from '@/theme';
 
 const MAX_BLUR_INTENSITY = 50;
@@ -48,7 +48,7 @@ export type ProgressiveCollapsibleScreenProps = {
   largeTitleContainerStyle?: StyleProp<ViewStyle>;
   nativeHeader?: boolean;
   nativeTabRoot?: boolean;
-  scrollRef?: Ref<ScrollView>;
+  scrollRef?: Ref<ScrollViewInstance>;
   scrollContentContainerStyle?: StyleProp<ViewStyle>;
   scrollViewProps?: Omit<ScrollViewProps, 'contentContainerStyle' | 'onScroll' | 'ref' | 'style'>;
 };

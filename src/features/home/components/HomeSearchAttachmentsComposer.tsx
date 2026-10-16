@@ -4,7 +4,7 @@ import type { CameraType, FlashMode } from 'expo-camera';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type TextInputInstance } from 'react-native';
 import { OverKeyboardView } from 'react-native-keyboard-controller';
 import Animated from 'react-native-reanimated';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
@@ -58,7 +58,7 @@ export default function HomeSearchAttachmentsComposer({
   const { width, height, composerBottom, composerStyle, gridWidth, gridHeight } =
     useSheetGeometry();
   const { photos, status } = usePhotoLibrary();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const gridRef = useRef<PhotoGridHandle>(null);
   const cameraRef = useRef<CameraSheetHandle>(null);
 

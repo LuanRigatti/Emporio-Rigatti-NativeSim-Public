@@ -4,6 +4,7 @@ import {
 } from '@/features/finance/widgets/ResumoFinanceiroWidgetDiagnostics';
 
 jest.mock('expo-modules-core', () => ({
+  requireNativeModule: () => ({}),
   requireOptionalNativeModule: () => null,
 }));
 

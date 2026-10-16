@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, type TextInputInstance, View } from 'react-native';
 import { useEffect, useRef } from 'react';
 
 import { useAppTheme } from '@/theme';
@@ -18,7 +18,7 @@ export default function NativeTextFieldExpo({
   value,
 }: NativeTextFieldProps) {
   const { theme } = useAppTheme();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   useEffect(() => {
     if (!onBlurReady) return;

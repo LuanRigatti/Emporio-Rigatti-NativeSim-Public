@@ -94,7 +94,8 @@ export default function HomeProfileSheetContent({
         modifiers={[
           font({ textStyle: 'title2', weight: 'bold', design: 'rounded' }),
           autocorrectionDisabled(true),
-          frame({ maxWidth: 300, height: 48, alignment: 'center' }),
+          frame({ height: 48, alignment: 'center' }),
+          frame({ maxWidth: 300, alignment: 'center' }),
           glassEffect({
             glass: { interactive: true, variant: 'regular' },
             cornerRadius: 16,

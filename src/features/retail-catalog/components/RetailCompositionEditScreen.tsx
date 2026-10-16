@@ -1,5 +1,4 @@
-import { useNavigation, useRouter } from 'expo-router';
-import { usePreventRemove, type NavigationAction } from 'expo-router/react-navigation';
+import { usePreventRemove, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
@@ -68,7 +67,6 @@ export function RetailCompositionEditScreen({ productId }: RetailCompositionEdit
   const { mode } = useAppMode();
   const { enabled: testModeEnabled } = useTestModePresentation();
   const router = useRouter();
-  const navigation = useNavigation();
   const { error: productsError, loading: productsLoading, products, update } = useRetailProducts();
   const {
     items: costItems,
@@ -103,7 +101,7 @@ export function RetailCompositionEditScreen({ productId }: RetailCompositionEdit
   const [isSaving, setIsSaving] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [allowNextRemove, setAllowNextRemove] = useState(false);
-  const pendingRemoveActionRef = useRef<NavigationAction | null>(null);
+  const pendingRemoveRef = useRef<(() => void) | null>(null);
   const nextKeyRef = useRef(0);
 
   const sourceKey = `${productId ?? ''}|${selectedVersion?.compositionVersionId ?? 'new'}|${versions.length}|${selectedVersion?.effectiveFrom ?? ''}`;
@@ -129,9 +127,9 @@ export function RetailCompositionEditScreen({ productId }: RetailCompositionEdit
     [draft],
   );
   const handleBeforeRemove = useCallback(
-    ({ data: { action } }: { data: { action: NavigationAction } }) => {
+    ({ repeat }: { repeat: () => void }) => {
       if (!hasPendingChanges || isSaving) return;
-      pendingRemoveActionRef.current = action;
+      pendingRemoveRef.current = repeat;
       setShowDiscardDialog(true);
     },
     [hasPendingChanges, isSaving],
@@ -140,10 +138,10 @@ export function RetailCompositionEditScreen({ productId }: RetailCompositionEdit
 
   useEffect(() => {
     if (!allowNextRemove) return;
-    const action = pendingRemoveActionRef.current;
-    pendingRemoveActionRef.current = null;
-    if (action) navigation.dispatch(action);
-  }, [allowNextRemove, navigation]);
+    const repeat = pendingRemoveRef.current;
+    pendingRemoveRef.current = null;
+    repeat?.();
+  }, [allowNextRemove]);
 
   const compositionItemsById = useMemo(() => {
     const items = new Map<string, RetailCompositionCostItem>(
@@ -439,7 +437,7 @@ export function RetailCompositionEditScreen({ productId }: RetailCompositionEdit
         confirmLabel="Descartar"
         message="As alterações não salvas serão perdidas."
         onCancel={() => {
-          pendingRemoveActionRef.current = null;
+          pendingRemoveRef.current = null;
           setShowDiscardDialog(false);
         }}
         onConfirm={() => {

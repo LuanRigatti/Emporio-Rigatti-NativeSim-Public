@@ -3,7 +3,7 @@ const path = require('node:path');
 const { withDangerousMod, withEntitlementsPlist, withInfoPlist } = require('expo/config-plugins');
 const plist = require('@expo/plist').default;
 
-const EXPECTED_EXPO_WIDGETS_VERSION = '57.0.22';
+const EXPECTED_EXPO_WIDGETS_VERSION = '58.0.19';
 const EXTENSION_TARGET = 'ExpoWidgetsTarget';
 const ACTIONS_URL_INFO_KEY = 'RigattiDeliveryWidgetActionsURL';
 const KEYCHAIN_ACCESS_GROUP_INFO_KEY = 'RigattiDeliveryWidgetKeychainAccessGroup';

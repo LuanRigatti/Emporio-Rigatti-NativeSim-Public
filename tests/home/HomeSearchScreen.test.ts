@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 
 import type { HomeSearchResponse } from '@/features/home/search/HomeSearchTypes';
 import HomeSearchScreen from '@/features/home/components/HomeSearchScreen';
@@ -101,7 +101,7 @@ jest.mock('@/components/premium', () => ({
     largeTitleContainerStyle?: React.ComponentProps<typeof View>['style'];
     contentTopInset: number;
     scrollContentContainerStyle?: React.ComponentProps<typeof ScrollView>['contentContainerStyle'];
-    scrollRef: React.Ref<ScrollView>;
+    scrollRef: React.Ref<ScrollViewInstance>;
     scrollViewProps: React.ComponentProps<typeof ScrollView>;
   }) => {
     mockProgressiveCollapsibleScreenProps({ contentTopInset, largeTitleContainerStyle });

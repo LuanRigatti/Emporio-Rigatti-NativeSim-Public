@@ -1,5 +1,4 @@
-import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { usePreventRemove, type NavigationAction } from 'expo-router/react-navigation';
+import { useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -32,7 +31,6 @@ type ClientEditValues = {
 export default function ClientDetailsRoute() {
   const { theme } = useAppTheme();
   const { enabled: testModeEnabled } = useTestModePresentation();
-  const navigation = useNavigation();
   const { clients, updatePrice } = useClients();
   const { clientId, clientName: routeClientName } = useLocalSearchParams<{
     clientId?: string;
@@ -44,7 +42,7 @@ export default function ClientDetailsRoute() {
   const [usesBoleto, setUsesBoleto] = useState(false);
   const [error, setError] = useState<string>();
   const [initialValues, setInitialValues] = useState<ClientEditValues | null>(null);
-  const pendingRemoveActionRef = useRef<NavigationAction | null>(null);
+  const pendingRemoveRef = useRef<(() => void) | null>(null);
   const isSavingRef = useRef(false);
   const [allowNextRemove, setAllowNextRemove] = useState(false);
   const client = useMemo(
@@ -67,7 +65,7 @@ export default function ClientDetailsRoute() {
   );
 
   const handleBeforeRemove = useCallback(
-    ({ data: { action } }: { data: { action: NavigationAction } }) => {
+    ({ repeat }: { repeat: () => void }) => {
       if (!client || isSavingRef.current) return;
 
       const price = normalizeMoney(bucketValue);
@@ -80,7 +78,7 @@ export default function ClientDetailsRoute() {
       setError(undefined);
       void updatePrice(client, price, usesInvoice, usesBoleto)
         .then(() => {
-          pendingRemoveActionRef.current = action;
+          pendingRemoveRef.current = repeat;
           setAllowNextRemove(true);
         })
         .catch((saveError) => {
@@ -102,10 +100,10 @@ export default function ClientDetailsRoute() {
 
   useEffect(() => {
     if (!allowNextRemove) return;
-    const action = pendingRemoveActionRef.current;
-    pendingRemoveActionRef.current = null;
-    if (action) navigation.dispatch(action);
-  }, [allowNextRemove, navigation]);
+    const repeat = pendingRemoveRef.current;
+    pendingRemoveRef.current = null;
+    repeat?.();
+  }, [allowNextRemove]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {

@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -25,7 +26,7 @@ export default function RegistrarDeliveryPagerRN({
   requestedPage,
   onPageSettled,
 }: RegistrarDeliveryPagerRNProps) {
-  const pagerRef = useRef<ScrollView>(null);
+  const pagerRef = useRef<ScrollViewInstance>(null);
   const settledPageRef = useRef<0 | 1>(0);
   const { width: viewportWidth } = useWindowDimensions();
   const [pagerWidth, setPagerWidth] = useState(0);

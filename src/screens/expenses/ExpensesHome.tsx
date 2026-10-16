@@ -142,7 +142,7 @@ export function ExpensesHome({ navigation }: Props) {
                     Ver histórico de gastos
                   </TextButton>
                 </View>
-              ) : null
+              ) : undefined
             }
             ListEmptyComponent={
               <EmptyState

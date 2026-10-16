@@ -46,7 +46,7 @@ export function useBiometricUnlock({
       ENABLE_BIOMETRIC_UNLOCK && activeSession && authenticateOnMount ? 'checking' : 'unlocked',
   }));
   const [error, setError] = useState<string | null>(null);
-  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  const [appState, setAppState] = useState(AppState.currentState);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const activeSessionRef = useRef(activeSession);
   const sessionKeyRef = useRef(sessionKey);

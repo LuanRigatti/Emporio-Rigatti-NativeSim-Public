@@ -28,7 +28,10 @@ export default function NativeSegmentedControlSwiftUI({
           controlSize('large'),
           roundedFont({ size: 19, weight: 'semibold' }),
           ...(typeof nativeHeight === 'number'
-            ? [frame({ alignment: 'center', height: nativeHeight, maxWidth: Infinity })]
+            ? [
+                frame({ height: nativeHeight, alignment: 'center' }),
+                frame({ maxWidth: Infinity, alignment: 'center' }),
+              ]
             : []),
         ]}
       >

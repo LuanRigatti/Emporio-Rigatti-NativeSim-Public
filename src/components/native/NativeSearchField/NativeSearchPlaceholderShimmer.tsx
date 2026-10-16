@@ -1,4 +1,3 @@
-import MaskedView from '@react-native-masked-view/masked-view';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -15,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useAppTheme } from '@/theme';
+import MaskedView from '@/components/ui/MaskedViewCompat';
 
 type NativeSearchPlaceholderShimmerProps = {
   entryKey: number;

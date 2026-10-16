@@ -58,13 +58,10 @@ const mockComposition = {
 let mockCompositionVersions = [mockComposition];
 
 jest.mock('expo-router', () => ({
+  usePreventRemove: jest.fn(),
   useFocusEffect: jest.fn(),
   useNavigation: () => ({ dispatch: jest.fn() }),
   useRouter: () => ({ back: mockBack, push: mockPush }),
-}));
-
-jest.mock('expo-router/react-navigation', () => ({
-  usePreventRemove: jest.fn(),
 }));
 
 jest.mock('@/components/feedback', () => ({

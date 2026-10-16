@@ -13,7 +13,7 @@ export class BackupPreventiveService {
     const backupId = `backup-${date.getTime()}`;
     const file = new File(Paths.document, `${backupId}.json`);
     file.create({ overwrite: true });
-    file.write(JSON.stringify(data, null, 2), { encoding: 'utf8' });
+    await file.write(JSON.stringify(data, null, 2), { encoding: 'utf8' });
     return { backupId, createdAt: date.toISOString(), uri: file.uri };
   }
 }

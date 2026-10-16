@@ -21,7 +21,7 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return value === 'system' || value === 'light' || value === 'dark';
 }
 
-function resolveThemeMode(mode: ThemeMode, systemScheme: ColorSchemeName): ResolvedThemeMode {
+function resolveThemeMode(mode: ThemeMode, systemScheme: ColorSchemeName | null): ResolvedThemeMode {
   if (mode !== 'system') {
     return mode;
   }

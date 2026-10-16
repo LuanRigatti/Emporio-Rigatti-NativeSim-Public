@@ -69,7 +69,8 @@ export default function RegistrarDeliveryFormFields({
           alignment="center"
           modifiers={[
             padding({ horizontal: 14, vertical: 8 }),
-            frame({ minWidth: dateMenuButtonMinWidth, height: 44, alignment: 'center' }),
+            frame({ minWidth: dateMenuButtonMinWidth, alignment: 'center' }),
+            frame({ height: 44, alignment: 'center' }),
             glassEffect({ glass: { interactive: true, variant: 'regular' }, shape: 'capsule' }),
             contentShape(shapes.capsule()),
           ]}

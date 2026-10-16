@@ -85,7 +85,11 @@ export default function HomeSearchRoutePreview({ isLarge, sessionIds }: Props) {
   return (
     <VStack
       alignment="leading"
-      modifiers={[frame({ height, maxWidth: Infinity, alignment: 'topLeading' }), clipped()]}
+      modifiers={[
+        frame({ height, alignment: 'topLeading' }),
+        frame({ maxWidth: Infinity, alignment: 'topLeading' }),
+        clipped(),
+      ]}
     >
       <RNHostView matchContents={false}>
         <View

@@ -2,12 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { withDangerousMod } = require('expo/config-plugins');
 
-const EXPO_WIDGETS_VERSION = '57.0.22';
+const EXPO_WIDGETS_VERSION = '58.0.19';
 const WIDGET_SOURCE_NAMES = ['ResumoFinanceiro.swift', 'EntregasDoDia.swift'];
 const BRANDING_MARKER = '// ResumoFinanceiro shared branding image directory';
 const ENVIRONMENT_HELPER_ANCHOR =
   'public func getWidgetEnvironment(environment: EnvironmentValues) -> [String: Any] {';
-const ENVIRONMENT_INSERTION_ANCHOR = '  if #available(iOS 16.0, *) {';
+const ENVIRONMENT_INSERTION_ANCHOR = '  if #available(iOS 17.0, *) {';
 const SHARED_ENTRY_VIEW_ANCHOR =
   '    var env: [String: Any] = getWidgetEnvironment(environment: environment)';
 

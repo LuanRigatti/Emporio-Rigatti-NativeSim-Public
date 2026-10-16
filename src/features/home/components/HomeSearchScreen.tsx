@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { InteractionManager, Keyboard, StyleSheet, type ScrollView } from 'react-native';
+import { Keyboard, StyleSheet, type ScrollViewInstance } from 'react-native';
 import { Stack, useFocusEffect, useNavigation } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -43,7 +43,7 @@ export default function HomeSearchScreen() {
   const screenFocusedRef = useRef(false);
   const nextTurnIdRef = useRef(0);
   const scrollToEndRequestedRef = useRef(false);
-  const conversationScrollRef = useRef<ScrollView>(null);
+  const conversationScrollRef = useRef<ScrollViewInstance>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -75,7 +75,7 @@ export default function HomeSearchScreen() {
       setFocusRequestKey((currentKey) => currentKey + 1);
     };
 
-    let interactionTask: ReturnType<typeof InteractionManager.runAfterInteractions> | null = null;
+    let idleCallbackId: ReturnType<typeof requestIdleCallback> | null = null;
     let unsubscribeTransitionEnd: (() => void) | null = null;
 
     if (parentNavigation) {
@@ -86,14 +86,14 @@ export default function HomeSearchScreen() {
         requestFocus();
       });
     } else {
-      interactionTask = InteractionManager.runAfterInteractions(() => {
+      idleCallbackId = requestIdleCallback(() => {
         requestFocus();
       });
     }
 
     return () => {
       unsubscribeTransitionEnd?.();
-      interactionTask?.cancel();
+      if (idleCallbackId !== null) cancelIdleCallback(idleCallbackId);
     };
   }, [navigation]);
 

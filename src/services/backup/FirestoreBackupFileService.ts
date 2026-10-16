@@ -22,7 +22,7 @@ export class FirestoreBackupFileService {
     const file = new File(Paths.cache, fileName);
     try {
       file.create({ overwrite: true });
-      file.write(json, { encoding: 'utf8' });
+      await file.write(json, { encoding: 'utf8' });
       return {
         fileName,
         sizeBytes: file.info().size ?? json.length,

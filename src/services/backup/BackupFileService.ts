@@ -60,7 +60,7 @@ export class BackupFileService {
 
     const file = new File(Paths.cache, fileName);
     file.create({ overwrite: true });
-    file.write(json, { encoding: 'utf8' });
+    await file.write(json, { encoding: 'utf8' });
     return { exportedAt, fileName, json, uri: file.uri };
   }
 

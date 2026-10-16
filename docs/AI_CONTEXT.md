@@ -14,7 +14,10 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 
 # Stack
 
-- Expo SDK 57
+- Expo SDK 57 no checkpoint atual. `Codex` será a branch principal de
+  desenvolvimento para a futura migração SDK 57 → 58; ela ainda não foi
+  implementada. `ajustes-codex`, `Antigravity`, `opencode` e `main` continuam
+  no SDK 57.
 - React Native
 - TypeScript
 - Expo Router
@@ -221,22 +224,35 @@ Mudanças apenas em TS/TSX/JS normalmente utilizam Fast Refresh.
 
 ## Branches e sincronização
 
-O trabalho pode ocorrer nos checkouts `ajustes-codex`
+Os checkouts oficiais são `Codex`
+(`C:\Projetos\emporiorigatti-Codex`), `ajustes-codex`
 (`C:\Projetos\PAReact-App-Codex\Emporio-Rigatti-App-Codex`), `Antigravity`
-(`C:\Projetos\emporiorigatti-Antigravity`) ou `opencode`
-(`C:\Projetos\emporiorigatti-opencode`). `main`
-(`C:\Projetos\emporiorigatti-main`) é mantida como branch de referência e fica
-sincronizada com as branches de desenvolvimento após uma execução bem-sucedida
-da Skill; ela não é origem pela Skill atual.
+(`C:\Projetos\emporiorigatti-Antigravity`), `opencode`
+(`C:\Projetos\emporiorigatti-opencode`) e `main`
+(`C:\Projetos\emporiorigatti-main`).
+
+`Codex` foi criada a partir do commit `8c5092e`, preservado pela tag
+`sdk57-pre-sdk58`, e será a branch principal de desenvolvimento para a migração
+Expo SDK 57 → 58. A migração SDK 58 ainda não foi implementada; este checkout e
+as branches `ajustes-codex`, `Antigravity`, `opencode` e `main` continuam no SDK
+57. A documentação versionada deve deixar explícito o estágio da migração para
+que instruções do SDK 58 não sejam tratadas como implementação já realizada.
+
+`main` (`C:\Projetos\emporiorigatti-main`) é mantida como branch de referência.
+O trabalho deve usar a branch adequada à tarefa, confirmando sempre o estado
+real do Git.
 
 Antes de alterar arquivos, cada agente deve confirmar pelo Git a raiz do
 checkout, a branch ativa e o estado do working tree; nunca inferir a branch pelo
 nome da pasta ou pelo agente. A Skill global
-`$sync-codex-antigravity-main-opencode` faz a sincronização manual das quatro
-branches: usa `ajustes-codex` por padrão e aceita `Antigravity` ou `opencode`
-como origens escolhidas explicitamente. Não há automação de sincronização via
-GitHub Actions implementada. Mantenha estes documentos compartilhados nas
-quatro branches, sem cópias específicas por ambiente.
+`$sync-codex-antigravity-main-opencode` sincroniza manualmente somente as quatro
+branches `ajustes-codex`, `Antigravity`, `opencode` e `main`: usa
+`ajustes-codex` por padrão e aceita `Antigravity` ou `opencode` como origens
+escolhidas explicitamente. `Codex` ainda não está incluída na Skill; sua
+incorporação ao processo será feita posteriormente, mediante tarefa específica.
+Não há automação de sincronização via GitHub Actions implementada. Mantenha a
+documentação operacional compartilhada, sem cópias específicas por ambiente;
+até a inclusão de `Codex` na Skill, ela não será atualizada por esse processo.
 
 ## Auditoria proporcional ao escopo
 

@@ -15,6 +15,7 @@ export type NativeDateToolbarProps = {
   onWeekChange?: (weekStart: string) => void;
   placement?: 'left' | 'right';
   selectedDate: string;
+  splitDayAndMonthInteraction?: boolean;
   weekGroups?: readonly NativeDateToolbarWeekGroup[];
   weekSelection?: { label: string; startDate: string };
 };
@@ -29,6 +30,7 @@ export function renderNativeDateToolbarItems({
   onDateChange,
   onWeekChange,
   selectedDate,
+  splitDayAndMonthInteraction = false,
   weekGroups = [],
   weekSelection,
 }: NativeDateToolbarProps): ReactNode[] {
@@ -41,7 +43,7 @@ export function renderNativeDateToolbarItems({
     mode === 'day' ? 'Selecionar data' : mode === 'week' ? 'Selecionar semana' : 'Selecionar mês';
   const selectedWeekStart =
     mode === 'week' && weekSelection ? weekSelection.startDate : formatIsoDate(getWeekStart(date));
-  const standardMenus = [
+  const monthAndYearMenus = [
     <Stack.Toolbar.Menu icon="calendar" key="month" title="Mês">
       {monthItems.map((item) => (
         <Stack.Toolbar.MenuAction
@@ -64,22 +66,47 @@ export function renderNativeDateToolbarItems({
         </Stack.Toolbar.MenuAction>
       ))}
     </Stack.Toolbar.Menu>,
-    ...(mode === 'day'
-      ? [
-          <Stack.Toolbar.Menu icon="calendar.day.timeline.left" key="day" title="Dia">
-            {dayItems.map((value) => (
-              <Stack.Toolbar.MenuAction
-                isOn={value === day}
-                key={String(value)}
-                onPress={() => onDateChange(updateNativeIsoDate(selectedDate, { day: value }))}
-              >
-                {String(value)}
-              </Stack.Toolbar.MenuAction>
-            ))}
-          </Stack.Toolbar.Menu>,
-        ]
-      : []),
   ];
+  const dayActions = dayItems.map((value) => (
+    <Stack.Toolbar.MenuAction
+      isOn={value === day}
+      key={String(value)}
+      onPress={() => onDateChange(updateNativeIsoDate(selectedDate, { day: value }))}
+    >
+      {String(value)}
+    </Stack.Toolbar.MenuAction>
+  ));
+  const dayMenu =
+    mode === 'day' ? (
+      <Stack.Toolbar.Menu icon="calendar.day.timeline.left" key="day" title="Dia">
+        {dayActions}
+      </Stack.Toolbar.Menu>
+    ) : null;
+  const standardMenus = [...monthAndYearMenus, ...(dayMenu ? [dayMenu] : [])];
+
+  if (splitDayAndMonthInteraction && mode === 'day') {
+    const dayLabel = String(day);
+    const monthLabel = formatNativeToolbarDate(date).slice(dayLabel.length).trimStart();
+
+    return [
+      <Stack.Toolbar.Menu
+        accessibilityLabel="Selecionar dia"
+        key="date-day"
+        separateBackground={false}
+      >
+        <Stack.Toolbar.Label>{dayLabel}</Stack.Toolbar.Label>
+        {dayActions}
+      </Stack.Toolbar.Menu>,
+      <Stack.Toolbar.Menu
+        accessibilityLabel="Selecionar mês"
+        key="date-month"
+        separateBackground={false}
+      >
+        <Stack.Toolbar.Label>{monthLabel}</Stack.Toolbar.Label>
+        {monthAndYearMenus}
+      </Stack.Toolbar.Menu>,
+    ];
+  }
 
   return [
     <Stack.Toolbar.Menu accessibilityLabel={toolbarTitle} key="date" separateBackground={false}>

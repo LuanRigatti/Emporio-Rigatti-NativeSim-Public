@@ -8,28 +8,33 @@ preservam o histórico técnico e as decisões acumuladas.
 
 ## Branches e checkouts oficiais
 
-O desenvolvimento pode ocorrer em qualquer uma destas três branches, cada uma
-com seu checkout local:
+O projeto possui cinco branches oficiais, cada uma com seu checkout local:
 
+- `Codex` — `C:\Projetos\emporiorigatti-Codex`
 - `ajustes-codex` — `C:\Projetos\PAReact-App-Codex\Emporio-Rigatti-App-Codex`
 - `Antigravity` — `C:\Projetos\emporiorigatti-Antigravity`
 - `opencode` — `C:\Projetos\emporiorigatti-opencode`
+- `main` — `C:\Projetos\emporiorigatti-main`
 
-A branch `main`, em `C:\Projetos\emporiorigatti-main`, é mantida como branch de
-referência e fica sincronizada com as branches de desenvolvimento após uma
-execução bem-sucedida da Skill global
-`$sync-codex-antigravity-main-opencode`. Essa Skill sincroniza manualmente as
-quatro branches e checkouts, usando `ajustes-codex` por padrão ou
-`Antigravity`/`opencode` quando uma dessas origens for escolhida explicitamente.
-`main` é destino nessa Skill, nunca origem. Essa sincronização é manual; não
-existe automação equivalente por GitHub Actions implementada.
+`Codex` foi criada a partir do commit `8c5092e`; a tag `sdk57-pre-sdk58`
+preserva esse checkpoint. `Codex` será a branch principal de desenvolvimento
+para a migração Expo SDK 57 → 58. A migração SDK 58 ainda não foi implementada:
+`Codex` parte do checkpoint SDK 57 e as demais branches continuam no SDK 57.
+
+A Skill global `$sync-codex-antigravity-main-opencode` sincroniza manualmente
+somente `ajustes-codex`, `Antigravity`, `opencode` e `main`, usando
+`ajustes-codex` por padrão ou `Antigravity`/`opencode` quando uma dessas origens
+for escolhida explicitamente. `main` é destino nessa Skill, nunca origem.
+`Codex` ainda não participa desse processo; sua incorporação à sincronização
+será feita posteriormente em uma tarefa específica. A sincronização atual é
+manual; não existe automação equivalente por GitHub Actions implementada.
 
 Antes de alterar arquivos, cada agente deve verificar no Git a raiz do checkout,
 a branch ativa e o estado do working tree. Não deduza a branch pelo nome da
-pasta, pelo agente ou por este snapshot. A documentação operacional é compartilhada
-pelas quatro branches; não crie variantes específicas por ambiente. As menções
-às branches nas seções posteriores deste documento registram o histórico das
-entregas e devem ser preservadas como histórico.
+pasta, pelo agente ou por este snapshot. Mantenha a documentação operacional
+consistente entre os checkouts oficiais, sem variantes específicas por ambiente.
+As menções às branches nas seções posteriores deste documento registram o
+histórico das entregas e devem ser preservadas como histórico.
 
 ## Manutenção do Expo SDK 57 — concluída (2026-10-03)
 

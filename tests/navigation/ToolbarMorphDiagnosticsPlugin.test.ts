@@ -143,8 +143,13 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       );
       expect(coordinator).toContain('animated:shouldAnimateToolbarItemReplacement');
       expect(coordinator).toContain(
-        'UIKit owns the in-flight morph; didShow reconciles the actual destination.',
+        'UIKit owns the in-flight morph; native completion reconciles the selected destination.',
       );
+      expect(coordinator).toContain(
+        'self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil',
+      );
+      expect(coordinator).toContain('@"tab_transition_active"');
+      expect(coordinator).toContain('@"navigation_transition_active"');
       expect(coordinator).toContain('RNSLogToolbarMorphItems(@"attachment_repair_decision"');
       expect(coordinator).toContain('RNSLogToolbarMorphItems(@"attachment_repair_applied"');
       expect(coordinator).toContain(

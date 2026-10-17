@@ -292,25 +292,39 @@ function patchScreens(screensRoot) {
     '  NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};',
     `  RNSLogToolbarMorphItems(@"coordinator_capture", materialized[@"left"], nil,
       @"left", @"materialization", @"captured", navigationController.navigationBar, NO,
-      navigationController.transitionCoordinator != nil);
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"coordinator_capture", materialized[@"right"], nil,
       @"right", @"materialization", @"captured", navigationController.navigationBar, NO,
-      navigationController.transitionCoordinator != nil);`,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} coordinator capture`,
   );
 
   insertBefore(
     controllerPath,
-    '    return; // UIKit owns the in-flight morph; didShow reconciles the actual destination.',
+    '    return; // UIKit owns the in-flight morph; native completion reconciles the selected destination.',
     `    RNSLogToolbarMorphItems(@"coordinator_early_return",
         sharedNavigationController.topViewController.navigationItem.leftBarButtonItems ?: @[], nil,
-        @"left", @"transition_active", @"reconcile_skipped", sharedNavigationController.navigationBar,
+        @"left", @"tab_transition_active", @"reconcile_skipped", sharedNavigationController.navigationBar,
         NO, YES);
     RNSLogToolbarMorphItems(@"coordinator_early_return",
         sharedNavigationController.topViewController.navigationItem.rightBarButtonItems ?: @[], nil,
-        @"right", @"transition_active", @"reconcile_skipped", sharedNavigationController.navigationBar,
+        @"right", @"tab_transition_active", @"reconcile_skipped", sharedNavigationController.navigationBar,
         NO, YES);`,
-    `${PLUGIN_MARKER} coordinator transition early return`,
+    `${PLUGIN_MARKER} coordinator tab transition early return`,
+  );
+
+  insertBefore(
+    controllerPath,
+    '    return; // UIKit owns the in-flight navigation morph; didShow reconciles the destination.',
+    `    RNSLogToolbarMorphItems(@"coordinator_early_return",
+        sharedNavigationController.topViewController.navigationItem.leftBarButtonItems ?: @[], nil,
+        @"left", @"navigation_transition_active", @"reconcile_skipped", sharedNavigationController.navigationBar,
+        NO, YES);
+    RNSLogToolbarMorphItems(@"coordinator_early_return",
+        sharedNavigationController.topViewController.navigationItem.rightBarButtonItems ?: @[], nil,
+        @"right", @"navigation_transition_active", @"reconcile_skipped", sharedNavigationController.navigationBar,
+        NO, YES);`,
+    `${PLUGIN_MARKER} coordinator navigation transition early return`,
   );
 
   insertBefore(
@@ -319,11 +333,11 @@ function patchScreens(screensRoot) {
     `    RNSLogToolbarMorphItems(@"coordinator_early_return",
         sharedNavigationController.topViewController.navigationItem.leftBarButtonItems ?: @[], nil,
         @"left", @"source_unavailable", @"reconcile_skipped", sharedNavigationController.navigationBar,
-        NO, sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
+        NO, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
     RNSLogToolbarMorphItems(@"coordinator_early_return",
         sharedNavigationController.topViewController.navigationItem.rightBarButtonItems ?: @[], nil,
         @"right", @"source_unavailable", @"reconcile_skipped", sharedNavigationController.navigationBar,
-        NO, sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+        NO, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} coordinator source early return`,
   );
 
@@ -333,11 +347,11 @@ function patchScreens(screensRoot) {
     `  RNSLogToolbarMorphItems(@"coordinator_apply_decision", leftItems, sharedLeftItems,
       @"left", reason, RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)
         ? @"same_instances" : @"setter_required", sharedNavigationController.navigationBar,
-       shouldAnimateToolbarItemReplacement, sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
+       shouldAnimateToolbarItemReplacement, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"coordinator_apply_decision", rightItems, sharedRightItems,
       @"right", reason, RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)
         ? @"same_instances" : @"setter_required", sharedNavigationController.navigationBar,
-       shouldAnimateToolbarItemReplacement, sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+       shouldAnimateToolbarItemReplacement, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} coordinator apply decision`,
   );
 
@@ -354,12 +368,12 @@ function patchScreens(screensRoot) {
       sharedNavigationItem.leftBarButtonItems ?: @[], leftItems, @"left", reason,
       RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)
         ? @"same_instances" : @"setter_completed", sharedNavigationController.navigationBar,
-      shouldAnimateToolbarItemReplacement, isTransitionCompletion);
+      shouldAnimateToolbarItemReplacement, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"coordinator_apply_result",
       sharedNavigationItem.rightBarButtonItems ?: @[], rightItems, @"right", reason,
       RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)
         ? @"same_instances" : @"setter_completed", sharedNavigationController.navigationBar,
-      shouldAnimateToolbarItemReplacement, isTransitionCompletion);`,
+      shouldAnimateToolbarItemReplacement, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} coordinator apply result`,
   );
 
@@ -376,11 +390,11 @@ function patchScreens(screensRoot) {
   RNSLogToolbarMorphItems(@"attachment_repair_decision", leftItems, sharedLeftItems,
       @"left", repairLeft ? @"detached_custom_view" : attachmentCheckReason,
       repairLeft ? @"will_execute" : (canCheckAttachment ? @"not_needed" : @"ignored"),
-      bar, NO, sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
+      bar, NO, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"attachment_repair_decision", rightItems, sharedRightItems,
       @"right", repairRight ? @"detached_custom_view" : attachmentCheckReason,
       repairRight ? @"will_execute" : (canCheckAttachment ? @"not_needed" : @"ignored"),
-      bar, NO, sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+      bar, NO, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair decision`,
   );
 
@@ -389,7 +403,7 @@ function patchScreens(screensRoot) {
     '      [sharedNavigationItem setRightBarButtonItems:rightItems animated:NO];',
     `      RNSLogToolbarMorphItems(@"attachment_repair_applied", rightItems, sharedRightItems,
           @"right", @"detached_custom_view", @"setter_completed", bar, NO,
-          sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+          self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair right result`,
   );
   insertAfter(
@@ -397,7 +411,7 @@ function patchScreens(screensRoot) {
     '      [sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO];',
     `      RNSLogToolbarMorphItems(@"attachment_repair_applied", leftItems, sharedLeftItems,
           @"left", @"detached_custom_view", @"setter_completed", bar, NO,
-          sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+          self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair left result`,
   );
 

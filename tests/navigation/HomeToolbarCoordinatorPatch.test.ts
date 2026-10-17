@@ -96,6 +96,32 @@ function applyLegacyToolbarCoordinator(fixtureRoot: string) {
     controller = controller.replace(currentFragment, legacyFragment);
   }
 
+  const currentTransitionGuard = `BOOL isNavigationTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
+  BOOL isTabTransitionCompletion = [reason isEqualToString:@"tab-transition-completion"];
+  BOOL isTransitionCompletion = isNavigationTransitionCompletion || isTabTransitionCompletion;
+  if (!isNavigationTransitionCompletion &&
+      (sharedNavigationController.transitionCoordinator != nil ||
+       nestedNavigationController.transitionCoordinator != nil)) {
+    return; // UIKit owns the in-flight navigation morph; didShow reconciles the destination.
+  }
+  id<UIViewControllerTransitionCoordinator> tabTransitionCoordinator = self.transitionCoordinator;
+  if (tabTransitionCoordinator == nil && !isNavigationTransitionCompletion) {
+    tabTransitionCoordinator = viewController.transitionCoordinator;
+  }
+  if (!isTabTransitionCompletion && tabTransitionCoordinator != nil) {
+    RNSObserveSharedToolbarTabTransition(self, viewController);
+    return; // UIKit owns the in-flight morph; native completion reconciles the selected destination.
+  }`;
+  const legacyTransitionGuard = `BOOL isTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
+  if (!isTransitionCompletion && (sharedNavigationController.transitionCoordinator != nil ||
+                                 nestedNavigationController.transitionCoordinator != nil)) {
+    return; // UIKit owns the in-flight morph; didShow reconciles the actual destination.
+  }`;
+  if (!controller.includes(currentTransitionGuard)) {
+    throw new Error('Current coordinator fixture is missing the tab transition guard.');
+  }
+  controller = controller.replace(currentTransitionGuard, legacyTransitionGuard);
+
   const resolverDeclarations = `// Emporio Rigatti: shared toolbar ownership resolvers
 @property (nonatomic, readwrite) BOOL shouldProgressStateOnMoreNavigationControllerPush;
 - (nonnull NSArray<RNSTabsScreenViewController *> *)installedScreenControllers;
@@ -197,6 +223,13 @@ describe('Home toolbar coordinator patch', () => {
       expect(coordinator).toContain('[self installedScreenControllers]');
       expect(coordinator).toContain('[self effectiveSelectedViewController]');
       expect(coordinator).toContain('[self isScreenControllerCurrentlySelected:viewController]');
+      expect(coordinator).toContain(
+        'id<UIViewControllerTransitionCoordinator> tabTransitionCoordinator = self.transitionCoordinator;',
+      );
+      expect(coordinator).toContain(
+        'if (tabTransitionCoordinator == nil && !isNavigationTransitionCompletion)',
+      );
+      expect(coordinator).toContain('RNSObserveSharedToolbarTabTransition(self, viewController)');
       expect(coordinator).not.toMatch(
         /\bself\.(?:viewControllers|selectedViewController|selectedIndex)\b/,
       );
@@ -205,6 +238,103 @@ describe('Home toolbar coordinator patch', () => {
       expect(indexSetter).toContain('[self installedScreenControllers]');
       expect(indexSetter).toContain('installedControllers[selectedIndex]');
       expect(indexSetter).not.toContain('self.viewControllers');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps destination toolbar preparation before native UITab and legacy selection', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const controller = readFileSync(
+        path.join(fixtureRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+      const selectionHooks = [
+        [
+          'Emporio Rigatti: shared tab toolbar UITab selection',
+          '[self prepareSharedNavigationBarForViewController:selectedTab.viewController reason:@"programmatic-selection"]',
+          '[super setSelectedTab:selectedTab]',
+        ],
+        [
+          'Emporio Rigatti: shared tab toolbar index',
+          '[self prepareSharedNavigationBarForViewController:installedControllers[selectedIndex] reason:@"tab-selection-index"]',
+          '[super setSelectedIndex:selectedIndex]',
+        ],
+        [
+          'Emporio Rigatti: shared tab toolbar should select',
+          '[self prepareSharedNavigationBarForViewController:viewController reason:@"tab-selection-shouldSelect"]',
+          '_isHandlingExplicitSelectionUpdate = YES;',
+        ],
+      ];
+
+      for (const [marker, prepareCall, selectionCall] of selectionHooks) {
+        const markerIndex = controller.indexOf(marker);
+        const prepareIndex = controller.indexOf(prepareCall, markerIndex);
+        const selectionIndex = controller.indexOf(selectionCall, markerIndex);
+        expect(markerIndex).toBeGreaterThanOrEqual(0);
+        expect(prepareIndex).toBeGreaterThan(markerIndex);
+        expect(selectionIndex).toBeGreaterThan(prepareIndex);
+      }
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('defers tab-root reconciliation to the native transition completion and repairs only detached sides', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const coordinator = readPatchedCoordinator(fixtureRoot);
+      const tabTransitionGuardIndex = coordinator.indexOf(
+        'if (!isTabTransitionCompletion && tabTransitionCoordinator != nil)',
+      );
+      const itemReplacementIndex = coordinator.indexOf(
+        'if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems))',
+      );
+      const attachmentRepairIndex = coordinator.indexOf('BOOL repairLeft =');
+      const navigationTransitionGuardIndex = coordinator.indexOf(
+        'if (!isNavigationTransitionCompletion &&',
+      );
+
+      expect(tabTransitionGuardIndex).toBeGreaterThanOrEqual(0);
+      expect(tabTransitionGuardIndex).toBeLessThan(itemReplacementIndex);
+      expect(tabTransitionGuardIndex).toBeLessThan(attachmentRepairIndex);
+      expect(navigationTransitionGuardIndex).toBeGreaterThanOrEqual(0);
+      expect(navigationTransitionGuardIndex).toBeLessThan(tabTransitionGuardIndex);
+      expect(coordinator).toContain('animateAlongsideTransition:nil completion:');
+      expect(coordinator).toContain(
+        'objc_getAssociatedObject(controller, &RNSSharedToolbarPendingTabTransitionKey) == transitionCoordinator',
+      );
+      expect(coordinator).toContain(
+        '[strongController synchronizeSharedNavigationBarWithReason:@"tab-transition-completion"]',
+      );
+      expect(coordinator).toContain('[strongController effectiveSelectedViewController]');
+      expect(coordinator).toContain(
+        'if (activeCoordinator != nil && activeCoordinator != completedCoordinator)',
+      );
+      expect(coordinator).toContain(
+        'objc_getAssociatedObject(controller, &RNSSharedToolbarPendingTabTransitionKey)',
+      );
+      expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(leftItems, bar)');
+      expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(rightItems, bar)');
+      expect(coordinator).toContain('if (repairLeft) {');
+      expect(coordinator).toContain('if (repairRight) {');
+      expect(coordinator).toContain('[sharedNavigationItem setLeftBarButtonItems:nil animated:NO]');
+      expect(coordinator).toContain(
+        '[sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO]',
+      );
+      expect(coordinator).toContain(
+        '[sharedNavigationItem setRightBarButtonItems:rightItems animated:NO]',
+      );
+      expect(coordinator).toContain(
+        'if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems))',
+      );
+      expect(coordinator).toContain(
+        'if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems))',
+      );
+      expect(coordinator).not.toMatch(/dispatch_after|NSTimer|setTimeout|remount/i);
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
@@ -222,6 +352,12 @@ describe('Home toolbar coordinator patch', () => {
       expect(upgradedCoordinator).toContain('[self effectiveSelectedViewController]');
       expect(upgradedCoordinator).toContain(
         '[self isScreenControllerCurrentlySelected:viewController]',
+      );
+      expect(upgradedCoordinator).toContain(
+        'id<UIViewControllerTransitionCoordinator> tabTransitionCoordinator = self.transitionCoordinator;',
+      );
+      expect(upgradedCoordinator).toContain(
+        'RNSObserveSharedToolbarTabTransition(self, viewController)',
       );
       expect(upgradedCoordinator).not.toMatch(
         /\bself\.(?:viewControllers|selectedViewController|selectedIndex)\b/,

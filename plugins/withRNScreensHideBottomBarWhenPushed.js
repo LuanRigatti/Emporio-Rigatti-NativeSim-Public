@@ -11,6 +11,7 @@ const PATCH_MARKERS = {
   sharedToolbarIndex: 'Emporio Rigatti: shared tab toolbar index',
   sharedToolbarViewController: 'Emporio Rigatti: shared tab toolbar view controller',
   sharedToolbarTabSelection: 'Emporio Rigatti: shared tab toolbar UITab selection',
+  sharedToolbarTransitionObserver: 'Emporio Rigatti: shared tab toolbar transition observer',
   sharedToolbarShouldSelect: 'Emporio Rigatti: shared tab toolbar should select',
   sharedToolbarFlush: 'Emporio Rigatti: shared tab toolbar flush',
   sharedToolbarConfigImport: 'Emporio Rigatti: shared tab toolbar config import',
@@ -21,6 +22,29 @@ const PATCH_MARKERS = {
   homeToolbarSemanticComparison: 'Emporio Rigatti: Home toolbar semantic comparison',
   homeToolbarReplacementPolicy: 'Emporio Rigatti: Home toolbar replacement policy',
 };
+
+const LEGACY_SHARED_TOOLBAR_TRANSITION_GUARD = `  BOOL isTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
+  if (!isTransitionCompletion && (sharedNavigationController.transitionCoordinator != nil ||
+                                 nestedNavigationController.transitionCoordinator != nil)) {
+    return; // UIKit owns the in-flight morph; didShow reconciles the actual destination.
+  }`;
+
+const SHARED_TOOLBAR_TRANSITION_GUARD = `  BOOL isNavigationTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
+  BOOL isTabTransitionCompletion = [reason isEqualToString:@"tab-transition-completion"];
+  BOOL isTransitionCompletion = isNavigationTransitionCompletion || isTabTransitionCompletion;
+  if (!isNavigationTransitionCompletion &&
+      (sharedNavigationController.transitionCoordinator != nil ||
+       nestedNavigationController.transitionCoordinator != nil)) {
+    return; // UIKit owns the in-flight navigation morph; didShow reconciles the destination.
+  }
+  id<UIViewControllerTransitionCoordinator> tabTransitionCoordinator = self.transitionCoordinator;
+  if (tabTransitionCoordinator == nil && !isNavigationTransitionCompletion) {
+    tabTransitionCoordinator = viewController.transitionCoordinator;
+  }
+  if (!isTabTransitionCompletion && tabTransitionCoordinator != nil) {
+    RNSObserveSharedToolbarTabTransition(self, viewController);
+    return; // UIKit owns the in-flight morph; native completion reconciles the selected destination.
+  }`;
 
 function patchFile(filePath, needle, replacement, marker) {
   const contents = fs.readFileSync(filePath, 'utf8');
@@ -98,6 +122,30 @@ function upgradeSharedToolbarUITabResolvers(controller) {
   );
 }
 
+function upgradeSharedToolbarTabTransition(controller) {
+  const contents = fs.readFileSync(controller, 'utf8');
+  const markerIndex = contents.indexOf('Emporio Rigatti: shared toolbar ownership transition');
+  if (markerIndex === -1) return;
+
+  // The OSLog plugin injects event calls inside these branches, so use stable anchors.
+  const hasCurrentGuard =
+    contents.indexOf('BOOL isNavigationTransitionCompletion =', markerIndex) !== -1 &&
+    contents.indexOf(
+      'id<UIViewControllerTransitionCoordinator> tabTransitionCoordinator = self.transitionCoordinator;',
+      markerIndex,
+    ) !== -1 &&
+    contents.indexOf('RNSObserveSharedToolbarTabTransition(self, viewController);', markerIndex) !==
+      -1;
+  if (hasCurrentGuard) return;
+
+  replaceMarkedPatchFragment(
+    controller,
+    'Emporio Rigatti: shared toolbar ownership transition',
+    LEGACY_SHARED_TOOLBAR_TRANSITION_GUARD,
+    SHARED_TOOLBAR_TRANSITION_GUARD,
+  );
+}
+
 function patchSharedToolbarOwnership(screensRoot) {
   const header = path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.h');
   const controller = path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm');
@@ -107,6 +155,7 @@ function patchSharedToolbarOwnership(screensRoot) {
     patchFile(file, needle, replacement, `Emporio Rigatti: shared toolbar ownership ${name}`);
 
   upgradeSharedToolbarUITabResolvers(controller);
+  upgradeSharedToolbarTabTransition(controller);
 
   patch(
     controller,
@@ -145,6 +194,59 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
   );
   patch(
     controller,
+    'static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *items, UINavigationBar *bar)\n{',
+    `static char RNSSharedToolbarPendingTabTransitionKey;
+
+static void RNSObserveSharedToolbarTabTransition(
+    RNSTabBarController *controller,
+    UIViewController *viewController)
+{
+  id<UIViewControllerTransitionCoordinator> transitionCoordinator =
+      controller.transitionCoordinator ?: viewController.transitionCoordinator;
+  if (transitionCoordinator == nil ||
+      objc_getAssociatedObject(controller, &RNSSharedToolbarPendingTabTransitionKey) == transitionCoordinator) {
+    return;
+  }
+
+  objc_setAssociatedObject(
+      controller,
+      &RNSSharedToolbarPendingTabTransitionKey,
+      transitionCoordinator,
+      OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  __weak RNSTabBarController *weakController = controller;
+  __weak id<UIViewControllerTransitionCoordinator> weakTransitionCoordinator = transitionCoordinator;
+  [transitionCoordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+    (void)context;
+    RNSTabBarController *strongController = weakController;
+    id<UIViewControllerTransitionCoordinator> completedCoordinator = weakTransitionCoordinator;
+    if (strongController == nil || completedCoordinator == nil) return;
+
+    if (objc_getAssociatedObject(strongController, &RNSSharedToolbarPendingTabTransitionKey) == completedCoordinator) {
+      objc_setAssociatedObject(
+          strongController,
+          &RNSSharedToolbarPendingTabTransitionKey,
+          nil,
+          OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+
+    UIViewController *selectedViewController = [strongController effectiveSelectedViewController];
+    id<UIViewControllerTransitionCoordinator> activeCoordinator =
+        strongController.transitionCoordinator ?: selectedViewController.transitionCoordinator;
+    if (activeCoordinator != nil && activeCoordinator != completedCoordinator) {
+      RNSObserveSharedToolbarTabTransition(strongController, selectedViewController);
+      return;
+    }
+
+    [strongController synchronizeSharedNavigationBarWithReason:@"tab-transition-completion"];
+  }];
+}
+
+static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *items, UINavigationBar *bar)
+{`,
+    PATCH_MARKERS.sharedToolbarTransitionObserver,
+  );
+  patch(
+    controller,
     '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason\n{',
     `- (void)captureSharedToolbarItemsFromViewController:(UIViewController *)viewController navigationController:(UINavigationController *)navigationController
 {
@@ -173,11 +275,7 @@ static UINavigationController *RNSFindNestedNavigationController(UIViewControlle
   patch(
     controller,
     '  if (nestedNavigationController != nil) {\n    // The nested stack remains',
-    `  BOOL isTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
-  if (!isTransitionCompletion && (sharedNavigationController.transitionCoordinator != nil ||
-                                 nestedNavigationController.transitionCoordinator != nil)) {
-    return; // UIKit owns the in-flight morph; didShow reconciles the actual destination.
-  }
+    `${SHARED_TOOLBAR_TRANSITION_GUARD}
 
   if (nestedNavigationController != nil) {
     // The nested stack remains`,

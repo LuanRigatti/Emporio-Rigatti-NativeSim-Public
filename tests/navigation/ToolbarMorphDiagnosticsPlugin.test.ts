@@ -100,6 +100,29 @@ describe('temporary toolbar morph diagnostics plugin', () => {
     }
   });
 
+  it('qualifies HostView property access inside OSLog interpolation closures', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const host = readFileSync(path.join(fixtureExpoUIRoot, 'ios/HostView.swift'), 'utf8');
+      const hostDiagnosticMessages = host
+        .split('\n')
+        .filter((line) => line.trimStart().startsWith('"event='));
+
+      expect(hostDiagnosticMessages).toHaveLength(2);
+      expect(
+        hostDiagnosticMessages.filter((line) =>
+          line.includes('host=\\(self.toolbarMorphToken, privacy: .public)'),
+        ),
+      ).toHaveLength(2);
+      expect(
+        hostDiagnosticMessages.some((line) => line.includes('host=\\(toolbarMorphToken')),
+      ).toBe(false);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it('keeps the coordinator repair and animation statements while adding event-only calls', () => {
     const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
     try {

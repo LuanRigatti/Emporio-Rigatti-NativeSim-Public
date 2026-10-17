@@ -475,7 +475,7 @@ function patchExpoUIHost(expoUIRoot) {
     installToolbarMorphIdentifierIfNeeded(on: hostView, role: role)
     let uptimeMilliseconds = Int(ProcessInfo.processInfo.systemUptime * 1_000)
     logger.info(
-      "event=\\(event, privacy: .public) role=\\(role, privacy: .public) host=\\(toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
+      "event=\\(event, privacy: .public) role=\\(role, privacy: .public) host=\\(self.toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
     )
   }
 
@@ -495,7 +495,7 @@ function patchExpoUIHost(expoUIRoot) {
     installToolbarMorphIdentifierIfNeeded(on: hostView, role: role)
     let uptimeMilliseconds = Int(ProcessInfo.processInfo.systemUptime * 1_000)
     logger.info(
-      "event=host_layout role=\\(role, privacy: .public) host=\\(toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) width=\\(width, privacy: .public) height=\\(height, privacy: .public) available=\\(width > 0 && height > 0, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
+      "event=host_layout role=\\(role, privacy: .public) host=\\(self.toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) width=\\(width, privacy: .public) height=\\(height, privacy: .public) available=\\(width > 0 && height > 0, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
     )
   }
 

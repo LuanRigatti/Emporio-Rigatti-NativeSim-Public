@@ -231,13 +231,13 @@ describe('EntregasDoDia isolated widget layout', () => {
       'Empório Rigatti',
       'Cliente A',
       '·',
-      '1 balde',
+      '1',
       'Cliente B',
       '·',
-      '2 baldes',
+      '2',
       'Cliente C',
       '·',
-      '3 baldes',
+      '3',
     ]);
     expect(text.some((value) => value.startsWith('R$'))).toBe(false);
     const smallRows = collectNodes(tree, 'HStack').filter((node) => {
@@ -261,7 +261,7 @@ describe('EntregasDoDia isolated widget layout', () => {
       firstDeliveryText?.props?.modifiers?.find(({ name }) => name === 'font')?.args?.[0],
     ).toEqual({ weight: 'semibold', size: 15 });
     const firstQuantity = collectNodes(smallRows[0], 'Text').find(
-      ({ props }) => props?.children === '1 balde',
+      ({ props }) => props?.children === '1',
     );
     const firstSeparator = collectNodes(smallRows[0], 'Text').find(
       ({ props }) => props?.children === '·',
@@ -300,14 +300,19 @@ describe('EntregasDoDia isolated widget layout', () => {
     ).toBe(false);
   });
 
-  it('uses uniform fixed typography and single-line truncation across all small delivery rows', () => {
+  it('shows compact numeric quantities with uniform typography and single-line truncation in small', () => {
     const longName = 'Cliente com um nome muito longo para o widget pequeno';
+    const smallRows = [
+      { ...deliveries[0]!, clientName: 'Teste', quantityLabel: '1 balde' },
+      { ...deliveries[1]!, clientName: longName, quantityLabel: '12 baldes' },
+      { ...deliveries[2]!, clientName: 'Cliente C', quantityLabel: '123 baldes' },
+    ];
     const tree = renderWidget(
       {
         date: '2026-10-15',
         state: 'pending',
         deliveryCount: 3,
-        deliveries: [deliveries[0]!, { ...deliveries[1]!, clientName: longName }, deliveries[2]!],
+        deliveries: smallRows,
       },
       'systemSmall',
       'dark',
@@ -329,14 +334,24 @@ describe('EntregasDoDia isolated widget layout', () => {
     expect(list.props?.modifiers).toContainEqual({ name: 'offset', args: [{ x: -4 }] });
     expect(list.props?.spacing).toBe(0);
     expect(rows).toHaveLength(3);
+    expect(collectText(list)).toEqual([
+      'Teste',
+      '·',
+      '1',
+      longName,
+      '·',
+      '12',
+      'Cliente C',
+      '·',
+      '123',
+    ]);
 
-    for (const row of rows) {
+    for (const [index, row] of rows.entries()) {
       const rowTexts = collectNodes(row, 'Text');
       const client = rowTexts.find(({ props }) => typeof props?.children === 'string')!;
-      const quantity = rowTexts.find(({ props }) =>
-        ['1 balde', '2 baldes', '3 baldes'].includes(String(props?.children)),
-      )!;
+      const quantity = rowTexts.find(({ props }) => props?.children === ['1', '12', '123'][index])!;
 
+      expect(client.props?.children).toBe(smallRows[index]?.clientName);
       expect(client.props?.modifiers).toContainEqual({
         name: 'font',
         args: [{ weight: 'semibold', size: 15 }],
@@ -356,9 +371,11 @@ describe('EntregasDoDia isolated widget layout', () => {
       }
       expect(quantity.props?.modifiers).toContainEqual({ name: 'layoutPriority', args: [1] });
     }
-    expect(collectNodes(rows[1], 'Text').some(({ props }) => props?.children === longName)).toBe(
-      true,
-    );
+    expect(smallRows.map(({ quantityLabel }) => quantityLabel)).toEqual([
+      '1 balde',
+      '12 baldes',
+      '123 baldes',
+    ]);
   });
 
   it.each(['systemMedium', 'systemLarge'] as const)(
@@ -510,8 +527,22 @@ describe('EntregasDoDia isolated widget layout', () => {
     },
   );
 
-  it('keeps the medium header first and anchors it above variable delivery content', () => {
-    for (const rows of [[], [deliveries[0]!], deliveries.slice(0, 3)]) {
+  it('anchors the medium header and keeps a non-overlapping first row for zero to three deliveries', () => {
+    const logoHeight = 32;
+    const previousHeaderTop = 6;
+    const previousRootSpacing = 10;
+    const proposedHeaderTop = 10;
+    const proposedRootSpacing = 2;
+    const previousFirstRowTop = logoHeight + previousHeaderTop + previousRootSpacing;
+    const proposedFirstRowTop = logoHeight + proposedHeaderTop + proposedRootSpacing;
+
+    expect(proposedHeaderTop - previousHeaderTop).toBe(4);
+    expect(proposedFirstRowTop - previousFirstRowTop).toBe(-4);
+    expect(
+      logoHeight + proposedHeaderTop + proposedRootSpacing - (logoHeight + proposedHeaderTop),
+    ).toBe(2);
+
+    for (const rows of [[], [deliveries[0]!], deliveries.slice(0, 2), deliveries.slice(0, 3)]) {
       const tree = renderWidget(
         {
           date: '2026-10-15',
@@ -525,6 +556,7 @@ describe('EntregasDoDia isolated widget layout', () => {
 
       expect(Array.isArray(children)).toBe(true);
       expect((children as TreeNode[])[0]?.type).toBe('HStack');
+      expect((children as TreeNode[])[1]?.type).toBe('VStack');
       expect((children as TreeNode[])[(children as TreeNode[]).length - 1]?.type).toBe('Spacer');
       expect(collectText((children as TreeNode[])[0])).toEqual([
         'Empório Rigatti',
@@ -533,10 +565,25 @@ describe('EntregasDoDia isolated widget layout', () => {
       ]);
       expect((children as TreeNode[])[0]?.props?.modifiers).toContainEqual({
         name: 'padding',
-        args: [{ top: 6, leading: 22, trailing: 16 }],
+        args: [{ top: 10, leading: 22, trailing: 16 }],
       });
-      expect(tree.props?.spacing).toBe(10);
+      expect(tree.props?.spacing).toBe(2);
+      expect(tree.props?.modifiers).toContainEqual({
+        name: 'frame',
+        args: [{ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }],
+      });
       expect(((children as TreeNode[])[1] as TreeNode).props?.spacing).toBe(4);
+      expect(collectNodes((children as TreeNode[])[0], 'Image').length).toBe(1);
+      expect(
+        collectNodes((children as TreeNode[])[0], 'Image')[0]?.props?.modifiers?.find(
+          ({ name }) => name === 'frame',
+        )?.args?.[0],
+      ).toEqual({ width: 32, height: 32 });
+      const visibleRows = collectNodes((children as TreeNode[])[1], 'HStack').filter((node) => {
+        const rowChildren = node.props?.children as TreeNode[];
+        return rowChildren?.[0]?.type === 'Link' || rowChildren?.[0]?.type === 'Button';
+      });
+      expect(visibleRows).toHaveLength(rows.length);
       expect(
         collectNodes(tree).some(({ props }) =>
           props?.modifiers?.some(({ name }) => name === 'background'),
@@ -544,6 +591,24 @@ describe('EntregasDoDia isolated widget layout', () => {
       ).toBe(false);
     }
   });
+
+  it.each([
+    ['systemSmall', 2, { horizontal: 2 }],
+    ['systemLarge', 6, { top: 2, leading: 22, trailing: 16 }],
+  ] as const)(
+    'does not apply medium geometry changes to %s',
+    (widgetFamily, spacing, headerPadding) => {
+      const tree = renderWidget(
+        { date: '2026-10-15', state: 'empty', deliveryCount: 0, deliveries: [] },
+        widgetFamily,
+      ) as TreeNode;
+      const header = (tree.props?.children as TreeNode[])[0]!;
+
+      expect(tree.props?.spacing).toBe(spacing);
+      expect(tree.props?.modifiers?.some(({ name }) => name === 'frame')).toBe(false);
+      expect(header.props?.modifiers).toContainEqual({ name: 'padding', args: [headerPadding] });
+    },
+  );
 
   it.each(['systemSmall', 'systemMedium'] as const)(
     'uses one native AppIntent control per visible delivery in %s without creating a Link',

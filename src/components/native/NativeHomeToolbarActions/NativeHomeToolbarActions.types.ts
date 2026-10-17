@@ -6,6 +6,7 @@ type NativeHomeToolbarActionsBaseProps = {
   accessibilityHint?: string;
   searchAccessibilityLabel?: string;
   searchAccessibilityHint?: string;
+  toolbarMorphDiagnosticRole?: 'home-search' | 'settings-profile';
 };
 
 type NativeHomeToolbarProfileActionsProps = NativeHomeToolbarActionsBaseProps & {

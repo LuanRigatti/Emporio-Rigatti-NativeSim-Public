@@ -14,10 +14,13 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 
 # Stack
 
-- Expo SDK 57 no checkpoint atual. `Codex` será a branch principal de
-  desenvolvimento para a futura migração SDK 57 → 58; ela ainda não foi
-  implementada. `ajustes-codex`, `Antigravity`, `opencode` e `main` continuam
-  no SDK 57.
+- Expo SDK 58 neste checkout `Codex`, no checkpoint `5dfc143`: Expo
+  `~58.0.12`, React Native `0.88.0`, React `19.3.0`, Expo Router `~58.0.21`
+  e `@expo/ui ~58.0.19`, conforme declarado em `package.json`.
+- A validação deste checkpoint no NativeSim foi reportada como parcial. Não
+  inferir validação completa nem comportamento em iPhone físico. Não assumir
+  que outras branches foram migradas; confirmar cada checkout pelo Git e pelo
+  respectivo manifest antes de trabalhar nele.
 - React Native
 - TypeScript
 - Expo Router
@@ -27,11 +30,14 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 
 ## Documentação do Expo
 
-Antes de escrever qualquer código, consulte a documentação oficial versionada do Expo SDK 57:
+Antes de escrever qualquer código neste checkout, consulte a documentação
+oficial versionada do Expo SDK 58:
 
-https://docs.expo.dev/versions/v57.0.0/
+https://docs.expo.dev/versions/v58.0.0/
 
-O projeto utiliza o Expo SDK 57. Para decisões sobre APIs, componentes, configuração e compatibilidade do Expo neste checkout, use exclusivamente a documentação versionada do SDK 57. Não use documentação de outras versões como referência para a implementação.
+Para decisões sobre APIs, componentes, configuração e compatibilidade do Expo
+neste checkout, use a documentação versionada do SDK 58. Consulte a
+documentação específica da versão de cada pacote quando necessário.
 
 # Plataformas
 
@@ -206,7 +212,10 @@ Priorizar:
 
 # Limitações Conhecidas
 
-- Permanecer no Expo SDK 57.
+- Tratar `Codex` como checkout Expo SDK 58; confirmar a versão real antes de
+  aplicar estas instruções a qualquer outro checkout.
+- Considerar a validação NativeSim do checkpoint `5dfc143` parcial, conforme
+  reportado pelo usuário.
 - Evitar wrappers com overflow:hidden ao redor de componentes SwiftUI.
 - Não envolver Button SwiftUI com Pressable.
 - O overpayment de pagamentos Retail é validado contra a leitura corrente, sem transação Firestore; concorrência multi-device continua sendo uma limitação conhecida.
@@ -231,12 +240,13 @@ Os checkouts oficiais são `Codex`
 (`C:\Projetos\emporiorigatti-opencode`) e `main`
 (`C:\Projetos\emporiorigatti-main`).
 
-`Codex` foi criada a partir do commit `8c5092e`, preservado pela tag
-`sdk57-pre-sdk58`, e será a branch principal de desenvolvimento para a migração
-Expo SDK 57 → 58. A migração SDK 58 ainda não foi implementada; este checkout e
-as branches `ajustes-codex`, `Antigravity`, `opencode` e `main` continuam no SDK
-57. A documentação versionada deve deixar explícito o estágio da migração para
-que instruções do SDK 58 não sejam tratadas como implementação já realizada.
+`Codex` foi criada a partir do commit `8c5092e`; a tag `sdk57-pre-sdk58`
+preserva o baseline anterior. Este checkout está no checkpoint `5dfc143` e usa
+Expo SDK 58. Esta atualização documental abrange somente `Codex`; não afirma a
+versão atual das outras branches nem as altera. Verifique o Git e o manifest de
+cada checkout antes de aplicar instruções específicas de versão. A Skill de
+sincronização continua excluindo `Codex` até uma tarefa que autorize essa
+mudança.
 
 `main` (`C:\Projetos\emporiorigatti-main`) é mantida como branch de referência.
 O trabalho deve usar a branch adequada à tarefa, confirmando sempre o estado
@@ -320,7 +330,7 @@ Exemplos de escopo:
 
 Preserve a preferência do projeto por APIs nativas e oficiais:
 
-- Expo SDK 57;
+- Expo SDK 58 neste checkout;
 - `@expo/ui` / SwiftUI;
 - Native Stack e NativeTabs;
 - SF Symbols;

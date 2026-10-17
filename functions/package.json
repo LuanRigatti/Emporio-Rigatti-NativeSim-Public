@@ -3,13 +3,15 @@
   "private": true,
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "serve": "firebase emulators:start --only functions,database",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test:route-proxy": "node --test routeProxy.test.js"
+    "test:open-payment-bulk-actions": "node --test openPaymentBulkActions.test.js",
+    "test:route-proxy": "node --test routeProxy.test.js",
+    "test:widget-actions": "node --test deliveryWidgetActions.test.js"
   },
   "dependencies": {
     "firebase-admin": "^12.1.0",

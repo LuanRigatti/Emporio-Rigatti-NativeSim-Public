@@ -1,12 +1,15 @@
 const { onValueWritten } = require('firebase-functions/v2/database');
-const { onRequest } = require('firebase-functions/v2/https');
+const { HttpsError, onCall, onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 
 admin.initializeApp();
 
 const { createRouteProxy } = require('./routeProxy');
+const { createDeliveryWidgetActionsHandler } = require('./deliveryWidgetActions');
+const { createOpenPaymentBulkActionsHandler } = require('./openPaymentBulkActions');
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const APP_WEB_URL = 'https://venda-e-faturamento.web.app';
@@ -47,6 +50,20 @@ exports.routeProxy = onRequest(
     secrets: [googleMapsServerKey],
   },
   createRouteProxy({ getApiKey: () => googleMapsServerKey.value() }),
+);
+
+exports.deliveryWidgetActions = onRequest(
+  {
+    region: 'us-central1',
+    timeoutSeconds: 30,
+    cors: false,
+  },
+  createDeliveryWidgetActionsHandler({ admin }),
+);
+
+exports.openPaymentBulkActions = onCall(
+  { region: 'us-central1', timeoutSeconds: 60 },
+  createOpenPaymentBulkActionsHandler({ admin, HttpsError, FieldValue }),
 );
 
 async function sendNotification(token, message) {

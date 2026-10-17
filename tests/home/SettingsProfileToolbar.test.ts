@@ -104,6 +104,7 @@ describe('Settings profile toolbar', () => {
           imageUri: 'https://example.test/avatar.png',
           name: 'Luan Rigatti',
           showSearch: false,
+          toolbarMorphDiagnosticRole: 'settings-profile',
         }),
       );
 

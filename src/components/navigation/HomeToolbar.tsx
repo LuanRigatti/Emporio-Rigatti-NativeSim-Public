@@ -96,6 +96,7 @@ export function HomeToolbar({ onSearchPress, modeSelector }: HomeToolbarProps) {
               onSearchPress={onSearchPress}
               searchAccessibilityHint="Abre a busca de produtos"
               searchAccessibilityLabel="Busca"
+              toolbarMorphDiagnosticRole="home-search"
             />
           </Stack.Toolbar.View>
         </Stack.Toolbar>

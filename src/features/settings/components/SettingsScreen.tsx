@@ -46,6 +46,7 @@ export function SettingsScreen() {
             name={user?.displayName?.trim() || 'Conta'}
             onProfilePress={openProfileSheet}
             showSearch={false}
+            toolbarMorphDiagnosticRole="settings-profile"
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>

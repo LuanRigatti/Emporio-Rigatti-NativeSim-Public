@@ -46,8 +46,8 @@ describe('reusable native context menu preview', () => {
     expect(moduleConfig).toContain('NativePeekPopPreviewLabModule');
     expect(podspec).toContain("s.source_files = '**/*.{h,m,mm,swift}'");
     expect(settings).not.toContain('__DEV__');
-    expect(settings).toContain('title="Teste de prévia nativa"');
-    expect(settings).toContain("router.push('/peek-pop-lab')");
+    expect(settings).not.toContain('title="Teste de prévia nativa"');
+    expect(settings).not.toContain("router.push('/peek-pop-lab')");
     expect(rootLayout).toContain('name="peek-pop-lab"');
     expect(rootLayout).toContain('hidesBottomBarWhenPushed: true');
   });

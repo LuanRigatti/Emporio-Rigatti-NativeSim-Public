@@ -113,10 +113,10 @@ function findCostSetting(renderer: ReactTestRenderer): ReactTestInstance | undef
     .find((node) => node.props.title === 'Custos');
 }
 
-function findPeekPopLabSetting(renderer: ReactTestRenderer): ReactTestInstance | undefined {
+function findSetting(renderer: ReactTestRenderer, title: string): ReactTestInstance | undefined {
   return renderer.root
     .findAll((node) => String(node.type) === 'setting-item')
-    .find((node) => node.props.title === 'Teste de prévia nativa');
+    .find((node) => node.props.title === title);
 }
 
 describe('SettingsScreen retail client navigation', () => {
@@ -166,12 +166,13 @@ describe('SettingsScreen retail client navigation', () => {
     expect(mockPush).toHaveBeenCalledWith('/custos-varejo');
   });
 
-  it('opens the native preview lab route', () => {
+  it('removes the native preview lab shortcut while keeping System settings', () => {
     const renderer = renderSettings();
-    const labSetting = findPeekPopLabSetting(renderer);
 
-    expect(labSetting).toBeDefined();
-    act(() => labSetting?.props.onPress());
-    expect(mockPush).toHaveBeenCalledWith('/peek-pop-lab');
+    expect(findSetting(renderer, 'Teste de prévia nativa')).toBeUndefined();
+    const systemSetting = findSetting(renderer, 'Sistema');
+    expect(systemSetting).toBeDefined();
+    act(() => systemSetting?.props.onPress());
+    expect(mockPush).toHaveBeenCalledWith('/sistema');
   });
 });

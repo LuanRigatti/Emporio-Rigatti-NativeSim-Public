@@ -17,9 +17,13 @@ O projeto possui cinco branches oficiais, cada uma com seu checkout local:
 - `main` — `C:\Projetos\emporiorigatti-main`
 
 `Codex` foi criada a partir do commit `8c5092e`; a tag `sdk57-pre-sdk58`
-preserva esse checkpoint. `Codex` será a branch principal de desenvolvimento
-para a migração Expo SDK 57 → 58. A migração SDK 58 ainda não foi implementada:
-`Codex` parte do checkpoint SDK 57 e as demais branches continuam no SDK 57.
+preserva o baseline anterior à migração. Este checkout está no checkpoint
+`5dfc143`, com Expo SDK 58 (`expo ~58.0.12`), React Native `0.88.0`, Expo
+Router `~58.0.21` e `@expo/ui ~58.0.19`, conforme declarado em `package.json`.
+A validação parcial desse checkpoint no NativeSim foi informada pelo usuário;
+isso não comprova validação completa nem comportamento em iPhone físico. Este
+registro vale para o checkout `Codex`; as demais branches não foram alteradas
+nesta tarefa e suas versões devem ser verificadas em seus próprios manifests.
 
 A Skill global `$sync-codex-antigravity-main-opencode` sincroniza manualmente
 somente `ajustes-codex`, `Antigravity`, `opencode` e `main`, usando
@@ -36,7 +40,10 @@ consistente entre os checkouts oficiais, sem variantes específicas por ambiente
 As menções às branches nas seções posteriores deste documento registram o
 histórico das entregas e devem ser preservadas como histórico.
 
-## Manutenção do Expo SDK 57 — concluída (2026-10-03)
+## Histórico — manutenção e validações do Expo SDK 57 (2026-10-03)
+
+Este bloco registra o estado do checkout `ajustes-codex` naquele checkpoint.
+Foi mantido como histórico e não descreve as versões atuais do checkout `Codex`.
 
 - A manutenção de dependências do Expo SDK 57 foi concluída e checkpointada
   na branch `ajustes-codex`. `npx expo install --check` retorna zero
@@ -95,7 +102,7 @@ histórico das entregas e devem ser preservadas como histórico.
   A validação física deve usar a nova Development Build descrita abaixo, pois a
   instalada no iPhone é anterior à manutenção do SDK 57.
 
-### Validação ainda pendente em iPhone físico
+### Validação que permanecia pendente em iPhone físico naquele checkpoint
 
 A Development Build instalada anteriormente no iPhone foi compilada antes
 desta manutenção e não valida as novas versões nativas. Uma nova Development

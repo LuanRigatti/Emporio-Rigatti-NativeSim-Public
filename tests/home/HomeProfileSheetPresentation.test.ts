@@ -8,6 +8,8 @@ import { createElement, type ReactNode } from 'react';
 
 import { HomeProfileSheet } from '@/features/home/profile/HomeProfileSheet';
 
+let mockResolvedMode: 'light' | 'dark' = 'light';
+
 const mockAuthState = {
   error: null,
   isLoading: false,
@@ -42,7 +44,9 @@ jest.mock('@/services/routes', () => ({
   locationTrackingService: { stopActiveRouteForLogout: jest.fn() },
 }));
 jest.mock('@/theme', () => ({
-  lightModeLiquidGlassTint: 'rgba(255, 255, 255, 0.6)',
+  getLiquidGlassTint: (mode: 'light' | 'dark') =>
+    mode === 'dark' ? 'dark-sheet-tint' : 'light-sheet-tint',
+  useAppTheme: () => ({ resolvedMode: mockResolvedMode }),
 }));
 jest.mock('@/features/home/profile/HomeProfileSheetContent', () => {
   const React = require('react') as typeof import('react');
@@ -58,30 +62,37 @@ function findNodes(instance: ReactTestInstance, type: string) {
 }
 
 describe('HomeProfileSheet presentation', () => {
-  it('uses white-tinted native Glass and modal dimming', () => {
-    let renderer!: ReturnType<typeof create>;
+  it.each([
+    ['light', 'light-sheet-tint'],
+    ['dark', 'dark-sheet-tint'],
+  ] as const)(
+    'uses the %s theme tint with native Glass and modal dimming',
+    (mode, expectedTint) => {
+      mockResolvedMode = mode;
+      let renderer!: ReturnType<typeof create>;
 
-    act(() => {
-      renderer = create(
-        createElement(HomeProfileSheet, {
-          onVisibleChange: jest.fn(),
-          visible: true,
-        }),
-      );
-    });
+      act(() => {
+        renderer = create(
+          createElement(HomeProfileSheet, {
+            onVisibleChange: jest.fn(),
+            visible: true,
+          }),
+        );
+      });
 
-    const sheet = findNodes(renderer.root, 'native-bottom-sheet')[0];
+      const sheet = findNodes(renderer.root, 'native-bottom-sheet')[0];
 
-    expect(sheet.props.presentationBackgroundColor).toBeUndefined();
-    expect(sheet.props.presentationBackgroundInteraction).toBe('disabled');
-    expect(sheet.props.glassSurface).toBe(true);
-    expect(sheet.props.glassTint).toBe('rgba(255, 255, 255, 0.6)');
-    expect(sheet.props.presentationBackgroundMode).toBeUndefined();
-    expect(sheet.props.detents).toEqual([{ fraction: 0.5 }]);
-    expect(sheet.props.initialDetent).toEqual({ fraction: 0.5 });
-    expect(sheet.props.visible).toBe(true);
-    expect(findNodes(renderer.root, 'profile-content')).toHaveLength(1);
-  });
+      expect(sheet.props.presentationBackgroundColor).toBeUndefined();
+      expect(sheet.props.presentationBackgroundInteraction).toBe('disabled');
+      expect(sheet.props.glassSurface).toBe(true);
+      expect(sheet.props.glassTint).toBe(expectedTint);
+      expect(sheet.props.presentationBackgroundMode).toBeUndefined();
+      expect(sheet.props.detents).toEqual([{ fraction: 0.5 }]);
+      expect(sheet.props.initialDetent).toEqual({ fraction: 0.5 });
+      expect(sheet.props.visible).toBe(true);
+      expect(findNodes(renderer.root, 'profile-content')).toHaveLength(1);
+    },
+  );
 });
 
 describe('NativeBottomSheet shared presentation defaults', () => {

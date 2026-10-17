@@ -162,6 +162,7 @@ describe('HomeToolbar', () => {
         onSearchPress: expect.any(Function),
         searchAccessibilityHint: 'Abre a busca de produtos',
         searchAccessibilityLabel: 'Busca',
+        toolbarMorphDiagnosticRole: 'home-search',
       }),
     );
     expect(
@@ -196,6 +197,7 @@ describe('HomeToolbar', () => {
     expect(searchModeSource).toContain("buttonStyle('plain')");
     expect(searchModeSource).toContain('label="Busca"');
     expect(searchModeSource).toContain('systemImage="magnifyingglass"');
+    expect(searchModeSource).toContain('toolbar-morph:${toolbarMorphDiagnosticRole}');
     expect(searchModeSource).not.toContain('matchContents');
     expect(searchModeSource).not.toContain('glassEffect');
     expect(searchModeSource).not.toContain('background(');

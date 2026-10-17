@@ -132,6 +132,8 @@ module.exports = {
       'expo-router',
       ...(isFinalVariant ? [['expo-dev-client', { addGeneratedScheme: false }]] : []),
       './plugins/withHomeScreenQuickActions',
+      // Expo dangerous mods run in reverse registration order: coordinator patch first, diagnostics second.
+      './plugins/withToolbarMorphDiagnostics',
       './plugins/withRNScreensHideBottomBarWhenPushed',
       'expo-font',
       [

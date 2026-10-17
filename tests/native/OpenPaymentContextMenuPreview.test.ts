@@ -76,6 +76,9 @@ describe('Open Payments native context menu preview', () => {
     expect(previewBuilder).toContain('appearance: { cardSurfaceColor, pageBackgroundColor }');
     expect(previewController).toContain('private static let previewCardCornerRadius: CGFloat = 28');
     expect(previewController).toContain('applyPreviewAppearance()');
+    expect(previewController).toContain(
+      'container.backgroundColor = .secondarySystemGroupedBackground',
+    );
     expect(previewController).toContain('content["sections"]');
   });
 

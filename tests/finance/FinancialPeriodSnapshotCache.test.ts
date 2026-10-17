@@ -79,6 +79,21 @@ describe('FinancialPeriodSnapshotCache', () => {
     expect(cache.getMemory('uid-1', '2026-08')).toBeNull();
   });
 
+  it('notifies only the authenticated user scope when committed data changes externally', () => {
+    const cache = new FinancialPeriodSnapshotCache();
+    const userListener = jest.fn();
+    const otherUserListener = jest.fn();
+    const unsubscribe = cache.subscribeToExternalChange('uid-1', userListener);
+    cache.subscribeToExternalChange('uid-2', otherUserListener);
+
+    cache.notifyExternalChange('uid-1');
+    unsubscribe();
+    cache.notifyExternalChange('uid-1');
+
+    expect(userListener).toHaveBeenCalledTimes(1);
+    expect(otherUserListener).not.toHaveBeenCalled();
+  });
+
   it('isolates all-time snapshots by uid and session version', async () => {
     const cache = new FinancialPeriodSnapshotCache();
 

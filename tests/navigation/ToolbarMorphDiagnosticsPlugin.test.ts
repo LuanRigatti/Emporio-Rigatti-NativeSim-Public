@@ -110,6 +110,10 @@ describe('temporary toolbar morph diagnostics plugin', () => {
         .filter((line) => line.trimStart().startsWith('"event='));
 
       expect(hostDiagnosticMessages).toHaveLength(2);
+      expect(hostDiagnosticMessages[0]).toContain('event=\\(event, privacy: .public)');
+      expect(hostDiagnosticMessages[1]).toContain(
+        'event=host_layout role=\\(role, privacy: .public)',
+      );
       expect(
         hostDiagnosticMessages.filter((line) =>
           line.includes('host=\\(self.toolbarMorphToken, privacy: .public)'),

@@ -54,6 +54,122 @@ jobs:
         timeout-minutes: 25
         run: npx pod-install ios
 
+      - name: Verify toolbar morph plugin output and native targets
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+
+          const screensVersion = JSON.parse(
+            fs.readFileSync('node_modules/react-native-screens/package.json', 'utf8'),
+          ).version;
+          const expoUiVersion = JSON.parse(
+            fs.readFileSync('node_modules/@expo/ui/package.json', 'utf8'),
+          ).version;
+          if (screensVersion !== '4.30.0' || expoUiVersion !== '58.0.19') {
+            throw new Error(`Unexpected native patch anchors: RNScreens ${screensVersion}, ExpoUI ${expoUiVersion}`);
+          }
+
+          const pluginMarker = 'Emporio Rigatti: temporary toolbar morph OSLog diagnostics';
+          const requiredMarkers = [
+            [
+              'node_modules/react-native-screens/ios/RNSScreenStackHeaderSubview.mm',
+              `${pluginMarker} custom accessory logger import`,
+            ],
+            [
+              'node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm',
+              `${pluginMarker} declarative item logger import`,
+            ],
+            [
+              'node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm',
+              'Emporio Rigatti: shared tab toolbar config helpers',
+            ],
+            [
+              'node_modules/react-native-screens/ios/tabs/host/RNSTabBarController.mm',
+              `${pluginMarker} coordinator capture`,
+            ],
+            [
+              'node_modules/react-native-screens/ios/tabs/host/RNSTabBarController.mm',
+              'Emporio Rigatti: shared tab toolbar controller',
+            ],
+            [
+              'node_modules/react-native-screens/ios/RNSScreenStack.mm',
+              `${pluginMarker} stack logger import`,
+            ],
+            [
+              'node_modules/react-native-screens/ios/RNSToolbarMorphDiagnostics.h',
+              `${pluginMarker} shared native logger`,
+            ],
+            [
+              'node_modules/@expo/ui/ios/HostView.swift',
+              `${pluginMarker} Host props diagnostics`,
+            ],
+            [
+              'node_modules/@expo/ui/ios/HostView.swift',
+              `${pluginMarker} Host native layout event`,
+            ],
+          ];
+
+          for (const [path, marker] of requiredMarkers) {
+            const source = fs.readFileSync(path, 'utf8');
+            if (!source.includes(marker)) {
+              throw new Error(`Expected applied config-plugin marker is missing: ${path} :: ${marker}`);
+            }
+          }
+
+          const bottomSheet = fs.readFileSync(
+            'node_modules/@expo/ui/ios/BottomSheetView.swift',
+            'utf8',
+          );
+          if (!bottomSheet.includes('.ignoresSafeArea(.container, edges: .bottom)')) {
+            throw new Error('The existing ExpoUI BottomSheet patch was not applied during install.');
+          }
+
+          const appConfig = fs.readFileSync('app.config.js', 'utf8');
+          const diagnosticsIndex = appConfig.indexOf("'./plugins/withToolbarMorphDiagnostics'");
+          const coordinatorIndex = appConfig.indexOf("'./plugins/withRNScreensHideBottomBarWhenPushed'");
+          if (diagnosticsIndex < 0 || coordinatorIndex <= diagnosticsIndex) {
+            throw new Error('The toolbar coordinator must execute before morph diagnostics in dangerous-mod order.');
+          }
+
+          const podsProject = 'ios/Pods/Pods.xcodeproj';
+          const pods = JSON.parse(
+            execFileSync('xcodebuild', ['-list', '-json', '-project', podsProject], {
+              encoding: 'utf8',
+            }),
+          ).project;
+          const requiredTargets = ['RNScreens', 'ExpoUI', 'ToolbarMorphDiagnostics'];
+          const missingTargets = requiredTargets.filter((target) => !pods.targets.includes(target));
+          if (missingTargets.length > 0) {
+            throw new Error(`Generated CocoaPods project is missing native targets: ${missingTargets.join(', ')}`);
+          }
+
+          console.log(`Verified coordinator + morph plugin markers and ExpoUI patches.`);
+          console.log(`Generated native targets confirmed: ${requiredTargets.join(', ')}`);
+          NODE
+
+      - name: Compile toolbar morph native targets only
+        timeout-minutes: 60
+        run: |
+          set -euo pipefail
+          PODS_PROJECT="ios/Pods/Pods.xcodeproj"
+          LOG_DIR="build/toolbar-morph-preflight"
+          mkdir -p "$LOG_DIR"
+
+          for TARGET_NAME in RNScreens ExpoUI ToolbarMorphDiagnostics; do
+            echo "::group::Compile $TARGET_NAME only"
+            xcodebuild \
+              -project "$PODS_PROJECT" \
+              -target "$TARGET_NAME" \
+              -configuration Release \
+              -sdk iphonesimulator \
+              CODE_SIGNING_ALLOWED=NO \
+              build 2>&1 | tee "$LOG_DIR/${TARGET_NAME}.xcodebuild.log"
+            echo "::endgroup::"
+          done
+
       - name: Verify generated Pods target and configuration
         env:
           TARGET_NAME: NativeCardContextMenu

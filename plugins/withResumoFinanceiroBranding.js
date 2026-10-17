@@ -59,80 +59,206 @@ function ensureSwiftImport(source, importName, anchor) {
   return replaceExactlyOnce(source, anchor, `${anchor}${importLine}`, `${importName} import`);
 }
 
+function getWidgetEntryViewBody(source, viewStructAnchor, label) {
+  if (countOccurrences(source, viewStructAnchor) !== 1) {
+    throw new Error('Widget runtime diagnostics expected one ' + label + ' view struct.');
+  }
+
+  const viewStructStart = source.indexOf(viewStructAnchor);
+  const bodyAnchor = '  public var body: some View {\n';
+  const bodyStart = source.indexOf(bodyAnchor, viewStructStart);
+  const bodyContentsStart = bodyStart + bodyAnchor.length;
+  const bodyEnd = source.indexOf('\n  }\n}', bodyContentsStart);
+  if (bodyStart < 0 || bodyEnd < 0) {
+    throw new Error('Widget runtime diagnostics could not locate ' + label + ' view body.');
+  }
+
+  return {
+    body: source.slice(bodyContentsStart, bodyEnd),
+    bodyStart,
+    bodyContentsStart,
+    bodyEnd,
+  };
+}
+
+function replaceWidgetEntryViewBody(source, viewStructAnchor, label) {
+  const viewBody = getWidgetEntryViewBody(source, viewStructAnchor, label);
+  const layoutLookupAnchor = 'if let layout = WidgetsLayoutRegistry.layout(for: entry.name)';
+  if (countOccurrences(viewBody.body, layoutLookupAnchor) !== 1) {
+    throw new Error(
+      'Widget runtime diagnostics expected one layout branch in ' + label + ' view body.',
+    );
+  }
+
+  const replacementBody =
+    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
+    '      diagnosedLayoutView(layout: layout)\n' +
+    '    } else {\n' +
+    '      diagnosedEmptyWidgetView()\n' +
+    '    }';
+  return (
+    source.slice(0, viewBody.bodyContentsStart) + replacementBody + source.slice(viewBody.bodyEnd)
+  );
+}
+
+function ensureWidgetViewDiagnosticsMethods(source, viewStructAnchor, methods, label) {
+  const layoutSignature = '  private func diagnosedLayoutView(layout: String) -> some View {';
+  const emptySignature = '  private func diagnosedEmptyWidgetView() -> EmptyWidgetView {';
+  const layoutCount = countOccurrences(source, layoutSignature);
+  const emptyCount = countOccurrences(source, emptySignature);
+  if (layoutCount === 1 && emptyCount === 1) return source;
+  if (layoutCount !== 0 || emptyCount !== 0) {
+    throw new Error('Widget runtime diagnostics found partial ' + label + ' view helper methods.');
+  }
+
+  const viewBody = getWidgetEntryViewBody(source, viewStructAnchor, label);
+  return source.slice(0, viewBody.bodyStart) + methods + '\n\n' + source.slice(viewBody.bodyStart);
+}
+
+function createWidgetViewDiagnosticsMethods(loggerName, widgetName, useDynamicName) {
+  const widgetLabel = useDynamicName
+    ? '\\(widgetDiagnosticsName(entry.name), privacy: .public)'
+    : widgetName;
+  const methods = [
+    '  private func diagnosedLayoutView(layout: String) -> some View {',
+    '    let dynamicLayoutPresent = WidgetsStorage.getString(forKey: "__expo_widgets_\\(entry.name)_layout").map { !$0.isEmpty } ?? false',
+    '    let groupIdentifier = WidgetsStorage.appGroupIdentifier',
+    '    let appGroupContainerAvailable = groupIdentifier.map { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil } ?? false',
+    '    let layoutSource = dynamicLayoutPresent ? "app_group" : "embedded"',
+    '    ' +
+      loggerName +
+      '.info("event=layout_lookup widget=' +
+      widgetLabel +
+      ' source=\\(layoutSource, privacy: .public) app_group_configured=\\(groupIdentifier != nil, privacy: .public) app_group_container=\\(appGroupContainerAvailable, privacy: .public)")',
+    '    let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)',
+    '    let evaluationSucceeded = (node["type"] as? String) != "RedBoxView"',
+    '    ' +
+      loggerName +
+      '.info("event=layout_evaluation widget=' +
+      widgetLabel +
+      ' success=\\(evaluationSucceeded, privacy: .public)")',
+    '    return WidgetsDynamicView(name: entry.name, kind: .widget, node: node, entryIndex: entry.entryIndex, environmentString: widgetEnvironmentString)',
+    '  }',
+    '',
+    '  private func diagnosedEmptyWidgetView() -> EmptyWidgetView {',
+    '    let groupIdentifier = WidgetsStorage.appGroupIdentifier',
+    '    let appGroupContainerAvailable = groupIdentifier.map { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil } ?? false',
+    '    ' +
+      loggerName +
+      '.info("event=layout_lookup widget=' +
+      widgetLabel +
+      ' source=missing app_group_configured=\\(groupIdentifier != nil, privacy: .public) app_group_container=\\(appGroupContainerAvailable, privacy: .public)")',
+    '    ' + loggerName + '.info("event=empty_widget_view widget=' + widgetLabel + '")',
+    '    return EmptyWidgetView()',
+    '  }',
+  ];
+  return methods.join('\n');
+}
+
+function assertWidgetViewDiagnostics(source, viewStructAnchor, label, additionalExpectedEvents) {
+  const expectedEvents = [
+    ['event=widget_extension_entry', 1],
+    ['event=layout_lookup', 2],
+    ['event=layout_evaluation', 1],
+    ['event=empty_widget_view', 1],
+    ...(additionalExpectedEvents ?? []),
+  ];
+  if (
+    countOccurrences(source, RUNTIME_DIAGNOSTICS_MARKER) !== 1 ||
+    expectedEvents.some(([event, count]) => countOccurrences(source, event) !== count)
+  ) {
+    throw new Error('Widget runtime diagnostics found incomplete ' + label + ' instrumentation.');
+  }
+
+  const viewBody = getWidgetEntryViewBody(source, viewStructAnchor, label).body;
+  if (
+    countOccurrences(viewBody, 'diagnosedLayoutView(layout: layout)') !== 1 ||
+    countOccurrences(viewBody, 'diagnosedEmptyWidgetView()') !== 1 ||
+    /\.(info|error|debug|notice|warning)\(/.test(viewBody)
+  ) {
+    throw new Error(
+      'Widget runtime diagnostics found logging inside the ' + label + ' ViewBuilder.',
+    );
+  }
+}
+
 function transformSharedWidgetEntryViewSource(source) {
-  const markerCount = countOccurrences(source, RUNTIME_DIAGNOSTICS_MARKER);
-  if (markerCount > 0) {
-    const expected = [
-      'event=widget_extension_entry',
-      'event=layout_evaluation',
-      'event=empty_widget_view',
-    ];
-    if (
-      markerCount !== 1 ||
-      expected.some((fragment) => countOccurrences(source, fragment) !== 1) ||
-      countOccurrences(source, 'event=layout_lookup') !== 2 ||
-      countOccurrences(source, 'widgetDiagnosticsName(entry.name)') < 3
-    ) {
-      throw new Error(
-        'Widget runtime diagnostics found partial shared entry view instrumentation.',
-      );
+  const viewStructAnchor = 'public struct WidgetsEntryView: View {\n';
+  const layoutSignature = '  private func diagnosedLayoutView(layout: String) -> some View {';
+  const emptySignature = '  private func diagnosedEmptyWidgetView() -> EmptyWidgetView {';
+  const layoutCount = countOccurrences(source, layoutSignature);
+  const emptyCount = countOccurrences(source, emptySignature);
+  if (layoutCount > 0 || emptyCount > 0) {
+    if (layoutCount !== 1 || emptyCount !== 1) {
+      throw new Error('Widget runtime diagnostics found partial shared entry view helper methods.');
     }
+    assertWidgetViewDiagnostics(source, viewStructAnchor, 'shared entry view');
     return source;
   }
 
   let transformed = ensureSwiftImport(source, 'os', 'import WidgetKit\n');
   transformed = ensureSwiftImport(transformed, 'Foundation', 'import os\n');
-  const viewAnchor = 'public struct WidgetsEntryView: View {\n';
-  transformed = replaceExactlyOnce(
+  const markerCount = countOccurrences(transformed, RUNTIME_DIAGNOSTICS_MARKER);
+  const loggerCount = countOccurrences(transformed, 'private let diagnosticsLogger = os.Logger(');
+  const nameHelperCount = countOccurrences(
     transformed,
-    viewAnchor,
-    `${viewAnchor}  ${RUNTIME_DIAGNOSTICS_MARKER}\n` +
-      '  private let diagnosticsLogger = os.Logger(\n' +
-      '    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
-      '    category: "WidgetRenderDiagnostics"\n' +
-      '  )\n\n' +
-      '  private func widgetDiagnosticsName(_ name: String) -> String {\n' +
-      '    ["ResumoFinanceiro", "EntregasDoDia"].contains(name) ? name : "other"\n' +
-      '  }\n\n' +
-      '  private func widgetAppGroupContainerAvailable() -> Bool {\n' +
-      '    guard let groupIdentifier = WidgetsStorage.appGroupIdentifier else { return false }\n' +
-      '    return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupIdentifier) != nil\n' +
-      '  }\n',
-    'shared widget entry view diagnostics logger',
+    '  private func widgetDiagnosticsName(_ name: String) -> String {',
   );
-  transformed = replaceExactlyOnce(
+  if (markerCount > 1 || loggerCount > 1 || nameHelperCount > 1) {
+    throw new Error('Widget runtime diagnostics found duplicate shared entry view scaffolding.');
+  }
+  if (markerCount === 0) {
+    if (loggerCount !== 0 || nameHelperCount !== 0) {
+      throw new Error('Widget runtime diagnostics found unmarked shared entry view scaffolding.');
+    }
+    transformed = replaceExactlyOnce(
+      transformed,
+      viewStructAnchor,
+      viewStructAnchor +
+        '  ' +
+        RUNTIME_DIAGNOSTICS_MARKER +
+        '\n' +
+        '  private let diagnosticsLogger = os.Logger(\n' +
+        '    subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
+        '    category: "WidgetRenderDiagnostics"\n' +
+        '  )\n\n' +
+        '  private func widgetDiagnosticsName(_ name: String) -> String {\n' +
+        '    ["ResumoFinanceiro", "EntregasDoDia"].contains(name) ? name : "other"\n' +
+        '  }\n',
+      'shared widget entry view diagnostics logger',
+    );
+  } else if (loggerCount !== 1 || nameHelperCount !== 1) {
+    throw new Error(
+      'Widget runtime diagnostics found incomplete legacy shared entry view scaffolding.',
+    );
+  }
+
+  const entryEventCount = countOccurrences(transformed, 'event=widget_extension_entry');
+  if (entryEventCount > 1) {
+    throw new Error('Widget runtime diagnostics found duplicate shared entry initialization logs.');
+  }
+  if (entryEventCount === 0) {
+    transformed = replaceExactlyOnce(
+      transformed,
+      '    self.entry = entry\n',
+      '    self.entry = entry\n' +
+        '    diagnosticsLogger.info("event=widget_extension_entry widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")\n',
+      'shared widget entry initialization log',
+    );
+  }
+
+  transformed = ensureWidgetViewDiagnosticsMethods(
     transformed,
-    '    self.entry = entry\n',
-    '    self.entry = entry\n' +
-      '    diagnosticsLogger.info("event=widget_extension_entry widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")\n',
-    'shared widget entry initialization log',
+    viewStructAnchor,
+    createWidgetViewDiagnosticsMethods(
+      'diagnosticsLogger',
+      '\\(widgetDiagnosticsName(entry.name), privacy: .public)',
+      true,
+    ),
+    'shared entry view',
   );
-  transformed = replaceExactlyOnce(
-    transformed,
-    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n',
-    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
-      '      let dynamicLayoutPresent = WidgetsStorage.getString(forKey: "__expo_widgets_\\(entry.name)_layout").map { !$0.isEmpty } ?? false\n' +
-      '      let layoutSource = dynamicLayoutPresent ? "app_group" : "embedded"\n' +
-      '      diagnosticsLogger.info("event=layout_lookup widget=\\(widgetDiagnosticsName(entry.name), privacy: .public) source=\\(layoutSource, privacy: .public) app_group_configured=\\(WidgetsStorage.appGroupIdentifier != nil, privacy: .public) app_group_container=\\(widgetAppGroupContainerAvailable(), privacy: .public)")\n',
-    'shared widget layout lookup log',
-  );
-  transformed = replaceExactlyOnce(
-    transformed,
-    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n',
-    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n' +
-      '      let evaluationSucceeded = (node["type"] as? String) != "RedBoxView"\n' +
-      '      diagnosticsLogger.info("event=layout_evaluation widget=\\(widgetDiagnosticsName(entry.name), privacy: .public) success=\\(evaluationSucceeded, privacy: .public)")\n',
-    'shared widget layout evaluation log',
-  );
-  transformed = replaceExactlyOnce(
-    transformed,
-    '    } else {\n      // No layout is stored until the app has run once after install or\n',
-    '    } else {\n' +
-      '      diagnosticsLogger.info("event=layout_lookup widget=\\(widgetDiagnosticsName(entry.name), privacy: .public) source=missing app_group_configured=\\(WidgetsStorage.appGroupIdentifier != nil, privacy: .public) app_group_container=\\(widgetAppGroupContainerAvailable(), privacy: .public)")\n' +
-      '      diagnosticsLogger.info("event=empty_widget_view widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")\n' +
-      '      // No layout is stored until the app has run once after install or\n',
-    'shared empty widget view log',
-  );
+  transformed = replaceWidgetEntryViewBody(transformed, viewStructAnchor, 'shared entry view');
+  assertWidgetViewDiagnostics(transformed, viewStructAnchor, 'shared entry view');
   return transformed;
 }
 
@@ -212,100 +338,147 @@ function transformSharedWidgetTimelineProviderSource(source) {
 }
 
 function transformConfigurableWidgetSource(source, widgetName) {
-  const marker = `${RUNTIME_DIAGNOSTICS_MARKER}: ${widgetName}`;
-  const markerCount = countOccurrences(source, marker);
-  if (markerCount > 0) {
-    const expected = [
-      'event=timeline_placeholder',
-      'event=timeline_snapshot',
-      'event=timeline_refresh',
-      'event=widget_extension_entry',
-      'event=layout_evaluation',
-      'event=empty_widget_view',
-    ];
-    if (
-      markerCount !== 1 ||
-      expected.some((fragment) => countOccurrences(source, fragment) !== 1) ||
-      countOccurrences(source, 'event=layout_lookup') !== 2
-    ) {
-      throw new Error(`Widget runtime diagnostics found partial ${widgetName} instrumentation.`);
+  const marker = RUNTIME_DIAGNOSTICS_MARKER + ': ' + widgetName;
+  const loggerName = widgetName[0].toLowerCase() + widgetName.slice(1) + 'WidgetDiagnosticsLogger';
+  const viewStructAnchor = 'struct ' + widgetName + 'EntryView: View {\n';
+  const layoutSignature = '  private func diagnosedLayoutView(layout: String) -> some View {';
+  const emptySignature = '  private func diagnosedEmptyWidgetView() -> EmptyWidgetView {';
+  const layoutCount = countOccurrences(source, layoutSignature);
+  const emptyCount = countOccurrences(source, emptySignature);
+  if (layoutCount > 0 || emptyCount > 0) {
+    if (layoutCount !== 1 || emptyCount !== 1) {
+      throw new Error(
+        'Widget runtime diagnostics found partial ' + widgetName + ' view helper methods.',
+      );
     }
+    assertWidgetViewDiagnostics(source, viewStructAnchor, widgetName, [
+      ['event=timeline_placeholder', 1],
+      ['event=timeline_snapshot', 1],
+      ['event=timeline_refresh', 1],
+    ]);
     return source;
   }
 
   let transformed = ensureSwiftImport(source, 'os', 'import WidgetKit\n');
   transformed = ensureSwiftImport(transformed, 'Foundation', 'import os\n');
-  const loggerName = `${widgetName[0].toLowerCase()}${widgetName.slice(1)}WidgetDiagnosticsLogger`;
-  const entryAnchor = `struct ${widgetName}TimelineEntry: TimelineEntry {\n`;
-  transformed = replaceExactlyOnce(
-    transformed,
-    entryAnchor,
-    `${marker}\nprivate let ${loggerName} = os.Logger(\n` +
-      '  subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
-      '  category: "WidgetRenderDiagnostics"\n' +
-      ')\n\n' +
-      entryAnchor,
-    `${widgetName} diagnostics logger`,
-  );
-
-  const logAtFunctionStart = (signature, statement, label) => {
+  const markerCount = countOccurrences(transformed, marker);
+  const loggerDeclaration = 'private let ' + loggerName + ' = os.Logger(';
+  const loggerCount = countOccurrences(transformed, loggerDeclaration);
+  if (markerCount > 1 || loggerCount > 1) {
+    throw new Error('Widget runtime diagnostics found duplicate ' + widgetName + ' scaffolding.');
+  }
+  if (markerCount === 0) {
+    if (loggerCount !== 0) {
+      throw new Error(
+        'Widget runtime diagnostics found unmarked ' + widgetName + ' logger scaffolding.',
+      );
+    }
+    const entryAnchor = 'struct ' + widgetName + 'TimelineEntry: TimelineEntry {\n';
     transformed = replaceExactlyOnce(
       transformed,
-      `${signature}\n`,
-      `${signature}\n    ${statement}\n`,
-      label,
+      entryAnchor,
+      RUNTIME_DIAGNOSTICS_MARKER +
+        ': ' +
+        widgetName +
+        '\n' +
+        'private let ' +
+        loggerName +
+        ' = os.Logger(\n' +
+        '  subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",\n' +
+        '  category: "WidgetRenderDiagnostics"\n' +
+        ')\n\n' +
+        entryAnchor,
+      widgetName + ' diagnostics logger',
     );
-  };
-  logAtFunctionStart(
-    `  func placeholder(in context: Context) -> ${widgetName}TimelineEntry {`,
-    `${loggerName}.info("event=timeline_placeholder widget=${widgetName}")`,
-    `${widgetName} placeholder log`,
-  );
+  } else if (loggerCount !== 1) {
+    throw new Error(
+      'Widget runtime diagnostics found incomplete legacy ' + widgetName + ' scaffolding.',
+    );
+  }
 
-  const timelineReadAnchor = `    let entries = parseTimeline(configuration: configuration)\n`;
-  transformed = replaceExactlyOnce(
-    transformed,
-    timelineReadAnchor,
-    `${timelineReadAnchor}    ${loggerName}.info("event=timeline_snapshot widget=${widgetName} timeline_present=\\(WidgetsStorage.getArray(forKey: \"__expo_widgets_${widgetName}_timeline\") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")\n`,
-    `${widgetName} snapshot log`,
-  );
-  const timelineRefreshAnchor = `    let entries = self.parseTimeline(configuration: configuration)\n`;
-  transformed = replaceExactlyOnce(
-    transformed,
-    timelineRefreshAnchor,
-    `${timelineRefreshAnchor}    ${loggerName}.info("event=timeline_refresh widget=${widgetName} timeline_present=\\(WidgetsStorage.getArray(forKey: \"__expo_widgets_${widgetName}_timeline\") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")\n`,
-    `${widgetName} timeline refresh log`,
-  );
+  const entryEventCount = countOccurrences(transformed, 'event=widget_extension_entry');
+  if (entryEventCount > 1) {
+    throw new Error(
+      'Widget runtime diagnostics found duplicate ' + widgetName + ' initialization logs.',
+    );
+  }
+  if (entryEventCount === 0) {
+    transformed = replaceExactlyOnce(
+      transformed,
+      '    self.entry = entry\n',
+      '    self.entry = entry\n' +
+        '    ' +
+        loggerName +
+        '.info("event=widget_extension_entry widget=' +
+        widgetName +
+        '")\n',
+      widgetName + ' entry initialization log',
+    );
+  }
 
-  transformed = replaceExactlyOnce(
+  const timelineLogs = [
+    {
+      event: 'event=timeline_placeholder',
+      anchor: '  func placeholder(in context: Context) -> ' + widgetName + 'TimelineEntry {\n',
+      statement: loggerName + '.info("event=timeline_placeholder widget=' + widgetName + '")',
+      label: widgetName + ' placeholder log',
+    },
+    {
+      event: 'event=timeline_snapshot',
+      anchor: '    let entries = parseTimeline(configuration: configuration)\n',
+      statement:
+        loggerName +
+        '.info("event=timeline_snapshot widget=' +
+        widgetName +
+        ' timeline_present=\\(WidgetsStorage.getArray(forKey: "__expo_widgets_' +
+        widgetName +
+        '_timeline") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")',
+      label: widgetName + ' snapshot log',
+    },
+    {
+      event: 'event=timeline_refresh',
+      anchor: '    let entries = self.parseTimeline(configuration: configuration)\n',
+      statement:
+        loggerName +
+        '.info("event=timeline_refresh widget=' +
+        widgetName +
+        ' timeline_present=\\(WidgetsStorage.getArray(forKey: "__expo_widgets_' +
+        widgetName +
+        '_timeline") != nil, privacy: .public) entry_count=\\(entries.count, privacy: .public)")',
+      label: widgetName + ' timeline refresh log',
+    },
+  ];
+  for (const { event, anchor, statement, label } of timelineLogs) {
+    const eventCount = countOccurrences(transformed, event);
+    if (eventCount > 1) {
+      throw new Error(
+        'Widget runtime diagnostics found duplicate ' + event + ' logs for ' + widgetName + '.',
+      );
+    }
+    if (eventCount === 0) {
+      transformed = replaceExactlyOnce(
+        transformed,
+        anchor,
+        anchor + '    ' + statement + '\n',
+        label,
+      );
+    }
+  }
+
+  transformed = ensureWidgetViewDiagnosticsMethods(
     transformed,
-    `    self.entry = entry\n`,
-    `    self.entry = entry\n    ${loggerName}.info("event=widget_extension_entry widget=${widgetName}")\n`,
-    `${widgetName} entry initialization log`,
+    viewStructAnchor,
+    createWidgetViewDiagnosticsMethods(loggerName, widgetName, false),
+    widgetName,
   );
-  transformed = replaceExactlyOnce(
-    transformed,
-    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n',
-    '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
-      `      let dynamicLayoutPresent = WidgetsStorage.getString(forKey: "__expo_widgets_\\(entry.name)_layout").map { !$0.isEmpty } ?? false\n      let groupIdentifier = WidgetsStorage.appGroupIdentifier\n      let appGroupContainerAvailable = groupIdentifier.map { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil } ?? false\n      let layoutSource = dynamicLayoutPresent ? "app_group" : "embedded"\n      ${loggerName}.info("event=layout_lookup widget=${widgetName} source=\\(layoutSource, privacy: .public) app_group_configured=\\(groupIdentifier != nil, privacy: .public) app_group_container=\\(appGroupContainerAvailable, privacy: .public)")\n`,
-    `${widgetName} layout lookup log`,
-  );
-  transformed = replaceExactlyOnce(
-    transformed,
-    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n',
-    '      let node = evaluateLayout(layout: layout, props: entry.props, environment: widgetEnvironment)\n' +
-      `      let evaluationSucceeded = (node["type"] as? String) != "RedBoxView"\n      ${loggerName}.info("event=layout_evaluation widget=${widgetName} success=\\(evaluationSucceeded, privacy: .public)")\n`,
-    `${widgetName} layout evaluation log`,
-  );
-  transformed = replaceExactlyOnce(
-    transformed,
-    '    } else {\n      EmptyWidgetView()\n',
-    `    } else {\n      let groupIdentifier = WidgetsStorage.appGroupIdentifier\n      let appGroupContainerAvailable = groupIdentifier.map { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) != nil } ?? false\n      ${loggerName}.info("event=layout_lookup widget=${widgetName} source=missing app_group_configured=\\(groupIdentifier != nil, privacy: .public) app_group_container=\\(appGroupContainerAvailable, privacy: .public)")\n      ${loggerName}.info("event=empty_widget_view widget=${widgetName}")\n      EmptyWidgetView()\n`,
-    `${widgetName} empty widget view log`,
-  );
+  transformed = replaceWidgetEntryViewBody(transformed, viewStructAnchor, widgetName);
+  assertWidgetViewDiagnostics(transformed, viewStructAnchor, widgetName, [
+    ['event=timeline_placeholder', 1],
+    ['event=timeline_snapshot', 1],
+    ['event=timeline_refresh', 1],
+  ]);
   return transformed;
 }
-
 function transformExpoWidgetsUtilsSource(source) {
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
   let transformed = source.replace(/\r\n/g, '\n');

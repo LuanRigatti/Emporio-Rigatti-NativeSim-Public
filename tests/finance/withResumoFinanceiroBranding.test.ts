@@ -40,11 +40,16 @@ const actualWidgetSourcePlugin = (
   }
 ).default;
 
-const { transformExpoWidgetsTarget, transformExpoWidgetsUtilsSource } = jest.requireActual(
-  '../../plugins/withResumoFinanceiroBranding',
-) as {
+const {
+  transformExpoWidgetsTarget,
+  transformExpoWidgetsUtilsSource,
+  transformSharedWidgetEntryViewSource,
+  transformConfigurableWidgetSource,
+} = jest.requireActual('../../plugins/withResumoFinanceiroBranding') as {
   transformExpoWidgetsTarget: (projectRoot: string, packageRoot?: string) => void;
   transformExpoWidgetsUtilsSource: (source: string) => string;
+  transformSharedWidgetEntryViewSource: (source: string) => string;
+  transformConfigurableWidgetSource: (source: string, widgetName: string) => string;
 };
 
 const widgetDefinitions: WidgetDefinition[] = [
@@ -122,6 +127,19 @@ async function generateRealExpoWidgetsTarget(iosRoot: string) {
   return path.join(iosRoot, 'ExpoWidgetsTarget');
 }
 
+function extractWidgetEntryViewBody(source: string, viewStructAnchor: string) {
+  const structStart = source.indexOf(viewStructAnchor);
+  const bodyAnchor = '  public var body: some View {\n';
+  const bodyStart = source.indexOf(bodyAnchor, structStart);
+  const bodyContentsStart = bodyStart + bodyAnchor.length;
+  const bodyEnd = source.indexOf('\n  }\n}', bodyContentsStart);
+
+  expect(structStart).toBeGreaterThanOrEqual(0);
+  expect(bodyStart).toBeGreaterThanOrEqual(structStart);
+  expect(bodyEnd).toBeGreaterThan(bodyContentsStart);
+  return source.slice(bodyContentsStart, bodyEnd);
+}
+
 describe('Expo Widgets iOS CNG transform', () => {
   it('adds App Group image resolution and idempotent runtime diagnostics to SDK 58 sources', async () => {
     const { iosRoot, packageRoot } = createTemporaryProject();
@@ -158,6 +176,18 @@ describe('Expo Widgets iOS CNG transform', () => {
     const firstPassEntryView = fs.readFileSync(entryViewPath, 'utf8');
     const firstPassProvider = fs.readFileSync(providerPath, 'utf8');
     const firstPassFinanceWidget = fs.readFileSync(financeWidgetPath, 'utf8');
+    const firstPassDeliveryWidget = fs.readFileSync(
+      path.join(targetDirectory, 'EntregasDoDia.swift'),
+      'utf8',
+    );
+    const sharedEntryViewBody = extractWidgetEntryViewBody(
+      firstPassEntryView,
+      'public struct WidgetsEntryView: View {',
+    );
+    const financeWidgetViewBody = extractWidgetEntryViewBody(
+      firstPassFinanceWidget,
+      'struct ResumoFinanceiroEntryView: View {',
+    );
 
     expect(firstPass).toContain('import Foundation');
     expect(firstPass).toContain('// ResumoFinanceiro shared branding image directory');
@@ -191,12 +221,106 @@ describe('Expo Widgets iOS CNG transform', () => {
     );
     expect(firstPassFinanceWidget).toContain('event=empty_widget_view widget=ResumoFinanceiro');
     expect(firstPassFinanceWidget).toContain('event=layout_evaluation widget=ResumoFinanceiro');
+    expect(firstPassFinanceWidget).toContain('event=timeline_placeholder widget=ResumoFinanceiro');
+    expect(firstPassFinanceWidget).toContain('event=timeline_snapshot widget=ResumoFinanceiro');
+    expect(firstPassFinanceWidget).toContain('event=timeline_refresh widget=ResumoFinanceiro');
+    expect(sharedEntryViewBody).toContain('diagnosedLayoutView(layout: layout)');
+    expect(sharedEntryViewBody).toContain('diagnosedEmptyWidgetView()');
+    expect(sharedEntryViewBody).not.toMatch(/\.(info|error|debug|notice|warning)\(/);
+    expect(financeWidgetViewBody).toContain('diagnosedLayoutView(layout: layout)');
+    expect(financeWidgetViewBody).toContain('diagnosedEmptyWidgetView()');
+    expect(financeWidgetViewBody).not.toMatch(/\.(info|error|debug|notice|warning)\(/);
+    expect(firstPassEntryView).toContain(
+      'private func diagnosedLayoutView(layout: String) -> some View',
+    );
+    expect(firstPassFinanceWidget).toContain(
+      'private func diagnosedEmptyWidgetView() -> EmptyWidgetView',
+    );
+    expect(firstPassDeliveryWidget).toContain('StaticConfiguration(');
+    expect(firstPassDeliveryWidget).toContain('WidgetsEntryView(entry: entry)');
+    expect(firstPassDeliveryWidget).not.toContain('diagnosedLayoutView(layout: layout)');
 
     transformExpoWidgetsTarget(iosRoot, packageRoot);
     expect(fs.readFileSync(utilsPath, 'utf8')).toBe(firstPass);
     expect(fs.readFileSync(entryViewPath, 'utf8')).toBe(firstPassEntryView);
     expect(fs.readFileSync(providerPath, 'utf8')).toBe(firstPassProvider);
     expect(fs.readFileSync(financeWidgetPath, 'utf8')).toBe(firstPassFinanceWidget);
+    expect(fs.readFileSync(path.join(targetDirectory, 'EntregasDoDia.swift'), 'utf8')).toBe(
+      firstPassDeliveryWidget,
+    );
+  });
+
+  it('moves legacy inline SwiftUI diagnostics into helper methods for both view variants', async () => {
+    const { iosRoot, packageRoot } = createTemporaryProject();
+    const targetDirectory = await generateRealExpoWidgetsTarget(iosRoot);
+    const rawSharedEntryView = fs.readFileSync(
+      path.join(packageRoot, 'ios/Widgets/EntryView.swift'),
+      'utf8',
+    );
+    const rawFinanceWidget = fs.readFileSync(
+      path.join(targetDirectory, 'ResumoFinanceiro.swift'),
+      'utf8',
+    );
+
+    const legacySharedEntryView = rawSharedEntryView
+      .replace(
+        'public struct WidgetsEntryView: View {\n',
+        'public struct WidgetsEntryView: View {\n' +
+          '  // Rigatti WidgetKit runtime diagnostics\n' +
+          '  private let diagnosticsLogger = os.Logger(subsystem: "com.pareact.mobile", category: "WidgetRenderDiagnostics")\n' +
+          '  private func widgetDiagnosticsName(_ name: String) -> String { name }\n',
+      )
+      .replace(
+        '    self.entry = entry\n',
+        '    self.entry = entry\n' +
+          '    diagnosticsLogger.info("event=widget_extension_entry widget=ResumoFinanceiro")\n',
+      )
+      .replace(
+        '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n',
+        '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
+          '      diagnosticsLogger.info("event=layout_lookup widget=ResumoFinanceiro")\n',
+      );
+    const migratedSharedEntryView = transformSharedWidgetEntryViewSource(legacySharedEntryView);
+    const migratedSharedBody = extractWidgetEntryViewBody(
+      migratedSharedEntryView,
+      'public struct WidgetsEntryView: View {',
+    );
+
+    const legacyFinanceWidget = rawFinanceWidget
+      .replace(
+        'struct ResumoFinanceiroTimelineEntry: TimelineEntry {\n',
+        '// Rigatti WidgetKit runtime diagnostics: ResumoFinanceiro\n' +
+          'private let resumoFinanceiroWidgetDiagnosticsLogger = os.Logger(subsystem: "com.pareact.mobile", category: "WidgetRenderDiagnostics")\n\n' +
+          'struct ResumoFinanceiroTimelineEntry: TimelineEntry {\n',
+      )
+      .replace(
+        '    self.entry = entry\n',
+        '    self.entry = entry\n' +
+          '    resumoFinanceiroWidgetDiagnosticsLogger.info("event=widget_extension_entry widget=ResumoFinanceiro")\n',
+      )
+      .replace(
+        '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n',
+        '    if let layout = WidgetsLayoutRegistry.layout(for: entry.name) {\n' +
+          '      resumoFinanceiroWidgetDiagnosticsLogger.info("event=layout_lookup widget=ResumoFinanceiro")\n',
+      );
+    const migratedFinanceWidget = transformConfigurableWidgetSource(
+      legacyFinanceWidget,
+      'ResumoFinanceiro',
+    );
+    const migratedFinanceBody = extractWidgetEntryViewBody(
+      migratedFinanceWidget,
+      'struct ResumoFinanceiroEntryView: View {',
+    );
+
+    expect(migratedSharedBody).not.toMatch(/\.(info|error|debug|notice|warning)\(/);
+    expect(migratedFinanceBody).not.toMatch(/\.(info|error|debug|notice|warning)\(/);
+    expect(migratedSharedEntryView).toContain('event=layout_evaluation');
+    expect(migratedSharedEntryView).toContain('event=empty_widget_view');
+    expect(migratedFinanceWidget).toContain('event=layout_evaluation widget=ResumoFinanceiro');
+    expect(migratedFinanceWidget).toContain('event=empty_widget_view widget=ResumoFinanceiro');
+    expect(migratedFinanceWidget).toContain('event=timeline_placeholder widget=ResumoFinanceiro');
+    expect(migratedFinanceWidget).toContain('event=timeline_snapshot widget=ResumoFinanceiro');
+    expect(migratedFinanceWidget).toContain('event=timeline_refresh widget=ResumoFinanceiro');
   });
 
   it('transforms the actual installed Utils.swift template without changing its line ending style', () => {

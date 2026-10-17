@@ -183,6 +183,16 @@ function assertWidgetViewDiagnostics(source, viewStructAnchor, label, additional
 }
 
 function transformSharedWidgetEntryViewSource(source) {
+  const legacyEntryLog =
+    '    diagnosticsLogger.info("event=widget_extension_entry widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")';
+  // OSLog interpolation escapes; an instance call there captures mutating self in init.
+  const entryLog =
+    '    let diagnosticsWidgetName = widgetDiagnosticsName(entry.name)\n' +
+    '    diagnosticsLogger.info("event=widget_extension_entry widget=\\(diagnosticsWidgetName, privacy: .public)")';
+  if (source.includes(legacyEntryLog)) {
+    source = replaceExactlyOnce(source, legacyEntryLog, entryLog, 'shared entry initializer log');
+  }
+
   const viewStructAnchor = 'public struct WidgetsEntryView: View {\n';
   const layoutSignature = '  private func diagnosedLayoutView(layout: String) -> some View {';
   const emptySignature = '  private func diagnosedEmptyWidgetView() -> EmptyWidgetView {';
@@ -241,8 +251,7 @@ function transformSharedWidgetEntryViewSource(source) {
     transformed = replaceExactlyOnce(
       transformed,
       '    self.entry = entry\n',
-      '    self.entry = entry\n' +
-        '    diagnosticsLogger.info("event=widget_extension_entry widget=\\(widgetDiagnosticsName(entry.name), privacy: .public)")\n',
+      '    self.entry = entry\n' + entryLog + '\n',
       'shared widget entry initialization log',
     );
   }
@@ -340,6 +349,16 @@ function transformSharedWidgetTimelineProviderSource(source) {
 function transformConfigurableWidgetSource(source, widgetName) {
   const marker = RUNTIME_DIAGNOSTICS_MARKER + ': ' + widgetName;
   const loggerName = widgetName[0].toLowerCase() + widgetName.slice(1) + 'WidgetDiagnosticsLogger';
+  // The placeholder stops being a single-expression function once diagnostics are added.
+  const placeholderExpression = '\n    ' + widgetName + 'TimelineEntry(';
+  if (source.includes(placeholderExpression)) {
+    source = replaceExactlyOnce(
+      source,
+      placeholderExpression,
+      '\n    return ' + widgetName + 'TimelineEntry(',
+      widgetName + ' placeholder return',
+    );
+  }
   const viewStructAnchor = 'struct ' + widgetName + 'EntryView: View {\n';
   const layoutSignature = '  private func diagnosedLayoutView(layout: String) -> some View {';
   const emptySignature = '  private func diagnosedEmptyWidgetView() -> EmptyWidgetView {';
@@ -373,7 +392,11 @@ function transformConfigurableWidgetSource(source, widgetName) {
         'Widget runtime diagnostics found unmarked ' + widgetName + ' logger scaffolding.',
       );
     }
-    const entryAnchor = 'struct ' + widgetName + 'TimelineEntry: TimelineEntry {\n';
+    const entryDeclaration = 'struct ' + widgetName + 'TimelineEntry: TimelineEntry {\n';
+    const availableEntryDeclaration = '@available(iOS 17.0, *)\n' + entryDeclaration;
+    const entryAnchor = transformed.includes(availableEntryDeclaration)
+      ? availableEntryDeclaration
+      : entryDeclaration;
     transformed = replaceExactlyOnce(
       transformed,
       entryAnchor,

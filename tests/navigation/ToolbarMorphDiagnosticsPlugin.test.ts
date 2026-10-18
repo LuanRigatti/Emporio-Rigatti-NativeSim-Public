@@ -188,9 +188,23 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       expect(coordinator).toContain('RNSLogToolbarMorphItems(@"attachment_repair_decision"');
       expect(coordinator).toContain('RNSLogToolbarMorphItems(@"attachment_repair_applied"');
       expect(coordinator).toContain(
+        'RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_before"',
+      );
+      expect(coordinator).toContain(
+        'RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_after"',
+      );
+      expect(coordinator).toContain(
+        'RNSLogToolbarMorphOwnership(@"coordinator_apply_owner_before"',
+      );
+      expect(coordinator).toContain('RNSLogToolbarMorphOwnership(@"coordinator_apply_owner_after"');
+      expect(coordinator).toContain(
+        'RNSLogToolbarMorphOwnership(@"attachment_repair_owner_before"',
+      );
+      expect(coordinator).toContain('RNSLogToolbarMorphOwnership(@"attachment_repair_owner_after"');
+      expect(coordinator).toContain(
         '"materialization", @"captured", navigationController.navigationBar',
       );
-      expect(coordinator).toContain('RNSObserveToolbarMorphTransition(');
+      expect(coordinator).toContain('RNSObserveToolbarMorphTabTransition(');
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
@@ -202,6 +216,10 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
       const loggerHeader = readFileSync(
         path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+      const headerSubview = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSScreenStackHeaderSubview.mm'),
         'utf8',
       );
       const host = readFileSync(path.join(fixtureExpoUIRoot, 'ios/HostView.swift'), 'utf8');
@@ -217,6 +235,17 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       expect(loggerHeader).toContain('home-search');
       expect(loggerHeader).toContain('settings-profile');
       expect(loggerHeader).toContain('finance-reference');
+      expect(loggerHeader).toContain('@"Período financeiro", @"Selecionar período"');
+      expect(loggerHeader).not.toContain('@"Selecionar mês"');
+      expect(loggerHeader).not.toContain('@"Selecionar ano"');
+      expect(loggerHeader).toContain('navigation_matches_shared=%{public}d');
+      expect(loggerHeader).toContain('settings_shared_root_predicate=%{public}d');
+      expect(loggerHeader).toContain('finance_shared_root_predicate=%{public}d');
+      expect(loggerHeader).toContain('owner_contains=%{public}d other_owner_contains=%{public}d');
+      expect(headerSubview).toContain('custom_view_will_move');
+      expect(headerSubview).toContain('custom_view_did_move');
+      expect(headerSubview).toContain('custom_view_window_changed');
+      expect(loggerHeader).toContain('tab_transition_completed');
       expect(loggerHeader).not.toContain('displayName');
       expect(loggerHeader).not.toContain('photoUrl');
       expect(host).toContain('event=host_layout');
@@ -259,6 +288,10 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       expect(coordinator).toContain('toolbar_first_materialization');
       expect(coordinator).toContain('pop_staging_source');
       expect(coordinator).toContain('pop_staging_destination');
+      expect(loggerHeader).toContain('event=pop_staging_predicates');
+      expect(coordinator).toContain('RNSLogToolbarMorphPopPredicates(');
+      expect(coordinator).toContain('pop_owner_before_transfer');
+      expect(coordinator).toContain('pop_owner_after_transfer');
       expect(coordinator).toContain('attachment_repair_decision');
       expect(coordinator).toContain('attachment_repair_applied');
       expect(stack).toContain('navigation_will_show_callback');
@@ -282,9 +315,19 @@ describe('temporary toolbar morph diagnostics plugin', () => {
 
   it('traces the real declarative Finance toolbar button through its native accessibility label', () => {
     const financeRoute = readFileSync(path.resolve('src/app/(tabs)/financeiro/index.tsx'), 'utf8');
+    const financePeriodToolbar = readFileSync(
+      path.resolve('src/features/finance/components/FinancePeriodToolbar.tsx'),
+      'utf8',
+    );
     const routerToolbarButtonConverter = readFileSync(
       path.resolve(
         'node_modules/expo-router/build/layouts/stack-utils/toolbar/StackToolbarButton/index.js',
+      ),
+      'utf8',
+    );
+    const routerToolbarMenuConverter = readFileSync(
+      path.resolve(
+        'node_modules/expo-router/build/layouts/stack-utils/toolbar/StackToolbarMenu/index.js',
       ),
       'utf8',
     );
@@ -297,8 +340,13 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       'utf8',
     );
     expect(financeRoute).toContain('accessibilityLabel="Período financeiro"');
+    expect(financePeriodToolbar).toContain('accessibilityLabel="Selecionar período"');
     expect(routerToolbarButtonConverter).toContain(
       'convertStackHeaderSharedPropsToRNSharedHeaderItem)(props)',
+    );
+    expect(routerToolbarMenuConverter).toContain("type: 'menu'");
+    expect(routerToolbarMenuConverter).toContain(
+      'convertStackHeaderSharedPropsToRNSharedHeaderItem)(rest, isBottomPlacement)',
     );
     expect(routerSharedToolbarProps).toContain('...rest,');
     expect(screensBarButtonItem).toContain('self.accessibilityLabel = dict[@"accessibilityLabel"]');
@@ -319,11 +367,75 @@ describe('temporary toolbar morph diagnostics plugin', () => {
         'utf8',
       );
 
+      expect(loggerHeader).toContain('@"Período financeiro", @"Selecionar período"');
       expect(loggerHeader).toContain(
-        'item.accessibilityLabel isEqualToString:@"Período financeiro"',
+        'financeReferenceLabels containsObject:item.accessibilityLabel',
       );
       expect(headerConfig).toContain('RNSLogToolbarMorphItem(@"item_created"');
       expect(coordinator).toContain('RNSLogToolbarMorphItems(@"coordinator_capture"');
+      expect(coordinator).toContain(
+        'RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_before"',
+      );
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('records shared-root pop predicates, exclusive ownership transfer, and cancelled swipe-back recovery', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const loggerHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+      const coordinator = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+      const stack = readFileSync(path.join(fixtureScreensRoot, 'ios/RNSScreenStack.mm'), 'utf8');
+      const stageStart = coordinator.lastIndexOf(
+        '- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:',
+      );
+      const stageEnd = coordinator.indexOf('\n#pragma mark - Signals', stageStart);
+      const stageMethod = coordinator.slice(stageStart, stageEnd);
+      const predicateLogIndex = stageMethod.indexOf('RNSLogToolbarMorphPopPredicates(');
+      const routeBranchIndex = stageMethod.indexOf('if (isHomeSharedRootPop)');
+      const releaseOwnerIndex = stageMethod.indexOf(
+        'setRightBarButtonItems:remainingSourceRightItems',
+      );
+      const destinationOwnerIndex = stageMethod.indexOf(
+        'setRightBarButtonItems:rightItems.count > 0 ? rightItems : nil animated:NO',
+      );
+      const didShowSyncIndex = stack.indexOf(
+        '[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"];',
+      );
+
+      expect(loggerHeader).toContain('context.isCancelled ? @"cancelled" : @"completed"');
+      expect(loggerHeader).toContain('navigation_matches_selected_nested=%{public}d');
+      expect(loggerHeader).toContain('destination_is_tabs_root=%{public}d');
+      expect(loggerHeader).toContain('stack_depth=%{public}ld nested_stack_depth=%{public}ld');
+      expect(loggerHeader).toContain('source_owner=%{public}@ destination_owner=%{public}@');
+      expect(coordinator).toContain('RNSLogToolbarMorphTabSelection(@"tab_selection_requested"');
+      expect(coordinator).toContain('RNSLogToolbarMorphTabSelection(@"tab_selection_applied"');
+      expect(stageMethod).toContain('RNSLogToolbarMorphPopPredicates');
+      expect(predicateLogIndex).toBeGreaterThanOrEqual(0);
+      expect(routeBranchIndex).toBeGreaterThan(predicateLogIndex);
+      expect(stageMethod).toContain('RNSLogToolbarMorphOwnership(@"pop_owner_before_transfer"');
+      expect(stageMethod).toContain(
+        'RNSLogToolbarMorphOwnership(@"pop_owner_after_source_release"',
+      );
+      expect(stageMethod).toContain('RNSLogToolbarMorphOwnership(@"pop_owner_after_transfer"');
+      expect(releaseOwnerIndex).toBeGreaterThanOrEqual(0);
+      expect(destinationOwnerIndex).toBeGreaterThan(releaseOwnerIndex);
+      expect(didShowSyncIndex).toBeGreaterThanOrEqual(0);
+      expect(stack).toContain('RNSObserveToolbarMorphNavigationTransition(');
+      expect(coordinator).toContain(
+        'RNSSharedToolbarItemsByRemovingInstances(sourceNavigationItem.leftBarButtonItems',
+      );
+      expect(coordinator).toContain(
+        'RNSSharedToolbarItemsByRemovingInstances(sourceNavigationItem.rightBarButtonItems',
+      );
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }

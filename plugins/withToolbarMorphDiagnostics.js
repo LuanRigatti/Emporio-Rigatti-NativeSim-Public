@@ -55,7 +55,10 @@ static inline NSString *RNSRoleForToolbarMorphItem(UIBarButtonItem *item)
 {
   NSString *customRole = RNSFindToolbarMorphRoleInView(item.customView, 0);
   if (customRole != nil) return customRole;
-  if ([item.accessibilityLabel isEqualToString:@"Período financeiro"]) return @"finance-reference";
+  NSArray<NSString *> *financeReferenceLabels = @[@"Período financeiro", @"Selecionar período"];
+  if (item.accessibilityLabel != nil && [financeReferenceLabels containsObject:item.accessibilityLabel]) {
+    return @"finance-reference";
+  }
   return nil;
 }
 
@@ -84,7 +87,11 @@ static inline NSString *RNSSafeToolbarMorphReason(NSString *reason)
     @"attachment_checked",
     @"transition_active", @"source_unavailable", @"same_instances", @"setter_completed",
     @"experiment_b_skip_once", @"experiment_b_recovery", @"experiment_b_shared_side_preserved",
-    @"initial_materialization", @"navigation-pop-will-show"
+    @"initial_materialization", @"navigation-pop-will-show", @"pop_staging_predicates",
+    @"pop_owner_before_transfer", @"pop_owner_after_source_release", @"pop_owner_after_transfer",
+    @"coordinator_capture_owner_before",
+    @"coordinator_capture_owner_after", @"coordinator_apply_owner_before", @"coordinator_apply_owner_after",
+    @"attachment_repair_owner_before", @"attachment_repair_owner_after"
   ];
   return [allowed containsObject:reason] ? reason : @"other";
 }
@@ -101,7 +108,7 @@ static inline NSString *RNSSafeToolbarMorphStageResult(NSString *result)
     @"not_pop", @"tabs_controller_unavailable", @"navigation_context_unavailable",
     @"shared_navigation_context_unavailable", @"settings_shared_bar_visible",
     @"not_target_root_pop", @"root_items_unavailable", @"root_items_empty",
-    @"staged_home_root", @"staged_settings_root", @"already_staged", @"pending",
+    @"staged_home_root", @"staged_settings_root", @"staged_finance_root", @"already_staged", @"pending",
     @"staging_started", @"toolbar_materialized", @"completed", @"cancelled"
   ];
   return [allowed containsObject:result] ? result : @"other";
@@ -238,6 +245,165 @@ static inline void RNSLogToolbarMorphNavigation(
       animated,
       transitionActive,
       cancelled);
+}
+
+static inline BOOL RNSToolbarMorphOwnerContainsItem(UINavigationItem *owner, UIBarButtonItem *candidate)
+{
+  if (owner == nil || candidate == nil) return NO;
+  for (UIBarButtonItem *item in owner.leftBarButtonItems ?: @[]) if (item == candidate) return YES;
+  for (UIBarButtonItem *item in owner.rightBarButtonItems ?: @[]) if (item == candidate) return YES;
+  return NO;
+}
+
+static inline void RNSLogToolbarMorphOwnership(
+    NSString *event,
+    NSArray<UIBarButtonItem *> *items,
+    UINavigationItem *owner,
+    UINavigationItem *otherOwner,
+    NSString *side,
+    NSString *result,
+    BOOL animated,
+    BOOL transitionActive)
+{
+  uint64_t uptimeMilliseconds = (uint64_t)(NSProcessInfo.processInfo.systemUptime * 1000.0);
+  if (items.count == 0) {
+    os_log_with_type(RNSCreateToolbarMorphDiagnosticsLogger(), OS_LOG_TYPE_INFO,
+        "event=%{public}@ variant=%{public}@ role=coordinator item=none side=%{public}@ owner=%{public}@ other_owner=%{public}@ result=%{public}@ uptime_ms=%{public}llu animated=%{public}d transition_active=%{public}d",
+        event, RNSCurrentToolbarMorphExperimentVariant(), side,
+        RNSToolbarMorphToken(owner, @"navigation_item"), RNSToolbarMorphToken(otherOwner, @"navigation_item"),
+        result, uptimeMilliseconds, animated, transitionActive);
+    return;
+  }
+  for (UIBarButtonItem *item in items) {
+    NSString *role = RNSRoleForToolbarMorphItem(item);
+    if (role == nil) continue;
+    UIView *customView = item.customView;
+    os_log_with_type(RNSCreateToolbarMorphDiagnosticsLogger(), OS_LOG_TYPE_INFO,
+        "event=%{public}@ variant=%{public}@ role=%{public}@ item=%{public}@ custom_view=%{public}@ side=%{public}@ owner=%{public}@ other_owner=%{public}@ owner_contains=%{public}d other_owner_contains=%{public}d attached=%{public}d window=%{public}d width=%{public}ld height=%{public}ld hidden=%{public}d alpha_milli=%{public}ld result=%{public}@ uptime_ms=%{public}llu animated=%{public}d transition_active=%{public}d",
+        event, RNSCurrentToolbarMorphExperimentVariant(), role, RNSToolbarMorphToken(item, @"item"),
+        RNSToolbarMorphToken(customView, @"view"), side,
+        RNSToolbarMorphToken(owner, @"navigation_item"), RNSToolbarMorphToken(otherOwner, @"navigation_item"),
+        RNSToolbarMorphOwnerContainsItem(owner, item), RNSToolbarMorphOwnerContainsItem(otherOwner, item),
+        customView != nil && customView.superview != nil, customView.window != nil,
+        (long)(customView != nil ? lrint(customView.bounds.size.width) : -1),
+        (long)(customView != nil ? lrint(customView.bounds.size.height) : -1),
+        customView.hidden, (long)(customView != nil ? lrint(customView.alpha * 1000.0) : -1),
+        result, uptimeMilliseconds, animated, transitionActive);
+  }
+}
+
+static inline NSString *RNSRoleForToolbarMorphItems(NSArray<UIBarButtonItem *> *items)
+{
+  for (UIBarButtonItem *item in items) {
+    NSString *role = RNSRoleForToolbarMorphItem(item);
+    if (role != nil) return role;
+  }
+  return @"unknown";
+}
+
+static inline void RNSLogToolbarMorphPopPredicates(
+    UINavigationController *navigationController,
+    UINavigationController *expectedNavigationController,
+    UINavigationController *expectedNestedNavigationController,
+    UIViewController *fromViewController,
+    UIViewController *toViewController,
+    NSInteger selectedTabIndex,
+    NSInteger expectedTabIndex,
+    NSInteger nestedStackDepth,
+    BOOL sharedTabsControllerIsTop,
+    BOOL destinationIsTabsRoot,
+    BOOL destinationIsNestedRoot,
+    BOOL homeRootPredicate,
+    BOOL settingsSharedRootPredicate,
+    BOOL financeSharedRootPredicate,
+    BOOL settingsNestedRootPredicate,
+    UINavigationItem *sourceOwner,
+    UINavigationItem *destinationOwner,
+    NSArray<UIBarButtonItem *> *items,
+    NSString *result)
+{
+  NSString *target = selectedTabIndex == 0 ? @"home" :
+      (selectedTabIndex == 3 ? @"settings" : (selectedTabIndex == 1 ? @"finance" : @"other"));
+  NSString *role = RNSRoleForToolbarMorphItems(items);
+  uint64_t uptimeMilliseconds = (uint64_t)(NSProcessInfo.processInfo.systemUptime * 1000.0);
+  os_log_with_type(RNSCreateToolbarMorphDiagnosticsLogger(), OS_LOG_TYPE_INFO,
+      "event=pop_staging_predicates variant=%{public}@ role=%{public}@ target=%{public}@ navigation=%{public}@ expected_navigation=%{public}@ navigation_matches_shared=%{public}d expected_nested_navigation=%{public}@ navigation_matches_selected_nested=%{public}d from=%{public}@ to=%{public}@ shared_tabs_controller_is_top=%{public}d destination_is_tabs_root=%{public}d selected_tab_index=%{public}ld expected_tab_index=%{public}ld stack_depth=%{public}ld nested_stack_depth=%{public}ld destination_is_nested_root=%{public}d home_root_predicate=%{public}d settings_shared_root_predicate=%{public}d finance_shared_root_predicate=%{public}d settings_nested_root_predicate=%{public}d source_owner=%{public}@ destination_owner=%{public}@ result=%{public}@ uptime_ms=%{public}llu transition_active=%{public}d",
+      RNSCurrentToolbarMorphExperimentVariant(), role, target,
+      RNSToolbarMorphToken(navigationController, @"navigation"),
+      RNSToolbarMorphToken(expectedNavigationController, @"navigation"),
+      navigationController != nil && navigationController == expectedNavigationController,
+      RNSToolbarMorphToken(expectedNestedNavigationController, @"navigation"),
+      navigationController != nil && navigationController == expectedNestedNavigationController,
+      RNSToolbarMorphToken(fromViewController, @"controller"),
+      RNSToolbarMorphToken(toViewController, @"controller"), sharedTabsControllerIsTop, destinationIsTabsRoot,
+      (long)selectedTabIndex, (long)expectedTabIndex,
+      (long)navigationController.viewControllers.count, (long)nestedStackDepth,
+      destinationIsNestedRoot, homeRootPredicate, settingsSharedRootPredicate,
+      financeSharedRootPredicate, settingsNestedRootPredicate, RNSToolbarMorphToken(sourceOwner, @"navigation_item"),
+      RNSToolbarMorphToken(destinationOwner, @"navigation_item"), result, uptimeMilliseconds,
+      navigationController.transitionCoordinator != nil);
+}
+
+static inline void RNSLogToolbarMorphViewLifecycle(
+    NSString *event,
+    UIView *view,
+    UIView *targetSuperview)
+{
+  NSString *role = RNSFindToolbarMorphRoleInView(view, 0);
+  if (role == nil) return;
+  UIWindow *window = view.window;
+  uint64_t uptimeMilliseconds = (uint64_t)(NSProcessInfo.processInfo.systemUptime * 1000.0);
+  os_log_with_type(RNSCreateToolbarMorphDiagnosticsLogger(), OS_LOG_TYPE_INFO,
+      "event=%{public}@ variant=%{public}@ role=%{public}@ view=%{public}@ superview=%{public}@ target_superview=%{public}@ window=%{public}@ attached=%{public}d width=%{public}ld height=%{public}ld hidden=%{public}d alpha_milli=%{public}ld uptime_ms=%{public}llu",
+      event, RNSCurrentToolbarMorphExperimentVariant(), role,
+      RNSToolbarMorphToken(view, @"view"), RNSToolbarMorphToken(view.superview, @"superview"),
+      RNSToolbarMorphToken(targetSuperview, @"superview"), RNSToolbarMorphToken(window, @"window"),
+      view.superview != nil && window != nil,
+      (long)lrint(view.bounds.size.width), (long)lrint(view.bounds.size.height), view.hidden,
+      (long)lrint(view.alpha * 1000.0), uptimeMilliseconds);
+}
+
+static inline void RNSLogToolbarMorphTabSelection(
+    NSString *event,
+    NSString *source,
+    UINavigationController *navigationController,
+    UIViewController *fromViewController,
+    UIViewController *toViewController,
+    NSInteger fromIndex,
+    NSInteger toIndex,
+    BOOL transitionActive,
+    BOOL cancelled)
+{
+  uint64_t uptimeMilliseconds = (uint64_t)(NSProcessInfo.processInfo.systemUptime * 1000.0);
+  os_log_with_type(RNSCreateToolbarMorphDiagnosticsLogger(), OS_LOG_TYPE_INFO,
+      "event=%{public}@ variant=%{public}@ role=coordinator source=%{public}@ navigation=%{public}@ from=%{public}@ to=%{public}@ from_index=%{public}ld to_index=%{public}ld transition_active=%{public}d cancelled=%{public}d uptime_ms=%{public}llu",
+      event, RNSCurrentToolbarMorphExperimentVariant(), source,
+      RNSToolbarMorphToken(navigationController, @"navigation"),
+      RNSToolbarMorphToken(fromViewController, @"controller"),
+      RNSToolbarMorphToken(toViewController, @"controller"), (long)fromIndex, (long)toIndex,
+      transitionActive, cancelled, uptimeMilliseconds);
+}
+
+static inline void RNSObserveToolbarMorphTabTransition(
+    id<UIViewControllerTransitionCoordinator> coordinator,
+    NSString *source,
+    UINavigationController *navigationController,
+    UIViewController *fromViewController,
+    UIViewController *toViewController,
+    NSInteger fromIndex,
+    NSInteger toIndex)
+{
+  if (coordinator == nil) {
+    RNSLogToolbarMorphTabSelection(@"tab_transition_observer_unavailable", source,
+        navigationController, fromViewController, toViewController, fromIndex, toIndex, NO, NO);
+    return;
+  }
+  RNSLogToolbarMorphTabSelection(@"tab_transition_observer_registered", source,
+      navigationController, fromViewController, toViewController, fromIndex, toIndex, YES, NO);
+  [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+    RNSLogToolbarMorphTabSelection(@"tab_transition_completed", source, navigationController,
+        fromViewController, toViewController, fromIndex, toIndex, NO, context.isCancelled);
+  }];
 }
 
 static inline void RNSObserveToolbarMorphTransition(
@@ -379,6 +545,28 @@ function patchScreens(screensRoot) {
   }`,
     `${PLUGIN_MARKER} custom item invalidation`,
   );
+  insertBefore(
+    headerSubview,
+    '#pragma mark - RCTComponentViewProtocol',
+    `- (void)willMoveToSuperview:(UIView *)newSuperview
+{
+  RNSLogToolbarMorphViewLifecycle(@"custom_view_will_move", self, newSuperview);
+  [super willMoveToSuperview:newSuperview];
+}
+
+- (void)didMoveToSuperview
+{
+  [super didMoveToSuperview];
+  RNSLogToolbarMorphViewLifecycle(@"custom_view_did_move", self, nil);
+}
+
+- (void)didMoveToWindow
+{
+  [super didMoveToWindow];
+  RNSLogToolbarMorphViewLifecycle(@"custom_view_window_changed", self, nil);
+}`,
+    `${PLUGIN_MARKER} custom accessory attachment lifecycle`,
+  );
 
   const headerConfig = path.join(screensRoot, 'ios', 'RNSScreenStackHeaderConfig.mm');
   insertAfter(
@@ -418,8 +606,68 @@ function patchScreens(screensRoot) {
       self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"coordinator_capture", materialized[@"right"], nil,
       @"right", @"materialization", @"captured", navigationController.navigationBar, NO,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);
+  RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_before", materialized[@"left"], item,
+      self.parentViewController.navigationItem, @"left", @"before_clear", NO,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);
+  RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_before", materialized[@"right"], item,
+      self.parentViewController.navigationItem, @"right", @"before_clear", NO,
       self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} coordinator capture`,
+  );
+  insertAfter(
+    controllerPath,
+    '  [item setRightBarButtonItems:nil animated:NO];',
+    `  RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_after", materialized[@"left"], item,
+      self.parentViewController.navigationItem, @"left", @"source_cleared", NO,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);
+  RNSLogToolbarMorphOwnership(@"coordinator_capture_owner_after", materialized[@"right"], item,
+      self.parentViewController.navigationItem, @"right", @"source_cleared", NO,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);`,
+    `${PLUGIN_MARKER} coordinator capture ownership result`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems)) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:shouldAnimateToolbarItemReplacement];\n  }',
+    `  RNSLogToolbarMorphOwnership(@"coordinator_apply_owner_after", leftItems, sharedNavigationItem,
+      sourceNavigationItem, @"left", @"destination_after_apply", shouldAnimateToolbarItemReplacement,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
+  RNSLogToolbarMorphOwnership(@"coordinator_apply_owner_after", rightItems, sharedNavigationItem,
+      sourceNavigationItem, @"right", @"destination_after_apply", shouldAnimateToolbarItemReplacement,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+    `${PLUGIN_MARKER} coordinator apply ownership result`,
+  );
+  insertBefore(
+    controllerPath,
+    '  if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedLeftItems, leftItems)) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:shouldAnimateToolbarItemReplacement];\n  }',
+    `  RNSLogToolbarMorphOwnership(@"coordinator_apply_owner_before", leftItems, sharedNavigationItem,
+      sourceNavigationItem, @"left", @"before_apply", shouldAnimateToolbarItemReplacement,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
+  RNSLogToolbarMorphOwnership(@"coordinator_apply_owner_before", rightItems, sharedNavigationItem,
+      sourceNavigationItem, @"right", @"before_apply", shouldAnimateToolbarItemReplacement,
+      self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
+    `${PLUGIN_MARKER} coordinator apply ownership decision`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '  BOOL isSettingsNestedRootPop = navigationController == selectedNestedNavigationController &&\n      sharedTabsControllerIsTop &&\n      toViewController == selectedNestedNavigationController.viewControllers.firstObject &&\n      selectedNestedNavigationController.viewControllers.count == 1 && selectedTabIndex == 3;',
+    `  UINavigationItem *diagnosticRootOwner = selectedNestedNavigationController.topViewController.navigationItem;
+  NSDictionary *diagnosticRootItems =
+      objc_getAssociatedObject(diagnosticRootOwner, &RNSSharedToolbarMaterializedItemsKey);
+  RNSLogToolbarMorphPopPredicates(navigationController, sharedNavigationController,
+      selectedNestedNavigationController, fromViewController, toViewController, selectedTabIndex,
+      selectedTabIndex == 0 ? 0 : (selectedTabIndex == 3 ? 3 : (selectedTabIndex == 1 ? 1 : -1)),
+      selectedNestedNavigationController.viewControllers.count,
+      sharedTabsControllerIsTop, toViewController == tabsScreenViewController,
+      selectedNestedNavigationController.viewControllers.count == 1 &&
+          toViewController == selectedNestedNavigationController.viewControllers.firstObject,
+      isHomeSharedRootPop, isSettingsSharedRootPop, isFinanceSharedRootPop, isSettingsNestedRootPop,
+      diagnosticRootOwner, destinationNavigationItem,
+      [(diagnosticRootItems[@"left"] ?: @[]) arrayByAddingObjectsFromArray:(diagnosticRootItems[@"right"] ?: @[])],
+      @"predicate_evaluated");`,
+    `${PLUGIN_MARKER} pop predicate evaluation`,
   );
 
   insertAfter(
@@ -438,8 +686,43 @@ function patchScreens(screensRoot) {
     `  RNSLogToolbarMorphItems(@"pop_staging_destination", destinationNavigationItem.leftBarButtonItems ?: @[], leftItems,
       @"left", @"navigation-pop-will-show", @"staged", navigationController.navigationBar, NO, YES);
   RNSLogToolbarMorphItems(@"pop_staging_destination", destinationNavigationItem.rightBarButtonItems ?: @[], rightItems,
-      @"right", @"navigation-pop-will-show", @"staged", navigationController.navigationBar, NO, YES);`,
+      @"right", @"navigation-pop-will-show", @"staged", navigationController.navigationBar, NO, YES);
+  RNSLogToolbarMorphOwnership(@"pop_owner_after_transfer", leftItems, destinationNavigationItem,
+      sourceNavigationItem, @"left", successResult, NO, YES);
+  RNSLogToolbarMorphOwnership(@"pop_owner_after_transfer", rightItems, destinationNavigationItem,
+      sourceNavigationItem, @"right", successResult, NO, YES);
+  RNSLogToolbarMorphPopPredicates(navigationController, sharedNavigationController,
+      selectedNestedNavigationController, fromViewController, toViewController, selectedTabIndex,
+      selectedTabIndex == 0 ? 0 : (selectedTabIndex == 3 ? 3 : (selectedTabIndex == 1 ? 1 : -1)),
+      selectedNestedNavigationController.viewControllers.count,
+      sharedNavigationController.topViewController == tabsScreenViewController,
+      toViewController == tabsScreenViewController,
+      selectedNestedNavigationController.viewControllers.count == 1 &&
+          toViewController == selectedNestedNavigationController.viewControllers.firstObject,
+      isHomeSharedRootPop, isSettingsSharedRootPop, isFinanceSharedRootPop, isSettingsNestedRootPop,
+      sourceNavigationItem, destinationNavigationItem,
+      [leftItems arrayByAddingObjectsFromArray:rightItems], successResult);`,
     `${PLUGIN_MARKER} pop staging destination items`,
+  );
+  insertBefore(
+    controllerPath,
+    '  if (isSettingsOrFinanceSharedRootPop && sourceNavigationItem != destinationNavigationItem) {',
+    `  RNSLogToolbarMorphOwnership(@"pop_owner_before_transfer", leftItems, sourceNavigationItem,
+      destinationNavigationItem, @"left", successResult, NO, YES);
+  RNSLogToolbarMorphOwnership(@"pop_owner_before_transfer", rightItems, sourceNavigationItem,
+      destinationNavigationItem, @"right", successResult, NO, YES);`,
+    `${PLUGIN_MARKER} pop staging source ownership`,
+  );
+  insertBefore(
+    controllerPath,
+    '  if (isSettingsNestedRootPop) {',
+    `  if (isSettingsOrFinanceSharedRootPop) {
+    RNSLogToolbarMorphOwnership(@"pop_owner_after_source_release", leftItems, sourceNavigationItem,
+        destinationNavigationItem, @"left", successResult, NO, YES);
+    RNSLogToolbarMorphOwnership(@"pop_owner_after_source_release", rightItems, sourceNavigationItem,
+        destinationNavigationItem, @"right", successResult, NO, YES);
+  }`,
+    `${PLUGIN_MARKER} pop staging ownership after source release`,
   );
 
   insertBefore(
@@ -549,6 +832,34 @@ function patchScreens(screensRoot) {
           self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair right result`,
   );
+  insertBefore(
+    controllerPath,
+    '    if (repairRight && !skipAttachmentRepairRight) {',
+    `    RNSLogToolbarMorphOwnership(@"attachment_repair_owner_before", rightItems,
+        sharedNavigationItem, sourceNavigationItem, @"right", @"before_repair", NO, YES);`,
+    `${PLUGIN_MARKER} attachment repair ownership before`,
+  );
+  insertBefore(
+    controllerPath,
+    '    if (repairLeft && !skipAttachmentRepairLeft) {',
+    `    RNSLogToolbarMorphOwnership(@"attachment_repair_owner_before", leftItems,
+        sharedNavigationItem, sourceNavigationItem, @"left", @"before_repair", NO, YES);`,
+    `${PLUGIN_MARKER} attachment repair left ownership before`,
+  );
+  insertAfter(
+    controllerPath,
+    '      [sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO];',
+    `      RNSLogToolbarMorphOwnership(@"attachment_repair_owner_after", leftItems,
+          sharedNavigationItem, sourceNavigationItem, @"left", @"after_repair", NO, YES);`,
+    `${PLUGIN_MARKER} attachment repair left ownership after`,
+  );
+  insertAfter(
+    controllerPath,
+    '      [sharedNavigationItem setRightBarButtonItems:rightItems animated:NO];',
+    `      RNSLogToolbarMorphOwnership(@"attachment_repair_owner_after", rightItems,
+          sharedNavigationItem, sourceNavigationItem, @"right", @"after_repair", NO, YES);`,
+    `${PLUGIN_MARKER} attachment repair right ownership after`,
+  );
   insertAfter(
     controllerPath,
     '      [sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO];',
@@ -558,14 +869,18 @@ function patchScreens(screensRoot) {
     `${PLUGIN_MARKER} attachment repair left result`,
   );
 
-  insertAfter(
+  insertBefore(
     controllerPath,
-    '- (BOOL)interceptUserSelectionOfViewController:(nonnull UIViewController *)viewController\n{',
+    '  return NO;\n}\n\n#pragma mark - UITabBarControllerDelegate',
     `  NSArray<RNSTabsScreenViewController *> *diagnosticTabs = [self installedScreenControllers];
-  NSInteger currentTabIndex = (NSInteger)[diagnosticTabs indexOfObject:[self effectiveSelectedViewController]];
+  UIViewController *diagnosticSourceController = [self effectiveSelectedViewController];
+  NSInteger currentTabIndex = (NSInteger)[diagnosticTabs indexOfObject:diagnosticSourceController];
   NSInteger requestedTabIndex = (NSInteger)[diagnosticTabs indexOfObject:viewController];
-  RNSLogToolbarMorphTransition(@"tab_selection_requested", @"user", currentTabIndex,
-      requestedTabIndex, YES, self.transitionCoordinator != nil, NO);`,
+  if (diagnosticSourceController != viewController) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_requested", @"user",
+        self.parentViewController.navigationController, diagnosticSourceController, viewController,
+        currentTabIndex, requestedTabIndex, self.transitionCoordinator != nil, NO);
+  }`,
     `${PLUGIN_MARKER} tab selection requested`,
   );
   insertAfter(
@@ -573,12 +888,105 @@ function patchScreens(screensRoot) {
     '  [self userDidSelectViewController:viewController];',
     `  NSArray<RNSTabsScreenViewController *> *diagnosticTabs = [self installedScreenControllers];
   NSInteger selectedTabIndex = (NSInteger)[diagnosticTabs indexOfObject:viewController];
-  RNSLogToolbarMorphTransition(@"tab_selection_applied", @"user", -1, selectedTabIndex,
-      YES, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil, NO);
-  RNSObserveToolbarMorphTransition(
-      self.transitionCoordinator ?: viewController.transitionCoordinator,
-      @"tab", -1, selectedTabIndex, YES);`,
+  RNSLogToolbarMorphTabSelection(@"tab_selection_applied", @"user",
+      self.parentViewController.navigationController, nil, viewController,
+      -1, selectedTabIndex, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil, NO);`,
     `${PLUGIN_MARKER} tab selection applied`,
+  );
+  insertAfter(
+    controllerPath,
+    '  [self tabBarController:tabBarController didSelectViewController:selectedTab.viewController];',
+    `  UIViewController *diagnosticPreviousTabController = previousTab.viewController;
+  UIViewController *diagnosticSelectedTabController = selectedTab.viewController;
+  NSArray<RNSTabsScreenViewController *> *diagnosticTabs = [self installedScreenControllers];
+  NSInteger diagnosticFromIndex = (NSInteger)[diagnosticTabs indexOfObject:diagnosticPreviousTabController];
+  NSInteger diagnosticToIndex = (NSInteger)[diagnosticTabs indexOfObject:diagnosticSelectedTabController];
+  UINavigationController *diagnosticNavigationController = self.parentViewController.navigationController;
+  RNSLogToolbarMorphTabSelection(@"tab_selection_applied", @"uitab", diagnosticNavigationController,
+      diagnosticPreviousTabController, diagnosticSelectedTabController, diagnosticFromIndex,
+      diagnosticToIndex, diagnosticNavigationController.transitionCoordinator != nil ||
+          self.transitionCoordinator != nil, NO);
+  RNSObserveToolbarMorphTabTransition(
+      diagnosticNavigationController.transitionCoordinator ?: self.transitionCoordinator,
+      @"uitab", diagnosticNavigationController, diagnosticPreviousTabController,
+      diagnosticSelectedTabController, diagnosticFromIndex, diagnosticToIndex);`,
+    `${PLUGIN_MARKER} UITab source destination and completion`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '- (void)setSelectedIndex:(NSUInteger)selectedIndex\n{',
+    `  NSArray<RNSTabsScreenViewController *> *toolbarMorphTabs = [self installedScreenControllers];
+  UIViewController *toolbarMorphFrom = [self effectiveSelectedViewController];
+  UIViewController *toolbarMorphTo = selectedIndex < toolbarMorphTabs.count ? toolbarMorphTabs[selectedIndex] : nil;
+  NSInteger toolbarMorphFromIndex = (NSInteger)[toolbarMorphTabs indexOfObject:toolbarMorphFrom];
+  if (toolbarMorphTo != nil && toolbarMorphFrom != toolbarMorphTo) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_requested", @"programmatic-index",
+        self.parentViewController.navigationController, toolbarMorphFrom, toolbarMorphTo,
+        toolbarMorphFromIndex, (NSInteger)selectedIndex, self.transitionCoordinator != nil, NO);
+  }`,
+    `${PLUGIN_MARKER} programmatic index selection requested`,
+  );
+  insertAfter(
+    controllerPath,
+    '[super setSelectedIndex:selectedIndex];',
+    `  if (toolbarMorphTo != nil && toolbarMorphFrom != toolbarMorphTo) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_applied", @"programmatic-index",
+        self.parentViewController.navigationController, toolbarMorphFrom, toolbarMorphTo,
+        toolbarMorphFromIndex, (NSInteger)selectedIndex, self.transitionCoordinator != nil, NO);
+  }`,
+    `${PLUGIN_MARKER} programmatic index selection applied`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '- (void)setSelectedViewController:(__kindof UIViewController *)selectedViewController\n{',
+    `  UIViewController *toolbarMorphFrom = [self effectiveSelectedViewController];
+  NSArray<RNSTabsScreenViewController *> *toolbarMorphTabs = [self installedScreenControllers];
+  NSInteger toolbarMorphFromIndex = (NSInteger)[toolbarMorphTabs indexOfObject:toolbarMorphFrom];
+  NSInteger toolbarMorphToIndex = (NSInteger)[toolbarMorphTabs indexOfObject:selectedViewController];
+  if (selectedViewController != nil && toolbarMorphFrom != selectedViewController) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_requested", @"programmatic-controller",
+        self.parentViewController.navigationController, toolbarMorphFrom, selectedViewController,
+        toolbarMorphFromIndex, toolbarMorphToIndex, self.transitionCoordinator != nil, NO);
+  }`,
+    `${PLUGIN_MARKER} programmatic controller selection requested`,
+  );
+  insertAfter(
+    controllerPath,
+    '[super setSelectedViewController:selectedViewController];',
+    `  if (selectedViewController != nil && toolbarMorphFrom != selectedViewController) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_applied", @"programmatic-controller",
+        self.parentViewController.navigationController, toolbarMorphFrom, selectedViewController,
+        toolbarMorphFromIndex, toolbarMorphToIndex, self.transitionCoordinator != nil, NO);
+  }`,
+    `${PLUGIN_MARKER} programmatic controller selection applied`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '- (void)setSelectedTab:(UITab *)selectedTab API_AVAILABLE(ios(18.0))\n{',
+    `  UIViewController *toolbarMorphFrom = [self effectiveSelectedViewController];
+  UIViewController *toolbarMorphTo = selectedTab.viewController;
+  NSArray<RNSTabsScreenViewController *> *toolbarMorphTabs = [self installedScreenControllers];
+  NSInteger toolbarMorphFromIndex = (NSInteger)[toolbarMorphTabs indexOfObject:toolbarMorphFrom];
+  NSInteger toolbarMorphToIndex = (NSInteger)[toolbarMorphTabs indexOfObject:toolbarMorphTo];
+  if (toolbarMorphTo != nil && toolbarMorphFrom != toolbarMorphTo) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_requested", @"programmatic-uitab",
+        self.parentViewController.navigationController, toolbarMorphFrom, toolbarMorphTo,
+        toolbarMorphFromIndex, toolbarMorphToIndex, self.transitionCoordinator != nil, NO);
+  }`,
+    `${PLUGIN_MARKER} programmatic UITab selection requested`,
+  );
+  insertAfter(
+    controllerPath,
+    '[super setSelectedTab:selectedTab];',
+    `  if (toolbarMorphTo != nil && toolbarMorphFrom != toolbarMorphTo) {
+    RNSLogToolbarMorphTabSelection(@"tab_selection_applied", @"programmatic-uitab",
+        self.parentViewController.navigationController, toolbarMorphFrom, toolbarMorphTo,
+        toolbarMorphFromIndex, toolbarMorphToIndex, self.transitionCoordinator != nil, NO);
+  }`,
+    `${PLUGIN_MARKER} programmatic UITab selection applied`,
   );
 
   const stack = path.join(screensRoot, 'ios', 'RNSScreenStack.mm');

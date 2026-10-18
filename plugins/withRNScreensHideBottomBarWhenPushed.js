@@ -673,9 +673,10 @@ function patchRNScreens(
   NSInteger selectedTabIndex = [[self installedScreenControllers] indexOfObject:selectedTabViewController];
   UINavigationController *selectedNestedNavigationController =
       RNSFindNestedNavigationController(selectedTabViewController);
+  BOOL sharedTabsControllerIsTop = sharedNavigationController != nil &&
+      sharedNavigationController.topViewController == tabsScreenViewController;
   if (sharedNavigationController == nil ||
-      selectedNestedNavigationController == nil ||
-      sharedNavigationController.topViewController != tabsScreenViewController) {
+      selectedNestedNavigationController == nil) {
     return @"shared_navigation_context_unavailable";
   }
 
@@ -683,17 +684,36 @@ function patchRNScreens(
   UINavigationItem *destinationNavigationItem = toViewController.navigationItem;
   NSString *successResult = nil;
   BOOL isHomeSharedRootPop = navigationController == sharedNavigationController &&
-      toViewController == tabsScreenViewController && selectedTabIndex == 0 &&
+      sharedTabsControllerIsTop && toViewController == tabsScreenViewController && selectedTabIndex == 0 &&
+      selectedNestedNavigationController.viewControllers.count == 1 &&
+      selectedNestedNavigationController.topViewController ==
+          selectedNestedNavigationController.viewControllers.firstObject;
+  BOOL isSettingsSharedRootPop = navigationController == sharedNavigationController &&
+      toViewController == tabsScreenViewController && selectedTabIndex == 3 &&
+      selectedNestedNavigationController.viewControllers.count == 1 &&
+      selectedNestedNavigationController.topViewController ==
+          selectedNestedNavigationController.viewControllers.firstObject;
+  BOOL isFinanceSharedRootPop = navigationController == sharedNavigationController &&
+      toViewController == tabsScreenViewController && selectedTabIndex == 1 &&
       selectedNestedNavigationController.viewControllers.count == 1 &&
       selectedNestedNavigationController.topViewController ==
           selectedNestedNavigationController.viewControllers.firstObject;
   BOOL isSettingsNestedRootPop = navigationController == selectedNestedNavigationController &&
+      sharedTabsControllerIsTop &&
       toViewController == selectedNestedNavigationController.viewControllers.firstObject &&
       selectedNestedNavigationController.viewControllers.count == 1 && selectedTabIndex == 3;
 
   if (isHomeSharedRootPop) {
     sourceNavigationItem = selectedNestedNavigationController.topViewController.navigationItem;
     successResult = @"staged_home_root";
+  } else if (isSettingsSharedRootPop) {
+    sourceNavigationItem = selectedNestedNavigationController.topViewController.navigationItem;
+    destinationNavigationItem = tabsScreenViewController.navigationItem;
+    successResult = @"staged_settings_root";
+  } else if (isFinanceSharedRootPop) {
+    sourceNavigationItem = selectedNestedNavigationController.topViewController.navigationItem;
+    destinationNavigationItem = tabsScreenViewController.navigationItem;
+    successResult = @"staged_finance_root";
   } else if (isSettingsNestedRootPop) {
     if (!sharedNavigationController.navigationBarHidden) return @"settings_shared_bar_visible";
     sourceNavigationItem = toViewController.navigationItem;
@@ -711,6 +731,25 @@ function patchRNScreens(
   if (leftItems.count == 0 && rightItems.count == 0) return @"root_items_empty";
 
   UINavigationItem *sharedNavigationItem = tabsScreenViewController.navigationItem;
+  BOOL isSettingsOrFinanceSharedRootPop = isSettingsSharedRootPop || isFinanceSharedRootPop;
+  if (isSettingsOrFinanceSharedRootPop && sourceNavigationItem != destinationNavigationItem) {
+    // The cached toolbar is metadata, not an owner. Release only these exact item instances
+    // from the tab-root navigation item before transferring them to the shared navigation item.
+    NSArray<UIBarButtonItem *> *remainingSourceLeftItems =
+        RNSSharedToolbarItemsByRemovingInstances(sourceNavigationItem.leftBarButtonItems ?: @[], leftItems);
+    NSArray<UIBarButtonItem *> *remainingSourceRightItems =
+        RNSSharedToolbarItemsByRemovingInstances(sourceNavigationItem.rightBarButtonItems ?: @[], rightItems);
+    if (!RNSHomeToolbarItemArraysHaveSameInstances(
+            sourceNavigationItem.leftBarButtonItems ?: @[], remainingSourceLeftItems)) {
+      [sourceNavigationItem setLeftBarButtonItems:remainingSourceLeftItems.count > 0
+          ? remainingSourceLeftItems : nil animated:NO];
+    }
+    if (!RNSHomeToolbarItemArraysHaveSameInstances(
+            sourceNavigationItem.rightBarButtonItems ?: @[], remainingSourceRightItems)) {
+      [sourceNavigationItem setRightBarButtonItems:remainingSourceRightItems.count > 0
+          ? remainingSourceRightItems : nil animated:NO];
+    }
+  }
   if (isSettingsNestedRootPop) {
     NSArray<UIBarButtonItem *> *remainingSharedLeftItems =
         RNSSharedToolbarItemsByRemovingInstances(sharedNavigationItem.leftBarButtonItems ?: @[], leftItems);

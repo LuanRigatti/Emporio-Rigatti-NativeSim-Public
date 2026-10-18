@@ -243,7 +243,7 @@ describe('Home toolbar coordinator patch', () => {
     }
   });
 
-  it('stages only Home and Settings root toolbar items before a native pop', () => {
+  it('stages Home, Settings, and Finance root toolbar items before a native pop', () => {
     const fixtureRoot = createScreensFixture();
     try {
       patchRNScreens(fixtureRoot);
@@ -279,17 +279,35 @@ describe('Home toolbar coordinator patch', () => {
       expect(stageMethod).toContain('navigationController == sharedNavigationController');
       expect(stageMethod).toContain('selectedTabIndex == 0');
       expect(stageMethod).toContain('selectedTabIndex == 3');
+      expect(stageMethod).toContain('selectedTabIndex == 1');
+      expect(stageMethod).toContain('sharedTabsControllerIsTop');
+      expect(stageMethod).toContain('toViewController == tabsScreenViewController');
       expect(stageMethod).toContain(
         'selectedNestedNavigationController.viewControllers.count == 1',
       );
+      expect(stageMethod).toContain('isSettingsSharedRootPop');
+      expect(stageMethod).toContain('isFinanceSharedRootPop');
+      expect(stageMethod).toContain('successResult = @"staged_settings_root"');
+      expect(stageMethod).toContain('successResult = @"staged_finance_root"');
       expect(stageMethod).toContain(
         'objc_getAssociatedObject(sourceNavigationItem, &RNSSharedToolbarMaterializedItemsKey)',
       );
       expect(stageMethod).toContain('sharedNavigationController.navigationBarHidden');
       expect(stageMethod).toContain('RNSSharedToolbarItemsByRemovingInstances');
+      expect(stageMethod).toContain(
+        'RNSSharedToolbarItemsByRemovingInstances(sourceNavigationItem.leftBarButtonItems ?: @[], leftItems)',
+      );
+      expect(stageMethod).toContain(
+        'RNSSharedToolbarItemsByRemovingInstances(sourceNavigationItem.rightBarButtonItems ?: @[], rightItems)',
+      );
       expect(stageMethod).toContain('RNSHomeToolbarItemArraysHaveSameInstances');
       expect(stageMethod).toContain(
         'setRightBarButtonItems:rightItems.count > 0 ? rightItems : nil animated:NO',
+      );
+      expect(stageMethod.indexOf('setRightBarButtonItems:remainingSourceRightItems')).toBeLessThan(
+        stageMethod.indexOf(
+          'setRightBarButtonItems:rightItems.count > 0 ? rightItems : nil animated:NO',
+        ),
       );
       expect(stageMethod).toContain('return @"not_target_root_pop"');
       expect(stageMethod).not.toContain('setRightBarButtonItems:rightItems animated:YES');
@@ -301,6 +319,7 @@ describe('Home toolbar coordinator patch', () => {
       expect(operationHelper).toContain('toIndex < fromIndex');
       expect(stageDecisionIndex).toBeGreaterThan(willShowIndex);
       expect(stack).toContain('if ([operation isEqualToString:@"pop"])');
+      expect(stack).toContain('stageSharedToolbarItemsForNavigationPopInNavigationController:');
       expect(didShowSyncIndex).toBeGreaterThan(stageDecisionIndex);
       expect(stackSnapshotIndex).toBeGreaterThan(didShowSyncIndex);
       expect(stack).toContain(
@@ -310,6 +329,80 @@ describe('Home toolbar coordinator patch', () => {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
   });
+
+  it('limits the Settings and Finance staging predicates to a pop returning to the tabs root', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const coordinator = readPatchedCoordinator(fixtureRoot);
+      const stageMethodStart = coordinator.lastIndexOf(
+        '- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:',
+      );
+      const stageMethodEnd = coordinator.indexOf('\n#pragma mark - Signals', stageMethodStart);
+      const stageMethod = coordinator.slice(stageMethodStart, stageMethodEnd);
+      const stack = readFileSync(path.join(fixtureRoot, 'ios/RNSScreenStack.mm'), 'utf8');
+      const popGuard = stack.indexOf('if ([operation isEqualToString:@"pop"])');
+      const stageCall = stack.indexOf(
+        'stageSharedToolbarItemsForNavigationPopInNavigationController:',
+        popGuard,
+      );
+      const guardEnd = stack.indexOf('\n  }', popGuard);
+
+      expect(popGuard).toBeGreaterThanOrEqual(0);
+      expect(stageCall).toBeGreaterThan(popGuard);
+      expect(stageCall).toBeLessThan(guardEnd);
+      expect(stageMethod).toContain('navigationController == sharedNavigationController');
+      expect(stageMethod).toContain('sharedTabsControllerIsTop');
+      expect(stageMethod).toContain('toViewController == tabsScreenViewController');
+      expect(stageMethod).toContain('selectedTabIndex == 3');
+      expect(stageMethod).toContain('selectedTabIndex == 1');
+      expect(stageMethod).toContain(
+        'selectedNestedNavigationController.viewControllers.count == 1',
+      );
+      expect(stageMethod).toContain('return @"not_target_root_pop"');
+      expect(stageMethod).not.toContain('setSelectedIndex:');
+      expect(stageMethod).not.toContain('replace');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['Home', 'isHomeSharedRootPop', 'selectedTabIndex == 0', 'staged_home_root'],
+    ['Settings', 'isSettingsSharedRootPop', 'selectedTabIndex == 3', 'staged_settings_root'],
+    ['Finance', 'isFinanceSharedRootPop', 'selectedTabIndex == 1', 'staged_finance_root'],
+  ])(
+    'keeps the %s root-pop route tied to its tab and destination predicate',
+    (label, predicate, tabIndex, result) => {
+      const fixtureRoot = createScreensFixture();
+      try {
+        patchRNScreens(fixtureRoot);
+        const coordinator = readPatchedCoordinator(fixtureRoot);
+        const stageStart = coordinator.lastIndexOf(
+          '- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:',
+        );
+        const stageEnd = coordinator.indexOf('\n#pragma mark - Signals', stageStart);
+        const stageMethod = coordinator.slice(stageStart, stageEnd);
+        const predicateStart = stageMethod.indexOf(`BOOL ${predicate} =`);
+        const predicateEnd = stageMethod.indexOf(';', predicateStart);
+        const routePredicate = stageMethod.slice(predicateStart, predicateEnd + 1);
+
+        expect(predicateStart).toBeGreaterThanOrEqual(0);
+        expect(routePredicate).toContain('navigationController == sharedNavigationController');
+        if (predicate === 'isHomeSharedRootPop') {
+          expect(routePredicate).toContain('sharedTabsControllerIsTop');
+        } else {
+          expect(routePredicate).not.toContain('sharedTabsControllerIsTop');
+        }
+        expect(routePredicate).toContain('toViewController == tabsScreenViewController');
+        expect(routePredicate).toContain(tabIndex);
+        expect(stageMethod).toContain(`successResult = @"${result}"`);
+        expect(stageMethod).toContain(`if (${predicate})`);
+      } finally {
+        rmSync(fixtureRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('keeps destination toolbar preparation before native UITab and legacy selection', () => {
     const fixtureRoot = createScreensFixture();

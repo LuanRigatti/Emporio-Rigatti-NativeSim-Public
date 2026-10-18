@@ -3,6 +3,8 @@ const path = require('path');
 const { AndroidConfig, withSettingsGradle, withStringsXml } = require('expo/config-plugins');
 
 const androidMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
+const toolbarMorphExperimentVariant =
+  process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT === 'B' ? 'B' : 'A';
 const isFinalVariant = process.env.APP_VARIANT === 'final';
 const isReleaseVariant = process.env.APP_VARIANT === 'release';
 const isIsolatedIosVariant = isFinalVariant || isReleaseVariant;
@@ -90,6 +92,7 @@ module.exports = {
       infoPlist: {
         CFBundleDisplayName: appName,
         LSApplicationQueriesSchemes: ['comgooglemaps'],
+        EmporioToolbarMorphExperimentVariant: toolbarMorphExperimentVariant,
         ...(isolatedVariantGoogleUrlSchemes
           ? {
               CFBundleURLTypes: [{ CFBundleURLSchemes: isolatedVariantGoogleUrlSchemes }],

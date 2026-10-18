@@ -19,6 +19,8 @@ const PATCH_MARKERS = {
   sharedToolbarConfigHelpers: 'Emporio Rigatti: shared tab toolbar config helpers',
   sharedToolbarConfigHidden: 'Emporio Rigatti: shared tab toolbar config hidden',
   sharedToolbarConfigVisible: 'Emporio Rigatti: shared tab toolbar config visible',
+  sharedToolbarPopStaging: 'Emporio Rigatti: shared toolbar pop destination staging',
+  sharedToolbarPopMethod: 'Emporio Rigatti: shared toolbar pop staging method',
   homeToolbarSemanticComparison: 'Emporio Rigatti: Home toolbar semantic comparison',
   homeToolbarReplacementPolicy: 'Emporio Rigatti: Home toolbar replacement policy',
 };
@@ -45,6 +47,70 @@ const SHARED_TOOLBAR_TRANSITION_GUARD = `  BOOL isNavigationTransitionCompletion
     RNSObserveSharedToolbarTabTransition(self, viewController);
     return; // UIKit owns the in-flight morph; native completion reconciles the selected destination.
   }`;
+
+const SHARED_TOOLBAR_NAVIGATION_OPERATION_HELPER = `#import <objc/runtime.h>
+
+static char RNSSharedToolbarStableNavigationStackKey;
+
+static NSString *RNSSharedToolbarNavigationOperation(
+    UINavigationController *navigationController,
+    NSArray<UIViewController *> *previousStack,
+    UIViewController *toViewController,
+    UIViewController **fromViewControllerOut)
+{
+  if (fromViewControllerOut != NULL) *fromViewControllerOut = nil;
+  if (previousStack.count == 0) return @"initial";
+
+  UIViewController *fromViewController = previousStack.lastObject;
+  if (fromViewControllerOut != NULL) *fromViewControllerOut = fromViewController;
+  NSUInteger fromIndex = [previousStack indexOfObjectIdenticalTo:fromViewController];
+  NSUInteger toIndex = [previousStack indexOfObjectIdenticalTo:toViewController];
+  NSArray<UIViewController *> *currentStack = navigationController.viewControllers;
+
+  if (toIndex != NSNotFound && fromIndex != NSNotFound && toIndex < fromIndex) {
+    return @"pop";
+  }
+
+  BOOL previousStackIsPrefix = currentStack.count > previousStack.count;
+  for (NSUInteger index = 0; previousStackIsPrefix && index < previousStack.count; index++) {
+    previousStackIsPrefix = currentStack[index] == previousStack[index];
+  }
+  if (toIndex == NSNotFound && previousStackIsPrefix) return @"push";
+  if (toIndex == NSNotFound && fromIndex == previousStack.count - 1 &&
+      [currentStack indexOfObjectIdenticalTo:toViewController] != NSNotFound) {
+    return @"replace";
+  }
+  return @"other";
+}`;
+
+function ensureSharedToolbarPopMethodDeclaration(headerPath) {
+  const contents = fs.readFileSync(headerPath, 'utf8');
+  const declaration =
+    '- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:' +
+    '(UINavigationController *)navigationController fromViewController:' +
+    '(UIViewController *)fromViewController toViewController:(UIViewController *)toViewController;';
+  if (contents.includes(declaration)) return;
+  const anchor = '- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;';
+  if (!contents.includes(anchor)) {
+    throw new Error(`Não foi possível declarar o staging da toolbar em ${headerPath}.`);
+  }
+  fs.writeFileSync(headerPath, contents.replace(anchor, `${anchor}\n${declaration}`));
+}
+
+function ensureSharedToolbarNavigationOperationHelper(stackPath) {
+  const contents = fs.readFileSync(stackPath, 'utf8');
+  if (contents.includes('static NSString *RNSSharedToolbarNavigationOperation(')) return;
+  const anchor =
+    'static RNSTabBarController *RNSFindSharedToolbarTabsController(' +
+    'UIViewController *controller)';
+  if (!contents.includes(anchor)) {
+    throw new Error(`Não foi possível preparar a pilha de navegação em ${stackPath}.`);
+  }
+  fs.writeFileSync(
+    stackPath,
+    contents.replace(anchor, `${SHARED_TOOLBAR_NAVIGATION_OPERATION_HELPER}\n\n${anchor}`),
+  );
+}
 
 function patchFile(filePath, needle, replacement, marker) {
   const contents = fs.readFileSync(filePath, 'utf8');
@@ -188,6 +254,57 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   return NO;
 }
 
+static char RNSSharedToolbarExperimentSkippedRepairRolesKey;
+
+static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce(
+    RNSTabBarController *controller,
+    NSArray<UIBarButtonItem *> *items,
+    NSString *reason,
+    NSString **diagnosticReason)
+{
+  if (diagnosticReason == NULL) return NO;
+  *diagnosticReason = @"detached_custom_view";
+  if (controller == nil || items.count == 0 ||
+      ![RNSCurrentToolbarMorphExperimentVariant() isEqualToString:@"B"]) {
+    return NO;
+  }
+
+  NSString *role = nil;
+  for (UIBarButtonItem *item in items) {
+    NSString *itemRole = RNSRoleForToolbarMorphItem(item);
+    if (![itemRole isEqualToString:@"home-search"] &&
+        ![itemRole isEqualToString:@"settings-profile"]) {
+      *diagnosticReason = @"experiment_b_shared_side_preserved";
+      return NO;
+    }
+    if (role != nil && ![role isEqualToString:itemRole]) {
+      *diagnosticReason = @"experiment_b_shared_side_preserved";
+      return NO;
+    }
+    role = itemRole;
+  }
+
+  NSMutableSet<NSString *> *skippedRoles =
+      objc_getAssociatedObject(controller, &RNSSharedToolbarExperimentSkippedRepairRolesKey);
+  if ([skippedRoles containsObject:role]) {
+    *diagnosticReason = @"experiment_b_recovery";
+    return NO;
+  }
+  if (![reason isEqualToString:@"tab-transition-completion"]) return NO;
+  if (skippedRoles == nil) {
+    skippedRoles = [NSMutableSet set];
+    objc_setAssociatedObject(
+        controller,
+        &RNSSharedToolbarExperimentSkippedRepairRolesKey,
+        skippedRoles,
+        OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+
+  [skippedRoles addObject:role];
+  *diagnosticReason = @"experiment_b_skip_once";
+  return YES;
+}
+
 static UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)
 {`,
     'attachment',
@@ -314,18 +431,27 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   if (canCheckAttachment) [bar layoutIfNeeded];
   BOOL repairLeft = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(leftItems, bar);
   BOOL repairRight = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(rightItems, bar);
+  NSString *repairReasonLeft = @"detached_custom_view";
+  NSString *repairReasonRight = @"detached_custom_view";
+  BOOL skipAttachmentRepairLeft = repairLeft &&
+      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, leftItems, reason, &repairReasonLeft);
+  BOOL skipAttachmentRepairRight = repairRight &&
+      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, rightItems, reason, &repairReasonRight);
   if (repairLeft || repairRight) {
     // Re-register only detached sides after exclusive ownership has been established.
     // This is synchronous lifecycle reconciliation, not a retry or an animated morph.
-    if (repairLeft) {
+    if (repairLeft && !skipAttachmentRepairLeft) {
       [sharedNavigationItem setLeftBarButtonItems:nil animated:NO];
       [sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO];
     }
-    if (repairRight) {
+    if (repairRight && !skipAttachmentRepairRight) {
       [sharedNavigationItem setRightBarButtonItems:nil animated:NO];
       [sharedNavigationItem setRightBarButtonItems:rightItems animated:NO];
     }
-    [bar layoutIfNeeded];
+    if ((repairLeft && !skipAttachmentRepairLeft) ||
+        (repairRight && !skipAttachmentRepairRight)) {
+      [bar layoutIfNeeded];
+    }
   }
 }`,
     'reconcile',
@@ -371,6 +497,7 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
     stack,
     '#import "RNSScreenStackHeaderConfig.h"',
     `#import "RNSScreenStackHeaderConfig.h"
+${SHARED_TOOLBAR_NAVIGATION_OPERATION_HELPER}
 
 static RNSTabBarController *RNSFindSharedToolbarTabsController(UIViewController *controller)
 {
@@ -383,6 +510,33 @@ static RNSTabBarController *RNSFindSharedToolbarTabsController(UIViewController 
 }
 `,
     'did-show-helper',
+  );
+  ensureSharedToolbarNavigationOperationHelper(stack);
+  patch(
+    stack,
+    'withConfig:screenView.findHeaderConfig];',
+    `withConfig:screenView.findHeaderConfig];
+  // ${PATCH_MARKERS.sharedToolbarPopStaging}
+  NSArray<UIViewController *> *previousStack =
+      objc_getAssociatedObject(navigationController, &RNSSharedToolbarStableNavigationStackKey);
+  UIViewController *fromViewController = nil;
+  NSString *operation = RNSSharedToolbarNavigationOperation(
+      navigationController, previousStack, viewController, &fromViewController);
+  RNSTabBarController *tabsController = RNSFindSharedToolbarTabsController(viewController);
+  UIViewController *ancestor = navigationController;
+  while (ancestor != nil && tabsController == nil) {
+    tabsController = RNSFindSharedToolbarTabsController(ancestor);
+    ancestor = ancestor.parentViewController;
+  }
+  NSString *stageResult = @"not_pop";
+  if ([operation isEqualToString:@"pop"]) {
+    stageResult = tabsController == nil
+        ? @"tabs_controller_unavailable"
+        : [tabsController stageSharedToolbarItemsForNavigationPopInNavigationController:
+              navigationController fromViewController:fromViewController toViewController:viewController];
+  }
+  // Emporio Rigatti: toolbar pop stage decision complete`,
+    PATCH_MARKERS.sharedToolbarPopStaging,
   );
   patch(
     stack,
@@ -400,6 +554,17 @@ static RNSTabBarController *RNSFindSharedToolbarTabsController(UIViewController 
 
 - (void)markChildUpdated`,
     'did-show-reconcile',
+  );
+  patch(
+    stack,
+    '[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"];',
+    `[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"];
+  objc_setAssociatedObject(
+      navigationController,
+      &RNSSharedToolbarStableNavigationStackKey,
+      [navigationController.viewControllers copy],
+      OBJC_ASSOCIATION_RETAIN_NONATOMIC);`,
+    'stable-navigation-stack-snapshot',
   );
 }
 
@@ -441,8 +606,11 @@ function patchRNScreens(
   patchFile(
     path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.h'),
     '- (void)tearDown;\n',
-    `- (void)tearDown;\n\n// ${PATCH_MARKERS.sharedToolbarHeader}\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason;\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;\n`,
+    `- (void)tearDown;\n\n// ${PATCH_MARKERS.sharedToolbarHeader}\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason;\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;\n- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:(UINavigationController *)navigationController fromViewController:(UIViewController *)fromViewController toViewController:(UIViewController *)toViewController;\n`,
     PATCH_MARKERS.sharedToolbarHeader,
+  );
+  ensureSharedToolbarPopMethodDeclaration(
+    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.h'),
   );
 
   patchFile(
@@ -450,6 +618,130 @@ function patchRNScreens(
     '#pragma mark - Signals\n',
     `// ${PATCH_MARKERS.sharedToolbarController}\nstatic UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)\n{\n  for (UIViewController *childViewController in rootViewController.childViewControllers) {\n    if ([childViewController isKindOfClass:[UINavigationController class]]) {\n      return static_cast<UINavigationController *>(childViewController);\n    }\n\n    UINavigationController *nestedNavigationController =\n        RNSFindNestedNavigationController(childViewController);\n    if (nestedNavigationController != nil) {\n      return nestedNavigationController;\n    }\n  }\n\n  return nil;\n}\n\n- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason\n{\n  NSInteger tabIndex = [[self installedScreenControllers] indexOfObject:viewController];\n  if (![viewController isKindOfClass:[RNSTabsScreenViewController class]]) {\n    return;\n  }\n\n  UIViewController *tabsScreenViewController = self.parentViewController;\n  UINavigationController *sharedNavigationController = tabsScreenViewController.navigationController;\n  if (sharedNavigationController == nil ||\n      sharedNavigationController.topViewController != tabsScreenViewController) {\n    return;\n  }\n\n  UINavigationController *nestedNavigationController =\n      RNSFindNestedNavigationController(viewController);\n  BOOL isTabRoot = nestedNavigationController == nil || nestedNavigationController.viewControllers.count <= 1;\n\n  if (!isTabRoot) {\n    [sharedNavigationController setNavigationBarHidden:YES animated:NO];\n    [nestedNavigationController setNavigationBarHidden:NO animated:NO];\n    return;\n  }\n\n  if (nestedNavigationController != nil) {\n    // The nested stack remains the source of the native items, but its root bar must not\n    // compete with the single shared bar owned by the (tabs) screen.\n    [nestedNavigationController setNavigationBarHidden:YES animated:NO];\n  }\n\n  UINavigationItem *sharedNavigationItem = sharedNavigationController.topViewController.navigationItem;\n  UINavigationItem *sourceNavigationItem = nestedNavigationController.topViewController.navigationItem;\n  NSArray<UIBarButtonItem *> *leftItems = sourceNavigationItem.leftBarButtonItems ?: @[];\n  NSArray<UIBarButtonItem *> *rightItems = sourceNavigationItem.rightBarButtonItems ?: @[];\n\n  if (![sharedNavigationItem.leftBarButtonItems isEqualToArray:leftItems]) {\n    [sharedNavigationItem setLeftBarButtonItems:leftItems animated:YES];\n  }\n  if (![sharedNavigationItem.rightBarButtonItems isEqualToArray:rightItems]) {\n    [sharedNavigationItem setRightBarButtonItems:rightItems animated:YES];\n  }\n\n  // Items are installed before the shared bar is revealed or the tab controller changes\n  // its visible child, so UIKit can animate the same UINavigationBar transition.\n  [sharedNavigationController setNavigationBarHidden:NO animated:NO];\n}\n\n- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason\n{\n  UIViewController *selectedViewController = [self effectiveSelectedViewController];\n  if (selectedViewController != nil) {\n    [self prepareSharedNavigationBarForViewController:selectedViewController reason:reason];\n  }\n}\n\n#pragma mark - Signals\n`,
     PATCH_MARKERS.sharedToolbarController,
+  );
+
+  patchFile(
+    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
+    `- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason
+{
+  UIViewController *selectedViewController = [self effectiveSelectedViewController];
+  if (selectedViewController != nil) {
+    [self prepareSharedNavigationBarForViewController:selectedViewController reason:reason];
+  }
+}
+
+#pragma mark - Signals`,
+    `static NSArray<UIBarButtonItem *> *RNSSharedToolbarItemsByRemovingInstances(
+    NSArray<UIBarButtonItem *> *items,
+    NSArray<UIBarButtonItem *> *itemsToRemove)
+{
+  NSMutableArray<UIBarButtonItem *> *remainingItems = [NSMutableArray arrayWithCapacity:items.count];
+  for (UIBarButtonItem *item in items) {
+    BOOL shouldRemove = NO;
+    for (UIBarButtonItem *candidate in itemsToRemove) {
+      if (item == candidate) {
+        shouldRemove = YES;
+        break;
+      }
+    }
+    if (!shouldRemove) [remainingItems addObject:item];
+  }
+  return [remainingItems copy];
+}
+
+// ${PATCH_MARKERS.sharedToolbarPopMethod}
+- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason
+{
+  UIViewController *selectedViewController = [self effectiveSelectedViewController];
+  if (selectedViewController != nil) {
+    [self prepareSharedNavigationBarForViewController:selectedViewController reason:reason];
+  }
+}
+
+- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:(UINavigationController *)navigationController
+                                                         fromViewController:(UIViewController *)fromViewController
+                                                           toViewController:(UIViewController *)toViewController
+{
+  if (navigationController == nil || fromViewController == nil || toViewController == nil) {
+    return @"navigation_context_unavailable";
+  }
+
+  UIViewController *tabsScreenViewController = self.parentViewController;
+  UINavigationController *sharedNavigationController = tabsScreenViewController.navigationController;
+  UIViewController *selectedTabViewController = [self effectiveSelectedViewController];
+  if (selectedTabViewController == nil) return @"shared_navigation_context_unavailable";
+  NSInteger selectedTabIndex = [[self installedScreenControllers] indexOfObject:selectedTabViewController];
+  UINavigationController *selectedNestedNavigationController =
+      RNSFindNestedNavigationController(selectedTabViewController);
+  if (sharedNavigationController == nil ||
+      selectedNestedNavigationController == nil ||
+      sharedNavigationController.topViewController != tabsScreenViewController) {
+    return @"shared_navigation_context_unavailable";
+  }
+
+  UINavigationItem *sourceNavigationItem = nil;
+  UINavigationItem *destinationNavigationItem = toViewController.navigationItem;
+  NSString *successResult = nil;
+  BOOL isHomeSharedRootPop = navigationController == sharedNavigationController &&
+      toViewController == tabsScreenViewController && selectedTabIndex == 0 &&
+      selectedNestedNavigationController.viewControllers.count == 1 &&
+      selectedNestedNavigationController.topViewController ==
+          selectedNestedNavigationController.viewControllers.firstObject;
+  BOOL isSettingsNestedRootPop = navigationController == selectedNestedNavigationController &&
+      toViewController == selectedNestedNavigationController.viewControllers.firstObject &&
+      selectedNestedNavigationController.viewControllers.count == 1 && selectedTabIndex == 3;
+
+  if (isHomeSharedRootPop) {
+    sourceNavigationItem = selectedNestedNavigationController.topViewController.navigationItem;
+    successResult = @"staged_home_root";
+  } else if (isSettingsNestedRootPop) {
+    if (!sharedNavigationController.navigationBarHidden) return @"settings_shared_bar_visible";
+    sourceNavigationItem = toViewController.navigationItem;
+    successResult = @"staged_settings_root";
+  } else {
+    return @"not_target_root_pop";
+  }
+
+  NSDictionary *materializedItems =
+      objc_getAssociatedObject(sourceNavigationItem, &RNSSharedToolbarMaterializedItemsKey);
+  if (materializedItems == nil) return @"root_items_unavailable";
+
+  NSArray<UIBarButtonItem *> *leftItems = materializedItems[@"left"] ?: @[];
+  NSArray<UIBarButtonItem *> *rightItems = materializedItems[@"right"] ?: @[];
+  if (leftItems.count == 0 && rightItems.count == 0) return @"root_items_empty";
+
+  UINavigationItem *sharedNavigationItem = tabsScreenViewController.navigationItem;
+  if (isSettingsNestedRootPop) {
+    NSArray<UIBarButtonItem *> *remainingSharedLeftItems =
+        RNSSharedToolbarItemsByRemovingInstances(sharedNavigationItem.leftBarButtonItems ?: @[], leftItems);
+    NSArray<UIBarButtonItem *> *remainingSharedRightItems =
+        RNSSharedToolbarItemsByRemovingInstances(sharedNavigationItem.rightBarButtonItems ?: @[], rightItems);
+    if (!RNSHomeToolbarItemArraysHaveSameInstances(
+            sharedNavigationItem.leftBarButtonItems ?: @[], remainingSharedLeftItems)) {
+      [sharedNavigationItem setLeftBarButtonItems:remainingSharedLeftItems.count > 0
+          ? remainingSharedLeftItems : nil animated:NO];
+    }
+    if (!RNSHomeToolbarItemArraysHaveSameInstances(
+            sharedNavigationItem.rightBarButtonItems ?: @[], remainingSharedRightItems)) {
+      [sharedNavigationItem setRightBarButtonItems:remainingSharedRightItems.count > 0
+          ? remainingSharedRightItems : nil animated:NO];
+    }
+  }
+
+  if (!RNSHomeToolbarItemArraysHaveSameInstances(
+          destinationNavigationItem.leftBarButtonItems ?: @[], leftItems)) {
+    [destinationNavigationItem setLeftBarButtonItems:leftItems.count > 0 ? leftItems : nil animated:NO];
+  }
+  if (!RNSHomeToolbarItemArraysHaveSameInstances(
+          destinationNavigationItem.rightBarButtonItems ?: @[], rightItems)) {
+    [destinationNavigationItem setRightBarButtonItems:rightItems.count > 0 ? rightItems : nil animated:NO];
+  }
+
+  return successResult;
+}
+
+#pragma mark - Signals`,
+    PATCH_MARKERS.sharedToolbarPopMethod,
   );
 
   patchFile(

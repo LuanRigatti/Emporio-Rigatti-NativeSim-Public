@@ -176,6 +176,7 @@ describe('HomeToolbar', () => {
 
   it('uses a fixed-size native SwiftUI custom view for Search without matchContents', () => {
     const homeToolbarSource = readFileSync('src/components/navigation/HomeToolbar.tsx', 'utf8');
+    const dashboardSource = readFileSync('src/app/(tabs)/dashboard/index.tsx', 'utf8');
     const nativeActionsSource = readFileSync(
       'src/components/native/NativeHomeToolbarActions/NativeHomeToolbarActionsSwiftUI.ios.tsx',
       'utf8',
@@ -192,6 +193,10 @@ describe('HomeToolbar', () => {
     expect(homeToolbarSource).toContain('home-toolbar-item:leading-anchor:44x44');
     expect(homeToolbarSource).toContain('mode="searchAction"');
     expect(homeToolbarSource).not.toContain('<Stack.Toolbar.Button');
+    expect(homeToolbarSource).not.toContain('HomeSearchToolbarExperimentSelector');
+    expect(homeToolbarSource).not.toContain('[ToolbarMorphJS]');
+    expect(dashboardSource).not.toContain('HomeSearchToolbarExperimentSelector');
+    expect(dashboardSource).not.toContain('searchToolbarVariant');
     expect(searchModeSource).toContain('width: HOME_TOOLBAR_SEARCH_WIDTH');
     expect(searchModeSource).toContain('height: HOME_TOOLBAR_CONTROL_SIZE');
     expect(searchModeSource).toContain("buttonStyle('plain')");

@@ -25,6 +25,12 @@ static inline os_log_t RNSCreateToolbarMorphDiagnosticsLogger(void)
   return logger;
 }
 
+static inline NSString *RNSCurrentToolbarMorphExperimentVariant(void)
+{
+  id variant = NSBundle.mainBundle.infoDictionary[@"EmporioToolbarMorphExperimentVariant"];
+  return [variant isEqual:@"B"] ? @"B" : @"A";
+}
+
 static inline NSString *RNSRoleForToolbarMorphIdentifier(NSString *identifier)
 {
   if ([identifier isEqualToString:@"toolbar-morph:home-search"] ||
@@ -72,12 +78,33 @@ static inline NSString *RNSSafeToolbarMorphReason(NSString *reason)
     @"header_materialization", @"header_subview_invalidated", @"materialization",
     @"tab-selection-index", @"programmatic-selection", @"tab-selection-shouldSelect",
     @"container-resync", @"header-materialization/resync", @"navigation-did-show",
+    @"tab-transition-completion",
     @"detached_custom_view", @"already_attached_or_not_repairable", @"bar_window_missing",
     @"destination_not_selected", @"source_window_missing", @"replacement_identity_unstable",
     @"attachment_checked",
-    @"transition_active", @"source_unavailable", @"same_instances", @"setter_completed"
+    @"transition_active", @"source_unavailable", @"same_instances", @"setter_completed",
+    @"experiment_b_skip_once", @"experiment_b_recovery", @"experiment_b_shared_side_preserved",
+    @"initial_materialization", @"navigation-pop-will-show"
   ];
   return [allowed containsObject:reason] ? reason : @"other";
+}
+
+static inline NSString *RNSSafeToolbarMorphOperation(NSString *operation)
+{
+  NSArray<NSString *> *allowed = @[@"initial", @"push", @"pop", @"replace", @"other"];
+  return [allowed containsObject:operation] ? operation : @"other";
+}
+
+static inline NSString *RNSSafeToolbarMorphStageResult(NSString *result)
+{
+  NSArray<NSString *> *allowed = @[
+    @"not_pop", @"tabs_controller_unavailable", @"navigation_context_unavailable",
+    @"shared_navigation_context_unavailable", @"settings_shared_bar_visible",
+    @"not_target_root_pop", @"root_items_unavailable", @"root_items_empty",
+    @"staged_home_root", @"staged_settings_root", @"already_staged", @"pending",
+    @"staging_started", @"toolbar_materialized", @"completed", @"cancelled"
+  ];
+  return [allowed containsObject:result] ? result : @"other";
 }
 
 static inline void RNSLogToolbarMorphItem(
@@ -114,8 +141,8 @@ static inline void RNSLogToolbarMorphItem(
   os_log_with_type(
       RNSCreateToolbarMorphDiagnosticsLogger(),
       OS_LOG_TYPE_INFO,
-      "event=%{public}@ role=%{public}@ item=%{public}@ counterpart=%{public}@ same_instance=%{public}ld custom_view=%{public}@ side=%{public}@ reason=%{public}@ result=%{public}@ uptime_ms=%{public}llu item_class=%{public}@ custom_class=%{public}@ custom_available=%{public}d window=%{public}d bar_window=%{public}d same_window=%{public}d attached=%{public}d width=%{public}ld height=%{public}ld hidden=%{public}ld alpha_milli=%{public}ld animated=%{public}d transition_active=%{public}d",
-      event, role, itemToken, counterpartToken, (long)sameInstance, customToken, side,
+      "event=%{public}@ variant=%{public}@ role=%{public}@ item=%{public}@ counterpart=%{public}@ same_instance=%{public}ld custom_view=%{public}@ side=%{public}@ reason=%{public}@ result=%{public}@ uptime_ms=%{public}llu item_class=%{public}@ custom_class=%{public}@ custom_available=%{public}d window=%{public}d bar_window=%{public}d same_window=%{public}d attached=%{public}d width=%{public}ld height=%{public}ld hidden=%{public}ld alpha_milli=%{public}ld animated=%{public}d transition_active=%{public}d",
+      event, RNSCurrentToolbarMorphExperimentVariant(), role, itemToken, counterpartToken, (long)sameInstance, customToken, side,
       RNSSafeToolbarMorphReason(reason), result, uptimeMilliseconds, itemClass, customClass,
       customView != nil, viewWindow != nil, barWindow != nil, sameWindow, attached,
       (long)width, (long)height, (long)hidden, (long)alphaMilli, animated, transitionActive);
@@ -163,8 +190,54 @@ static inline void RNSLogToolbarMorphTransition(
   os_log_with_type(
       RNSCreateToolbarMorphDiagnosticsLogger(),
       OS_LOG_TYPE_INFO,
-      "event=%{public}@ role=coordinator source=%{public}@ from_index=%{public}ld to_index=%{public}ld uptime_ms=%{public}llu animated=%{public}d transition_active=%{public}d cancelled=%{public}d",
-      event, source, (long)fromIndex, (long)toIndex, uptimeMilliseconds, animated, transitionActive, cancelled);
+      "event=%{public}@ variant=%{public}@ role=coordinator source=%{public}@ from_index=%{public}ld to_index=%{public}ld uptime_ms=%{public}llu animated=%{public}d transition_active=%{public}d cancelled=%{public}d",
+      event, RNSCurrentToolbarMorphExperimentVariant(), source, (long)fromIndex, (long)toIndex, uptimeMilliseconds, animated, transitionActive, cancelled);
+}
+
+static inline void RNSLogToolbarMorphNavigationTokens(
+    NSString *event,
+    NSString *navigationToken,
+    NSString *fromToken,
+    NSString *toToken,
+    NSString *operation,
+    NSString *result,
+    NSInteger stackDepth,
+    BOOL animated,
+    BOOL transitionActive,
+    BOOL cancelled)
+{
+  uint64_t uptimeMilliseconds = (uint64_t)(NSProcessInfo.processInfo.systemUptime * 1000.0);
+  os_log_with_type(
+      RNSCreateToolbarMorphDiagnosticsLogger(),
+      OS_LOG_TYPE_INFO,
+      "event=%{public}@ variant=%{public}@ role=coordinator navigation=%{public}@ from=%{public}@ to=%{public}@ operation=%{public}@ result=%{public}@ stack_depth=%{public}ld uptime_ms=%{public}llu animated=%{public}d transition_active=%{public}d cancelled=%{public}d",
+      event, RNSCurrentToolbarMorphExperimentVariant(), navigationToken, fromToken, toToken,
+      RNSSafeToolbarMorphOperation(operation), RNSSafeToolbarMorphStageResult(result),
+      (long)stackDepth, uptimeMilliseconds, animated, transitionActive, cancelled);
+}
+
+static inline void RNSLogToolbarMorphNavigation(
+    NSString *event,
+    UINavigationController *navigationController,
+    UIViewController *fromViewController,
+    UIViewController *toViewController,
+    NSString *operation,
+    NSString *result,
+    BOOL animated,
+    BOOL transitionActive,
+    BOOL cancelled)
+{
+  RNSLogToolbarMorphNavigationTokens(
+      event,
+      RNSToolbarMorphToken(navigationController, @"navigation"),
+      RNSToolbarMorphToken(fromViewController, @"controller"),
+      RNSToolbarMorphToken(toViewController, @"controller"),
+      operation,
+      result,
+      (NSInteger)navigationController.viewControllers.count,
+      animated,
+      transitionActive,
+      cancelled);
 }
 
 static inline void RNSObserveToolbarMorphTransition(
@@ -186,6 +259,44 @@ static inline void RNSObserveToolbarMorphTransition(
   }];
   if (!registered) {
     RNSLogToolbarMorphTransition(@"transition_observer_registration_failed", source, fromIndex, toIndex, animated, YES, NO);
+  }
+}
+
+static inline void RNSObserveToolbarMorphNavigationTransition(
+    UINavigationController *navigationController,
+    UIViewController *fromViewController,
+    UIViewController *toViewController,
+    NSString *operation,
+    BOOL animated)
+{
+  id<UIViewControllerTransitionCoordinator> coordinator = navigationController.transitionCoordinator;
+  if (coordinator == nil) {
+    RNSLogToolbarMorphNavigation(
+        @"navigation_transition_observer_unavailable", navigationController, fromViewController,
+        toViewController, operation, @"navigation_context_unavailable", animated, NO, NO);
+    return;
+  }
+
+  NSString *navigationToken = RNSToolbarMorphToken(navigationController, @"navigation");
+  NSString *fromToken = RNSToolbarMorphToken(fromViewController, @"controller");
+  NSString *toToken = RNSToolbarMorphToken(toViewController, @"controller");
+  NSString *safeOperation = RNSSafeToolbarMorphOperation(operation);
+  RNSLogToolbarMorphNavigationTokens(
+      @"navigation_transition_observer_registered", navigationToken, fromToken, toToken,
+      safeOperation, @"staging_started", (NSInteger)navigationController.viewControllers.count,
+      animated, YES, NO);
+  BOOL registered = [coordinator animateAlongsideTransition:nil
+      completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        RNSLogToolbarMorphNavigationTokens(
+            @"navigation_transition_completed", navigationToken, fromToken, toToken,
+            safeOperation, context.isCancelled ? @"cancelled" : @"completed",
+            (NSInteger)navigationController.viewControllers.count, animated, NO, context.isCancelled);
+      }];
+  if (!registered) {
+    RNSLogToolbarMorphNavigationTokens(
+        @"navigation_transition_observer_registration_failed", navigationToken, fromToken, toToken,
+        safeOperation, @"navigation_context_unavailable", (NSInteger)navigationController.viewControllers.count,
+        animated, YES, NO);
   }
 }
 `;
@@ -215,8 +326,12 @@ function insertBefore(filePath, needle, addition, marker) {
 function ensureLoggerHeader(screensRoot) {
   const headerPath = path.join(screensRoot, 'ios', 'RNSToolbarMorphDiagnostics.h');
   if (fs.existsSync(headerPath)) {
-    if (!fs.readFileSync(headerPath, 'utf8').includes(HEADER_MARKER)) {
+    const existingHeader = fs.readFileSync(headerPath, 'utf8');
+    if (!existingHeader.includes(HEADER_MARKER)) {
       throw new Error(`Refusing to replace an unrelated file at ${headerPath}.`);
+    }
+    if (existingHeader !== NATIVE_LOGGER_HEADER) {
+      fs.writeFileSync(headerPath, NATIVE_LOGGER_HEADER);
     }
     return;
   }
@@ -290,13 +405,41 @@ function patchScreens(screensRoot) {
   insertAfter(
     controllerPath,
     '  NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};',
-    `  RNSLogToolbarMorphItems(@"coordinator_capture", materialized[@"left"], nil,
+    `  BOOL isFirstToolbarMaterialization =
+      objc_getAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey) == nil;
+  if (isFirstToolbarMaterialization) {
+    RNSLogToolbarMorphNavigation(@"toolbar_first_materialization", navigationController, nil,
+        viewController, @"initial", @"toolbar_materialized", NO,
+        self.transitionCoordinator != nil || viewController.transitionCoordinator != nil ||
+            navigationController.transitionCoordinator != nil, NO);
+  }
+  RNSLogToolbarMorphItems(@"coordinator_capture", materialized[@"left"], nil,
       @"left", @"materialization", @"captured", navigationController.navigationBar, NO,
       self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"coordinator_capture", materialized[@"right"], nil,
       @"right", @"materialization", @"captured", navigationController.navigationBar, NO,
       self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || navigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} coordinator capture`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '  NSArray<UIBarButtonItem *> *rightItems = materializedItems[@"right"] ?: @[];',
+    `  RNSLogToolbarMorphItems(@"pop_staging_source", leftItems, nil,
+      @"left", @"navigation-pop-will-show", @"staging_started", navigationController.navigationBar, NO, YES);
+  RNSLogToolbarMorphItems(@"pop_staging_source", rightItems, nil,
+      @"right", @"navigation-pop-will-show", @"staging_started", navigationController.navigationBar, NO, YES);`,
+    `${PLUGIN_MARKER} pop staging source items`,
+  );
+
+  insertAfter(
+    controllerPath,
+    '[destinationNavigationItem setRightBarButtonItems:rightItems.count > 0 ? rightItems : nil animated:NO];',
+    `  RNSLogToolbarMorphItems(@"pop_staging_destination", destinationNavigationItem.leftBarButtonItems ?: @[], leftItems,
+      @"left", @"navigation-pop-will-show", @"staged", navigationController.navigationBar, NO, YES);
+  RNSLogToolbarMorphItems(@"pop_staging_destination", destinationNavigationItem.rightBarButtonItems ?: @[], rightItems,
+      @"right", @"navigation-pop-will-show", @"staged", navigationController.navigationBar, NO, YES);`,
+    `${PLUGIN_MARKER} pop staging destination items`,
   );
 
   insertBefore(
@@ -379,7 +522,7 @@ function patchScreens(screensRoot) {
 
   insertAfter(
     controllerPath,
-    '  BOOL repairRight = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(rightItems, bar);',
+    '      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, rightItems, reason, &repairReasonRight);',
     `  NSString *attachmentCheckReason = @"attachment_checked";
   if (!canCheckAttachment) {
     if (bar.window == nil) attachmentCheckReason = @"bar_window_missing";
@@ -388,12 +531,12 @@ function patchScreens(screensRoot) {
     else attachmentCheckReason = @"replacement_identity_unstable";
   }
   RNSLogToolbarMorphItems(@"attachment_repair_decision", leftItems, sharedLeftItems,
-      @"left", repairLeft ? @"detached_custom_view" : attachmentCheckReason,
-      repairLeft ? @"will_execute" : (canCheckAttachment ? @"not_needed" : @"ignored"),
+      @"left", repairLeft ? repairReasonLeft : attachmentCheckReason,
+      skipAttachmentRepairLeft ? @"ignored" : (repairLeft ? @"will_execute" : (canCheckAttachment ? @"not_needed" : @"ignored")),
       bar, NO, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);
   RNSLogToolbarMorphItems(@"attachment_repair_decision", rightItems, sharedRightItems,
-      @"right", repairRight ? @"detached_custom_view" : attachmentCheckReason,
-      repairRight ? @"will_execute" : (canCheckAttachment ? @"not_needed" : @"ignored"),
+      @"right", repairRight ? repairReasonRight : attachmentCheckReason,
+      skipAttachmentRepairRight ? @"ignored" : (repairRight ? @"will_execute" : (canCheckAttachment ? @"not_needed" : @"ignored")),
       bar, NO, self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair decision`,
   );
@@ -402,7 +545,7 @@ function patchScreens(screensRoot) {
     controllerPath,
     '      [sharedNavigationItem setRightBarButtonItems:rightItems animated:NO];',
     `      RNSLogToolbarMorphItems(@"attachment_repair_applied", rightItems, sharedRightItems,
-          @"right", @"detached_custom_view", @"setter_completed", bar, NO,
+          @"right", repairReasonRight, @"setter_completed", bar, NO,
           self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair right result`,
   );
@@ -410,7 +553,7 @@ function patchScreens(screensRoot) {
     controllerPath,
     '      [sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO];',
     `      RNSLogToolbarMorphItems(@"attachment_repair_applied", leftItems, sharedLeftItems,
-          @"left", @"detached_custom_view", @"setter_completed", bar, NO,
+          @"left", repairReasonLeft, @"setter_completed", bar, NO,
           self.transitionCoordinator != nil || viewController.transitionCoordinator != nil || sharedNavigationController.transitionCoordinator != nil || nestedNavigationController.transitionCoordinator != nil);`,
     `${PLUGIN_MARKER} attachment repair left result`,
   );
@@ -447,18 +590,85 @@ function patchScreens(screensRoot) {
   );
   insertAfter(
     stack,
+    '  if ([operation isEqualToString:@"pop"]) {',
+    `    if (tabsController != nil) {
+      RNSLogToolbarMorphNavigation(@"pop_staging_started", navigationController,
+          fromViewController, viewController, operation, @"staging_started", animated,
+          navigationController.transitionCoordinator != nil, NO);
+    }`,
+    `${PLUGIN_MARKER} pop staging start event`,
+  );
+  insertAfter(
+    stack,
+    '  // Emporio Rigatti: toolbar pop stage decision complete',
+    `  if (tabsController != nil) {
+    RNSLogToolbarMorphNavigation(@"navigation_transition_will_show", navigationController,
+        fromViewController, viewController, operation, stageResult, animated,
+        navigationController.transitionCoordinator != nil, NO);
+    if ([operation isEqualToString:@"pop"]) {
+      RNSLogToolbarMorphNavigation(@"pop_staging_result", navigationController,
+          fromViewController, viewController, operation, stageResult, animated,
+          navigationController.transitionCoordinator != nil, NO);
+      RNSLogToolbarMorphItems(@"pop_staging_target", viewController.navigationItem.leftBarButtonItems ?: @[], nil,
+          @"left", @"navigation-pop-will-show", stageResult, navigationController.navigationBar, NO,
+          navigationController.transitionCoordinator != nil);
+      RNSLogToolbarMorphItems(@"pop_staging_target", viewController.navigationItem.rightBarButtonItems ?: @[], nil,
+          @"right", @"navigation-pop-will-show", stageResult, navigationController.navigationBar, NO,
+          navigationController.transitionCoordinator != nil);
+      RNSObserveToolbarMorphNavigationTransition(
+          navigationController, fromViewController, viewController, operation, animated);
+    }
+  }`,
+    `${PLUGIN_MARKER} pop staging result events`,
+  );
+  insertAfter(
+    stack,
     '  auto *screenView = static_cast<RNSScreenView *>(viewController.view);',
-    `  RNSLogToolbarMorphTransition(@"navigation_transition_will_show", @"stack", -1, -1,
-      animated, navigationController.transitionCoordinator != nil, NO);
-  RNSObserveToolbarMorphTransition(navigationController.transitionCoordinator,
-      @"stack", -1, -1, animated);`,
+    `  NSArray<UIViewController *> *diagnosticPreviousStack =
+      objc_getAssociatedObject(navigationController, &RNSSharedToolbarStableNavigationStackKey);
+  UIViewController *diagnosticFromViewController = nil;
+  NSString *diagnosticOperation = RNSSharedToolbarNavigationOperation(
+      navigationController, diagnosticPreviousStack, viewController, &diagnosticFromViewController);
+  RNSTabBarController *diagnosticTabsController =
+      RNSFindSharedToolbarTabsController(viewController);
+  if (diagnosticTabsController == nil) {
+    diagnosticTabsController = RNSFindSharedToolbarTabsController(diagnosticFromViewController);
+  }
+  UIViewController *diagnosticAncestor = navigationController;
+  while (diagnosticAncestor != nil && diagnosticTabsController == nil) {
+    diagnosticTabsController = RNSFindSharedToolbarTabsController(diagnosticAncestor);
+    diagnosticAncestor = diagnosticAncestor.parentViewController;
+  }
+  if (diagnosticTabsController != nil) {
+    RNSLogToolbarMorphNavigation(@"navigation_will_show_callback", navigationController,
+        diagnosticFromViewController, viewController, diagnosticOperation, @"pending", animated,
+        navigationController.transitionCoordinator != nil, NO);
+  }`,
     `${PLUGIN_MARKER} navigation transition start`,
   );
   insertAfter(
     stack,
     '- (void)navigationController:(UINavigationController *)navigationController\n       didShowViewController:(UIViewController *)viewController\n                    animated:(BOOL)animated\n{\n  [self emitOnFinishTransitioningEvent];\n  [RNSScreenWindowTraits updateWindowTraits];',
-    `  RNSLogToolbarMorphTransition(@"navigation_transition_did_show", @"stack", -1, -1,
-      animated, navigationController.transitionCoordinator != nil, NO);`,
+    `  NSArray<UIViewController *> *previousStableStack =
+      objc_getAssociatedObject(navigationController, &RNSSharedToolbarStableNavigationStackKey);
+  UIViewController *previousTopViewController = nil;
+  NSString *completedOperation = RNSSharedToolbarNavigationOperation(
+      navigationController, previousStableStack, viewController, &previousTopViewController);
+  RNSTabBarController *diagnosticTabsController =
+      RNSFindSharedToolbarTabsController(viewController);
+  if (diagnosticTabsController == nil) {
+    diagnosticTabsController = RNSFindSharedToolbarTabsController(previousTopViewController);
+  }
+  UIViewController *diagnosticAncestor = navigationController;
+  while (diagnosticAncestor != nil && diagnosticTabsController == nil) {
+    diagnosticTabsController = RNSFindSharedToolbarTabsController(diagnosticAncestor);
+    diagnosticAncestor = diagnosticAncestor.parentViewController;
+  }
+  if (diagnosticTabsController != nil) {
+    RNSLogToolbarMorphNavigation(@"navigation_transition_did_show", navigationController,
+        previousTopViewController, viewController, completedOperation, @"completed", animated,
+        navigationController.transitionCoordinator != nil, NO);
+  }`,
     `${PLUGIN_MARKER} navigation transition did show`,
   );
 }
@@ -489,7 +699,7 @@ function patchExpoUIHost(expoUIRoot) {
     installToolbarMorphIdentifierIfNeeded(on: hostView, role: role)
     let uptimeMilliseconds = Int(ProcessInfo.processInfo.systemUptime * 1_000)
     logger.info(
-      "event=\\(event, privacy: .public) role=\\(role, privacy: .public) host=\\(self.toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
+      "event=\\(event, privacy: .public) variant=\\(self.toolbarMorphExperimentVariant, privacy: .public) role=\\(role, privacy: .public) host=\\(self.toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
     )
   }
 
@@ -509,8 +719,13 @@ function patchExpoUIHost(expoUIRoot) {
     installToolbarMorphIdentifierIfNeeded(on: hostView, role: role)
     let uptimeMilliseconds = Int(ProcessInfo.processInfo.systemUptime * 1_000)
     logger.info(
-      "event=host_layout role=\\(role, privacy: .public) host=\\(self.toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) width=\\(width, privacy: .public) height=\\(height, privacy: .public) available=\\(width > 0 && height > 0, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
+      "event=host_layout variant=\\(self.toolbarMorphExperimentVariant, privacy: .public) role=\\(role, privacy: .public) host=\\(self.toolbarMorphToken, privacy: .public) uptime_ms=\\(uptimeMilliseconds, privacy: .public) width=\\(width, privacy: .public) height=\\(height, privacy: .public) available=\\(width > 0 && height > 0, privacy: .public) window=\\(hostView?.window != nil, privacy: .public) attached=\\(hostView?.superview != nil, privacy: .public) hidden=\\(hostView?.isHidden ?? false, privacy: .public) alpha_milli=\\(Int(((hostView?.alpha ?? 0) * 1_000).rounded()), privacy: .public)"
     )
+  }
+
+  private var toolbarMorphExperimentVariant: String {
+    let configuredVariant = Bundle.main.infoDictionary?[\"EmporioToolbarMorphExperimentVariant\"] as? String
+    return configuredVariant == \"B\" ? \"B\" : \"A\"
   }
 
   private var toolbarMorphRole: String? {

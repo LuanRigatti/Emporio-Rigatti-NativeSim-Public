@@ -6,6 +6,35 @@ import { createRequire } from 'node:module';
 const screensRoot = path.resolve('node_modules/react-native-screens');
 const expoUIRoot = path.resolve('node_modules/@expo/ui');
 const requireFromTest = createRequire(__filename);
+const appConfigPath = path.resolve('app.config.js');
+const appConfigRequire = createRequire(__filename);
+
+function resolveExperimentVariant(configuredVariant?: string) {
+  const previousVariant = process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT;
+  if (configuredVariant === undefined) {
+    delete process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT;
+  } else {
+    process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT = configuredVariant;
+  }
+
+  let config: { ios?: { infoPlist?: Record<string, unknown> } } | undefined;
+  try {
+    jest.isolateModules(() => {
+      config = appConfigRequire(appConfigPath).expo as {
+        ios?: { infoPlist?: Record<string, unknown> };
+      };
+    });
+  } finally {
+    if (previousVariant === undefined) {
+      delete process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT;
+    } else {
+      process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT = previousVariant;
+    }
+  }
+
+  if (!config) throw new Error('Could not resolve app.config.js for toolbar morph experiment.');
+  return config.ios?.infoPlist?.EmporioToolbarMorphExperimentVariant;
+}
 
 const screensPatch = requireFromTest('../../plugins/withRNScreensHideBottomBarWhenPushed') as {
   __patchRNScreensForTests: (root: string) => void;
@@ -88,6 +117,12 @@ describe('temporary toolbar morph diagnostics plugin', () => {
     expect(coordinatorIndex).toBeGreaterThan(diagnosticsIndex);
   });
 
+  it('selects control A by default and B only through the dedicated build environment value', () => {
+    expect(resolveExperimentVariant()).toBe('A');
+    expect(resolveExperimentVariant('B')).toBe('B');
+    expect(resolveExperimentVariant('unexpected')).toBe('A');
+  });
+
   it('patches the existing coordinator and Host idempotently', () => {
     const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
     try {
@@ -112,7 +147,7 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       expect(hostDiagnosticMessages).toHaveLength(2);
       expect(hostDiagnosticMessages[0]).toContain('event=\\(event, privacy: .public)');
       expect(hostDiagnosticMessages[1]).toContain(
-        'event=host_layout role=\\(role, privacy: .public)',
+        'event=host_layout variant=\\(self.toolbarMorphExperimentVariant, privacy: .public) role=\\(role, privacy: .public)',
       );
       expect(
         hostDiagnosticMessages.filter((line) =>
@@ -172,6 +207,9 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       const host = readFileSync(path.join(fixtureExpoUIRoot, 'ios/HostView.swift'), 'utf8');
       expect(loggerHeader).toContain('os_log_with_type');
       expect(loggerHeader).toContain('ToolbarMorphDiagnostics');
+      expect(loggerHeader).toContain('variant=%{public}@ role=%{public}@');
+      expect(loggerHeader).toContain('RNSCurrentToolbarMorphExperimentVariant');
+      expect(loggerHeader).toContain('EmporioToolbarMorphExperimentVariant');
       expect(loggerHeader).toContain(
         '"transition_completed", source, fromIndex, toIndex, animated',
       );
@@ -182,10 +220,110 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       expect(loggerHeader).not.toContain('displayName');
       expect(loggerHeader).not.toContain('photoUrl');
       expect(host).toContain('event=host_layout');
+      expect(host).toContain('variant=\\(self.toolbarMorphExperimentVariant, privacy: .public)');
+      expect(host).toContain('EmporioToolbarMorphExperimentVariant');
       expect(host).toContain('logToolbarMorphHostLifecycle("host_appeared")');
       expect(host).toContain('logToolbarMorphHostLifecycle("host_disappeared")');
       expect(host).toContain('let _ = props.prepareToolbarMorphHostIdentity()');
       expect(host).toContain('ToolbarMorphDiagnostics');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('correlates cold-start materialization and pop staging through native identities and attachment state', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const loggerHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+      const stack = readFileSync(path.join(fixtureScreensRoot, 'ios/RNSScreenStack.mm'), 'utf8');
+      const coordinator = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+
+      expect(loggerHeader).toContain('navigation=%{public}@ from=%{public}@ to=%{public}@');
+      expect(loggerHeader).toContain(
+        'operation=%{public}@ result=%{public}@ stack_depth=%{public}ld',
+      );
+      expect(loggerHeader).toContain('uptime_ms=%{public}llu');
+      expect(loggerHeader).toContain('custom_view=%{public}@');
+      expect(loggerHeader).toContain('attached=%{public}d');
+      expect(loggerHeader).toContain(
+        'window=%{public}d bar_window=%{public}d same_window=%{public}d',
+      );
+
+      expect(coordinator).toContain('toolbar_first_materialization');
+      expect(coordinator).toContain('pop_staging_source');
+      expect(coordinator).toContain('pop_staging_destination');
+      expect(coordinator).toContain('attachment_repair_decision');
+      expect(coordinator).toContain('attachment_repair_applied');
+      expect(stack).toContain('navigation_will_show_callback');
+      expect(stack).toContain('pop_staging_started');
+      expect(stack).toContain('pop_staging_result');
+      expect(stack).toContain('navigation_transition_will_show');
+      expect(stack).toContain('navigation_transition_did_show');
+      expect(loggerHeader).toContain('navigation_transition_completed');
+      expect(stack).toContain('RNSObserveToolbarMorphNavigationTransition(');
+      expect(stack).toContain('fromViewController, viewController, operation, stageResult');
+
+      expect(loggerHeader).not.toContain('displayName');
+      expect(loggerHeader).not.toContain('photoUrl');
+      expect(loggerHeader).not.toContain('searchQuery');
+      expect(loggerHeader).not.toContain('customer');
+      expect(loggerHeader).not.toContain('financial');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('traces the real declarative Finance toolbar button through its native accessibility label', () => {
+    const financeRoute = readFileSync(path.resolve('src/app/(tabs)/financeiro/index.tsx'), 'utf8');
+    const routerToolbarButtonConverter = readFileSync(
+      path.resolve(
+        'node_modules/expo-router/build/layouts/stack-utils/toolbar/StackToolbarButton/index.js',
+      ),
+      'utf8',
+    );
+    const routerSharedToolbarProps = readFileSync(
+      path.resolve('node_modules/expo-router/build/layouts/stack-utils/toolbar/shared.js'),
+      'utf8',
+    );
+    const screensBarButtonItem = readFileSync(
+      path.resolve('node_modules/react-native-screens/ios/RNSBarButtonItem.mm'),
+      'utf8',
+    );
+    expect(financeRoute).toContain('accessibilityLabel="Período financeiro"');
+    expect(routerToolbarButtonConverter).toContain(
+      'convertStackHeaderSharedPropsToRNSharedHeaderItem)(props)',
+    );
+    expect(routerSharedToolbarProps).toContain('...rest,');
+    expect(screensBarButtonItem).toContain('self.accessibilityLabel = dict[@"accessibilityLabel"]');
+
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const loggerHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+      const headerConfig = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSScreenStackHeaderConfig.mm'),
+        'utf8',
+      );
+      const coordinator = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+
+      expect(loggerHeader).toContain(
+        'item.accessibilityLabel isEqualToString:@"Período financeiro"',
+      );
+      expect(headerConfig).toContain('RNSLogToolbarMorphItem(@"item_created"');
+      expect(coordinator).toContain('RNSLogToolbarMorphItems(@"coordinator_capture"');
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }

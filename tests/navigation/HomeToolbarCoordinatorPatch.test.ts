@@ -243,6 +243,74 @@ describe('Home toolbar coordinator patch', () => {
     }
   });
 
+  it('stages only Home and Settings root toolbar items before a native pop', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const coordinator = readPatchedCoordinator(fixtureRoot);
+      const stageMethodStart = coordinator.lastIndexOf(
+        '- (NSString *)stageSharedToolbarItemsForNavigationPopInNavigationController:',
+      );
+      const stageMethodEnd = coordinator.indexOf('\n#pragma mark - Signals', stageMethodStart);
+      const stageMethod = coordinator.slice(stageMethodStart, stageMethodEnd);
+      const stack = readFileSync(path.join(fixtureRoot, 'ios/RNSScreenStack.mm'), 'utf8');
+      const operationHelperStart = stack.indexOf(
+        'static NSString *RNSSharedToolbarNavigationOperation(',
+      );
+      const operationHelperEnd = stack.indexOf(
+        'static RNSTabBarController *RNSFindSharedToolbarTabsController',
+        operationHelperStart,
+      );
+      const operationHelper = stack.slice(operationHelperStart, operationHelperEnd);
+      const willShowIndex = stack.indexOf('withConfig:screenView.findHeaderConfig];');
+      const stageDecisionIndex = stack.indexOf(
+        'NSString *operation = RNSSharedToolbarNavigationOperation(',
+        willShowIndex,
+      );
+      const didShowSyncIndex = stack.indexOf(
+        '[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"];',
+      );
+      const stackSnapshotIndex = stack.indexOf(
+        '&RNSSharedToolbarStableNavigationStackKey,\n      [navigationController.viewControllers copy]',
+        didShowSyncIndex,
+      );
+
+      expect(stageMethodStart).toBeGreaterThanOrEqual(0);
+      expect(stageMethod).toContain('navigationController == sharedNavigationController');
+      expect(stageMethod).toContain('selectedTabIndex == 0');
+      expect(stageMethod).toContain('selectedTabIndex == 3');
+      expect(stageMethod).toContain(
+        'selectedNestedNavigationController.viewControllers.count == 1',
+      );
+      expect(stageMethod).toContain(
+        'objc_getAssociatedObject(sourceNavigationItem, &RNSSharedToolbarMaterializedItemsKey)',
+      );
+      expect(stageMethod).toContain('sharedNavigationController.navigationBarHidden');
+      expect(stageMethod).toContain('RNSSharedToolbarItemsByRemovingInstances');
+      expect(stageMethod).toContain('RNSHomeToolbarItemArraysHaveSameInstances');
+      expect(stageMethod).toContain(
+        'setRightBarButtonItems:rightItems.count > 0 ? rightItems : nil animated:NO',
+      );
+      expect(stageMethod).toContain('return @"not_target_root_pop"');
+      expect(stageMethod).not.toContain('setRightBarButtonItems:rightItems animated:YES');
+
+      expect(operationHelper).toContain('return @"initial"');
+      expect(operationHelper).toContain('return @"pop"');
+      expect(operationHelper).toContain('return @"push"');
+      expect(operationHelper).toContain('return @"replace"');
+      expect(operationHelper).toContain('toIndex < fromIndex');
+      expect(stageDecisionIndex).toBeGreaterThan(willShowIndex);
+      expect(stack).toContain('if ([operation isEqualToString:@"pop"])');
+      expect(didShowSyncIndex).toBeGreaterThan(stageDecisionIndex);
+      expect(stackSnapshotIndex).toBeGreaterThan(didShowSyncIndex);
+      expect(stack).toContain(
+        'RNSSharedToolbarNavigationOperation(\n      navigationController, previousStack, viewController',
+      );
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it('keeps destination toolbar preparation before native UITab and legacy selection', () => {
     const fixtureRoot = createScreensFixture();
     try {
@@ -319,8 +387,8 @@ describe('Home toolbar coordinator patch', () => {
       );
       expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(leftItems, bar)');
       expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(rightItems, bar)');
-      expect(coordinator).toContain('if (repairLeft) {');
-      expect(coordinator).toContain('if (repairRight) {');
+      expect(coordinator).toContain('if (repairLeft && !skipAttachmentRepairLeft) {');
+      expect(coordinator).toContain('if (repairRight && !skipAttachmentRepairRight) {');
       expect(coordinator).toContain('[sharedNavigationItem setLeftBarButtonItems:nil animated:NO]');
       expect(coordinator).toContain(
         '[sharedNavigationItem setLeftBarButtonItems:leftItems animated:NO]',
@@ -334,6 +402,37 @@ describe('Home toolbar coordinator patch', () => {
       expect(coordinator).toContain(
         'if (!RNSHomeToolbarItemArraysHaveSameInstances(sharedRightItems, rightItems))',
       );
+      expect(coordinator).not.toMatch(/dispatch_after|NSTimer|setTimeout|remount/i);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('limits variant B to one post-UITab repair skip per target role and keeps the next sync as recovery', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const coordinator = readPatchedCoordinator(fixtureRoot);
+      const skipHelper = coordinator.slice(
+        coordinator.indexOf('static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce'),
+        coordinator.indexOf('static UINavigationController *RNSFindNestedNavigationController'),
+      );
+
+      expect(skipHelper).toContain(
+        'RNSCurrentToolbarMorphExperimentVariant() isEqualToString:@"B"',
+      );
+      expect(skipHelper).toContain('[reason isEqualToString:@"tab-transition-completion"]');
+      expect(skipHelper).toContain('RNSRoleForToolbarMorphItem(item)');
+      expect(skipHelper).toContain('isEqualToString:@"home-search"');
+      expect(skipHelper).toContain('isEqualToString:@"settings-profile"');
+      expect(skipHelper).toContain('experiment_b_skip_once');
+      expect(skipHelper).toContain('experiment_b_recovery');
+      expect(skipHelper).toContain('experiment_b_shared_side_preserved');
+      expect(skipHelper).toContain('RNSSharedToolbarExperimentSkippedRepairRolesKey');
+      expect(coordinator).toContain('if (repairLeft && !skipAttachmentRepairLeft) {');
+      expect(coordinator).toContain('if (repairRight && !skipAttachmentRepairRight) {');
+      expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(leftItems, bar)');
+      expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(rightItems, bar)');
       expect(coordinator).not.toMatch(/dispatch_after|NSTimer|setTimeout|remount/i);
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });

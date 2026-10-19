@@ -574,7 +574,7 @@ static inline NSString *RNSSafeToolbarMorphCallStack(void)
 {
   NSMutableArray<NSString *> *frames = [NSMutableArray new];
   NSRegularExpression *addressPattern = [NSRegularExpression
-      regularExpressionWithPattern:@"0x[0-9a-fA-F]+\\s+(.+?)(?:\\s+\\+\\s+\\d+)?$"
+      regularExpressionWithPattern:@"0x[0-9a-fA-F]+\\\\s+(.+?)(?:\\\\s+\\\\+\\\\s+\\\\d+)?$"
       options:0 error:nil];
   for (NSString *symbol in NSThread.callStackSymbols) {
     if (frames.count >= 12) break;
@@ -582,7 +582,7 @@ static inline NSString *RNSSafeToolbarMorphCallStack(void)
         range:NSMakeRange(0, symbol.length)];
     if (match.numberOfRanges < 2) continue;
     NSString *frame = [symbol substringWithRange:[match rangeAtIndex:1]];
-    if ([frame containsString:@"/"] || [frame containsString:@"\\"] || frame.length == 0) continue;
+    if ([frame containsString:@"/"] || [frame containsString:@"\\\\"] || frame.length == 0) continue;
     [frames addObject:frame];
   }
   return [frames componentsJoinedByString:@" <- "];

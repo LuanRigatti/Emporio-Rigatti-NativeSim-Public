@@ -36,26 +36,51 @@ function resolveExperimentVariant(configuredVariant?: string) {
   return config.ios?.infoPlist?.EmporioToolbarMorphExperimentVariant;
 }
 
-function resolveDiagnosticsEnabled(configuredValue?: string) {
-  const previousValue = process.env.TOOLBAR_MORPH_DIAGNOSTICS;
-  if (configuredValue === undefined) {
-    delete process.env.TOOLBAR_MORPH_DIAGNOSTICS;
-  } else {
-    process.env.TOOLBAR_MORPH_DIAGNOSTICS = configuredValue;
-  }
+const diagnosticsEnvironmentKeys = [
+  'APP_VARIANT',
+  'BUILD_CONFIGURATION',
+  'GITHUB_ACTIONS',
+  'GITHUB_EVENT_NAME',
+  'GITHUB_REF',
+  'GITHUB_REPOSITORY',
+  'GITHUB_WORKFLOW_REF',
+  'TOOLBAR_MORPH_DIAGNOSTICS',
+] as const;
+
+const nativeSimReleaseDiagnosticsEnvironment = {
+  GITHUB_ACTIONS: 'true',
+  GITHUB_EVENT_NAME: 'workflow_dispatch',
+  GITHUB_REF: 'refs/heads/sdk58-codex',
+  GITHUB_REPOSITORY: 'LuanRigatti/Emporio-Rigatti-NativeSim-Public',
+  GITHUB_WORKFLOW_REF:
+    'LuanRigatti/Emporio-Rigatti-NativeSim-Public/.github/workflows/native-sim.yml@refs/heads/sdk58-codex',
+  BUILD_CONFIGURATION: 'release',
+};
+
+function resolveDiagnosticsEnabled(environment: Record<string, string> = {}) {
+  const previousEnvironment = new Map(
+    diagnosticsEnvironmentKeys.map((key) => [key, process.env[key]]),
+  );
 
   let config: { ios?: { infoPlist?: Record<string, unknown> } } | undefined;
   try {
+    for (const key of diagnosticsEnvironmentKeys) {
+      const value = environment[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+
+    delete appConfigRequire.cache[appConfigPath];
     jest.isolateModules(() => {
       config = appConfigRequire(appConfigPath).expo as {
         ios?: { infoPlist?: Record<string, unknown> };
       };
     });
   } finally {
-    if (previousValue === undefined) {
-      delete process.env.TOOLBAR_MORPH_DIAGNOSTICS;
-    } else {
-      process.env.TOOLBAR_MORPH_DIAGNOSTICS = previousValue;
+    delete appConfigRequire.cache[appConfigPath];
+    for (const [key, value] of previousEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   }
 
@@ -150,10 +175,64 @@ describe('temporary toolbar morph diagnostics plugin', () => {
     expect(resolveExperimentVariant('unexpected')).toBe('A');
   });
 
-  it('enables native diagnostic logging only in Debug or an explicitly opted-in diagnostic build', () => {
+  it('enables native diagnostics only for the SDK 58 NativeSim Release build context', () => {
     expect(resolveDiagnosticsEnabled()).toBe(false);
-    expect(resolveDiagnosticsEnabled('1')).toBe(true);
-    expect(resolveDiagnosticsEnabled('true')).toBe(false);
+    expect(
+      resolveDiagnosticsEnabled({ APP_VARIANT: 'release', TOOLBAR_MORPH_DIAGNOSTICS: '1' }),
+    ).toBe(false);
+    expect(resolveDiagnosticsEnabled(nativeSimReleaseDiagnosticsEnvironment)).toBe(true);
+    expect(
+      resolveDiagnosticsEnabled({
+        ...nativeSimReleaseDiagnosticsEnvironment,
+        GITHUB_REPOSITORY: 'LuanRigatti/emporiorigatti',
+      }),
+    ).toBe(false);
+    expect(
+      resolveDiagnosticsEnabled({
+        ...nativeSimReleaseDiagnosticsEnvironment,
+        GITHUB_EVENT_NAME: 'push',
+      }),
+    ).toBe(false);
+    expect(
+      resolveDiagnosticsEnabled({
+        ...nativeSimReleaseDiagnosticsEnvironment,
+        GITHUB_WORKFLOW_REF:
+          'LuanRigatti/Emporio-Rigatti-NativeSim-Public/.github/workflows/eas-build.yml@refs/heads/sdk58-codex',
+        TOOLBAR_MORPH_DIAGNOSTICS: '1',
+      }),
+    ).toBe(false);
+    expect(
+      resolveDiagnosticsEnabled({
+        ...nativeSimReleaseDiagnosticsEnvironment,
+        GITHUB_REF: 'refs/heads/main',
+      }),
+    ).toBe(false);
+    expect(
+      resolveDiagnosticsEnabled({
+        ...nativeSimReleaseDiagnosticsEnvironment,
+        BUILD_CONFIGURATION: 'development',
+      }),
+    ).toBe(false);
+  });
+
+  it('generates Objective-C-valid escaping in the native diagnostics header', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const loggerHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+
+      expect(loggerHeader).toContain(
+        'regularExpressionWithPattern:@"0x[0-9a-fA-F]+\\\\s+(.+?)(?:\\\\s+\\\\+\\\\s+\\\\d+)?$"',
+      );
+      expect(loggerHeader).not.toMatch(/(?<!\\)\\(?:s|\+|d)/);
+      expect(loggerHeader).toContain('[frame containsString:@"\\\\"]');
+      expect(loggerHeader).not.toContain('[frame containsString:@"\\"]');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
   });
 
   it('patches the existing coordinator and Host idempotently', () => {

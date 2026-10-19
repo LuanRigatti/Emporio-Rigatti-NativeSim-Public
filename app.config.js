@@ -5,7 +5,16 @@ const { AndroidConfig, withSettingsGradle, withStringsXml } = require('expo/conf
 const androidMapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY;
 const toolbarMorphExperimentVariant =
   process.env.TOOLBAR_MORPH_EXPERIMENT_VARIANT === 'B' ? 'B' : 'A';
-const toolbarMorphDiagnosticsEnabled = process.env.TOOLBAR_MORPH_DIAGNOSTICS === '1';
+// Temporary gate for the toolbar investigation; enable only during its NativeSim Release build.
+const isNativeSimDiagnosticsBuild =
+  process.env.GITHUB_ACTIONS === 'true' &&
+  process.env.GITHUB_REPOSITORY === 'LuanRigatti/Emporio-Rigatti-NativeSim-Public' &&
+  process.env.GITHUB_REF === 'refs/heads/sdk58-codex' &&
+  process.env.GITHUB_WORKFLOW_REF ===
+    'LuanRigatti/Emporio-Rigatti-NativeSim-Public/.github/workflows/native-sim.yml@refs/heads/sdk58-codex' &&
+  process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' &&
+  process.env.BUILD_CONFIGURATION === 'release';
+const toolbarMorphDiagnosticsEnabled = isNativeSimDiagnosticsBuild;
 const isFinalVariant = process.env.APP_VARIANT === 'final';
 const isReleaseVariant = process.env.APP_VARIANT === 'release';
 const isIsolatedIosVariant = isFinalVariant || isReleaseVariant;

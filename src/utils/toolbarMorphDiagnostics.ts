@@ -27,7 +27,7 @@ export function recordToolbarMorphAccessoryLifecycle(
   instance: number,
 ): void {
   if (!isToolbarMorphDiagnosticsEnabled()) return;
-  toolbarMorphDiagnostics?.recordAccessoryLifecycle(role, event, instance);
+  toolbarMorphDiagnostics?.recordAccessoryLifecycle?.(role, event, instance);
 }
 
 export function isToolbarMorphDiagnosticsEnabled(): boolean {
@@ -39,5 +39,5 @@ export function recordToolbarMorphNavigationLifecycle(
   destination: ToolbarMorphNavigationDestination,
 ): void {
   if (!isToolbarMorphDiagnosticsEnabled()) return;
-  toolbarMorphDiagnostics?.recordNavigationLifecycle(event, destination);
+  toolbarMorphDiagnostics?.recordNavigationLifecycle?.(event, destination);
 }

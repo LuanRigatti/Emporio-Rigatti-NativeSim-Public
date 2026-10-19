@@ -6,6 +6,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { useInitialCacheHydration, useSession, useTestMode } from '@/providers';
 import { useAppTheme } from '@/theme';
+import { recordToolbarMorphNavigationLifecycle } from '@/utils/toolbarMorphDiagnostics';
 
 import SplashVisual from './components/SplashVisual';
 
@@ -91,8 +92,12 @@ export function SplashGate() {
     if (navigationStartedRef.current) return;
 
     navigationStartedRef.current = true;
+    recordToolbarMorphNavigationLifecycle(
+      'splash_replace_requested',
+      isAuthenticated ? 'home' : 'login',
+    );
     router.replace(destinationHref);
-  }, [destinationHref, router]);
+  }, [destinationHref, isAuthenticated, router]);
 
   return (
     <View style={styles.root}>

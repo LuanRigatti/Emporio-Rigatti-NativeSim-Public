@@ -36,6 +36,33 @@ function resolveExperimentVariant(configuredVariant?: string) {
   return config.ios?.infoPlist?.EmporioToolbarMorphExperimentVariant;
 }
 
+function resolveDiagnosticsEnabled(configuredValue?: string) {
+  const previousValue = process.env.TOOLBAR_MORPH_DIAGNOSTICS;
+  if (configuredValue === undefined) {
+    delete process.env.TOOLBAR_MORPH_DIAGNOSTICS;
+  } else {
+    process.env.TOOLBAR_MORPH_DIAGNOSTICS = configuredValue;
+  }
+
+  let config: { ios?: { infoPlist?: Record<string, unknown> } } | undefined;
+  try {
+    jest.isolateModules(() => {
+      config = appConfigRequire(appConfigPath).expo as {
+        ios?: { infoPlist?: Record<string, unknown> };
+      };
+    });
+  } finally {
+    if (previousValue === undefined) {
+      delete process.env.TOOLBAR_MORPH_DIAGNOSTICS;
+    } else {
+      process.env.TOOLBAR_MORPH_DIAGNOSTICS = previousValue;
+    }
+  }
+
+  if (!config) throw new Error('Could not resolve app.config.js diagnostics flag.');
+  return config.ios?.infoPlist?.EmporioToolbarMorphDiagnosticsEnabled;
+}
+
 const screensPatch = requireFromTest('../../plugins/withRNScreensHideBottomBarWhenPushed') as {
   __patchRNScreensForTests: (root: string) => void;
 };
@@ -121,6 +148,12 @@ describe('temporary toolbar morph diagnostics plugin', () => {
     expect(resolveExperimentVariant()).toBe('A');
     expect(resolveExperimentVariant('B')).toBe('B');
     expect(resolveExperimentVariant('unexpected')).toBe('A');
+  });
+
+  it('enables native diagnostic logging only in Debug or an explicitly opted-in diagnostic build', () => {
+    expect(resolveDiagnosticsEnabled()).toBe(false);
+    expect(resolveDiagnosticsEnabled('1')).toBe(true);
+    expect(resolveDiagnosticsEnabled('true')).toBe(false);
   });
 
   it('patches the existing coordinator and Host idempotently', () => {
@@ -242,18 +275,36 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       expect(loggerHeader).toContain('settings_shared_root_predicate=%{public}d');
       expect(loggerHeader).toContain('finance_shared_root_predicate=%{public}d');
       expect(loggerHeader).toContain('owner_contains=%{public}d other_owner_contains=%{public}d');
-      expect(headerSubview).toContain('custom_view_will_move');
-      expect(headerSubview).toContain('custom_view_did_move');
-      expect(headerSubview).toContain('custom_view_window_changed');
+      expect(loggerHeader).toContain('RNSIsToolbarMorphDiagnosticsEnabled');
+      expect(loggerHeader).toContain('EmporioToolbarMorphDiagnosticsEnabled');
+      expect(loggerHeader).toContain('pid=%{public}d');
+      expect(loggerHeader).toContain('NSThread.callStackSymbols');
+      expect(headerSubview).toContain('wasAttached && self.window == nil');
+      expect(headerSubview).toContain('custom_subview_will_move_superview');
+      expect(headerSubview).toContain('custom_subview_did_move_superview');
+      expect(headerSubview).toContain('custom_subview_will_move_window');
+      expect(headerSubview).toContain('custom_subview_did_move_window');
+      expect(headerSubview).toContain('rns_toolbarMorphExistingBarButtonItem');
+      expect(headerSubview).toContain('RNSLogToolbarMorphAttachmentLoss');
       expect(loggerHeader).toContain('tab_transition_completed');
       expect(loggerHeader).not.toContain('displayName');
       expect(loggerHeader).not.toContain('photoUrl');
       expect(host).toContain('event=host_layout');
       expect(host).toContain('variant=\\(self.toolbarMorphExperimentVariant, privacy: .public)');
       expect(host).toContain('EmporioToolbarMorphExperimentVariant');
+      expect(host).toContain('EmporioToolbarMorphDiagnosticsEnabled');
+      expect(host).toContain('pid=\\(processIdentifier, privacy: .public)');
       expect(host).toContain('logToolbarMorphHostLifecycle("host_appeared")');
       expect(host).toContain('logToolbarMorphHostLifecycle("host_disappeared")');
       expect(host).toContain('let _ = props.prepareToolbarMorphHostIdentity()');
+      const prepareIdentityStart = host.indexOf('func prepareToolbarMorphHostIdentity()');
+      const prepareIdentityEnd = host.indexOf(
+        'func logToolbarMorphHostLayout',
+        prepareIdentityStart,
+      );
+      expect(host.slice(prepareIdentityStart, prepareIdentityEnd)).not.toContain(
+        'guard toolbarMorphDiagnosticsEnabled',
+      );
       expect(host).toContain('ToolbarMorphDiagnostics');
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
@@ -379,6 +430,79 @@ describe('temporary toolbar morph diagnostics plugin', () => {
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
+  });
+
+  it('records individual header setters, Fabric unmount and snapshot decisions without materializing items', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const loggerHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+      const headerConfig = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSScreenStackHeaderConfig.mm'),
+        'utf8',
+      );
+      const headerSubviewHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSScreenStackHeaderSubview.h'),
+        'utf8',
+      );
+      const coordinator = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+
+      expect(headerConfig).toContain('navigation_item_setter');
+      expect(headerConfig).toContain('header-config-updateViewController-navitem-left');
+      expect(headerConfig).toContain('header-config-updateViewController-navitem-right');
+      expect(headerConfig).toContain('fabric_unmount_before_remove');
+      expect(headerConfig).toContain('[childComponentView removeFromSuperview];');
+      expect(headerConfig).toContain('fabric_snapshot_candidate');
+      expect(headerConfig).toContain('fabric_snapshot_customView_before');
+      expect(headerConfig).toContain('fabric_snapshot_customView_after');
+      const fabricUnmountStart = headerConfig.indexOf(
+        'unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView',
+      );
+      const fabricUnmountEnd = headerConfig.indexOf(
+        '\n- (void)mountingTransactionDidMount:',
+        fabricUnmountStart,
+      );
+      expect(headerConfig.slice(fabricUnmountStart, fabricUnmountEnd)).not.toContain(
+        'getUIBarButtonItem',
+      );
+      expect(headerSubviewHeader).toContain('rns_toolbarMorphExistingBarButtonItem');
+      expect(coordinator).toContain('RNSBeginToolbarMorphDiagnosticOperation');
+      expect(coordinator).toContain('navigation_item_setter');
+      expect(coordinator).toContain('tab-controller-');
+      expect(loggerHeader).toContain('navigation_item=%{public}@');
+      expect(loggerHeader).toContain('accessory_window=%{public}@');
+      expect(loggerHeader).toContain('operation=%{public}@ phase=%{public}@');
+      expect(loggerHeader).toContain('before_contains=%{public}d observed_contains=%{public}d');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('connects cold-start replace, native materialization and Host lifecycle with safe route labels', () => {
+    const splash = readFileSync(path.resolve('src/features/splash/SplashGate.tsx'), 'utf8');
+    const module = readFileSync(
+      path.resolve('modules/toolbar-morph-diagnostics/ios/ToolbarMorphDiagnosticsModule.swift'),
+      'utf8',
+    );
+    const jsBridge = readFileSync(path.resolve('src/utils/toolbarMorphDiagnostics.ts'), 'utf8');
+
+    expect(splash).toContain("'splash_replace_requested'");
+    expect(splash).toContain("isAuthenticated ? 'home' : 'login'");
+    expect(splash).toContain('router.replace(destinationHref);');
+    expect(splash).not.toContain(
+      "recordToolbarMorphNavigationLifecycle(\n      'splash_replace_requested',\n      destinationHref",
+    );
+    expect(module).toContain('recordNavigationLifecycle');
+    expect(module).toContain('phase=before_replace');
+    expect(module).toContain('processIdentifier');
+    expect(module).toContain('systemUptime');
+    expect(jsBridge).toContain('isToolbarMorphDiagnosticsEnabled');
   });
 
   it('records shared-root pop predicates, exclusive ownership transfer, and cancelled swipe-back recovery', () => {

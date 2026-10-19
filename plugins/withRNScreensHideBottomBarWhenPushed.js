@@ -443,8 +443,9 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
       [rootTransitionCoordinator viewControllerForKey:UITransitionContextFromViewControllerKey];
   UIViewController *toViewController =
       [rootTransitionCoordinator viewControllerForKey:UITransitionContextToViewControllerKey];
-  NSString *sourceScreenId = [fromViewController isKindOfClass:[RNSScreen class]]
-      ? ((RNSScreen *)fromViewController).screenId : nil;
+  RNSScreenView *sourceScreenView = [fromViewController isKindOfClass:[RNSScreen class]]
+      ? [(RNSScreen *)fromViewController screenView] : nil;
+  NSString *sourceScreenId = sourceScreenView.screenId;
   BOOL isSplashIndexReplace = [sourceScreenId hasPrefix:@"index-"] &&
       toViewController == tabsScreenViewController &&
       sharedNavigationController.viewControllers.count == 1 &&
@@ -560,11 +561,14 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
       tabsScreenViewController:&tabsScreenViewController fromViewController:&fromViewController];
   if (![eligibility isEqualToString:@"eligible"]) return eligibility;
 
-  if (leftItems.count != 1 || rightItems.count != 1 || leftItems[0] == rightItems[0] ||
-      ![[RNSHomeToolbarItemSemanticSignature(leftItems[0]) ?: @""]
-          hasPrefix:@"home-toolbar-item:leading-anchor:44x44|"] ||
-      ![[RNSHomeToolbarItemSemanticSignature(rightItems[0]) ?: @""]
-          hasPrefix:@"home-toolbar-item:search:Busca:magnifyingglass:94x44|"] ||
+  if (leftItems.count != 1 || rightItems.count != 1 || leftItems[0] == rightItems[0]) {
+    return @"home_toolbar_identity_mismatch";
+  }
+
+  NSString *leftSignature = RNSHomeToolbarItemSemanticSignature(leftItems[0]) ?: @"";
+  NSString *rightSignature = RNSHomeToolbarItemSemanticSignature(rightItems[0]) ?: @"";
+  if (![leftSignature hasPrefix:@"home-toolbar-item:leading-anchor:44x44|"] ||
+      ![rightSignature hasPrefix:@"home-toolbar-item:search:Busca:magnifyingglass:94x44|"] ||
       !RNSHomeToolbarViewContainsAccessibilityIdentifier(leftItems[0].customView,
           @"home-toolbar-item:leading-anchor:44x44") ||
       !RNSHomeToolbarViewContainsAccessibilityIdentifier(rightItems[0].customView,

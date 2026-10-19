@@ -367,6 +367,64 @@ describe('Home toolbar coordinator patch', () => {
     }
   });
 
+  it('generates Objective-C++-valid Splash route and Home toolbar signature checks', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const nativeController = readFileSync(
+        path.join(fixtureRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+      const eligibilityStart = nativeController.lastIndexOf(
+        '- (NSString *)initialHomeToolbarReplaceEligibilityForViewController:',
+      );
+      const stagingStart = nativeController.lastIndexOf(
+        '- (NSString *)stageInitialHomeToolbarItemsForViewController:',
+      );
+      const captureStart = nativeController.indexOf(
+        '- (void)captureSharedToolbarItemsFromViewController:',
+        stagingStart,
+      );
+      const eligibility = nativeController.slice(eligibilityStart, stagingStart);
+      const staging = nativeController.slice(stagingStart, captureStart);
+
+      expect(eligibilityStart).toBeGreaterThanOrEqual(0);
+      expect(stagingStart).toBeGreaterThan(eligibilityStart);
+      expect(captureStart).toBeGreaterThan(stagingStart);
+      expect(eligibility).toContain(
+        'RNSScreenView *sourceScreenView = [fromViewController isKindOfClass:[RNSScreen class]]',
+      );
+      expect(eligibility).toContain('? [(RNSScreen *)fromViewController screenView] : nil;');
+      expect(eligibility).toContain('NSString *sourceScreenId = sourceScreenView.screenId;');
+      expect(eligibility).toContain('[sourceScreenId hasPrefix:@"index-"]');
+      expect(eligibility).not.toContain('((RNSScreen *)fromViewController).screenId');
+
+      const itemCountCheck = staging.indexOf(
+        'if (leftItems.count != 1 || rightItems.count != 1 || leftItems[0] == rightItems[0])',
+      );
+      const leftSignatureDeclaration = staging.indexOf(
+        'NSString *leftSignature = RNSHomeToolbarItemSemanticSignature(leftItems[0]) ?: @"";',
+      );
+      const rightSignatureDeclaration = staging.indexOf(
+        'NSString *rightSignature = RNSHomeToolbarItemSemanticSignature(rightItems[0]) ?: @"";',
+      );
+      expect(itemCountCheck).toBeGreaterThanOrEqual(0);
+      expect(leftSignatureDeclaration).toBeGreaterThan(itemCountCheck);
+      expect(rightSignatureDeclaration).toBeGreaterThan(leftSignatureDeclaration);
+      expect(staging).toContain(
+        'if (![leftSignature hasPrefix:@"home-toolbar-item:leading-anchor:44x44|"] ||',
+      );
+      expect(staging).toContain(
+        '![rightSignature hasPrefix:@"home-toolbar-item:search:Busca:magnifyingglass:94x44|"] ||',
+      );
+      expect(staging).not.toMatch(
+        /!\[\[RNSHomeToolbarItemSemanticSignature\((?:left|right)Items\[0\]\) \?:/,
+      );
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it('suppresses only re-registration of the exact captured custom item still attached to the shared bar', () => {
     const fixtureRoot = createScreensFixture();
     try {

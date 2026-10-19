@@ -23,6 +23,9 @@ const PATCH_MARKERS = {
   sharedToolbarPopMethod: 'Emporio Rigatti: shared toolbar pop staging method',
   homeToolbarSemanticComparison: 'Emporio Rigatti: Home toolbar semantic comparison',
   homeToolbarReplacementPolicy: 'Emporio Rigatti: Home toolbar replacement policy',
+  initialHomeReplaceStaging: 'Emporio Rigatti: initial Splash Home toolbar staging',
+  initialHomeReplaceRegistration: 'Emporio Rigatti: initial Splash Home registration guard',
+  initialHomeReplaceHelpers: 'Emporio Rigatti: initial Home toolbar ownership helpers',
 };
 
 const LEGACY_SHARED_TOOLBAR_TRANSITION_GUARD = `  BOOL isTransitionCompletion = [reason isEqualToString:@"navigation-did-show"];
@@ -128,7 +131,13 @@ function patchFile(filePath, needle, replacement, marker) {
   fs.writeFileSync(filePath, contents.replace(needle, markedReplacement));
 }
 
-function replaceMarkedPatchFragment(filePath, marker, previousFragment, currentFragment) {
+function replaceMarkedPatchFragment(
+  filePath,
+  marker,
+  previousFragment,
+  currentFragment,
+  knownCurrentFragments = [],
+) {
   const contents = fs.readFileSync(filePath, 'utf8');
   const markerIndex = contents.indexOf(marker);
 
@@ -144,9 +153,16 @@ function replaceMarkedPatchFragment(filePath, marker, previousFragment, currentF
     return;
   }
 
-  if (contents.indexOf(currentFragment, markerIndex) !== -1) return;
+  if (
+    contents.indexOf(currentFragment, markerIndex) !== -1 ||
+    knownCurrentFragments.some((fragment) => contents.indexOf(fragment, markerIndex) !== -1)
+  ) {
+    return;
+  }
 
-  throw new Error(`Não foi possível atualizar a integração de toolbar marcada em ${filePath}.`);
+  throw new Error(
+    `Não foi possível atualizar a integração de toolbar marcada (${marker}) em ${filePath}.`,
+  );
 }
 
 function upgradeSharedToolbarUITabResolvers(controller) {
@@ -155,6 +171,10 @@ function upgradeSharedToolbarUITabResolvers(controller) {
     'Emporio Rigatti: shared toolbar ownership capture',
     'for (UIViewController *tab in self.viewControllers)',
     'for (UIViewController *tab in [self installedScreenControllers])',
+    [
+      'NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];\n' +
+        '  for (NSUInteger tabIndex = 0; tabIndex < installedControllers.count; tabIndex++)',
+    ],
   );
   replaceMarkedPatchFragment(
     controller,
@@ -220,13 +240,20 @@ function patchSharedToolbarOwnership(screensRoot) {
   const patch = (file, needle, replacement, name) =>
     patchFile(file, needle, replacement, `Emporio Rigatti: shared toolbar ownership ${name}`);
 
+  patchFile(
+    controller,
+    '#import "RNSTabBarController.h"',
+    '#import "RNSTabBarController.h"\n#import "RNSScreen.h"',
+    'Emporio Rigatti: initial Home route identity import',
+  );
+
   upgradeSharedToolbarUITabResolvers(controller);
   upgradeSharedToolbarTabTransition(controller);
 
   patch(
     controller,
     '@property (nonatomic, readwrite) BOOL shouldProgressStateOnMoreNavigationControllerPush;',
-    `@property (nonatomic, readwrite) BOOL shouldProgressStateOnMoreNavigationControllerPush;\n- (nonnull NSArray<RNSTabsScreenViewController *> *)installedScreenControllers;\n- (nullable UIViewController *)effectiveSelectedViewController;\n- (BOOL)isScreenControllerCurrentlySelected:(nonnull UIViewController *)screenController;`,
+    `@property (nonatomic, readwrite) BOOL shouldProgressStateOnMoreNavigationControllerPush;\n- (nonnull NSArray<RNSTabsScreenViewController *> *)installedScreenControllers;\n- (nullable UIViewController *)effectiveSelectedViewController;\n- (BOOL)isScreenControllerCurrentlySelected:(nonnull UIViewController *)screenController;\n- (NSString *)initialHomeToolbarReplaceEligibilityForViewController:(UIViewController *)viewController\n                                              navigationController:(UINavigationController *)navigationController\n                                         sharedNavigationController:(UINavigationController * _Nullable * _Nullable)sharedNavigationControllerOut\n                                          tabsScreenViewController:(UIViewController * _Nullable * _Nullable)tabsScreenViewControllerOut\n                                               fromViewController:(UIViewController * _Nullable * _Nullable)fromViewControllerOut;\n- (NSString *)stageInitialHomeToolbarItemsForViewController:(UIViewController *)viewController\n                                       navigationController:(UINavigationController *)navigationController\n                                                  leftItems:(NSArray<UIBarButtonItem *> *)leftItems\n                                                 rightItems:(NSArray<UIBarButtonItem *> *)rightItems;\n- (BOOL)shouldSkipInitialHomeToolbarRegistration:(UIBarButtonItem *)item\n                                  fromViewController:(UIViewController *)viewController\n                                 navigationController:(UINavigationController *)navigationController\n                                                 side:(NSString *)side;`,
     'resolvers',
   );
 
@@ -377,19 +404,296 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   patch(
     controller,
     '- (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason\n{',
-    `- (void)captureSharedToolbarItemsFromViewController:(UIViewController *)viewController navigationController:(UINavigationController *)navigationController
+    `// ${PATCH_MARKERS.initialHomeReplaceStaging}
+- (NSString *)initialHomeToolbarReplaceEligibilityForViewController:(UIViewController *)viewController
+                                              navigationController:(UINavigationController *)navigationController
+                                         sharedNavigationController:(UINavigationController * _Nullable * _Nullable)sharedNavigationControllerOut
+                                          tabsScreenViewController:(UIViewController * _Nullable * _Nullable)tabsScreenViewControllerOut
+                                               fromViewController:(UIViewController * _Nullable * _Nullable)fromViewControllerOut
+{
+  if (sharedNavigationControllerOut != NULL) *sharedNavigationControllerOut = nil;
+  if (tabsScreenViewControllerOut != NULL) *tabsScreenViewControllerOut = nil;
+  if (fromViewControllerOut != NULL) *fromViewControllerOut = nil;
+  if (viewController == nil || navigationController == nil ||
+      navigationController.viewControllers.count != 1 || navigationController.topViewController != viewController) {
+    return @"home_root_mismatch";
+  }
+
+  RNSTabsScreenViewController *homeTabViewController = nil;
+  NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];
+  if (installedControllers.count == 0 || installedControllers[0] == nil ||
+      ![self isScreenControllerCurrentlySelected:installedControllers[0]] ||
+      RNSFindNestedNavigationController(installedControllers[0]) != navigationController) {
+    return @"home_tab_not_selected";
+  }
+  homeTabViewController = installedControllers[0];
+
+  UIViewController *tabsScreenViewController = self.parentViewController;
+  UINavigationController *sharedNavigationController = tabsScreenViewController.navigationController;
+  if (tabsScreenViewController == nil || sharedNavigationController == nil ||
+      ![tabsScreenViewController isKindOfClass:[RNSScreen class]]) {
+    return @"shared_navigation_unavailable";
+  }
+
+  id<UIViewControllerTransitionCoordinator> rootTransitionCoordinator =
+      sharedNavigationController.transitionCoordinator;
+  if (rootTransitionCoordinator == nil) return @"root_transition_unavailable";
+
+  UIViewController *fromViewController =
+      [rootTransitionCoordinator viewControllerForKey:UITransitionContextFromViewControllerKey];
+  UIViewController *toViewController =
+      [rootTransitionCoordinator viewControllerForKey:UITransitionContextToViewControllerKey];
+  NSString *sourceScreenId = [fromViewController isKindOfClass:[RNSScreen class]]
+      ? ((RNSScreen *)fromViewController).screenId : nil;
+  BOOL isSplashIndexReplace = [sourceScreenId hasPrefix:@"index-"] &&
+      toViewController == tabsScreenViewController &&
+      sharedNavigationController.viewControllers.count == 1 &&
+      sharedNavigationController.topViewController == tabsScreenViewController;
+  if (!isSplashIndexReplace) return @"not_splash_home_replace";
+  if (!rootTransitionCoordinator.isAnimated || rootTransitionCoordinator.isInteractive ||
+      rootTransitionCoordinator.isCancelled) {
+    return @"incompatible_root_transition";
+  }
+
+  id<UIViewControllerTransitionCoordinator> tabTransitionCoordinator = self.transitionCoordinator;
+  if (tabTransitionCoordinator != nil && tabTransitionCoordinator != rootTransitionCoordinator) {
+    return @"incompatible_tab_transition";
+  }
+  id<UIViewControllerTransitionCoordinator> screenTransitionCoordinator = viewController.transitionCoordinator;
+  if (screenTransitionCoordinator != nil && screenTransitionCoordinator != rootTransitionCoordinator &&
+      screenTransitionCoordinator != navigationController.transitionCoordinator) {
+    return @"incompatible_home_transition";
+  }
+  id<UIViewControllerTransitionCoordinator> nestedTransitionCoordinator = navigationController.transitionCoordinator;
+  if (nestedTransitionCoordinator != nil && nestedTransitionCoordinator != rootTransitionCoordinator) {
+    return @"incompatible_home_transition";
+  }
+
+  UINavigationBar *sharedNavigationBar = sharedNavigationController.navigationBar;
+  UINavigationBar *sourceNavigationBar = navigationController.navigationBar;
+  UIWindow *sharedWindow = sharedNavigationBar.window;
+  if (sharedWindow == nil || sharedNavigationController.viewIfLoaded.window != sharedWindow ||
+      tabsScreenViewController.viewIfLoaded.window != sharedWindow ||
+      homeTabViewController.viewIfLoaded.window != sharedWindow ||
+      viewController.viewIfLoaded.window != sharedWindow ||
+      sourceNavigationBar.window != sharedWindow) {
+    return @"shared_window_unavailable";
+  }
+
+  if (sharedNavigationControllerOut != NULL) *sharedNavigationControllerOut = sharedNavigationController;
+  if (tabsScreenViewControllerOut != NULL) *tabsScreenViewControllerOut = tabsScreenViewController;
+  if (fromViewControllerOut != NULL) *fromViewControllerOut = fromViewController;
+  return @"eligible";
+}
+
+- (BOOL)shouldSkipInitialHomeToolbarRegistration:(UIBarButtonItem *)item
+                                  fromViewController:(UIViewController *)viewController
+                                 navigationController:(UINavigationController *)navigationController
+                                                 side:(NSString *)side
+{
+  if (item == nil || item.customView == nil ||
+      (![side isEqualToString:@"left"] && ![side isEqualToString:@"right"])) return NO;
+
+  UINavigationController *sharedNavigationController = nil;
+  UIViewController *tabsScreenViewController = nil;
+  NSString *eligibility = [self initialHomeToolbarReplaceEligibilityForViewController:viewController
+      navigationController:navigationController sharedNavigationController:&sharedNavigationController
+      tabsScreenViewController:&tabsScreenViewController fromViewController:nil];
+  if (![eligibility isEqualToString:@"eligible"]) return NO;
+
+  UINavigationItem *sourceNavigationItem = viewController.navigationItem;
+  UINavigationItem *destinationNavigationItem = tabsScreenViewController.navigationItem;
+  NSDictionary *cachedItems = objc_getAssociatedObject(sourceNavigationItem, &RNSSharedToolbarMaterializedItemsKey);
+  NSArray<UIBarButtonItem *> *cachedLeftItems = cachedItems[@"left"] ?: @[];
+  NSArray<UIBarButtonItem *> *cachedRightItems = cachedItems[@"right"] ?: @[];
+  NSArray<UIBarButtonItem *> *destinationLeftItems = destinationNavigationItem.leftBarButtonItems ?: @[];
+  NSArray<UIBarButtonItem *> *destinationRightItems = destinationNavigationItem.rightBarButtonItems ?: @[];
+  NSArray<UIBarButtonItem *> *sourceItems = [side isEqualToString:@"left"]
+      ? (sourceNavigationItem.leftBarButtonItems ?: @[]) : (sourceNavigationItem.rightBarButtonItems ?: @[]);
+  NSArray<UIBarButtonItem *> *cachedSideItems = [side isEqualToString:@"left"] ? cachedLeftItems : cachedRightItems;
+  NSString *expectedSignature = [side isEqualToString:@"left"]
+      ? @"home-toolbar-item:leading-anchor:44x44|" : @"home-toolbar-item:search:Busca:magnifyingglass:94x44|";
+  BOOL isCachedItem = NO;
+  for (UIBarButtonItem *candidate in cachedSideItems) if (candidate == item) isCachedItem = YES;
+  BOOL isOwnedByDestination = NO;
+  for (UIBarButtonItem *candidate in ([side isEqualToString:@"left"] ? destinationLeftItems : destinationRightItems)) {
+    if (candidate == item) isOwnedByDestination = YES;
+  }
+  BOOL sourceStillOwnsItem = NO;
+  for (UIBarButtonItem *candidate in sourceItems) if (candidate == item) sourceStillOwnsItem = YES;
+  if (!isCachedItem || !isOwnedByDestination || sourceStillOwnsItem ||
+      !RNSHomeToolbarItemArraysHaveSameInstances(cachedLeftItems, destinationLeftItems) ||
+      !RNSHomeToolbarItemArraysHaveSameInstances(cachedRightItems, destinationRightItems) ||
+      ![RNSHomeToolbarItemSemanticSignature(item) hasPrefix:expectedSignature] ||
+      !RNSHomeToolbarViewContainsAccessibilityIdentifier(item.customView,
+          [side isEqualToString:@"left"] ? @"home-toolbar-item:leading-anchor:44x44" : @"toolbar-morph:home-search")) {
+    return NO;
+  }
+
+  for (RNSTabsScreenViewController *tabViewController in [self installedScreenControllers]) {
+    UINavigationController *nestedController = RNSFindNestedNavigationController(tabViewController);
+    for (UIViewController *screenController in nestedController.viewControllers) {
+      UINavigationItem *owner = screenController.navigationItem;
+      if (owner != sourceNavigationItem && owner != destinationNavigationItem &&
+          RNSHomeToolbarNavigationItemContainsItem(owner, item)) return NO;
+    }
+  }
+  for (UIViewController *screenController in sharedNavigationController.viewControllers) {
+    UINavigationItem *owner = screenController.navigationItem;
+    if (owner != destinationNavigationItem && RNSHomeToolbarNavigationItemContainsItem(owner, item)) return NO;
+  }
+
+  return YES;
+}
+
+// ${PATCH_MARKERS.initialHomeReplaceRegistration}
+- (NSString *)stageInitialHomeToolbarItemsForViewController:(UIViewController *)viewController
+                                       navigationController:(UINavigationController *)navigationController
+                                                  leftItems:(NSArray<UIBarButtonItem *> *)leftItems
+                                                 rightItems:(NSArray<UIBarButtonItem *> *)rightItems
+{
+  UINavigationController *sharedNavigationController = nil;
+  UIViewController *tabsScreenViewController = nil;
+  UIViewController *fromViewController = nil;
+  NSString *eligibility = [self initialHomeToolbarReplaceEligibilityForViewController:viewController
+      navigationController:navigationController sharedNavigationController:&sharedNavigationController
+      tabsScreenViewController:&tabsScreenViewController fromViewController:&fromViewController];
+  if (![eligibility isEqualToString:@"eligible"]) return eligibility;
+
+  if (leftItems.count != 1 || rightItems.count != 1 || leftItems[0] == rightItems[0] ||
+      ![[RNSHomeToolbarItemSemanticSignature(leftItems[0]) ?: @""]
+          hasPrefix:@"home-toolbar-item:leading-anchor:44x44|"] ||
+      ![[RNSHomeToolbarItemSemanticSignature(rightItems[0]) ?: @""]
+          hasPrefix:@"home-toolbar-item:search:Busca:magnifyingglass:94x44|"] ||
+      !RNSHomeToolbarViewContainsAccessibilityIdentifier(leftItems[0].customView,
+          @"home-toolbar-item:leading-anchor:44x44") ||
+      !RNSHomeToolbarViewContainsAccessibilityIdentifier(rightItems[0].customView,
+          @"toolbar-morph:home-search")) {
+    return @"home_toolbar_identity_mismatch";
+  }
+
+  UINavigationItem *sourceNavigationItem = viewController.navigationItem;
+  UINavigationItem *destinationNavigationItem = tabsScreenViewController.navigationItem;
+  NSDictionary *cachedItems = objc_getAssociatedObject(sourceNavigationItem, &RNSSharedToolbarMaterializedItemsKey);
+  NSArray<UIBarButtonItem *> *cachedLeftItems = cachedItems[@"left"] ?: @[];
+  NSArray<UIBarButtonItem *> *cachedRightItems = cachedItems[@"right"] ?: @[];
+  if (!RNSHomeToolbarItemArraysHaveSameInstances(cachedLeftItems, leftItems) ||
+      !RNSHomeToolbarItemArraysHaveSameInstances(cachedRightItems, rightItems)) {
+    return @"home_toolbar_cache_mismatch";
+  }
+
+  NSArray<UIBarButtonItem *> *sourceLeftItems = sourceNavigationItem.leftBarButtonItems ?: @[];
+  NSArray<UIBarButtonItem *> *sourceRightItems = sourceNavigationItem.rightBarButtonItems ?: @[];
+  NSArray<UIBarButtonItem *> *destinationLeftItems = destinationNavigationItem.leftBarButtonItems ?: @[];
+  NSArray<UIBarButtonItem *> *destinationRightItems = destinationNavigationItem.rightBarButtonItems ?: @[];
+  BOOL destinationIsEmpty = destinationLeftItems.count == 0 && destinationRightItems.count == 0;
+  BOOL destinationAlreadyOwnsExactItems =
+      RNSHomeToolbarItemArraysHaveSameInstances(destinationLeftItems, leftItems) &&
+      RNSHomeToolbarItemArraysHaveSameInstances(destinationRightItems, rightItems);
+  BOOL sourceOwnsExactItems = RNSHomeToolbarItemArraysHaveSameInstances(sourceLeftItems, leftItems) &&
+      RNSHomeToolbarItemArraysHaveSameInstances(sourceRightItems, rightItems);
+  BOOL sourceIsEmpty = sourceLeftItems.count == 0 && sourceRightItems.count == 0;
+  if ((!destinationIsEmpty && !destinationAlreadyOwnsExactItems) ||
+      (!sourceOwnsExactItems && !(sourceIsEmpty && destinationAlreadyOwnsExactItems))) {
+    return @"home_toolbar_owner_conflict";
+  }
+
+  for (RNSTabsScreenViewController *tabViewController in [self installedScreenControllers]) {
+    UINavigationController *nestedController = RNSFindNestedNavigationController(tabViewController);
+    for (UIViewController *screenController in nestedController.viewControllers) {
+      UINavigationItem *owner = screenController.navigationItem;
+      if (owner == sourceNavigationItem || owner == destinationNavigationItem) continue;
+      for (UIBarButtonItem *candidate in [leftItems arrayByAddingObjectsFromArray:rightItems]) {
+        if (RNSHomeToolbarNavigationItemContainsItem(owner, candidate)) return @"home_toolbar_owner_conflict";
+      }
+    }
+  }
+  for (UIViewController *screenController in sharedNavigationController.viewControllers) {
+    UINavigationItem *owner = screenController.navigationItem;
+    if (owner == destinationNavigationItem) continue;
+    for (UIBarButtonItem *candidate in [leftItems arrayByAddingObjectsFromArray:rightItems]) {
+      if (RNSHomeToolbarNavigationItemContainsItem(owner, candidate)) return @"home_toolbar_owner_conflict";
+    }
+  }
+
+  UIWindow *sharedWindow = sharedNavigationController.navigationBar.window;
+  for (UIBarButtonItem *candidate in [leftItems arrayByAddingObjectsFromArray:rightItems]) {
+    UIView *customView = candidate.customView;
+    if (customView == nil || customView.window != sharedWindow || customView.hidden || customView.alpha <= 0 ||
+        customView.bounds.size.width <= 0 || customView.bounds.size.height <= 0 ||
+        ![customView isDescendantOfView:navigationController.navigationBar]) {
+      return @"home_toolbar_attachment_unavailable";
+    }
+  }
+
+  id<UIViewControllerTransitionCoordinator> rootTransitionCoordinator =
+      sharedNavigationController.transitionCoordinator;
+  BOOL rootTransitionActive = rootTransitionCoordinator != nil;
+  RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_started", sharedNavigationController,
+      fromViewController, tabsScreenViewController, @"replace", @"eligible", YES,
+      rootTransitionActive, NO);
+  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before", leftItems, sourceNavigationItem,
+      destinationNavigationItem, @"left", @"before_transfer", NO, rootTransitionActive);
+  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before", rightItems, sourceNavigationItem,
+      destinationNavigationItem, @"right", @"before_transfer", NO, rootTransitionActive);
+  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_before", leftItems, nil,
+      @"left", @"initial_materialization", @"before_transfer", navigationController.navigationBar,
+      NO, rootTransitionActive);
+  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_before", rightItems, nil,
+      @"right", @"initial_materialization", @"before_transfer", navigationController.navigationBar,
+      NO, rootTransitionActive);
+
+  // Emporio Rigatti: initial Splash Home toolbar exclusive transfer
+  if (sourceOwnsExactItems) {
+    [sourceNavigationItem setLeftBarButtonItems:nil animated:NO];
+    [sourceNavigationItem setRightBarButtonItems:nil animated:NO];
+  }
+  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release", leftItems,
+      sourceNavigationItem, destinationNavigationItem, @"left", @"source_released", NO,
+      rootTransitionActive);
+  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release", rightItems,
+      sourceNavigationItem, destinationNavigationItem, @"right", @"source_released", NO,
+      rootTransitionActive);
+  [navigationController setNavigationBarHidden:YES animated:NO];
+  if (destinationIsEmpty) {
+    [destinationNavigationItem setLeftBarButtonItems:leftItems animated:NO];
+    [destinationNavigationItem setRightBarButtonItems:rightItems animated:NO];
+  }
+  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply", leftItems,
+      destinationNavigationItem, sourceNavigationItem, @"left", @"destination_applied", NO,
+      rootTransitionActive);
+  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply", rightItems,
+      destinationNavigationItem, sourceNavigationItem, @"right", @"destination_applied", NO,
+      rootTransitionActive);
+  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_after", leftItems, nil,
+      @"left", @"initial_materialization", @"after_transfer", sharedNavigationController.navigationBar,
+      NO, rootTransitionActive);
+  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_after", rightItems, nil,
+      @"right", @"initial_materialization", @"after_transfer", sharedNavigationController.navigationBar,
+      NO, rootTransitionActive);
+  // Emporio Rigatti: initial Splash Home toolbar transfer complete
+  return @"initial_home_toolbar_staged";
+}
+
+- (void)captureSharedToolbarItemsFromViewController:(UIViewController *)viewController navigationController:(UINavigationController *)navigationController
 {
   if (navigationController == nil || navigationController.viewControllers.count != 1 ||
       navigationController.topViewController != viewController) return;
   BOOL isTabSource = NO;
-  for (UIViewController *tab in [self installedScreenControllers]) {
+  BOOL isSelectedHomeSource = NO;
+  NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];
+  for (NSUInteger tabIndex = 0; tabIndex < installedControllers.count; tabIndex++) {
+    UIViewController *tab = installedControllers[tabIndex];
     if (RNSFindNestedNavigationController(tab) == navigationController) {
       isTabSource = YES;
+      isSelectedHomeSource = tabIndex == 0 && [self isScreenControllerCurrentlySelected:tab];
       break;
     }
   }
   if (!isTabSource) return; // Never capture the root Stack's placeholders or pushed screens.
   UINavigationItem *item = viewController.navigationItem;
+  BOOL isFirstHomeToolbarMaterialization = isSelectedHomeSource &&
+      objc_getAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey) == nil;
   NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};
   NSDictionary *pendingMaterialized = objc_getAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey);
   if (pendingMaterialized != nil) {
@@ -397,9 +701,27 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
     objc_setAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   }
   objc_setAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey, materialized, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  // Transfer registration before installation: the hidden source bar must not own these items.
-  [item setLeftBarButtonItems:nil animated:NO];
-  [item setRightBarButtonItems:nil animated:NO];
+  NSArray<UIBarButtonItem *> *leftItems = materialized[@"left"] ?: @[];
+  NSArray<UIBarButtonItem *> *rightItems = materialized[@"right"] ?: @[];
+  NSString *initialHomeStageResult = [self stageInitialHomeToolbarItemsForViewController:viewController
+      navigationController:navigationController leftItems:leftItems rightItems:rightItems];
+  UINavigationController *rootNavigationController = self.parentViewController.navigationController;
+  id<UIViewControllerTransitionCoordinator> rootTransitionCoordinator =
+      rootNavigationController.transitionCoordinator;
+  if (isSelectedHomeSource && (isFirstHomeToolbarMaterialization || rootTransitionCoordinator != nil)) {
+    UIViewController *rootFromViewController =
+        [rootTransitionCoordinator viewControllerForKey:UITransitionContextFromViewControllerKey];
+    RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_result", rootNavigationController,
+        rootFromViewController, self.parentViewController,
+        [initialHomeStageResult isEqualToString:@"initial_home_toolbar_staged"] ? @"replace" : @"other",
+        initialHomeStageResult, rootTransitionCoordinator.isAnimated, YES,
+        rootTransitionCoordinator.isCancelled);
+  }
+  if (![initialHomeStageResult isEqualToString:@"initial_home_toolbar_staged"]) {
+    // Transfer registration before installation: the hidden source bar must not own these items.
+    [item setLeftBarButtonItems:nil animated:NO];
+    [item setRightBarButtonItems:nil animated:NO];
+  }
 }
 
 - (BOOL)shouldSkipSharedToolbarItemRegistration:(UIBarButtonItem *)item
@@ -408,6 +730,9 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
                                             side:(NSString *)side
                     sourceNavigationBarWasHidden:(BOOL)sourceNavigationBarWasHidden
 {
+  if ([self shouldSkipInitialHomeToolbarRegistration:item fromViewController:viewController
+      navigationController:navigationController side:side]) return YES;
+
   if (item == nil || item.customView == nil ||
       (![side isEqualToString:@"left"] && ![side isEqualToString:@"right"]) ||
       !sourceNavigationBarWasHidden || navigationController == nil ||
@@ -1065,6 +1390,13 @@ function patchRNScreens(
     'static UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)\n{',
     `// ${PATCH_MARKERS.homeToolbarSemanticComparison}\nstatic NSString *RNSFindHomeToolbarSemanticIdentifier(UIView *rootView)\n{\n  if (rootView == nil) {\n    return nil;\n  }\n  NSString *identifier = rootView.accessibilityIdentifier;\n  if ([identifier hasPrefix:@"home-toolbar-item:"]) {\n    return identifier;\n  }\n  for (UIView *subview in rootView.subviews) {\n    NSString *match = RNSFindHomeToolbarSemanticIdentifier(subview);\n    if (match != nil) {\n      return match;\n    }\n  }\n  return nil;\n}\n\nstatic NSString *RNSHomeToolbarItemSemanticSignature(UIBarButtonItem *item)\n{\n  NSString *identifier = RNSFindHomeToolbarSemanticIdentifier(item.customView);\n  if (identifier == nil || item.customView == nil) {\n    return nil;\n  }\n  return [NSString stringWithFormat:@"%@|class=%@|title=%@|label=%@|hint=%@|action=%@|enabled=%d|style=%ld|width=%.2f|viewClass=%@|viewSize=%@|hidden=%d|alpha=%.3f",\n      identifier,\n      NSStringFromClass(item.class),\n      item.title ?: @"nil",\n      item.accessibilityLabel ?: @"nil",\n      item.accessibilityHint ?: @"nil",\n      item.action == NULL ? @"nil" : NSStringFromSelector(item.action),\n      item.isEnabled,\n      (long)item.style,\n      item.width,\n      NSStringFromClass(item.customView.class),\n      NSStringFromCGSize(item.customView.bounds.size),\n      item.customView.hidden,\n      item.customView.alpha];\n}\n\nstatic BOOL RNSHomeToolbarItemArraysAreSemanticallyEqual(NSArray<UIBarButtonItem *> *first,\n                                                          NSArray<UIBarButtonItem *> *second)\n{\n  if (first.count != second.count) {\n    return NO;\n  }\n  for (NSUInteger index = 0; index < first.count; index++) {\n    NSString *firstSignature = RNSHomeToolbarItemSemanticSignature(first[index]);\n    NSString *secondSignature = RNSHomeToolbarItemSemanticSignature(second[index]);\n    if (firstSignature == nil || ![firstSignature isEqualToString:secondSignature]) {\n      return NO;\n    }\n  }\n  return YES;\n}\n\nstatic BOOL RNSHomeToolbarItemSetsAreSemanticallyEqual(NSArray<UIBarButtonItem *> *sourceLeft,\n                                                        NSArray<UIBarButtonItem *> *sourceRight,\n                                                        NSArray<UIBarButtonItem *> *sharedLeft,\n                                                        NSArray<UIBarButtonItem *> *sharedRight)\n{\n  return RNSHomeToolbarItemArraysAreSemanticallyEqual(sourceLeft, sharedLeft) &&\n      RNSHomeToolbarItemArraysAreSemanticallyEqual(sourceRight, sharedRight);\n}\n\nstatic BOOL RNSHomeToolbarItemArraysHaveSameInstances(NSArray<UIBarButtonItem *> *first,\n                                                       NSArray<UIBarButtonItem *> *second)\n{\n  if (first.count != second.count) {\n    return NO;\n  }\n  for (NSUInteger index = 0; index < first.count; index++) {\n    if (first[index] != second[index]) {\n      return NO;\n    }\n  }\n  return YES;\n}\n\nstatic UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)\n{`,
     PATCH_MARKERS.homeToolbarSemanticComparison,
+  );
+
+  patchFile(
+    path.join(screensRoot, 'ios', 'tabs', 'host', 'RNSTabBarController.mm'),
+    'static BOOL RNSHomeToolbarItemArraysAreSemanticallyEqual',
+    `static BOOL RNSHomeToolbarViewContainsAccessibilityIdentifier(UIView *view, NSString *identifier)\n{\n  if (view == nil) return NO;\n  if ([view.accessibilityIdentifier isEqualToString:identifier]) return YES;\n  for (UIView *subview in view.subviews) {\n    if (RNSHomeToolbarViewContainsAccessibilityIdentifier(subview, identifier)) return YES;\n  }\n  return NO;\n}\n\nstatic BOOL RNSHomeToolbarNavigationItemContainsItem(UINavigationItem *navigationItem, UIBarButtonItem *candidate)\n{\n  if (navigationItem == nil || candidate == nil) return NO;\n  for (UIBarButtonItem *item in navigationItem.leftBarButtonItems ?: @[]) if (item == candidate) return YES;\n  for (UIBarButtonItem *item in navigationItem.rightBarButtonItems ?: @[]) if (item == candidate) return YES;\n  return NO;\n}\n\nstatic BOOL RNSHomeToolbarItemArraysAreSemanticallyEqual`,
+    PATCH_MARKERS.initialHomeReplaceHelpers,
   );
 
   patchFile(

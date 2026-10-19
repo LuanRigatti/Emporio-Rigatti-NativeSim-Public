@@ -255,7 +255,12 @@ static inline NSString *RNSSafeToolbarMorphStageResult(NSString *result)
     @"shared_navigation_context_unavailable", @"settings_shared_bar_visible",
     @"not_target_root_pop", @"root_items_unavailable", @"root_items_empty",
     @"staged_home_root", @"staged_settings_root", @"staged_finance_root", @"already_staged", @"pending",
-    @"staging_started", @"toolbar_materialized", @"completed", @"cancelled"
+    @"staging_started", @"toolbar_materialized", @"completed", @"cancelled", @"eligible",
+    @"home_root_mismatch", @"home_tab_not_selected", @"shared_navigation_unavailable",
+    @"root_transition_unavailable", @"not_splash_home_replace", @"incompatible_root_transition",
+    @"incompatible_tab_transition", @"incompatible_home_transition", @"shared_window_unavailable",
+    @"home_toolbar_identity_mismatch", @"home_toolbar_cache_mismatch", @"home_toolbar_owner_conflict",
+    @"home_toolbar_attachment_unavailable", @"initial_home_toolbar_staged"
   ];
   return [allowed containsObject:result] ? result : @"other";
 }

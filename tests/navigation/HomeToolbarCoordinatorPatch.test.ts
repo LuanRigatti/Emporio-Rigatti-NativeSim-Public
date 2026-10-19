@@ -54,10 +54,6 @@ function applyLegacyToolbarCoordinator(fixtureRoot: string) {
   let controller = readFileSync(controllerPath, 'utf8');
   const replacements = [
     [
-      'for (UIViewController *tab in [self installedScreenControllers])',
-      'for (UIViewController *tab in self.viewControllers)',
-    ],
-    [
       `NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];
   if (selectedIndex < installedControllers.count) {
     [self prepareSharedNavigationBarForViewController:installedControllers[selectedIndex] reason:@"tab-selection-index"];
@@ -238,6 +234,134 @@ describe('Home toolbar coordinator patch', () => {
       expect(indexSetter).toContain('[self installedScreenControllers]');
       expect(indexSetter).toContain('installedControllers[selectedIndex]');
       expect(indexSetter).not.toContain('self.viewControllers');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('stages only the materialized Home toolbar for the exact noninteractive Splash index replace', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+      const nativeController = readFileSync(
+        path.join(fixtureRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+      const eligibilityStart = nativeController.lastIndexOf(
+        '- (NSString *)initialHomeToolbarReplaceEligibilityForViewController:',
+      );
+      const stagingStart = nativeController.lastIndexOf(
+        '- (NSString *)stageInitialHomeToolbarItemsForViewController:',
+      );
+      const captureStart = nativeController.indexOf(
+        '- (void)captureSharedToolbarItemsFromViewController:',
+        stagingStart,
+      );
+      const initialRegistrationStart = nativeController.lastIndexOf(
+        '- (BOOL)shouldSkipInitialHomeToolbarRegistration:',
+      );
+      const sharedGuardStart = nativeController.lastIndexOf(
+        '- (BOOL)shouldSkipSharedToolbarItemRegistration:',
+      );
+      const eligibility = nativeController.slice(eligibilityStart, stagingStart);
+      const staging = nativeController.slice(stagingStart, captureStart);
+      const capture = nativeController.slice(captureStart, sharedGuardStart);
+      const initialRegistrationGuard = nativeController.slice(
+        initialRegistrationStart,
+        stagingStart,
+      );
+      const reRegistrationGuard = nativeController.slice(
+        sharedGuardStart,
+        nativeController.indexOf(
+          '- (NSDictionary<NSString *, NSArray<UIBarButtonItem *> *> *)sourceToolbarRegistrationItemsForViewController:',
+          sharedGuardStart,
+        ),
+      );
+      const stack = readFileSync(path.join(fixtureRoot, 'ios/RNSScreenStack.mm'), 'utf8');
+
+      expect(eligibilityStart).toBeGreaterThanOrEqual(0);
+      expect(nativeController).toContain('#import "RNSScreen.h"');
+      expect(
+        nativeController.indexOf('static BOOL RNSHomeToolbarNavigationItemContainsItem'),
+      ).toBeLessThan(eligibilityStart);
+      expect(
+        nativeController.indexOf('static BOOL RNSHomeToolbarItemArraysHaveSameInstances'),
+      ).toBeLessThan(eligibilityStart);
+      expect(eligibility).toContain('installedControllers[0]');
+      expect(eligibility).toContain(
+        '[self isScreenControllerCurrentlySelected:installedControllers[0]]',
+      );
+      expect(eligibility).toContain(
+        'RNSFindNestedNavigationController(installedControllers[0]) != navigationController',
+      );
+      expect(eligibility).toContain('sharedNavigationController.transitionCoordinator');
+      expect(eligibility).toContain('UITransitionContextFromViewControllerKey');
+      expect(eligibility).toContain('UITransitionContextToViewControllerKey');
+      expect(eligibility).toContain('[sourceScreenId hasPrefix:@"index-"]');
+      expect(eligibility).toContain('toViewController == tabsScreenViewController');
+      expect(eligibility).toContain('sharedNavigationController.viewControllers.count == 1');
+      expect(eligibility).toContain('rootTransitionCoordinator.isInteractive');
+      expect(eligibility).toContain('tabTransitionCoordinator != rootTransitionCoordinator');
+      expect(eligibility).toContain(
+        'screenTransitionCoordinator != navigationController.transitionCoordinator',
+      );
+      expect(eligibility).toContain('nestedTransitionCoordinator != rootTransitionCoordinator');
+      expect(eligibility).toContain('sourceNavigationBar.window != sharedWindow');
+      expect(eligibility).toContain('viewController.viewIfLoaded.window != sharedWindow');
+
+      expect(staging).toContain('home-toolbar-item:leading-anchor:44x44|');
+      expect(staging).toContain('home-toolbar-item:search:Busca:magnifyingglass:94x44|');
+      expect(staging).toContain('toolbar-morph:home-search');
+      expect(staging).toContain(
+        'RNSHomeToolbarItemArraysHaveSameInstances(cachedLeftItems, leftItems)',
+      );
+      expect(staging).toContain('RNSHomeToolbarNavigationItemContainsItem(owner, candidate)');
+      expect(staging).toContain('sourceOwnsExactItems');
+      expect(staging).toContain('destinationAlreadyOwnsExactItems');
+      expect(staging).toContain('RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before"');
+      expect(staging).toContain(
+        'RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release"',
+      );
+      expect(staging).toContain(
+        'RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply"',
+      );
+      expect(staging).toContain('@"before_transfer", navigationController.navigationBar');
+      expect(staging).toContain('@"after_transfer", sharedNavigationController.navigationBar');
+      expect(staging).not.toContain('UIBarButtonItem alloc');
+
+      const sourceReleaseIndex = staging.indexOf(
+        '[sourceNavigationItem setRightBarButtonItems:nil animated:NO]',
+      );
+      const targetApplyIndex = staging.indexOf(
+        '[destinationNavigationItem setLeftBarButtonItems:leftItems animated:NO]',
+      );
+      expect(sourceReleaseIndex).toBeGreaterThanOrEqual(0);
+      expect(targetApplyIndex).toBeGreaterThan(sourceReleaseIndex);
+      expect(staging).toContain('[navigationController setNavigationBarHidden:YES animated:NO]');
+      expect(staging).toContain('leftItems');
+      expect(staging).toContain('rightItems');
+
+      expect(capture).toContain('stageInitialHomeToolbarItemsForViewController:viewController');
+      expect(capture).toContain('initial_home_toolbar_staged');
+      expect(capture).toContain('isFirstHomeToolbarMaterialization');
+      expect(capture).toContain(
+        'RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_result"',
+      );
+      expect(capture).toContain('rootTransitionCoordinator != nil');
+      expect(capture).toContain(
+        'if (![initialHomeStageResult isEqualToString:@"initial_home_toolbar_staged"])',
+      );
+      expect(capture).toContain('[item setLeftBarButtonItems:nil animated:NO]');
+      expect(reRegistrationGuard).toContain('shouldSkipInitialHomeToolbarRegistration:item');
+      expect(initialRegistrationGuard).toContain(
+        'RNSHomeToolbarItemArraysHaveSameInstances(cachedLeftItems, destinationLeftItems)',
+      );
+      expect(initialRegistrationGuard).toContain(
+        'RNSHomeToolbarNavigationItemContainsItem(owner, item)',
+      );
+      expect(stack).toContain(
+        '[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"];',
+      );
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
@@ -623,6 +747,9 @@ describe('Home toolbar coordinator patch', () => {
       patchRNScreens(fixtureRoot);
 
       const upgradedCoordinator = readPatchedCoordinator(fixtureRoot);
+      expect(upgradedCoordinator).toContain(
+        'NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];',
+      );
       expect(upgradedCoordinator).toContain('[self installedScreenControllers]');
       expect(upgradedCoordinator).toContain('[self effectiveSelectedViewController]');
       expect(upgradedCoordinator).toContain(

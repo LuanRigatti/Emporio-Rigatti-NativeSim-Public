@@ -681,4 +681,49 @@ describe('temporary toolbar morph diagnostics plugin', () => {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }
   });
+
+  it('records the guarded initial Home replace stage and attachment before and after ownership transfer', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const loggerHeader = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSToolbarMorphDiagnostics.h'),
+        'utf8',
+      );
+      const coordinator = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+      const stageStart = coordinator.indexOf(
+        '- (NSString *)stageInitialHomeToolbarItemsForViewController:',
+      );
+      const stageEnd = coordinator.indexOf(
+        '- (void)captureSharedToolbarItemsFromViewController:',
+        stageStart,
+      );
+      const stage = coordinator.slice(stageStart, stageEnd);
+
+      expect(stageStart).toBeGreaterThanOrEqual(0);
+      expect(stage).toContain('RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_started"');
+      expect(stage).toContain('RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before"');
+      expect(stage).toContain(
+        'RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release"',
+      );
+      expect(stage).toContain(
+        'RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply"',
+      );
+      expect(stage).toContain('RNSLogToolbarMorphItems(@"initial_home_replace_attachment_before"');
+      expect(stage).toContain('RNSLogToolbarMorphItems(@"initial_home_replace_attachment_after"');
+      expect(coordinator).toContain(
+        'RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_result"',
+      );
+      expect(loggerHeader).toContain('@"initial_home_toolbar_staged"');
+      expect(loggerHeader).toContain('@"home_toolbar_owner_conflict"');
+      expect(loggerHeader).toContain('@"shared_window_unavailable"');
+      expect(loggerHeader).toContain('attached=%{public}d window=%{public}d');
+      expect(loggerHeader).toContain('owner_contains=%{public}d other_owner_contains=%{public}d');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
 });

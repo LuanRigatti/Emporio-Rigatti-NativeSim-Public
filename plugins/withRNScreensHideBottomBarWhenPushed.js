@@ -234,7 +234,18 @@ function patchSharedToolbarOwnership(screensRoot) {
     header,
     '- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;',
     `- (void)synchronizeSharedNavigationBarWithReason:(NSString *)reason;
-- (void)captureSharedToolbarItemsFromViewController:(UIViewController *)viewController navigationController:(UINavigationController *)navigationController;`,
+- (void)captureSharedToolbarItemsFromViewController:(UIViewController *)viewController navigationController:(UINavigationController *)navigationController;
+- (BOOL)shouldSkipSharedToolbarItemRegistration:(UIBarButtonItem *)item
+                             fromViewController:(UIViewController *)viewController
+                            navigationController:(UINavigationController *)navigationController
+                                            side:(NSString *)side
+                    sourceNavigationBarWasHidden:(BOOL)sourceNavigationBarWasHidden;
+- (NSDictionary<NSString *, NSArray<UIBarButtonItem *> *> *)sourceToolbarRegistrationItemsForViewController:(UIViewController *)viewController
+                                                                                     navigationController:(UINavigationController *)navigationController
+                                                                                                  leftItems:(NSArray<UIBarButtonItem *> *)leftItems
+                                                                                                 rightItems:(NSArray<UIBarButtonItem *> *)rightItems
+                                                                                       skippedSharedLeftItems:(NSArray<UIBarButtonItem *> *)skippedSharedLeftItems
+                                                                                      skippedSharedRightItems:(NSArray<UIBarButtonItem *> *)skippedSharedRightItems;`,
     'capture-header',
   );
   patch(
@@ -242,6 +253,7 @@ function patchSharedToolbarOwnership(screensRoot) {
     'static UINavigationController *RNSFindNestedNavigationController(UIViewController *rootViewController)\n{',
     `// Retained configuration is not a second UIKit navigation-item owner.
 static char RNSSharedToolbarMaterializedItemsKey;
+static char RNSSharedToolbarPendingMaterializedItemsKey;
 
 static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *items, UINavigationBar *bar)
 {
@@ -379,10 +391,148 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   if (!isTabSource) return; // Never capture the root Stack's placeholders or pushed screens.
   UINavigationItem *item = viewController.navigationItem;
   NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};
+  NSDictionary *pendingMaterialized = objc_getAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey);
+  if (pendingMaterialized != nil) {
+    materialized = pendingMaterialized;
+    objc_setAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
   objc_setAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey, materialized, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   // Transfer registration before installation: the hidden source bar must not own these items.
   [item setLeftBarButtonItems:nil animated:NO];
   [item setRightBarButtonItems:nil animated:NO];
+}
+
+- (BOOL)shouldSkipSharedToolbarItemRegistration:(UIBarButtonItem *)item
+                             fromViewController:(UIViewController *)viewController
+                            navigationController:(UINavigationController *)navigationController
+                                            side:(NSString *)side
+                    sourceNavigationBarWasHidden:(BOOL)sourceNavigationBarWasHidden
+{
+  if (item == nil || item.customView == nil ||
+      (![side isEqualToString:@"left"] && ![side isEqualToString:@"right"]) ||
+      !sourceNavigationBarWasHidden || navigationController == nil ||
+      !navigationController.navigationBarHidden || navigationController.viewControllers.count != 1 ||
+      navigationController.topViewController != viewController || navigationController.transitionCoordinator != nil ||
+      self.transitionCoordinator == nil) {
+    return NO;
+  }
+
+  BOOL isInstalledTabRoot = NO;
+  for (UIViewController *tabViewController in [self installedScreenControllers]) {
+    if (RNSFindNestedNavigationController(tabViewController) == navigationController) {
+      isInstalledTabRoot = YES;
+      break;
+    }
+  }
+  if (!isInstalledTabRoot) return NO;
+
+  UIViewController *tabsScreenViewController = self.parentViewController;
+  UINavigationController *sharedNavigationController = tabsScreenViewController.navigationController;
+  if (sharedNavigationController == nil ||
+      sharedNavigationController.topViewController != tabsScreenViewController ||
+      sharedNavigationController.navigationBarHidden ||
+      sharedNavigationController.transitionCoordinator != nil) {
+    return NO;
+  }
+
+  UINavigationItem *sourceNavigationItem = viewController.navigationItem;
+  UINavigationItem *sharedNavigationItem = tabsScreenViewController.navigationItem;
+  UINavigationBar *sharedNavigationBar = sharedNavigationController.navigationBar;
+  if (sourceNavigationItem == sharedNavigationItem || sharedNavigationBar.window == nil ||
+      sharedNavigationBar.topItem != sharedNavigationItem) {
+    return NO;
+  }
+
+  NSDictionary *materializedItems = objc_getAssociatedObject(sourceNavigationItem, &RNSSharedToolbarMaterializedItemsKey);
+  NSArray<UIBarButtonItem *> *cachedItems = materializedItems[side];
+  NSArray<UIBarButtonItem *> *sharedItems =
+      [side isEqualToString:@"left"] ? sharedNavigationItem.leftBarButtonItems : sharedNavigationItem.rightBarButtonItems;
+  NSArray<UIBarButtonItem *> *sourceItems =
+      [side isEqualToString:@"left"] ? sourceNavigationItem.leftBarButtonItems : sourceNavigationItem.rightBarButtonItems;
+  BOOL itemWasCaptured = NO;
+  BOOL sharedNavigationItemOwnsItem = NO;
+  BOOL sourceNavigationItemAlreadyOwnsItem = NO;
+  for (UIBarButtonItem *candidate in cachedItems) {
+    if (candidate == item) {
+      itemWasCaptured = YES;
+      break;
+    }
+  }
+  for (UIBarButtonItem *candidate in sharedItems) {
+    if (candidate == item) {
+      sharedNavigationItemOwnsItem = YES;
+      break;
+    }
+  }
+  for (UIBarButtonItem *candidate in sourceItems) {
+    if (candidate == item) {
+      sourceNavigationItemAlreadyOwnsItem = YES;
+      break;
+    }
+  }
+
+  UIView *customView = item.customView;
+  if (!itemWasCaptured || !sharedNavigationItemOwnsItem || sourceNavigationItemAlreadyOwnsItem ||
+      customView.hidden || customView.alpha <= 0 || customView.window != sharedNavigationBar.window ||
+      ![customView isDescendantOfView:sharedNavigationBar]) {
+    return NO;
+  }
+
+  // Emporio Rigatti: shared toolbar owner re-registration suppressed
+  return YES;
+}
+
+- (NSDictionary<NSString *, NSArray<UIBarButtonItem *> *> *)sourceToolbarRegistrationItemsForViewController:(UIViewController *)viewController
+                                                                                     navigationController:(UINavigationController *)navigationController
+                                                                                                  leftItems:(NSArray<UIBarButtonItem *> *)leftItems
+                                                                                                 rightItems:(NSArray<UIBarButtonItem *> *)rightItems
+                                                                                       skippedSharedLeftItems:(NSArray<UIBarButtonItem *> *)skippedSharedLeftItems
+                                                                                      skippedSharedRightItems:(NSArray<UIBarButtonItem *> *)skippedSharedRightItems
+{
+  (void)navigationController;
+  UINavigationItem *sourceNavigationItem = viewController.navigationItem;
+  NSMutableArray<UIBarButtonItem *> *sourceLeftItems = [NSMutableArray arrayWithCapacity:leftItems.count];
+  NSMutableArray<UIBarButtonItem *> *sourceRightItems = [NSMutableArray arrayWithCapacity:rightItems.count];
+  for (UIBarButtonItem *item in leftItems) {
+    BOOL skipRegistration = NO;
+    for (UIBarButtonItem *sharedItem in skippedSharedLeftItems) {
+      if (item == sharedItem) {
+        skipRegistration = YES;
+        break;
+      }
+    }
+    if (!skipRegistration) [sourceLeftItems addObject:item];
+  }
+  for (UIBarButtonItem *item in rightItems) {
+    BOOL skipRegistration = NO;
+    for (UIBarButtonItem *sharedItem in skippedSharedRightItems) {
+      if (item == sharedItem) {
+        skipRegistration = YES;
+        break;
+      }
+    }
+    if (!skipRegistration) [sourceRightItems addObject:item];
+  }
+
+  BOOL didPreserveSharedOwner =
+      !RNSHomeToolbarItemArraysHaveSameInstances(leftItems, sourceLeftItems) ||
+      !RNSHomeToolbarItemArraysHaveSameInstances(rightItems, sourceRightItems);
+  if (didPreserveSharedOwner) {
+    NSDictionary *pendingMaterialized = @{
+      @"left": [leftItems copy],
+      @"right": [rightItems copy],
+    };
+    objc_setAssociatedObject(sourceNavigationItem, &RNSSharedToolbarPendingMaterializedItemsKey,
+        pendingMaterialized, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  } else {
+    objc_setAssociatedObject(sourceNavigationItem, &RNSSharedToolbarPendingMaterializedItemsKey,
+        nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+
+  return @{
+    @"left": [sourceLeftItems copy],
+    @"right": [sourceRightItems copy],
+  };
 }
 
 - (void)prepareSharedNavigationBarForViewController:(UIViewController *)viewController reason:(NSString *)reason
@@ -565,6 +715,133 @@ static RNSTabBarController *RNSFindSharedToolbarTabsController(UIViewController 
       [navigationController.viewControllers copy],
       OBJC_ASSOCIATION_RETAIN_NONATOMIC);`,
     'stable-navigation-stack-snapshot',
+  );
+}
+
+function patchSharedToolbarHeaderRegistration(screensRoot) {
+  const headerConfig = path.join(screensRoot, 'ios', 'RNSScreenStackHeaderConfig.mm');
+
+  patchFile(
+    headerConfig,
+    '  for (RNSScreenStackHeaderSubview *subview in config.reactSubviews) {',
+    [
+      '  NSMutableArray<UIBarButtonItem *> *toolbarMorphMaterializedLeftItems = [NSMutableArray array];',
+      '  NSMutableArray<UIBarButtonItem *> *toolbarMorphMaterializedRightItems = [NSMutableArray array];',
+      '  NSMutableArray<UIBarButtonItem *> *toolbarMorphSkippedSharedLeftItems = [NSMutableArray array];',
+      '  NSMutableArray<UIBarButtonItem *> *toolbarMorphSkippedSharedRightItems = [NSMutableArray array];',
+      '  RNSTabBarController *toolbarMorphTabsController = nil;',
+      '  if ([navctr.tabBarController isKindOfClass:[RNSTabBarController class]]) {',
+      '    toolbarMorphTabsController = static_cast<RNSTabBarController *>(navctr.tabBarController);',
+      '  }',
+      '  if (toolbarMorphTabsController == nil) {',
+      '    UIViewController *toolbarMorphAncestor = navctr;',
+      '    while (toolbarMorphAncestor != nil && toolbarMorphTabsController == nil) {',
+      '      toolbarMorphTabsController = RNSFindTabBarControllerInViewController(toolbarMorphAncestor);',
+      '      toolbarMorphAncestor = toolbarMorphAncestor.parentViewController;',
+      '    }',
+      '  }',
+      '',
+      '  // Emporio Rigatti: shared toolbar registration context',
+      '  for (RNSScreenStackHeaderSubview *subview in config.reactSubviews) {',
+    ].join('\n'),
+    'Emporio Rigatti: shared toolbar registration context',
+  );
+
+  patchFile(
+    headerConfig,
+    [
+      '      case RNSScreenStackHeaderSubviewTypeLeft: {',
+      '        NSArray<UIBarButtonItem *> *currentItems = navitem.leftBarButtonItems ?: @[];',
+      '        NSMutableArray<UIBarButtonItem *> *mutableItems = [currentItems mutableCopy];',
+      '        [mutableItems addObject:[subview getUIBarButtonItem]];',
+      '        navitem.leftBarButtonItems = mutableItems;',
+      '        break;',
+      '      }',
+    ].join('\n'),
+    [
+      '      case RNSScreenStackHeaderSubviewTypeLeft: {',
+      '        UIBarButtonItem *toolbarMorphItem = [subview getUIBarButtonItem];',
+      '        [toolbarMorphMaterializedLeftItems addObject:toolbarMorphItem];',
+      '        BOOL skipSharedOwnerRegistration =',
+      '            [toolbarMorphTabsController shouldSkipSharedToolbarItemRegistration:toolbarMorphItem',
+      '                fromViewController:vc navigationController:navctr side:@\"left\"',
+      '                sourceNavigationBarWasHidden:wasHidden];',
+      '        // Emporio Rigatti: shared toolbar registration decision left',
+      '        if (skipSharedOwnerRegistration) {',
+      '          [toolbarMorphSkippedSharedLeftItems addObject:toolbarMorphItem];',
+      '        } else {',
+      '          NSArray<UIBarButtonItem *> *currentItems = navitem.leftBarButtonItems ?: @[];',
+      '          NSMutableArray<UIBarButtonItem *> *mutableItems = [currentItems mutableCopy];',
+      '          [mutableItems addObject:toolbarMorphItem];',
+      '          navitem.leftBarButtonItems = mutableItems;',
+      '        }',
+      '        break;',
+      '      }',
+    ].join('\n'),
+    'Emporio Rigatti: shared toolbar left re-registration guard',
+  );
+
+  patchFile(
+    headerConfig,
+    [
+      '      case RNSScreenStackHeaderSubviewTypeRight: {',
+      '        NSArray<UIBarButtonItem *> *currentItems = navitem.rightBarButtonItems ?: @[];',
+      '        NSMutableArray<UIBarButtonItem *> *mutableItems = [currentItems mutableCopy];',
+      '        [mutableItems addObject:[subview getUIBarButtonItem]];',
+      '        navitem.rightBarButtonItems = mutableItems;',
+      '        break;',
+      '      }',
+    ].join('\n'),
+    [
+      '      case RNSScreenStackHeaderSubviewTypeRight: {',
+      '        UIBarButtonItem *toolbarMorphItem = [subview getUIBarButtonItem];',
+      '        [toolbarMorphMaterializedRightItems addObject:toolbarMorphItem];',
+      '        BOOL skipSharedOwnerRegistration =',
+      '            [toolbarMorphTabsController shouldSkipSharedToolbarItemRegistration:toolbarMorphItem',
+      '                fromViewController:vc navigationController:navctr side:@\"right\"',
+      '                sourceNavigationBarWasHidden:wasHidden];',
+      '        // Emporio Rigatti: shared toolbar registration decision right',
+      '        if (skipSharedOwnerRegistration) {',
+      '          [toolbarMorphSkippedSharedRightItems addObject:toolbarMorphItem];',
+      '        } else {',
+      '          NSArray<UIBarButtonItem *> *currentItems = navitem.rightBarButtonItems ?: @[];',
+      '          NSMutableArray<UIBarButtonItem *> *mutableItems = [currentItems mutableCopy];',
+      '          [mutableItems addObject:toolbarMorphItem];',
+      '          navitem.rightBarButtonItems = mutableItems;',
+      '        }',
+      '        break;',
+      '      }',
+    ].join('\n'),
+    'Emporio Rigatti: shared toolbar right re-registration guard',
+  );
+
+  patchFile(
+    headerConfig,
+    [
+      '  navitem.leftBarButtonItems = [config barButtonItemsFromConfigs:config.headerLeftBarButtonItems',
+      '                                                withCurrentItems:navitem.leftBarButtonItems];',
+      '  navitem.rightBarButtonItems = [config barButtonItemsFromConfigs:config.headerRightBarButtonItems',
+      '                                                 withCurrentItems:navitem.rightBarButtonItems];',
+    ].join('\n'),
+    [
+      '  NSArray<UIBarButtonItem *> *toolbarMorphDesiredLeftItems =',
+      '      [config barButtonItemsFromConfigs:config.headerLeftBarButtonItems',
+      '                      withCurrentItems:toolbarMorphMaterializedLeftItems];',
+      '  NSArray<UIBarButtonItem *> *toolbarMorphDesiredRightItems =',
+      '      [config barButtonItemsFromConfigs:config.headerRightBarButtonItems',
+      '                      withCurrentItems:toolbarMorphMaterializedRightItems];',
+      '  NSDictionary<NSString *, NSArray<UIBarButtonItem *> *> *toolbarMorphSourceItems = nil;',
+      '  if (toolbarMorphSkippedSharedLeftItems.count > 0 || toolbarMorphSkippedSharedRightItems.count > 0) {',
+      '    toolbarMorphSourceItems =',
+      '        [toolbarMorphTabsController sourceToolbarRegistrationItemsForViewController:vc',
+      '            navigationController:navctr leftItems:toolbarMorphDesiredLeftItems',
+      '            rightItems:toolbarMorphDesiredRightItems skippedSharedLeftItems:toolbarMorphSkippedSharedLeftItems',
+      '            skippedSharedRightItems:toolbarMorphSkippedSharedRightItems];',
+      '  }',
+      '  navitem.leftBarButtonItems = toolbarMorphSourceItems[@\"left\"] ?: toolbarMorphDesiredLeftItems;',
+      '  navitem.rightBarButtonItems = toolbarMorphSourceItems[@\"right\"] ?: toolbarMorphDesiredRightItems;',
+    ].join('\n'),
+    'Emporio Rigatti: shared toolbar final registration guard',
   );
 }
 
@@ -859,6 +1136,7 @@ function patchRNScreens(
     `    [self setAnimatedConfig:vc withConfig:config];\n  }\n\n  // ${PATCH_MARKERS.sharedToolbarConfigVisible}\n  RNSSynchronizeSharedTabToolbar(vc, navctr);\n}\n\n- (void)configureBackItem:`,
     PATCH_MARKERS.sharedToolbarConfigVisible,
   );
+  patchSharedToolbarHeaderRegistration(screensRoot);
   patchSharedToolbarOwnership(screensRoot);
 }
 

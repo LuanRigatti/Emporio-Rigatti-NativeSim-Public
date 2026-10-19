@@ -247,6 +247,44 @@ describe('temporary toolbar morph diagnostics plugin', () => {
     }
   });
 
+  it('records shared-toolbar re-registration decisions and captures the full cached item list', () => {
+    const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
+    try {
+      patchFixture(fixtureScreensRoot, fixtureExpoUIRoot);
+      const headerConfig = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/RNSScreenStackHeaderConfig.mm'),
+        'utf8',
+      );
+      const coordinator = readFileSync(
+        path.join(fixtureScreensRoot, 'ios/tabs/host/RNSTabBarController.mm'),
+        'utf8',
+      );
+      const pendingMaterializedIndex = coordinator.indexOf('materialized = pendingMaterialized');
+      const captureLogIndex = coordinator.indexOf(
+        'RNSLogToolbarMorphItems(@\"coordinator_capture\"',
+        pendingMaterializedIndex,
+      );
+
+      expect(headerConfig).toContain('source_toolbar_registration_decision');
+      expect(headerConfig).toContain('suppressed_shared_owner');
+      expect(headerConfig).toContain('normal_registration');
+      expect(headerConfig).toContain(
+        'ToolbarMorphDiagnostics: shared toolbar left registration decision',
+      );
+      expect(headerConfig).toContain(
+        'ToolbarMorphDiagnostics: shared toolbar right registration decision',
+      );
+      expect(headerConfig).toContain('navigation_item_setter');
+      expect(pendingMaterializedIndex).toBeGreaterThanOrEqual(0);
+      expect(captureLogIndex).toBeGreaterThan(pendingMaterializedIndex);
+      expect(coordinator).toContain('RNSSharedToolbarPendingMaterializedItemsKey');
+      expect(coordinator).toContain('coordinator_capture_owner_before');
+      expect(coordinator).toContain('coordinator_capture_owner_after');
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it('qualifies HostView property access inside OSLog interpolation closures', () => {
     const { fixtureRoot, fixtureScreensRoot, fixtureExpoUIRoot } = createFixture();
     try {

@@ -243,6 +243,89 @@ describe('Home toolbar coordinator patch', () => {
     }
   });
 
+  it('suppresses only re-registration of the exact captured custom item still attached to the shared bar', () => {
+    const fixtureRoot = createScreensFixture();
+    try {
+      patchRNScreens(fixtureRoot);
+
+      const coordinator = readPatchedCoordinator(fixtureRoot);
+      const guardStart = coordinator.indexOf('- (BOOL)shouldSkipSharedToolbarItemRegistration:');
+      const guardEnd = coordinator.indexOf(
+        '- (NSDictionary<NSString *, NSArray<UIBarButtonItem *> *> *)sourceToolbarRegistrationItemsForViewController:',
+        guardStart,
+      );
+      const guard = coordinator.slice(guardStart, guardEnd);
+      const captureStart = coordinator.indexOf(
+        '- (void)captureSharedToolbarItemsFromViewController:',
+      );
+      const captureEnd = coordinator.indexOf(
+        '- (BOOL)shouldSkipSharedToolbarItemRegistration:',
+        captureStart,
+      );
+      const capture = coordinator.slice(captureStart, captureEnd);
+      const registrationStart = coordinator.indexOf(
+        '- (NSDictionary<NSString *, NSArray<UIBarButtonItem *> *> *)sourceToolbarRegistrationItemsForViewController:',
+      );
+      const registrationEnd = coordinator.indexOf(
+        '- (void)prepareSharedNavigationBarForViewController:',
+        registrationStart,
+      );
+      const registration = coordinator.slice(registrationStart, registrationEnd);
+      const headerConfig = readFileSync(
+        path.join(fixtureRoot, 'ios/RNSScreenStackHeaderConfig.mm'),
+        'utf8',
+      );
+
+      expect(guardStart).toBeGreaterThanOrEqual(0);
+      expect(guard).toContain('sourceNavigationBarWasHidden');
+      expect(guard).toContain('navigationController.viewControllers.count != 1');
+      expect(guard).toContain('navigationController.transitionCoordinator != nil');
+      expect(guard).toContain('self.transitionCoordinator == nil');
+      expect(guard).toContain('sourceNavigationItem == sharedNavigationItem');
+      expect(guard).toContain('candidate == item');
+      expect(guard).toContain('itemWasCaptured');
+      expect(guard).toContain('sharedNavigationItemOwnsItem');
+      expect(guard).toContain('sourceNavigationItemAlreadyOwnsItem');
+      expect(guard).toContain('customView.window != sharedNavigationBar.window');
+      expect(guard).toContain('[customView isDescendantOfView:sharedNavigationBar]');
+      expect(guard).toContain('customView.hidden || customView.alpha <= 0');
+      expect(guard).toContain('return NO;');
+
+      expect(capture).toContain('materialized = pendingMaterialized');
+      expect(capture.indexOf('materialized = pendingMaterialized')).toBeLessThan(
+        capture.indexOf('RNSSharedToolbarMaterializedItemsKey, materialized'),
+      );
+      expect(capture).toContain('[item setLeftBarButtonItems:nil animated:NO]');
+      expect(capture).toContain('[item setRightBarButtonItems:nil animated:NO]');
+
+      expect(registration).toContain('if (item == sharedItem)');
+      expect(registration).toContain('pendingMaterialized = @{');
+      expect(registration).toContain('\"left\": [leftItems copy]');
+      expect(registration).toContain('\"right\": [rightItems copy]');
+      expect(registration).toContain('RNSHomeToolbarItemArraysHaveSameInstances');
+
+      expect(headerConfig).toContain('toolbarMorphItem = [subview getUIBarButtonItem]');
+      expect(headerConfig).toContain('shouldSkipSharedToolbarItemRegistration:toolbarMorphItem');
+      expect(headerConfig).toContain('side:@"left"');
+      expect(headerConfig).toContain('side:@"right"');
+      expect(headerConfig).not.toContain('side:@\\"left\\"');
+      expect(guard).toContain('item.customView == nil');
+      expect(headerConfig).toContain('headerLeftBarButtonItems');
+      expect(headerConfig).toContain('headerRightBarButtonItems');
+      expect(headerConfig).toContain(
+        'toolbarMorphSourceItems[@\"left\"] ?: toolbarMorphDesiredLeftItems',
+      );
+      expect(headerConfig).toContain(
+        'toolbarMorphSourceItems[@\"right\"] ?: toolbarMorphDesiredRightItems',
+      );
+      expect(headerConfig).toContain('withCurrentItems:toolbarMorphMaterializedLeftItems');
+      expect(headerConfig).toContain('withCurrentItems:toolbarMorphMaterializedRightItems');
+      expect(guard).toMatch(/item == nil \|\| item\.customView == nil/);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
   it('stages Home, Settings, and Finance root toolbar items before a native pop', () => {
     const fixtureRoot = createScreensFixture();
     try {

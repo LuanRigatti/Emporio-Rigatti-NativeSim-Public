@@ -1070,6 +1070,32 @@ function patchScreens(screensRoot) {
   const headerConfig = path.join(screensRoot, 'ios', 'RNSScreenStackHeaderConfig.mm');
   insertAfter(
     headerConfig,
+    '        // Emporio Rigatti: shared toolbar registration decision left',
+    [
+      '        RNSLogToolbarMorphOwnership(@"source_toolbar_registration_decision", @[toolbarMorphItem],',
+      '            navitem, toolbarMorphTabsController.parentViewController.navigationItem, @"left",',
+      '            skipSharedOwnerRegistration ? @"suppressed_shared_owner" : @"normal_registration", NO,',
+      '            toolbarMorphTabsController.transitionCoordinator != nil || vc.transitionCoordinator != nil ||',
+      '                navctr.transitionCoordinator != nil ||',
+      '                toolbarMorphTabsController.parentViewController.navigationController.transitionCoordinator != nil);',
+    ].join('\n'),
+    'ToolbarMorphDiagnostics: shared toolbar left registration decision',
+  );
+  insertAfter(
+    headerConfig,
+    '        // Emporio Rigatti: shared toolbar registration decision right',
+    [
+      '        RNSLogToolbarMorphOwnership(@"source_toolbar_registration_decision", @[toolbarMorphItem],',
+      '            navitem, toolbarMorphTabsController.parentViewController.navigationItem, @"right",',
+      '            skipSharedOwnerRegistration ? @"suppressed_shared_owner" : @"normal_registration", NO,',
+      '            toolbarMorphTabsController.transitionCoordinator != nil || vc.transitionCoordinator != nil ||',
+      '                navctr.transitionCoordinator != nil ||',
+      '                toolbarMorphTabsController.parentViewController.navigationController.transitionCoordinator != nil);',
+    ].join('\n'),
+    'ToolbarMorphDiagnostics: shared toolbar right registration decision',
+  );
+  insertAfter(
+    headerConfig,
     '#import "RNSScreenStackHeaderConfig.h"',
     '#import "RNSToolbarMorphDiagnostics.h"',
     `${PLUGIN_MARKER} declarative item logger import`,
@@ -1140,7 +1166,14 @@ function patchScreens(screensRoot) {
 
   insertAfter(
     controllerPath,
-    '  NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};',
+    [
+      '  NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};',
+      '  NSDictionary *pendingMaterialized = objc_getAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey);',
+      '  if (pendingMaterialized != nil) {',
+      '    materialized = pendingMaterialized;',
+      '    objc_setAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);',
+      '  }',
+    ].join('\n'),
     `  BOOL isFirstToolbarMaterialization =
       objc_getAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey) == nil;
   if (isFirstToolbarMaterialization) {

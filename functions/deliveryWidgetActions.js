@@ -242,6 +242,7 @@ function createDeliveryWidgetActionsHandler({
     }
 
     const sessionRef = db.collection(SESSION_COLLECTION).doc(sessionId);
+    const useCompactResponse = request.body?.responseVersion === 2;
     const authorizedSession = await readAuthorizedSession(sessionRef, refreshCapability, now());
     await assertCurrentFirebaseSession(
       auth,
@@ -271,13 +272,16 @@ function createDeliveryWidgetActionsHandler({
         .doc(session.uid)
         .collection('deliveries')
         .doc(deliveryId);
-      const dayQuery = db
-        .collection('users')
-        .doc(session.uid)
-        .collection('deliveries')
-        .where('date', '==', date);
+      let daySnapshot;
+      if (!useCompactResponse) {
+        const dayQuery = db
+          .collection('users')
+          .doc(session.uid)
+          .collection('deliveries')
+          .where('date', '==', date);
+        daySnapshot = await transaction.get(dayQuery);
+      }
       const targetSnapshot = await transaction.get(targetRef);
-      const daySnapshot = await transaction.get(dayQuery);
       if (!targetSnapshot.exists) throw new DeliveryWidgetActionError(404, 'delivery_not_found');
       const target = targetSnapshot.data();
       if (target.date !== date || (target.delivered !== false && target.delivered !== true)) {
@@ -299,12 +303,16 @@ function createDeliveryWidgetActionsHandler({
         });
       }
 
-      const dayDocuments = daySnapshot.docs.map((document) => ({
-        id: document.id,
-        data:
-          document.id === deliveryId ? { ...document.data(), delivered: true } : document.data(),
-      }));
-      result = projectCompleteDay(dayDocuments, date, revision);
+      if (useCompactResponse) {
+        result = { confirmed: true, deliveryId, date, revision };
+      } else {
+        const dayDocuments = daySnapshot.docs.map((document) => ({
+          id: document.id,
+          data:
+            document.id === deliveryId ? { ...document.data(), delivered: true } : document.data(),
+        }));
+        result = projectCompleteDay(dayDocuments, date, revision);
+      }
     });
 
     response.status(200).json(result);

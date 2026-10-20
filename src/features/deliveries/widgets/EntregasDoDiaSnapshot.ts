@@ -14,6 +14,8 @@ export type EntregasDoDiaWidgetRow = {
   quantityLabel: string;
   valueLabel: string;
   completionURL?: string;
+  completionState?: 'pending' | 'failed';
+  completionActionId?: string;
 };
 
 export type EntregasDoDiaWidgetState = 'pending' | 'all_completed' | 'empty' | 'unavailable';
@@ -23,6 +25,7 @@ export type EntregasDoDiaWidgetProps = {
   state: EntregasDoDiaWidgetState;
   deliveryCount: number;
   deliveries: EntregasDoDiaWidgetRow[];
+  completedDeliveryIds?: string[];
   deliveryRouteURL?: string;
   actionSessionId?: string;
   actionRevision?: number;

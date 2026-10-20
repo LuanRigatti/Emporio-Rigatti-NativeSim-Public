@@ -83,16 +83,10 @@ describe('EntregasDoDia App Intent CNG integration', () => {
         'snapshot_rejected_wrong_source',
         'snapshot_rejected_missing_entry_index',
         'snapshot_rejected_invalid_target',
-        'snapshot_rejected_missing_timeline',
-        'snapshot_rejected_entry_index',
-        'snapshot_rejected_invalid_entry',
-        'snapshot_rejected_date_mismatch',
-        'snapshot_rejected_not_pending',
         'snapshot_rejected_delivery_missing',
         'capability_validation_succeeded',
         'capability_validation_failed',
         'session_validation_succeeded',
-        'session_validation_failed',
         'request_started',
         'request_failed',
         'http_response',
@@ -102,7 +96,6 @@ describe('EntregasDoDia App Intent CNG integration', () => {
         'receipt_record_failed',
         'timeline_session_rejected',
         'revision_accepted',
-        'revision_rejected',
         'timeline_write_succeeded',
         'timeline_mutation_failed',
         'timeline_reload_requested',
@@ -162,6 +155,7 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(transformWidgetEnvironmentSource(environment)).toBe(environment);
     expect(widgetObject).toContain('withTimelineMutationLock');
     expect(widgetObject).toContain('shouldAcceptAppTimeline');
+    expect(widgetObject).toContain('preservingInFlightDeliveryActions');
     expect(widgetObject).toContain('RIGATTI_DELIVERY_WIDGET_OBJECT_LOCK_V1');
     expect(transformWidgetObjectSource(widgetObject)).toBe(widgetObject);
     expect(fs.readFileSync(podspecPath, 'utf8')).toContain('s.source_files = "**/*.{h,m,swift}"');
@@ -179,7 +173,7 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(transformButtonsSource(migrated)).toBe(migrated);
   });
 
-  it('uses a native AppIntent, protected shared Keychain, server confirmation, and local timeline reload', () => {
+  it('uses a native AppIntent, shows pending state before the server call, and removes only confirmed rows', () => {
     expect(DELIVERY_ACTION_SWIFT).toContain('struct RigattiDeliveryCompletionIntent: AppIntent');
     expect(DELIVERY_ACTION_SWIFT).toContain('enum RigattiDeliveryWidgetKeychain {');
     expect(DELIVERY_ACTION_SWIFT).toContain(
@@ -227,14 +221,19 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     );
     expect(DELIVERY_ACTION_SWIFT).toContain('static var openAppWhenRun: Bool = false');
     expect(DELIVERY_ACTION_SWIFT).toContain('.requiresLocalDeviceAuthentication');
-    expect(DELIVERY_ACTION_SWIFT).toContain(
-      'guard props["actionSessionId"] as? String == credential.sessionId else',
-    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('static func beginDeliveryCompletion(');
+    expect(DELIVERY_ACTION_SWIFT).toContain('static func failDeliveryCompletion(');
+    expect(DELIVERY_ACTION_SWIFT).toContain('static func confirmDeliveryCompletion(');
+    expect(DELIVERY_ACTION_SWIFT).toContain('static func preservingInFlightDeliveryActions(');
+    expect(DELIVERY_ACTION_SWIFT).toContain('props["completedDeliveryIds"] = completedIds');
+    expect(DELIVERY_ACTION_SWIFT).toContain('confirmedIds.intersection(incomingIds)');
+    expect(DELIVERY_ACTION_SWIFT).toContain('actionRevisions[sessionDateKey] ?? 0');
+    expect(DELIVERY_ACTION_SWIFT).toContain('"responseVersion": 2');
     const performStart = DELIVERY_ACTION_SWIFT.indexOf(
       'func perform() async throws -> some IntentResult',
     );
     const performEnd = DELIVERY_ACTION_SWIFT.indexOf(
-      '\n  }\n\n  private static func validSnapshot',
+      '\n  }\n\n  private static func validConfirmation',
       performStart,
     );
     expect(performStart).toBeGreaterThanOrEqual(0);
@@ -242,14 +241,24 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     const perform = DELIVERY_ACTION_SWIFT.slice(performStart, performEnd);
     expect(perform).not.toContain('RigattiDeliveryWidgetActionAPI.renew');
     expect(perform).toContain('RigattiDeliveryWidgetActionAPI.complete');
+    expect(perform).toContain('RigattiDeliveryWidgetKeychain.beginDeliveryCompletion');
+    expect(perform).toContain('RigattiDeliveryWidgetKeychain.failDeliveryCompletion');
+    expect(perform).toContain('RigattiDeliveryWidgetKeychain.confirmDeliveryCompletion');
+    expect(perform.indexOf('timeline_reload_requested')).toBeLessThan(
+      perform.indexOf('request_started'),
+    );
     expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessGroup as String: accessGroup');
     expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly');
     expect(DELIVERY_ACTION_SWIFT).toContain('URLSession.shared.data(for: request)');
-    expect(DELIVERY_ACTION_SWIFT).toContain('snapshotComplete');
+    expect(DELIVERY_ACTION_SWIFT).toContain('value["confirmed"] as? Bool == true');
+    expect(DELIVERY_ACTION_SWIFT).toContain('value["snapshotComplete"] as? Bool == true');
+    expect(DELIVERY_ACTION_SWIFT).toContain('$0["id"] as? String == expectedDeliveryId');
     expect(DELIVERY_ACTION_SWIFT).toContain(
       'WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")',
     );
-    expect(DELIVERY_ACTION_SWIFT).toContain('WidgetsStorage.set(updatedTimeline');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'WidgetsStorage.set(timeline, forKey: "__expo_widgets_EntregasDoDia_timeline")',
+    );
     expect(DELIVERY_ACTION_SWIFT).not.toMatch(/import\s+Firebase|refreshToken|adminCredential/i);
     expect(DELIVERY_ACTION_SWIFT).not.toContain('UIApplication.shared');
     expect(DELIVERY_ACTION_SWIFT).toContain('event=http_response status_code=');

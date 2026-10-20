@@ -98,6 +98,217 @@ enum RigattiDeliveryWidgetKeychain {
     return true
   }
 
+  static func preservingInFlightDeliveryActions(
+    _ entries: [[String: Any]],
+    from currentTimeline: [[String: Any]]
+  ) -> [[String: Any]] {
+    let actionStates = currentTimeline.reduce(
+      into: [String: [String: (String, String?)]]()
+    ) { result, entry in
+      guard let props = entry["props"] as? [String: Any],
+            let date = props["date"] as? String,
+            let sessionId = props["actionSessionId"] as? String,
+            let rows = props["deliveries"] as? [[String: Any]] else { return }
+      for row in rows {
+        guard let deliveryId = row["id"] as? String,
+              let state = row["completionState"] as? String,
+              state == "pending" || state == "failed" else { continue }
+        result["\(sessionId)|\(date)", default: [:]][deliveryId] = (
+          state,
+          row["completionActionId"] as? String
+        )
+      }
+    }
+    let confirmedDeliveryIds = currentTimeline.reduce(into: [String: Set<String>]()) { result, entry in
+      guard let props = entry["props"] as? [String: Any],
+            let date = props["date"] as? String,
+            let sessionId = props["actionSessionId"] as? String,
+            let deliveryIds = props["completedDeliveryIds"] as? [String] else { return }
+      result["\(sessionId)|\(date)", default: []].formUnion(deliveryIds)
+    }
+    let actionRevisions = currentTimeline.reduce(into: [String: Int]()) { result, entry in
+      guard let props = entry["props"] as? [String: Any],
+            let date = props["date"] as? String,
+            let sessionId = props["actionSessionId"] as? String,
+            let revision = (props["actionRevision"] as? NSNumber)?.intValue else { return }
+      let key = "\(sessionId)|\(date)"
+      result[key] = max(result[key] ?? 0, revision)
+    }
+
+    return entries.map { entry in
+      guard var props = entry["props"] as? [String: Any],
+            let date = props["date"] as? String,
+            let sessionId = props["actionSessionId"] as? String,
+            var rows = props["deliveries"] as? [[String: Any]] else { return entry }
+      let sessionDateKey = "\(sessionId)|\(date)"
+      let states = actionStates[sessionDateKey] ?? [:]
+      let confirmedIds = confirmedDeliveryIds[sessionDateKey] ?? []
+      let incomingIds = Set(rows.compactMap { $0["id"] as? String })
+      let completedIdsToKeep = confirmedIds.intersection(incomingIds)
+      let mergedRows = rows.map { row in
+        guard let deliveryId = row["id"] as? String,
+              let action = states[deliveryId] else { return row }
+        var merged = row
+        merged["completionState"] = action.0
+        if let actionId = action.1 {
+          merged["completionActionId"] = actionId
+        } else {
+          merged.removeValue(forKey: "completionActionId")
+        }
+        return merged
+      }
+      rows = mergedRows.filter { row in
+        guard let deliveryId = row["id"] as? String else { return true }
+        return !confirmedIds.contains(deliveryId)
+      }
+      if rows.count != (props["deliveries"] as? [[String: Any]])?.count {
+        props["deliveryCount"] = rows.count
+        props["state"] = rows.isEmpty ? "all_completed" : "pending"
+      }
+      props["deliveries"] = rows
+      if completedIdsToKeep.isEmpty {
+        props.removeValue(forKey: "completedDeliveryIds")
+      } else {
+        props["completedDeliveryIds"] = completedIdsToKeep.sorted()
+      }
+      if let incomingRevision = (props["actionRevision"] as? NSNumber)?.intValue {
+        props["actionRevision"] = max(incomingRevision, actionRevisions[sessionDateKey] ?? 0)
+      }
+      var mergedEntry = entry
+      mergedEntry["props"] = props
+      return mergedEntry
+    }
+  }
+
+  static func beginDeliveryCompletion(
+    sessionId: String,
+    date: String,
+    deliveryId: String,
+    actionId: String
+  ) throws -> Bool {
+    try withTimelineMutationLock {
+      guard isActive(sessionId: sessionId),
+            let storedTimeline = WidgetsStorage.getArray(forKey: "__expo_widgets_EntregasDoDia_timeline") else {
+        return false
+      }
+      var timeline = storedTimeline.compactMap { $0 as? [String: Any] }
+      for entryIndex in timeline.indices {
+        var entry = timeline[entryIndex]
+        guard
+          var props = entry["props"] as? [String: Any],
+          props["date"] as? String == date,
+          props["actionSessionId"] as? String == sessionId,
+          props["state"] as? String == "pending",
+          var rows = props["deliveries"] as? [[String: Any]],
+          let rowIndex = rows.firstIndex(where: { $0["id"] as? String == deliveryId })
+        else { continue }
+        guard rows[rowIndex]["completionState"] as? String != "pending" else { return false }
+        rows[rowIndex]["completionState"] = "pending"
+        rows[rowIndex]["completionActionId"] = actionId
+        props["deliveries"] = rows
+        entry["props"] = props
+        timeline[entryIndex] = entry
+        WidgetsStorage.set(timeline, forKey: "__expo_widgets_EntregasDoDia_timeline")
+        WidgetsStorage.defaults?.synchronize()
+        return true
+      }
+      return false
+    }
+  }
+
+  static func failDeliveryCompletion(
+    sessionId: String,
+    date: String,
+    deliveryId: String,
+    actionId: String
+  ) throws -> Bool {
+    try withTimelineMutationLock {
+      guard isActive(sessionId: sessionId),
+            let storedTimeline = WidgetsStorage.getArray(forKey: "__expo_widgets_EntregasDoDia_timeline") else {
+        return false
+      }
+      var timeline = storedTimeline.compactMap { $0 as? [String: Any] }
+      for entryIndex in timeline.indices {
+        var entry = timeline[entryIndex]
+        guard
+          var props = entry["props"] as? [String: Any],
+          props["date"] as? String == date,
+          props["actionSessionId"] as? String == sessionId,
+          var rows = props["deliveries"] as? [[String: Any]],
+          let rowIndex = rows.firstIndex(where: { $0["id"] as? String == deliveryId })
+        else { continue }
+        guard rows[rowIndex]["completionActionId"] as? String == actionId else { return false }
+        rows[rowIndex]["completionState"] = "failed"
+        rows[rowIndex].removeValue(forKey: "completionActionId")
+        props["deliveries"] = rows
+        entry["props"] = props
+        timeline[entryIndex] = entry
+        WidgetsStorage.set(timeline, forKey: "__expo_widgets_EntregasDoDia_timeline")
+        WidgetsStorage.defaults?.synchronize()
+        return true
+      }
+      return false
+    }
+  }
+
+  static func confirmDeliveryCompletion(
+    sessionId: String,
+    date: String,
+    deliveryId: String,
+    revision: Int
+  ) throws -> Bool {
+    try withTimelineMutationLock {
+      guard isActive(sessionId: sessionId),
+            let storedTimeline = WidgetsStorage.getArray(forKey: "__expo_widgets_EntregasDoDia_timeline") else {
+        return false
+      }
+      var currentTimeline = storedTimeline.compactMap { $0 as? [String: Any] }
+      let nowMilliseconds = Int(Date().timeIntervalSince1970 * 1000)
+      var updatedEntry: [String: Any]?
+      for entryIndex in currentTimeline.indices {
+        var entry = currentTimeline[entryIndex]
+        guard
+          var props = entry["props"] as? [String: Any],
+          props["date"] as? String == date,
+          props["actionSessionId"] as? String == sessionId,
+          props["state"] as? String == "pending",
+          var rows = props["deliveries"] as? [[String: Any]]
+        else { continue }
+        let oldCount = rows.count
+        rows.removeAll { $0["id"] as? String == deliveryId }
+        guard rows.count < oldCount else { continue }
+        var completedIds = props["completedDeliveryIds"] as? [String] ?? []
+        if !completedIds.contains(deliveryId) {
+          completedIds.append(deliveryId)
+        }
+        props["deliveries"] = rows
+        props["completedDeliveryIds"] = completedIds
+        props["deliveryCount"] = rows.count
+        props["state"] = rows.isEmpty ? "all_completed" : "pending"
+        let currentRevision = (props["actionRevision"] as? NSNumber)?.intValue ?? 0
+        props["actionRevision"] = max(currentRevision, revision)
+        entry["timestamp"] = nowMilliseconds
+        entry["props"] = props
+        updatedEntry = entry
+        currentTimeline[entryIndex] = entry
+        break
+      }
+
+      guard let updatedEntry else { return true }
+      var updatedTimeline = [updatedEntry]
+      for candidate in currentTimeline {
+        guard let timestamp = (candidate["timestamp"] as? NSNumber)?.intValue,
+              timestamp > nowMilliseconds,
+              let candidateProps = candidate["props"] as? [String: Any],
+              candidateProps["date"] as? String != date else { continue }
+        updatedTimeline.append(candidate)
+      }
+      WidgetsStorage.set(updatedTimeline, forKey: "__expo_widgets_EntregasDoDia_timeline")
+      WidgetsStorage.defaults?.synchronize()
+      return true
+    }
+  }
+
   private static func hasPendingReceipt(sessionId: String, date: String) -> Bool {
     guard let defaults = defaults() else { return false }
     return defaults.dictionaryRepresentation().contains { entry in
@@ -547,7 +758,7 @@ private enum RigattiDeliveryWidgetActionAPI {
     try await post(
       operation: "complete",
       credential: credential,
-      fields: ["deliveryId": deliveryId, "date": date]
+      fields: ["deliveryId": deliveryId, "date": date, "responseVersion": 2]
     )
   }
 
@@ -600,7 +811,7 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
       RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_wrong_source")
       return .result()
     }
-    guard let entryIndex else {
+    guard entryIndex != nil else {
       RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_missing_entry_index")
       return .result()
     }
@@ -608,50 +819,38 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
       RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_invalid_target")
       return .result()
     }
-    guard let timeline = WidgetsStorage.getArray(forKey: "__expo_widgets_EntregasDoDia_timeline") else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_missing_timeline")
-      return .result()
-    }
-    guard timeline.indices.contains(entryIndex) else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_entry_index")
-      return .result()
-    }
-    guard let entry = timeline[entryIndex] as? [String: Any],
-          let props = entry["props"] as? [String: Any] else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_invalid_entry")
-      return .result()
-    }
-    guard props["date"] as? String == action.date else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_date_mismatch")
-      return .result()
-    }
-    guard props["state"] as? String == "pending" else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_not_pending")
-      return .result()
-    }
-    guard let currentRows = props["deliveries"] as? [[String: Any]],
-          currentRows.contains(where: { $0["id"] as? String == action.deliveryId }) else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_delivery_missing")
-      return .result()
-    }
 
     let credential: RigattiDeliveryWidgetCredential
     do {
       credential = try RigattiDeliveryWidgetKeychain.activeCredential()
-      RigattiDeliveryCompletionDiagnostics.event("capability_validation_succeeded")
     } catch {
       RigattiDeliveryCompletionDiagnostics.event("capability_validation_failed")
-      throw error
+      return .result()
     }
-    guard props["actionSessionId"] as? String == credential.sessionId else {
-      RigattiDeliveryCompletionDiagnostics.event("session_validation_failed")
-      throw RigattiDeliveryWidgetActionError.staleCredential
+    RigattiDeliveryCompletionDiagnostics.event("capability_validation_succeeded")
+
+    let actionId = UUID().uuidString
+    let didBegin: Bool
+    do {
+      didBegin = try RigattiDeliveryWidgetKeychain.beginDeliveryCompletion(
+        sessionId: credential.sessionId,
+        date: action.date,
+        deliveryId: action.deliveryId,
+        actionId: actionId
+      )
+    } catch {
+      RigattiDeliveryCompletionDiagnostics.event("timeline_mutation_failed")
+      return .result()
     }
-    guard RigattiDeliveryWidgetKeychain.isActive(sessionId: credential.sessionId) else {
-      RigattiDeliveryCompletionDiagnostics.event("session_validation_failed")
-      throw RigattiDeliveryWidgetActionError.staleCredential
+    guard didBegin else {
+      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_delivery_missing")
+      return .result()
     }
     RigattiDeliveryCompletionDiagnostics.event("session_validation_succeeded")
+
+    RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
+    RigattiDeliveryCompletionDiagnostics.event("timeline_reload_requested")
+    WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")
 
     RigattiDeliveryCompletionDiagnostics.event("request_started")
     let result: [String: Any]
@@ -663,102 +862,90 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
       )
     } catch {
       RigattiDeliveryCompletionDiagnostics.event("request_failed")
-      throw error
+      if (try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
+        sessionId: credential.sessionId,
+        date: action.date,
+        deliveryId: action.deliveryId,
+        actionId: actionId
+      )) == true {
+        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
+      }
+      return .result()
+    }
+
+    guard let revision = Self.validConfirmation(
+      result,
+      expectedDate: action.date,
+      expectedDeliveryId: action.deliveryId
+    ) else {
+      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_remote")
+      if (try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
+        sessionId: credential.sessionId,
+        date: action.date,
+        deliveryId: action.deliveryId,
+        actionId: actionId
+      )) == true {
+        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
+      }
+      return .result()
     }
     RigattiDeliveryCompletionDiagnostics.event("remote_confirmation_received")
-    guard let snapshot = Self.validSnapshot(result, expectedDate: action.date) else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_remote")
-      throw RigattiDeliveryWidgetActionError.invalidSnapshot
-    }
+    RigattiDeliveryCompletionDiagnostics.event("revision_accepted")
 
     do {
       try RigattiDeliveryWidgetKeychain.recordReceipt(
         sessionId: credential.sessionId,
-        date: snapshot.date,
-        revision: snapshot.revision
+        date: action.date,
+        revision: revision
       )
       RigattiDeliveryCompletionDiagnostics.event("receipt_recorded")
     } catch {
+      // Firestore already confirmed this delivery; local UI must still converge immediately.
       RigattiDeliveryCompletionDiagnostics.event("receipt_record_failed")
-      throw error
     }
-    let shouldReload: Bool
+
     do {
-      shouldReload = try RigattiDeliveryWidgetKeychain.withTimelineMutationLock {
-        guard RigattiDeliveryWidgetKeychain.isActive(sessionId: credential.sessionId) else {
-          RigattiDeliveryCompletionDiagnostics.event("timeline_session_rejected")
-          return false
-        }
-
-        let latestTimeline = WidgetsStorage.getArray(forKey: "__expo_widgets_EntregasDoDia_timeline")
-          ?? timeline
-        let timelineRevision = latestTimeline.compactMap { candidate -> Int? in
-          guard let candidate = candidate as? [String: Any],
-                let candidateProps = candidate["props"] as? [String: Any],
-                candidateProps["date"] as? String == snapshot.date,
-                candidateProps["actionSessionId"] as? String == credential.sessionId,
-                let revision = candidateProps["actionRevision"] as? NSNumber else { return nil }
-          return revision.intValue
-        }.max() ?? 0
-        let latestRevision = max(timelineRevision, RigattiDeliveryWidgetKeychain.actionRevision(
-          sessionId: credential.sessionId,
-          date: snapshot.date
-        ))
-        guard snapshot.revision >= latestRevision else {
-          RigattiDeliveryCompletionDiagnostics.event("revision_rejected")
-          return false
-        }
-        RigattiDeliveryCompletionDiagnostics.event("revision_accepted")
-
-        var updatedProps: [String: Any] = [
-          "date": snapshot.date,
-          "state": snapshot.state,
-          "deliveryCount": snapshot.deliveryCount,
-          "deliveries": snapshot.deliveries,
-          "actionSessionId": credential.sessionId,
-          "actionRevision": snapshot.revision,
-        ]
-        if let deliveryRouteURL = props["deliveryRouteURL"] as? String {
-          updatedProps["deliveryRouteURL"] = deliveryRouteURL
-        }
-
-        let now = Date()
-        let nowMilliseconds = Int(now.timeIntervalSince1970 * 1000)
-        var updatedTimeline: [[String: Any]] = [[
-          "timestamp": nowMilliseconds,
-          "props": updatedProps,
-        ]]
-        for candidate in latestTimeline {
-          guard let candidate = candidate as? [String: Any],
-                let timestamp = candidate["timestamp"] as? Int,
-                timestamp > nowMilliseconds,
-                let candidateProps = candidate["props"] as? [String: Any],
-                candidateProps["date"] as? String != snapshot.date else { continue }
-          updatedTimeline.append(candidate)
-        }
-        WidgetsStorage.set(updatedTimeline, forKey: "__expo_widgets_EntregasDoDia_timeline")
-        WidgetsStorage.defaults?.synchronize()
+      let didApply = try RigattiDeliveryWidgetKeychain.confirmDeliveryCompletion(
+        sessionId: credential.sessionId,
+        date: action.date,
+        deliveryId: action.deliveryId,
+        revision: revision
+      )
+      if didApply {
         RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
-        return true
+      } else {
+        RigattiDeliveryCompletionDiagnostics.event("timeline_session_rejected")
       }
     } catch {
       RigattiDeliveryCompletionDiagnostics.event("timeline_mutation_failed")
-      throw error
+      if (try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
+        sessionId: credential.sessionId,
+        date: action.date,
+        deliveryId: action.deliveryId,
+        actionId: actionId
+      )) == true {
+        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
+      }
     }
-    if shouldReload {
-      RigattiDeliveryCompletionDiagnostics.event("timeline_reload_requested")
-      WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")
-    }
+
     return .result()
   }
 
-  private static func validSnapshot(
+  private static func validConfirmation(
     _ value: [String: Any],
-    expectedDate: String
-  ) -> (date: String, state: String, deliveryCount: Int, deliveries: [[String: Any]], revision: Int)? {
+    expectedDate: String,
+    expectedDeliveryId: String
+  ) -> Int? {
+    if value["confirmed"] as? Bool == true,
+       value["deliveryId"] as? String == expectedDeliveryId,
+       value["date"] as? String == expectedDate,
+       let revisionNumber = value["revision"] as? NSNumber,
+       revisionNumber.intValue >= 0 {
+      return revisionNumber.intValue
+    }
+
     guard value["snapshotComplete"] as? Bool == true,
-          let date = value["date"] as? String,
-          date == expectedDate,
+          value["date"] as? String == expectedDate,
           let state = value["state"] as? String,
           let countNumber = value["deliveryCount"] as? NSNumber,
           let rows = value["deliveries"] as? [[String: Any]],
@@ -766,6 +953,7 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
     let count = countNumber.intValue
     let revision = revisionNumber.intValue
     guard count >= 0, revision >= 0, count == rows.count,
+          !rows.contains(where: { $0["id"] as? String == expectedDeliveryId }),
           rows.allSatisfy({
             ($0["id"] as? String)?.isEmpty == false &&
             $0["clientName"] is String &&
@@ -774,7 +962,7 @@ struct RigattiDeliveryCompletionIntent: AppIntent {
           }) else { return nil }
     guard (state == "pending" && count > 0) ||
           ((state == "all_completed" || state == "empty") && count == 0) else { return nil }
-    return (date, state, count, rows, revision)
+    return revision
   }
 }
 
@@ -967,7 +1155,6 @@ function transformWidgetObjectSource(source) {
     ) {
       throw new Error('EntregasDoDia app timeline lock transform is only partially present.');
     }
-    return source;
   }
 
   const replacement = `  func updateTimeline(entries: [WidgetsJSTimelineEntry]) throws {
@@ -977,8 +1164,14 @@ function transformWidgetObjectSource(source) {
     let dictionaries = entries.map { $0.toDictionary() }
     if name == "EntregasDoDia" {
       let written = try RigattiDeliveryWidgetKeychain.withTimelineMutationLock {
-        guard RigattiDeliveryWidgetKeychain.shouldAcceptAppTimeline(dictionaries) else { return false }
-        WidgetsStorage.set(dictionaries, forKey: "__expo_widgets_\\(name)_timeline")
+        let currentTimeline = WidgetsStorage.getArray(forKey: "__expo_widgets_\\(name)_timeline")?
+          .compactMap({ $0 as? [String: Any] }) ?? []
+        let mergedTimeline = RigattiDeliveryWidgetKeychain.preservingInFlightDeliveryActions(
+          dictionaries,
+          from: currentTimeline
+        )
+        guard RigattiDeliveryWidgetKeychain.shouldAcceptAppTimeline(mergedTimeline) else { return false }
+        WidgetsStorage.set(mergedTimeline, forKey: "__expo_widgets_\\(name)_timeline")
         WidgetsStorage.defaults?.synchronize()
         return true
       }

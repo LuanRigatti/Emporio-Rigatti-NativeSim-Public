@@ -40,6 +40,24 @@ consistente entre os checkouts oficiais, sem variantes específicas por ambiente
 As menções às branches nas seções posteriores deste documento registram o
 histórico das entregas e devem ser preservadas como histórico.
 
+## Widget iOS de entregas do dia — estado publicado em 2026-10-20
+
+- A conclusão pelo widget usa o App Intent `RigattiDeliveryCompletionIntent`.
+  Antes da chamada de rede, o estado `pending` e o identificador da ação são
+  gravados no App Group e o WidgetKit é solicitado a recarregar a timeline; o
+  item só sai da lista depois da confirmação canônica de
+  `deliveryWidgetActions`. Falhas restauram o item como tentativa disponível
+  com indicador de erro. A atualização da timeline do app preserva ações em
+  andamento e confirmações locais para evitar regressões por snapshots antigos.
+- O protocolo `responseVersion: 2` retorna somente a confirmação da entrega e
+  evita reler a lista completa do dia na transação. A função mantém resposta
+  completa para widgets já instalados que usam o protocolo anterior; a
+  otimização passa a valer após publicar `deliveryWidgetActions`.
+- A função ainda precisa de deploy separado e a mudança do config plugin gera
+  código nativo Swift, portanto testar o fluxo exige uma nova iOS Development
+  Build. A publicação deste snapshot não inclui deploy, prebuild, compilação ou
+  validação em dispositivo.
+
 ## Histórico — manutenção e validações do Expo SDK 57 (2026-10-03)
 
 Este bloco registra o estado do checkout `ajustes-codex` naquele checkpoint.

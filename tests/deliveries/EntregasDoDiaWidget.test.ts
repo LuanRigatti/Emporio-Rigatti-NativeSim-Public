@@ -29,6 +29,8 @@ type TreeNode = {
     minLength?: number;
     spacing?: number;
     uiImage?: string;
+    systemName?: string;
+    color?: string;
     destination?: string;
     target?: string;
     size?: number;
@@ -652,6 +654,59 @@ describe('EntregasDoDia isolated widget layout', () => {
       ).toEqual(['pareact://historico?mode=wholesale']);
     },
   );
+
+  it('shows a filled check immediately and suppresses duplicate taps while an action is pending', () => {
+    const tree = renderWidget(
+      {
+        date: '2026-10-15',
+        state: 'pending',
+        deliveryCount: 1,
+        deliveries: [
+          { ...deliveries[0]!, completionState: 'pending', completionActionId: 'action-1' },
+        ],
+      },
+      'systemMedium',
+      'light',
+      true,
+    );
+
+    expect(collectNodes(tree, 'Button')).toHaveLength(0);
+    expect(collectNodes(tree, 'Image').map(({ props }) => props?.systemName)).toContain(
+      'checkmark.circle.fill',
+    );
+    const check = collectNodes(tree, 'Image').find(
+      ({ props }) => props?.systemName === 'checkmark.circle.fill',
+    );
+    expect(check?.props?.color).toBe('#FF9F0A');
+    expect(check?.props?.size).toBe(20);
+    expect(check?.props?.modifiers?.find(({ name }) => name === 'frame')?.args?.[0]).toEqual({
+      width: 34,
+      height: 34,
+    });
+  });
+
+  it('shows an error symbol and keeps a failed completion retryable', () => {
+    const tree = renderWidget(
+      {
+        date: '2026-10-15',
+        state: 'pending',
+        deliveryCount: 1,
+        deliveries: [{ ...deliveries[0]!, completionState: 'failed' }],
+      },
+      'systemMedium',
+      'light',
+      true,
+    );
+
+    expect(collectNodes(tree, 'Button')).toHaveLength(1);
+    expect(collectNodes(tree, 'Button')[0]?.props?.target).toBe(
+      'rigatti-delivery-complete:2026-10-15:delivery-a',
+    );
+    const errorIcon = collectNodes(tree, 'Image').find(
+      ({ props }) => props?.systemName === 'exclamationmark.circle.fill',
+    );
+    expect(errorIcon?.props?.color).toBe('#FF3B30');
+  });
 
   it.each(['light', 'dark'] as const)(
     'renders eight large rows in source order in %s mode and leaves later data hidden',

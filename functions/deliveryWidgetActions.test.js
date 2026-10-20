@@ -29,6 +29,7 @@ function createFakeAdmin(initialDocuments = {}) {
   ]);
   const timestamp = { __serverTimestamp: true };
   let transactionTail = Promise.resolve();
+  let transactionQueryReadCount = 0;
 
   function reference(path) {
     return {
@@ -75,6 +76,7 @@ function createFakeAdmin(initialDocuments = {}) {
       const transaction = {
         async get(target) {
           if (target.kind === 'query') {
+            transactionQueryReadCount += 1;
             const prefix = `${target.path}/`;
             const docs = [...documents.entries()]
               .filter(
@@ -122,6 +124,7 @@ function createFakeAdmin(initialDocuments = {}) {
     delete(path) {
       documents.delete(path);
     },
+    transactionQueryReadCount: () => transactionQueryReadCount,
   };
 
   const auth = {
@@ -527,7 +530,7 @@ test('invalidates a capability when the Firebase account has been deleted', asyn
   assert.deepEqual(response.body, { error: 'authorization_expired' });
 });
 
-test('completes only the derived user delivery and returns the next canonical pending rows', async () => {
+test('completes only the derived user delivery and returns a narrow confirmation', async () => {
   const fake = createFakeAdmin({
     'users/uid-derived-from-token/deliveries/ana': {
       clientNameSnapshot: 'Ana',
@@ -570,18 +573,20 @@ test('completes only the derived user delivery and returns the next canonical pe
         sessionId: issued.body.sessionId,
         deliveryId: 'ana',
         date: today,
+        responseVersion: 2,
         uid: 'uid-other',
       },
     }),
   );
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.body.snapshotComplete, true);
-  assert.equal(response.body.state, 'pending');
-  assert.equal(response.body.deliveryCount, 1);
-  assert.equal(response.body.deliveries[0].id, 'bia');
-  assert.equal(response.body.deliveries[0].quantityLabel, '3 baldes');
-  assert.equal(response.body.deliveries[0].valueLabel, 'R$ 150,00');
+  assert.deepEqual(response.body, {
+    confirmed: true,
+    deliveryId: 'ana',
+    date: today,
+    revision: 1,
+  });
+  assert.equal(fake.db.transactionQueryReadCount(), 0);
   const completed = fake.db.dump('users/uid-derived-from-token/deliveries/ana');
   assert.equal(completed.delivered, true);
   assert.deepEqual(completed.status, 'Não Pago');
@@ -590,7 +595,75 @@ test('completes only the derived user delivery and returns the next canonical pe
   assert.equal(fake.db.dump('users/uid-other/deliveries/victim').delivered, false);
 });
 
-test('repeated completion is idempotent and distinguishes all-completed from an empty day', async () => {
+test('keeps the full canonical response for widgets using the legacy action protocol', async () => {
+  const fake = createFakeAdmin({
+    'users/uid-derived-from-token/deliveries/ana': {
+      clientNameSnapshot: 'Ana',
+      date: today,
+      delivered: false,
+      quantity: 2,
+      totalValue: 100,
+    },
+    'users/uid-derived-from-token/deliveries/bia': {
+      clientNameSnapshot: 'Bia',
+      date: today,
+      delivered: false,
+      quantity: 3,
+      totalValue: 150,
+    },
+  });
+  const handler = deterministicHandler(fake);
+  const issued = await invoke(
+    handler,
+    requestMock({ operation: 'issue', authorization: `Bearer ${firebaseIdToken}` }),
+  );
+  const response = await invoke(
+    handler,
+    requestMock({
+      operation: 'complete',
+      authorization: `Bearer ${issued.body.refreshCapability}`,
+      body: { sessionId: issued.body.sessionId, deliveryId: 'ana', date: today },
+    }),
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.snapshotComplete, true);
+  assert.equal(response.body.state, 'pending');
+  assert.equal(response.body.deliveryCount, 1);
+  assert.equal(response.body.deliveries[0].id, 'bia');
+  assert.equal(fake.db.transactionQueryReadCount(), 1);
+});
+
+test('legacy widget snapshots keep Firestore IDs and canonical delivery order', () => {
+  const snapshot = projectCompleteDay(
+    [
+      {
+        id: 'added-late',
+        data: {
+          id: 'untrusted-payload-id',
+          dateAddedAt: 300,
+          createdAt: 1,
+          delivered: false,
+        },
+      },
+      { id: 'tie-b', data: { createdAt: 100, delivered: false } },
+      { id: 'added-early', data: { dateAddedAt: 100, createdAt: 900, delivered: false } },
+      { id: 'legacy-first', data: { createdAt: new Date(50), delivered: false } },
+      { id: 'tie-a', data: { createdAt: 100, delivered: false } },
+      { id: 'unknown-b', data: { delivered: false } },
+      { id: 'unknown-a', data: { delivered: false } },
+    ],
+    today,
+    1,
+  );
+
+  assert.deepEqual(
+    snapshot.deliveries.map(({ id }) => id),
+    ['legacy-first', 'added-early', 'tie-a', 'tie-b', 'added-late', 'unknown-a', 'unknown-b'],
+  );
+});
+
+test('repeated completion is idempotent and returns the unchanged revision', async () => {
   const fake = createFakeAdmin({
     'users/uid-derived-from-token/deliveries/already': {
       clientNameSnapshot: 'Cliente',
@@ -611,7 +684,12 @@ test('repeated completion is idempotent and distinguishes all-completed from an 
       requestMock({
         operation: 'complete',
         authorization: `Bearer ${issued.body.refreshCapability}`,
-        body: { sessionId: issued.body.sessionId, deliveryId: 'already', date: today },
+        body: {
+          sessionId: issued.body.sessionId,
+          deliveryId: 'already',
+          date: today,
+          responseVersion: 2,
+        },
       }),
     );
 
@@ -620,175 +698,27 @@ test('repeated completion is idempotent and distinguishes all-completed from an 
   const second = await complete();
   assert.equal(first.statusCode, 200);
   assert.equal(second.statusCode, 200);
-  assert.equal(second.body.state, 'all_completed');
-  assert.equal(second.body.deliveryCount, 0);
+  assert.deepEqual(second.body, {
+    confirmed: true,
+    deliveryId: 'already',
+    date: today,
+    revision: first.body.revision,
+  });
   assert.equal(second.body.revision, first.body.revision);
   assert.deepEqual(
     fake.db.dump('users/uid-derived-from-token/deliveries/already').updatedAt,
     updatedAt,
   );
-  assert.equal(projectCompleteDay([], today, 3).state, 'empty');
-  assert.throws(
-    () =>
-      projectCompleteDay(
-        [{ id: 'unknown', data: { clientNameSnapshot: 'A Cliente', delivered: undefined } }],
-        today,
-        3,
-      ),
-    { code: 'incomplete_day_snapshot', status: 409 },
-  );
-
   fake.db.delete('users/uid-derived-from-token/deliveries/already');
   const empty = await complete();
   assert.equal(empty.statusCode, 404);
 });
 
-test('uses Firestore document IDs as stable widget delivery identities', () => {
-  const result = projectCompleteDay(
-    [
-      {
-        id: 'canonical-document-id',
-        data: {
-          id: 'untrusted-payload-id',
-          clientNameSnapshot: 'Ana',
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-    ],
-    today,
-    1,
-  );
-
-  assert.equal(result.deliveries[0].id, 'canonical-document-id');
-});
-
-test('orders widget rows by dateAddedAt, falling back to createdAt and stable IDs', () => {
-  const result = projectCompleteDay(
-    [
-      {
-        id: 'added-late',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          dateAddedAt: 200,
-          createdAt: 1,
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-      {
-        id: 'legacy-tie-b',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          createdAt: 100,
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-      {
-        id: 'added-early',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          dateAddedAt: new Date(100),
-          createdAt: 900,
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-      {
-        id: 'legacy-first',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          createdAt: new Date(50),
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-      {
-        id: 'legacy-tie-a',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          createdAt: 100,
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-      {
-        id: 'unknown-b',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-      {
-        id: 'unknown-a',
-        data: {
-          clientNameSnapshot: 'Cliente',
-          date: today,
-          delivered: false,
-          quantity: 1,
-          totalValue: 50,
-        },
-      },
-    ],
-    today,
-    1,
-  );
-
-  assert.deepEqual(
-    result.deliveries.map(({ id }) => id),
-    [
-      'legacy-first',
-      'added-early',
-      'legacy-tie-a',
-      'legacy-tie-b',
-      'added-late',
-      'unknown-a',
-      'unknown-b',
-    ],
-  );
-});
-
-test('completion response returns the remaining day in dateAddedAt order', async () => {
+test('concurrent duplicate completion requests write the canonical delivery once', async () => {
   const fake = createFakeAdmin({
-    'users/uid-derived-from-token/deliveries/completed': {
-      clientNameSnapshot: 'Concluída',
+    'users/uid-derived-from-token/deliveries/same': {
+      clientNameSnapshot: 'Cliente',
       date: today,
-      dateAddedAt: 250,
-      createdAt: 1,
-      delivered: false,
-      quantity: 1,
-      totalValue: 50,
-    },
-    'users/uid-derived-from-token/deliveries/later': {
-      clientNameSnapshot: 'Depois',
-      date: today,
-      dateAddedAt: 300,
-      createdAt: 2,
-      delivered: false,
-      quantity: 1,
-      totalValue: 50,
-    },
-    'users/uid-derived-from-token/deliveries/next': {
-      clientNameSnapshot: 'Próxima',
-      date: today,
-      dateAddedAt: 100,
-      createdAt: 999,
       delivered: false,
       quantity: 1,
       totalValue: 50,
@@ -799,24 +729,34 @@ test('completion response returns the remaining day in dateAddedAt order', async
     handler,
     requestMock({ operation: 'issue', authorization: `Bearer ${firebaseIdToken}` }),
   );
-  const response = await invoke(
-    handler,
-    requestMock({
-      operation: 'complete',
-      authorization: `Bearer ${issued.body.refreshCapability}`,
-      body: { sessionId: issued.body.sessionId, deliveryId: 'completed', date: today },
-    }),
-  );
+  const complete = () =>
+    invoke(
+      handler,
+      requestMock({
+        operation: 'complete',
+        authorization: `Bearer ${issued.body.refreshCapability}`,
+        body: {
+          sessionId: issued.body.sessionId,
+          deliveryId: 'same',
+          date: today,
+          responseVersion: 2,
+        },
+      }),
+    );
 
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(
-    response.body.deliveries.map(({ id }) => id),
-    ['next', 'later'],
-  );
-  assert.equal(fake.db.dump('users/uid-derived-from-token/deliveries/completed').delivered, true);
+  const [first, second] = await Promise.all([complete(), complete()]);
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.equal(first.body.confirmed, true);
+  assert.equal(second.body.confirmed, true);
+  assert.equal(first.body.revision, 1);
+  assert.equal(second.body.revision, 1);
+  assert.equal(fake.db.dump(`${SESSION_COLLECTION}/session-server-generated`).actionRevision, 1);
+  assert.equal(fake.db.dump('users/uid-derived-from-token/deliveries/same').delivered, true);
+  assert.equal(fake.db.transactionQueryReadCount(), 0);
 });
 
-test('serializes concurrent widget actions and returns a complete latest snapshot', async () => {
+test('serializes concurrent widget actions and returns a confirmation per delivery', async () => {
   const fake = createFakeAdmin({
     'users/uid-derived-from-token/deliveries/first': {
       clientNameSnapshot: 'A Cliente',
@@ -846,17 +786,18 @@ test('serializes concurrent widget actions and returns a complete latest snapsho
       requestMock({
         operation: 'complete',
         authorization: `Bearer ${issued.body.refreshCapability}`,
-        body: { sessionId: issued.body.sessionId, deliveryId, date: today },
+        body: { sessionId: issued.body.sessionId, deliveryId, date: today, responseVersion: 2 },
       }),
     );
 
   const [first, second] = await Promise.all([complete('first'), complete('second')]);
   assert.equal(first.statusCode, 200);
   assert.equal(second.statusCode, 200);
-  assert.equal(first.body.snapshotComplete, true);
-  assert.equal(second.body.snapshotComplete, true);
-  assert.equal(second.body.revision, first.body.revision + 1);
-  assert.equal(second.body.state, 'all_completed');
+  assert.deepEqual([first.body.deliveryId, second.body.deliveryId].sort(), ['first', 'second']);
+  assert.equal(first.body.confirmed, true);
+  assert.equal(second.body.confirmed, true);
+  assert.equal(Math.max(first.body.revision, second.body.revision), 2);
+  assert.equal(fake.db.transactionQueryReadCount(), 0);
   assert.equal(fake.db.dump(`${SESSION_COLLECTION}/session-server-generated`).actionRevision, 2);
   assert.equal(fake.db.dump('users/uid-derived-from-token/deliveries/first').delivered, true);
   assert.equal(fake.db.dump('users/uid-derived-from-token/deliveries/second').delivered, true);

@@ -60,7 +60,11 @@ function EntregasDoDiaWidget(
       typeof row.clientName === 'string' &&
       typeof row.quantityLabel === 'string' &&
       typeof row.valueLabel === 'string' &&
-      (!('completionURL' in row) || typeof row.completionURL === 'string')
+      (!('completionURL' in row) || typeof row.completionURL === 'string') &&
+      (!('completionState' in row) ||
+        row.completionState === 'pending' ||
+        row.completionState === 'failed') &&
+      (!('completionActionId' in row) || typeof row.completionActionId === 'string')
     );
   });
   const structurallyComplete =
@@ -100,12 +104,27 @@ function EntregasDoDiaWidget(
 
   const completionControl = (row: EntregasDoDiaWidgetRow) => {
     if (environment?.deliveryActionsAvailable === true) {
+      if (row.completionState === 'pending') {
+        return (
+          <Image
+            systemName="checkmark.circle.fill"
+            color="#FF9F0A"
+            size={20}
+            modifiers={[frame({ width: 34, height: 34 })]}
+          />
+        );
+      }
+
       return (
         <Button
           target={`rigatti-delivery-complete:${safeProps?.date}:${encodeURIComponent(row.id)}`}
           modifiers={[buttonStyle('plain'), frame({ width: 34, height: 34 })]}
         >
-          <Image systemName="circle" color="#8E8E93" size={20} />
+          <Image
+            systemName={row.completionState === 'failed' ? 'exclamationmark.circle.fill' : 'circle'}
+            color={row.completionState === 'failed' ? '#FF3B30' : '#8E8E93'}
+            size={20}
+          />
         </Button>
       );
     }

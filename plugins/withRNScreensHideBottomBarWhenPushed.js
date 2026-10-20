@@ -446,9 +446,18 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   RNSScreenView *sourceScreenView = [fromViewController isKindOfClass:[RNSScreen class]]
       ? [(RNSScreen *)fromViewController screenView] : nil;
   NSString *sourceScreenId = sourceScreenView.screenId;
+  NSArray<UIViewController *> *sharedStackControllers = sharedNavigationController.viewControllers ?: @[];
+  BOOL sharedStackIsSingleHomeRoot = sharedStackControllers.count == 1 &&
+      sharedStackControllers[0] == tabsScreenViewController;
+  BOOL sharedStackIsTransientSplashReplace = fromViewController != nil &&
+      sharedStackControllers.count == 2 &&
+      ((sharedStackControllers[0] == fromViewController &&
+        sharedStackControllers[1] == tabsScreenViewController) ||
+       (sharedStackControllers[1] == fromViewController &&
+        sharedStackControllers[0] == tabsScreenViewController));
   BOOL isSplashIndexReplace = [sourceScreenId hasPrefix:@"index-"] &&
       toViewController == tabsScreenViewController &&
-      sharedNavigationController.viewControllers.count == 1 &&
+      (sharedStackIsSingleHomeRoot || sharedStackIsTransientSplashReplace) &&
       sharedNavigationController.topViewController == tabsScreenViewController;
   if (!isSplashIndexReplace) return @"not_splash_home_replace";
   if (!rootTransitionCoordinator.isAnimated || rootTransitionCoordinator.isInteractive ||

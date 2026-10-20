@@ -297,9 +297,20 @@ describe('Home toolbar coordinator patch', () => {
       expect(eligibility).toContain('sharedNavigationController.transitionCoordinator');
       expect(eligibility).toContain('UITransitionContextFromViewControllerKey');
       expect(eligibility).toContain('UITransitionContextToViewControllerKey');
+      expect(eligibility).toContain('navigationController.viewControllers.count != 1');
+      expect(eligibility).toContain('navigationController.topViewController != viewController');
       expect(eligibility).toContain('[sourceScreenId hasPrefix:@"index-"]');
       expect(eligibility).toContain('toViewController == tabsScreenViewController');
-      expect(eligibility).toContain('sharedNavigationController.viewControllers.count == 1');
+      expect(eligibility).toContain(
+        'sharedStackControllers.count == 1 &&\n      sharedStackControllers[0] == tabsScreenViewController',
+      );
+      expect(eligibility).toContain(
+        'fromViewController != nil &&\n      sharedStackControllers.count == 2 &&\n      ((sharedStackControllers[0] == fromViewController &&\n        sharedStackControllers[1] == tabsScreenViewController) ||\n       (sharedStackControllers[1] == fromViewController &&\n        sharedStackControllers[0] == tabsScreenViewController))',
+      );
+      expect(eligibility).toContain(
+        'sharedNavigationController.topViewController == tabsScreenViewController',
+      );
+      expect(eligibility).not.toContain('sharedNavigationController.viewControllers.count != 1');
       expect(eligibility).toContain('rootTransitionCoordinator.isInteractive');
       expect(eligibility).toContain('tabTransitionCoordinator != rootTransitionCoordinator');
       expect(eligibility).toContain(
@@ -362,6 +373,9 @@ describe('Home toolbar coordinator patch', () => {
       expect(stack).toContain(
         '[tabsController synchronizeSharedNavigationBarWithReason:@"navigation-did-show"];',
       );
+      expect(stack).toContain('[newControllers addObject:previousTop];');
+      expect(stack).toContain('[_controller setViewControllers:newControllers animated:NO];');
+      expect(stack).toContain('[_controller popViewControllerAnimated:YES];');
     } finally {
       rmSync(fixtureRoot, { recursive: true, force: true });
     }

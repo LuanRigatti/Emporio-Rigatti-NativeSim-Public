@@ -10,10 +10,11 @@ export type LiveActivityProjection = {
 export function projectWholesaleDeliverySnapshot(
   snapshot: CompleteDeliveryDateSnapshot,
 ): LiveActivityProjection {
+  const pendingDeliveries = snapshot.deliveries.filter((delivery) => !delivery.entregue);
   return {
     date: snapshot.date,
-    bucketCount: financialCalculationService.calculateQuantidade([...snapshot.deliveries]),
-    deliveryCount: snapshot.deliveries.length,
+    bucketCount: financialCalculationService.calculateQuantidade([...pendingDeliveries]),
+    deliveryCount: pendingDeliveries.length,
   };
 }
 

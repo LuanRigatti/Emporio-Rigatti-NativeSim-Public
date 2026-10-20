@@ -91,7 +91,11 @@ function isConfirmedActionEntry(
           fields.id.length > 0 &&
           typeof fields.clientName === 'string' &&
           typeof fields.quantityLabel === 'string' &&
-          typeof fields.valueLabel === 'string'
+          typeof fields.valueLabel === 'string' &&
+          (!('activityBucketCount' in fields) ||
+            (typeof fields.activityBucketCount === 'number' &&
+              Number.isFinite(fields.activityBucketCount) &&
+              fields.activityBucketCount >= 0))
         );
       })
     );

@@ -12,6 +12,7 @@ export type EntregasDoDiaWidgetRow = {
   id: string;
   clientName: string;
   quantityLabel: string;
+  activityBucketCount?: number;
   valueLabel: string;
   completionURL?: string;
   completionState?: 'pending' | 'failed';
@@ -115,6 +116,10 @@ export function projectEntregasDoDiaSnapshot(
         id: delivery.id,
         clientName: formatClientName(delivery.cliente),
         quantityLabel: `${quantity} ${delivery.quantidade === 1 ? 'balde' : 'baldes'}`,
+        activityBucketCount: projectWholesaleDeliverySnapshot({
+          ...snapshot,
+          deliveries: [delivery],
+        }).bucketCount,
         valueLabel: Number.isFinite(delivery.valor) ? formatCurrency(delivery.valor) : '—',
         ...(completionURLForDelivery
           ? { completionURL: completionURLForDelivery(delivery.id, snapshot.date) }

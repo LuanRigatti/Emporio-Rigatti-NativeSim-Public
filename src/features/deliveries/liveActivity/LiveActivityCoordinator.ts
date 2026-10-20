@@ -6,6 +6,7 @@ import {
   firestoreDeliveryDataSource,
   type FirestoreDeliveryDataSource,
 } from '@/services/deliveries/FirestoreDeliveryDataSource';
+import { getDeliveryWidgetActionsNative } from '@/services/deliveries/DeliveryWidgetActionsNative';
 import { todayIso } from '@/utils/data';
 
 import type {
@@ -40,6 +41,12 @@ type CoordinatorDependencies = {
   isIOS?: boolean;
   now?: () => Date;
   scheduleMidnightRefresh?: boolean;
+  getWidgetAuthorization?: () => {
+    uid: string;
+    sessionId: string;
+    sessionVersion: number;
+  } | null;
+  getWidgetActionRevision?: (sessionId: string, date: string) => number;
 };
 
 const UNSUPPORTED_MESSAGE = 'A Atividade ao vivo está disponível somente na versão iOS instalada.';
@@ -54,6 +61,12 @@ export class LiveActivityCoordinator {
   private readonly isIOS: boolean;
   private readonly now: () => Date;
   private readonly shouldScheduleMidnightRefresh: boolean;
+  private readonly getWidgetAuthorization: NonNullable<
+    CoordinatorDependencies['getWidgetAuthorization']
+  >;
+  private readonly getWidgetActionRevision: NonNullable<
+    CoordinatorDependencies['getWidgetActionRevision']
+  >;
   private readonly listeners = new Set<() => void>();
   private state: LiveActivityCoordinatorState = {
     supported: null,
@@ -84,6 +97,13 @@ export class LiveActivityCoordinator {
     this.isIOS = dependencies.isIOS ?? Platform.OS === 'ios';
     this.now = dependencies.now ?? (() => new Date());
     this.shouldScheduleMidnightRefresh = dependencies.scheduleMidnightRefresh ?? true;
+    const nativeActions = getDeliveryWidgetActionsNative();
+    this.getWidgetAuthorization =
+      dependencies.getWidgetAuthorization ??
+      (() => nativeActions?.deliveryWidgetAuthorizationMetadata() ?? null);
+    this.getWidgetActionRevision =
+      dependencies.getWidgetActionRevision ??
+      ((sessionId, date) => nativeActions?.deliveryWidgetActionRevision(sessionId, date) ?? 0);
   }
 
   public getSnapshot = (): LiveActivityCoordinatorState => this.state;
@@ -231,7 +251,7 @@ export class LiveActivityCoordinator {
         }
         this.updateState({ canStart: true });
         if (this.activeInstance && this.ownership?.uid === session.uid) {
-          await this.publishFreshSnapshot(snapshot, session.uid);
+          await this.publishFreshSnapshot(snapshot, session.uid, session.sessionVersion);
         }
       });
     } catch {
@@ -276,14 +296,11 @@ export class LiveActivityCoordinator {
 
           if (action === 'refresh' && existing) {
             this.updateState({ isActive: true, canStart: true });
-            await this.publishFreshSnapshot(snapshot, uid);
+            await this.publishFreshSnapshot(snapshot, uid, session.sessionVersion);
             return { ok: true };
           }
 
-          const content: LiveActivityContent = {
-            ...projectWholesaleDeliverySnapshot(snapshot),
-            isObsolete: false,
-          };
+          const content = this.createContent(snapshot, uid, session.sessionVersion);
           const activity = driver.start(
             content,
             '/historico?mode=wholesale',
@@ -443,15 +460,13 @@ export class LiveActivityCoordinator {
   private async publishFreshSnapshot(
     snapshot: CompleteDeliveryDateSnapshot,
     uid: string,
+    sessionVersion: number,
   ): Promise<void> {
     const instance = this.activeInstance;
     const existingOwnership = this.ownership;
     if (!instance || !existingOwnership || existingOwnership.uid !== uid) return;
 
-    const content: LiveActivityContent = {
-      ...projectWholesaleDeliverySnapshot(snapshot),
-      isObsolete: false,
-    };
+    const content = this.createContent(snapshot, uid, sessionVersion);
     if (this.sameContent(existingOwnership.content, content)) return;
 
     const nextOwnership: LiveActivityOwnership = {
@@ -538,8 +553,38 @@ export class LiveActivityCoordinator {
       left.date === right.date &&
       left.bucketCount === right.bucketCount &&
       left.deliveryCount === right.deliveryCount &&
-      left.isObsolete === right.isObsolete
+      left.isObsolete === right.isObsolete &&
+      left.actionSessionId === right.actionSessionId &&
+      left.actionRevision === right.actionRevision
     );
+  }
+
+  private createContent(
+    snapshot: CompleteDeliveryDateSnapshot,
+    uid: string,
+    sessionVersion: number,
+  ): LiveActivityContent {
+    const content: LiveActivityContent = {
+      ...projectWholesaleDeliverySnapshot(snapshot),
+      isObsolete: false,
+    };
+    try {
+      const authorization = this.getWidgetAuthorization();
+      if (
+        authorization?.uid === uid &&
+        authorization.sessionVersion === sessionVersion &&
+        authorization.sessionId.trim().length > 0
+      ) {
+        content.actionSessionId = authorization.sessionId;
+        content.actionRevision = Math.max(
+          0,
+          this.getWidgetActionRevision(authorization.sessionId, snapshot.date),
+        );
+      }
+    } catch {
+      // The activity remains available, but widget actions cannot target it without a valid session.
+    }
+    return content;
   }
 
   private setSupportedError(): void {

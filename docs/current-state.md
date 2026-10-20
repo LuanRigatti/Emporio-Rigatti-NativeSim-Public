@@ -17,13 +17,17 @@ O projeto possui cinco branches oficiais, cada uma com seu checkout local:
 - `main` — `C:\Projetos\emporiorigatti-main`
 
 `Codex` foi criada a partir do commit `8c5092e`; a tag `sdk57-pre-sdk58`
-preserva o baseline anterior à migração. Este checkout está no checkpoint
-`5dfc143`, com Expo SDK 58 (`expo ~58.0.12`), React Native `0.88.0`, Expo
-Router `~58.0.21` e `@expo/ui ~58.0.19`, conforme declarado em `package.json`.
-A validação parcial desse checkpoint no NativeSim foi informada pelo usuário;
-isso não comprova validação completa nem comportamento em iPhone físico. Este
-registro vale para o checkout `Codex`; as demais branches não foram alteradas
-nesta tarefa e suas versões devem ser verificadas em seus próprios manifests.
+preserva o baseline anterior à migração. Este snapshot registra o baseline de
+código auditado em 2026-10-20: branch `Codex`, HEAD
+`2ee3536a5519b134296a64963ebd967af637fcd2`, Expo SDK 58 (`expo ~58.0.12`),
+React `19.3.0`, React Native `0.88.0`, Expo Router `~58.0.21`,
+`@expo/ui ~58.0.19` e `expo-widgets ~58.0.19`, conforme declarado em
+`package.json`.
+A validação parcial no NativeSim informada pelo usuário refere-se somente ao
+checkpoint histórico `5dfc143`; não valida o HEAD auditado nem comprova
+comportamento em iPhone físico. Este registro vale para o checkout `Codex`; as
+demais branches não foram alteradas nesta tarefa e suas versões devem ser
+verificadas em seus próprios manifests.
 
 A Skill global `$sync-codex-antigravity-main-opencode` sincroniza manualmente
 somente `ajustes-codex`, `Antigravity`, `opencode` e `main`, usando
@@ -57,6 +61,61 @@ histórico das entregas e devem ser preservadas como histórico.
   código nativo Swift, portanto testar o fluxo exige uma nova iOS Development
   Build. A publicação deste snapshot não inclui deploy, prebuild, compilação ou
   validação em dispositivo.
+
+## Live Activity iOS Atacado e Dynamic Island — código auditado em 2026-10-20
+
+- A Live Activity de Atacado é implementada em
+  `src/features/deliveries/liveActivity/` com `expo-widgets` e
+  `createLiveActivity('WholesaleDeliveryLiveActivity', ...)`. No iOS, o pacote
+  gera a integração nativa com ActivityKit/WidgetKit. Ela é separada dos
+  widgets da Tela de Início (`widgets[]`) e do App Intent de conclusão de
+  entrega.
+- A ação de iniciar/encerrar fica na toolbar da página `/registrar-entrega`.
+  O app conecta o coordenador no layout raiz e associa a atividade à sessão e
+  ao UID atual. Para iniciar ou atualizar as contagens com dados atuais, exige
+  um snapshot remoto completo das entregas de hoje; cache, consulta parcial ou
+  filtrada não habilitam essa origem.
+- O conteúdo projetado mostra a data, a quantidade de baldes e a quantidade de
+  entregas ainda pendentes, calculadas pela projeção compartilhada com o
+  serviço financeiro. Não apresenta clientes ou ações individuais.
+- A interface define a apresentação de banner na Tela Bloqueada e as regiões
+  compacta, mínima e expandida da Dynamic Island. Exibe ícones de caixa/lista,
+  data, rótulo Atacado, contagens e um aviso quando os dados estão obsoletos ou
+  a ActivityKit considera a atividade stale.
+- O coordenador publica snapshots completos após consultas remotas elegíveis e
+  mutações locais quando já há snapshot completo para a data. Quando uma
+  conclusão é confirmada pelo App Intent do widget, esse intent conforma
+  `LiveActivityIntent`, executa no processo do app em background sem abrir a
+  interface e atualiza ActivityKit a partir da projeção de pendências já
+  persistida no App Group. A atividade recebe somente o identificador opaco da
+  sessão de autorização; UID e contas não são copiados para o estado da
+  atividade. Não é necessário APNs para esse caminho local. Ao voltar ao
+  primeiro plano, o coordenador reconcilia a sessão e consulta novamente o dia
+  atual. Não há listener Firestore `onSnapshot` nem atualização remota por push
+  configurada (`enablePushNotifications: false` em `app.config.js`); mudanças
+  feitas fora desta sessão podem ficar sem refletir até uma consulta completa
+  posterior.
+- `staleDate` aponta para a próxima meia-noite local. Isso marca os dados como
+  stale, mas não encerra a ActivityKit automaticamente; a reconciliação ao
+  voltar ao primeiro plano pode marcá-la obsoleta e publicar dados atuais.
+  O usuário pode encerrá-la pela toolbar. Logout/troca de UID encerra as
+  instâncias, e a recuperação remove atividades sem ownership válido e
+  duplicatas.
+- O toque na atividade abre o deep link `/historico?mode=wholesale`, que entra
+  no Histórico em modo Atacado. A URL é convertida com `expo-linking` pelo
+  adaptador iOS.
+- `supported` indica disponibilidade do driver nativo; a autorização do
+  sistema para Live Activities é verificada pelo módulo nativo ao iniciar. Se
+  estiver desativada, a toolbar ainda pode parecer disponível e a ação retorna
+  erro genérico. Também pode haver erro reportado depois que ActivityKit já
+  encerrou a atividade se a limpeza do ownership local falhar.
+- Este registro descreve implementação encontrada no código, não validação em
+  dispositivo: nesta auditoria documental não foram executados testes,
+  compilação ou validação física em iPhone. Os testes existentes de projeção,
+  coordenação, snapshots Firestore e reconciliação após restore não foram
+  executados nesta tarefa. A afirmação posterior no snapshot histórico de que
+  Live Activities/Dynamic Island não haviam sido adicionadas pertence ao
+  checkpoint histórico ali registrado e não descreve este código atual.
 
 ## Histórico — manutenção e validações do Expo SDK 57 (2026-10-03)
 

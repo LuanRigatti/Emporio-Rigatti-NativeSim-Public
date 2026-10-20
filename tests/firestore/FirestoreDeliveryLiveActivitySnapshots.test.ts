@@ -22,6 +22,7 @@ jest.mock('firebase/firestore', () => ({
   getDoc: jest.fn(async () => ({ exists: () => false, metadata: { fromCache: false } })),
   getDocs: jest.fn(async () => ({ docs: [], metadata: { fromCache: false } })),
   query: jest.fn(() => ({})),
+  runTransaction: jest.fn(),
   serverTimestamp: jest.fn(() => ({ __type: 'serverTimestamp' })),
   setDoc: jest.fn(async () => undefined),
   updateDoc: jest.fn(async () => undefined),
@@ -63,6 +64,7 @@ const SESSION_VERSION = 4;
 const TODAY = '2026-10-03';
 const mockGetDocs = firestore.getDocs as unknown as jest.Mock;
 const mockGetDoc = firestore.getDoc as unknown as jest.Mock;
+const mockRunTransaction = firestore.runTransaction as unknown as jest.Mock;
 
 function rawDelivery(id: string, quantity = 1, date = TODAY): RawDelivery {
   return {
@@ -145,6 +147,7 @@ describe('Firestore delivery Live Activity snapshots', () => {
       uid: UID,
     });
     expect(events).toEqual([
+      { type: 'refreshing', uid: UID, date: TODAY },
       expect.objectContaining({
         type: 'complete',
         snapshot: expect.objectContaining({ date: TODAY, deliveries: [] }),
@@ -165,7 +168,7 @@ describe('Firestore delivery Live Activity snapshots', () => {
 
     expect(completeSnapshot(source)).toBeNull();
     expect(source.getCached({ mode: 'today', date: TODAY }, UID, SESSION_VERSION)).toHaveLength(1);
-    expect(events).toEqual(['invalidated']);
+    expect(events).toEqual(['refreshing', 'invalidated']);
   });
 
   it('keeps the prior records but removes completeness when remote revalidation fails', async () => {
@@ -183,7 +186,7 @@ describe('Firestore delivery Live Activity snapshots', () => {
 
     expect(completeSnapshot(source)).toBeNull();
     expect(source.getCached({ mode: 'today', date: TODAY }, UID, SESSION_VERSION)).toHaveLength(1);
-    expect(events).toEqual(['invalidated']);
+    expect(events).toEqual(['refreshing', 'invalidated']);
   });
 
   it('publishes create, quantity/date update and delete from an existing complete baseline without extra reads', async () => {
@@ -219,6 +222,50 @@ describe('Firestore delivery Live Activity snapshots', () => {
       'second',
     ]);
     expect(mockGetDocs).toHaveBeenCalledTimes(2);
+    expect(mockGetDoc).not.toHaveBeenCalled();
+  });
+
+  it('publishes confirmed delivered and undelivered mutations from the complete snapshot without extra reads', async () => {
+    const source = new FirestoreDeliveryDataSource();
+    source.setSessionUser(UID, SESSION_VERSION);
+    mockGetDocs.mockResolvedValueOnce(querySnapshot([rawDelivery('pending', 2)]));
+    await source.load(UID, { mode: 'today', date: TODAY }, {}, SESSION_VERSION);
+    const snapshots: Delivery[][] = [];
+    source.subscribeDateSnapshots((event) => {
+      if (event.type === 'complete') snapshots.push([...event.snapshot.deliveries]);
+    });
+    mockRunTransaction.mockImplementation(async (_database, update) =>
+      update({
+        get: jest.fn(async () => ({ exists: () => true, data: () => ({ delivered: true }) })),
+        update: jest.fn(),
+      }),
+    );
+
+    await source.setDelivered(UID, 'pending', true);
+    await source.setDelivered(UID, 'pending', false);
+
+    expect(snapshots.map((deliveries) => deliveries[0]?.entregue)).toEqual([true, false]);
+    expect(mockGetDocs).toHaveBeenCalledTimes(1);
+    expect(mockGetDoc).not.toHaveBeenCalled();
+  });
+
+  it('publishes each confirmed bulk delivered change to an existing complete snapshot', async () => {
+    const source = new FirestoreDeliveryDataSource();
+    source.setSessionUser(UID, SESSION_VERSION);
+    mockGetDocs.mockResolvedValueOnce(
+      querySnapshot([rawDelivery('first', 2), rawDelivery('second', 3)]),
+    );
+    await source.load(UID, { mode: 'today', date: TODAY }, {}, SESSION_VERSION);
+    const snapshots: Delivery[][] = [];
+    source.subscribeDateSnapshots((event) => {
+      if (event.type === 'complete') snapshots.push([...event.snapshot.deliveries]);
+    });
+
+    await source.editMany(UID, ['first', 'second'], { entregue: true });
+
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1]?.every((delivery) => delivery.entregue)).toBe(true);
+    expect(mockGetDocs).toHaveBeenCalledTimes(1);
     expect(mockGetDoc).not.toHaveBeenCalled();
   });
 

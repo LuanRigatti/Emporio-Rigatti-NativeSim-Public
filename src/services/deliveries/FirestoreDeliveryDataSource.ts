@@ -1259,6 +1259,9 @@ export class FirestoreDeliveryDataSource {
         }
         this.assertSessionRequestCurrent(request);
         this.records.set(id, { ...current, ...patch });
+        if (patch.entregue !== undefined && current.entregue !== patch.entregue) {
+          this.publishMutatedCompleteDates(request.uid, [current.data], request.generation);
+        }
         void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
       }),
     );

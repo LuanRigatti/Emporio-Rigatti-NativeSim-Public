@@ -19,7 +19,7 @@ function delivery(overrides: Partial<Delivery> = {}): Delivery {
 }
 
 describe('Live Activity projection', () => {
-  it('projects the canonical quantity sum and counts every delivery record', () => {
+  it('projects the canonical quantity sum and count of pending deliveries only', () => {
     const snapshot: CompleteDeliveryDateSnapshot = {
       uid: 'user-1',
       date: '2026-10-03',
@@ -33,8 +33,26 @@ describe('Live Activity projection', () => {
 
     expect(projectWholesaleDeliverySnapshot(snapshot)).toEqual({
       date: '2026-10-03',
-      bucketCount: 5.5,
-      deliveryCount: 3,
+      bucketCount: 2,
+      deliveryCount: 1,
+    });
+  });
+
+  it('projects zero pending buckets and deliveries when every delivery is complete', () => {
+    const snapshot: CompleteDeliveryDateSnapshot = {
+      uid: 'user-1',
+      date: '2026-10-03',
+      completedAt: 1,
+      deliveries: [
+        delivery({ id: 'delivered-one', quantidade: 3, entregue: true }),
+        delivery({ id: 'delivered-two', quantidade: 0.5, entregue: true }),
+      ],
+    };
+
+    expect(projectWholesaleDeliverySnapshot(snapshot)).toEqual({
+      date: '2026-10-03',
+      bucketCount: 0,
+      deliveryCount: 0,
     });
   });
 

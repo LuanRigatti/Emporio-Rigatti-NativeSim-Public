@@ -22,14 +22,14 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 
 const TODAY = '2026-10-03';
 
-function delivery(id: string, quantity = 2): Delivery {
+function delivery(id: string, quantity = 2, delivered = false): Delivery {
   return {
     id,
     cliente: `Cliente ${id}`,
     quantidade: quantity,
     valor: quantity * 25,
     status: 'Não Pago',
-    entregue: false,
+    entregue: delivered,
     data: TODAY,
   };
 }
@@ -144,6 +144,8 @@ function makeCoordinator(
   source: FakeSnapshotSource,
   driver = new FakeDriver(),
   ownershipStore = new FakeOwnershipStore(),
+  widgetAuthorization?: { uid: string; sessionId: string; sessionVersion: number } | null,
+  widgetActionRevision = 0,
 ) {
   const coordinator = new LiveActivityCoordinator({
     source: source as never,
@@ -152,6 +154,8 @@ function makeCoordinator(
     isIOS: true,
     now: () => new Date(2026, 9, 3, 12),
     scheduleMidnightRefresh: false,
+    getWidgetAuthorization: () => widgetAuthorization ?? null,
+    getWidgetActionRevision: () => widgetActionRevision,
   });
   coordinator.attach();
   return { coordinator, driver, ownershipStore };
@@ -176,9 +180,11 @@ describe('LiveActivityCoordinator', () => {
     attachedCoordinators.forEach((coordinator) => coordinator.detach());
   });
 
-  it('starts, updates from a complete snapshot, and ends the ActivityKit instance', async () => {
+  it('starts, updates pending counts from complete snapshots, and ends the ActivityKit instance', async () => {
     const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
+    source.setSnapshot(
+      snapshot('user-a', [delivery('pending', 2), delivery('already-delivered', 3, true)]),
+    );
     const { coordinator, driver, ownershipStore } = makeCoordinator(source);
     attachedCoordinators.push(coordinator);
 
@@ -199,15 +205,80 @@ describe('LiveActivityCoordinator', () => {
     });
     expect(ownershipStore.value?.activityId).toBe('activity-1');
 
-    const updated = snapshot('user-a', [delivery('one', 4), delivery('two', 1)]);
-    source.setSnapshot(updated);
-    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: updated });
-    expect(driver.instances[0]?.content).toMatchObject({ bucketCount: 5, deliveryCount: 2 });
+    const markedDelivered = snapshot('user-a', [
+      delivery('pending', 2, true),
+      delivery('already-delivered', 3, true),
+    ]);
+    source.setSnapshot(markedDelivered);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: markedDelivered });
+    expect(driver.instances[0]?.content).toMatchObject({ bucketCount: 0, deliveryCount: 0 });
+
+    const markedPending = snapshot('user-a', [
+      delivery('pending', 2),
+      delivery('already-delivered', 3, true),
+    ]);
+    source.setSnapshot(markedPending);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: markedPending });
+    expect(driver.instances[0]?.content).toMatchObject({ bucketCount: 2, deliveryCount: 1 });
 
     await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
     expect(driver.instances[0]?.ended).toBe(true);
     expect(ownershipStore.value).toBeNull();
     expect(coordinator.getSnapshot().isActive).toBe(false);
+  });
+
+  it('binds widget-triggered ActivityKit updates to the matching opaque authorization session', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot('user-a'));
+    const authorization = {
+      uid: 'user-a',
+      sessionId: 'opaque-widget-session',
+      sessionVersion: 4,
+    };
+    const { coordinator, driver } = makeCoordinator(
+      source,
+      new FakeDriver(),
+      new FakeOwnershipStore(),
+      authorization,
+      7,
+    );
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 4);
+    await coordinator.toggleFromToolbar();
+
+    expect(driver.instances[0]?.content).toEqual({
+      date: TODAY,
+      bucketCount: 2,
+      deliveryCount: 1,
+      isObsolete: false,
+      actionSessionId: 'opaque-widget-session',
+      actionRevision: 7,
+    });
+    expect(JSON.stringify(driver.instances[0]?.content)).not.toContain('user-a');
+  });
+
+  it('does not attach a widget authorization session from another UID or session version', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot('user-a'));
+    const { coordinator, driver } = makeCoordinator(
+      source,
+      new FakeDriver(),
+      new FakeOwnershipStore(),
+      { uid: 'user-b', sessionId: 'other-session', sessionVersion: 4 },
+      9,
+    );
+    attachedCoordinators.push(coordinator);
+
+    await coordinator.setSession('user-a', 4);
+    await coordinator.toggleFromToolbar();
+
+    expect(driver.instances[0]?.content).toEqual({
+      date: TODAY,
+      bucketCount: 2,
+      deliveryCount: 1,
+      isObsolete: false,
+    });
   });
 
   it('recovers the owned activity, refreshes it, and ends duplicate instances', async () => {

@@ -60,6 +60,10 @@ function EntregasDoDiaWidget(
       typeof row.clientName === 'string' &&
       typeof row.quantityLabel === 'string' &&
       typeof row.valueLabel === 'string' &&
+      (!('activityBucketCount' in row) ||
+        (typeof row.activityBucketCount === 'number' &&
+          Number.isFinite(row.activityBucketCount) &&
+          row.activityBucketCount >= 0)) &&
       (!('completionURL' in row) || typeof row.completionURL === 'string') &&
       (!('completionState' in row) ||
         row.completionState === 'pending' ||

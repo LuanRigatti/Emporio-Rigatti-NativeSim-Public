@@ -14,18 +14,21 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 
 # Stack
 
-- Expo SDK 58 neste checkout `Codex`, no checkpoint `5dfc143`: Expo
-  `~58.0.12`, React Native `0.88.0`, React `19.3.0`, Expo Router `~58.0.21`
-  e `@expo/ui ~58.0.19`, conforme declarado em `package.json`.
-- A validação deste checkpoint no NativeSim foi reportada como parcial. Não
-  inferir validação completa nem comportamento em iPhone físico. Não assumir
-  que outras branches foram migradas; confirmar cada checkout pelo Git e pelo
-  respectivo manifest antes de trabalhar nele.
+- Baseline de código auditado em 2026-10-20 neste checkout `Codex`, HEAD
+  `72e10d6cb48e5f706b49a2520e3772095e3df946`: Expo SDK 58 (`expo ~58.0.12`),
+  React `19.3.0`, React Native `0.88.0`, Expo Router `~58.0.21`,
+  `@expo/ui ~58.0.19` e `expo-widgets ~58.0.19`, conforme `package.json`.
+  Confirme Git e manifest antes de assumir que esse baseline continua atual.
+- A validação parcial no NativeSim reportada pelo usuário refere-se somente ao
+  checkpoint histórico `5dfc143`; não valida o HEAD acima nem comprova
+  comportamento em iPhone físico. Não assumir que outras branches foram
+  migradas; confirmar cada checkout pelo Git e pelo respectivo manifest.
 - React Native
 - TypeScript
 - Expo Router
 - expo-router/unstable-native-tabs
-- @expo/ui 57.0.21
+- @expo/ui ~58.0.19
+- expo-widgets ~58.0.19
 - Development Build para iOS
 
 ## Documentação do Expo
@@ -214,8 +217,8 @@ Priorizar:
 
 - Tratar `Codex` como checkout Expo SDK 58; confirmar a versão real antes de
   aplicar estas instruções a qualquer outro checkout.
-- Considerar a validação NativeSim do checkpoint `5dfc143` parcial, conforme
-  reportado pelo usuário.
+- A validação NativeSim parcial do checkpoint histórico `5dfc143` foi reportada
+  pelo usuário e não deve ser atribuída ao HEAD auditado em 2026-10-20.
 - Evitar wrappers com overflow:hidden ao redor de componentes SwiftUI.
 - Não envolver Button SwiftUI com Pressable.
 - O overpayment de pagamentos Retail é validado contra a leitura corrente, sem transação Firestore; concorrência multi-device continua sendo uma limitação conhecida.
@@ -241,10 +244,13 @@ Os checkouts oficiais são `Codex`
 (`C:\Projetos\emporiorigatti-main`).
 
 `Codex` foi criada a partir do commit `8c5092e`; a tag `sdk57-pre-sdk58`
-preserva o baseline anterior. Este checkout está no checkpoint `5dfc143` e usa
-Expo SDK 58. Esta atualização documental abrange somente `Codex`; não afirma a
-versão atual das outras branches nem as altera. Verifique o Git e o manifest de
-cada checkout antes de aplicar instruções específicas de versão. A Skill de
+preserva o baseline anterior. O código de `Codex` foi auditado no HEAD
+`72e10d6cb48e5f706b49a2520e3772095e3df946` e usa Expo SDK 58, conforme o
+manifest. A referência antiga `5dfc143` é somente o checkpoint associado à
+validação parcial histórica no NativeSim. Esta atualização documental abrange
+somente `Codex`; não afirma a versão atual das outras branches nem as altera.
+Verifique o Git e o manifest de cada checkout antes de aplicar instruções
+específicas de versão. A Skill de
 sincronização continua excluindo `Codex` até uma tarefa que autorize essa
 mudança.
 
@@ -341,6 +347,41 @@ Preserve a preferência do projeto por APIs nativas e oficiais:
 Evite imitações em React Native quando existir uma implementação nativa
 oficial compatível e preserve a interação, o layout intrínseco e as animações
 nativas existentes.
+
+## Live Activities e Dynamic Island
+
+- A Live Activity de Atacado usa `expo-widgets` (`~58.0.19`) e ActivityKit no
+  iOS; os widgets da Tela de Início e o App Intent de Entregas são integrações
+  distintas. O driver Live Activity não é implementado nas plataformas sem
+  suporte iOS.
+- Preserve a coordenação em
+  `src/features/deliveries/liveActivity/LiveActivityCoordinator.ts`, a
+  projeção compartilhada e o contrato de ownership por UID. A origem válida é
+  um snapshot remoto completo de hoje; não substitua por cache ou dados de
+  consulta parcial/filtrada. Baldes usam
+  `financialCalculationService.calculateQuantidade`; a contagem de entregas
+  considera somente registros ainda pendentes.
+- Snapshots completos e mutações locais elegíveis atualizam a Activity. A
+  conclusão confirmada pelo widget também atualiza ActivityKit sem abrir a UI:
+  `RigattiDeliveryCompletionIntent` conforma `LiveActivityIntent`, roda no
+  processo do app em background e lê do App Group a mesma projeção de pendências
+  do widget. A atividade guarda apenas o session ID opaco para validar que a
+  conta corresponde; não inclui UID. Esse caminho local não depende de APNs.
+  Ainda não há `onSnapshot` do Firestore nem push para Live Activity habilitado
+  no config; mudanças externas ao app e ao widget podem aguardar a próxima
+  consulta completa. Ao voltar ao primeiro plano, o coordenador reconcilia com
+  uma consulta completa.
+- A data limite é a próxima meia-noite local. `staleDate` marca a Activity
+  como stale, mas não a encerra. Preserve encerramento explícito pela toolbar,
+  encerramento na troca/logout do UID e limpeza de atividades órfãs ou
+  duplicadas.
+- O toque abre `/historico?mode=wholesale`; preserve esse deep link e o modo
+  Atacado de destino. `supported` representa disponibilidade do driver, não a
+  autorização do usuário no sistema; ActivityKit pode rejeitar o início.
+- Separe código presente de validação real: leitura do código ou testes
+  automatizados não provam apresentação, interações ou atualização no iPhone.
+  Mudanças em config plugin, Info.plist, capabilities ou extensão nativa exigem
+  nova iOS Development Build e validação física quando autorizadas.
 
 ## Development Build
 

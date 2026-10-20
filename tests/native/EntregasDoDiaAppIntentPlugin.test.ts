@@ -174,7 +174,10 @@ describe('EntregasDoDia App Intent CNG integration', () => {
   });
 
   it('uses a native AppIntent, shows pending state before the server call, and removes only confirmed rows', () => {
-    expect(DELIVERY_ACTION_SWIFT).toContain('struct RigattiDeliveryCompletionIntent: AppIntent');
+    expect(DELIVERY_ACTION_SWIFT).toContain('import ActivityKit');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'struct RigattiDeliveryCompletionIntent: LiveActivityIntent',
+    );
     expect(DELIVERY_ACTION_SWIFT).toContain('enum RigattiDeliveryWidgetKeychain {');
     expect(DELIVERY_ACTION_SWIFT).toContain(
       'private static let appSessionAccount = "active-app-session"',
@@ -244,6 +247,12 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(perform).toContain('RigattiDeliveryWidgetKeychain.beginDeliveryCompletion');
     expect(perform).toContain('RigattiDeliveryWidgetKeychain.failDeliveryCompletion');
     expect(perform).toContain('RigattiDeliveryWidgetKeychain.confirmDeliveryCompletion');
+    expect(perform).toContain(
+      'await RigattiDeliveryLiveActivityUpdater.shared.updateAfterConfirmedDelivery',
+    );
+    expect(perform.indexOf('RigattiDeliveryWidgetKeychain.confirmDeliveryCompletion')).toBeLessThan(
+      perform.indexOf('RigattiDeliveryLiveActivityUpdater.shared.updateAfterConfirmedDelivery'),
+    );
     expect(perform.indexOf('timeline_reload_requested')).toBeLessThan(
       perform.indexOf('request_started'),
     );
@@ -259,6 +268,11 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(DELIVERY_ACTION_SWIFT).toContain(
       'WidgetsStorage.set(timeline, forKey: "__expo_widgets_EntregasDoDia_timeline")',
     );
+    expect(DELIVERY_ACTION_SWIFT).toContain('static func confirmedDeliveryProjection(');
+    expect(DELIVERY_ACTION_SWIFT).toContain('row["activityBucketCount"] as? NSNumber');
+    expect(DELIVERY_ACTION_SWIFT).toContain('props["actionSessionId"] as? String == sessionId');
+    expect(DELIVERY_ACTION_SWIFT).toContain('state.name == "WholesaleDeliveryLiveActivity"');
+    expect(DELIVERY_ACTION_SWIFT).toContain('staleDate: content.staleDate');
     expect(DELIVERY_ACTION_SWIFT).not.toMatch(/import\s+Firebase|refreshToken|adminCredential/i);
     expect(DELIVERY_ACTION_SWIFT).not.toContain('UIApplication.shared');
     expect(DELIVERY_ACTION_SWIFT).toContain('event=http_response status_code=');

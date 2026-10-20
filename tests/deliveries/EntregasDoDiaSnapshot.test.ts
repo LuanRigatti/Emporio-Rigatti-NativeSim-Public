@@ -3,6 +3,7 @@ import {
   projectEntregasDoDiaSnapshot,
   unavailableEntregasDoDiaWidgetProps,
 } from '@/features/deliveries/widgets/EntregasDoDiaSnapshot';
+import { projectWholesaleDeliverySnapshot } from '@/features/deliveries/liveActivity/LiveActivityProjection';
 import type { CompleteDeliveryDateSnapshot } from '@/services/deliveries/FirestoreDeliveryDataSource';
 
 function delivery(
@@ -76,12 +77,14 @@ describe('EntregasDoDia snapshot', () => {
           id: 'early',
           clientName: 'Cliente Z',
           quantityLabel: '1 balde',
+          activityBucketCount: 1,
           completionURL: 'pareact://historico/entrega/early?date=2026-10-15',
         },
         {
           id: 'late',
           clientName: 'Cliente A',
           quantityLabel: '2 baldes',
+          activityBucketCount: 2,
           completionURL: 'pareact://historico/entrega/late?date=2026-10-15',
         },
       ],
@@ -89,6 +92,16 @@ describe('EntregasDoDia snapshot', () => {
     expect(projected.deliveries[0]?.valueLabel).toBe('R$ 30,00');
     expect(projected.deliveries[1]?.valueLabel).toBe('R$ 60,00');
     expect(projected.deliveries.some(({ id }) => id === 'done')).toBe(false);
+    expect(
+      projected.deliveries.reduce((total, row) => total + (row.activityBucketCount ?? 0), 0),
+    ).toBe(
+      projectWholesaleDeliverySnapshot({
+        ...snapshot,
+        deliveries: snapshot.deliveries.filter(
+          (delivery) => delivery.data === snapshot.date && delivery.entregue === false,
+        ),
+      }).bucketCount,
+    );
   });
 
   it('sorts by date-added time, falling back to creation time and stable IDs', () => {

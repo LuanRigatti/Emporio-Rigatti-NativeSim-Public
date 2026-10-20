@@ -2,6 +2,9 @@ import type { LiveActivityProjection } from './LiveActivityProjection';
 
 export type LiveActivityContent = LiveActivityProjection & {
   isObsolete: boolean;
+  /** Opaque widget authorization session; never contains the account UID. */
+  actionSessionId?: string;
+  actionRevision?: number;
 };
 
 export type LiveActivityOwnership = {

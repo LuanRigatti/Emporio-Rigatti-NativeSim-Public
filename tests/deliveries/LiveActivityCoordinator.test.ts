@@ -135,6 +135,8 @@ function content(overrides: Partial<LiveActivityContent> = {}): LiveActivityCont
     date: TODAY,
     bucketCount: 2,
     deliveryCount: 1,
+    completedDeliveryCount: 0,
+    totalDeliveryCount: 1,
     isObsolete: false,
     ...overrides,
   };
@@ -201,6 +203,8 @@ describe('LiveActivityCoordinator', () => {
       date: TODAY,
       bucketCount: 2,
       deliveryCount: 1,
+      completedDeliveryCount: 1,
+      totalDeliveryCount: 2,
       isObsolete: false,
     });
     expect(ownershipStore.value?.activityId).toBe('activity-1');
@@ -211,7 +215,12 @@ describe('LiveActivityCoordinator', () => {
     ]);
     source.setSnapshot(markedDelivered);
     await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: markedDelivered });
-    expect(driver.instances[0]?.content).toMatchObject({ bucketCount: 0, deliveryCount: 0 });
+    expect(driver.instances[0]?.content).toMatchObject({
+      bucketCount: 0,
+      deliveryCount: 0,
+      completedDeliveryCount: 2,
+      totalDeliveryCount: 2,
+    });
 
     const markedPending = snapshot('user-a', [
       delivery('pending', 2),
@@ -219,7 +228,12 @@ describe('LiveActivityCoordinator', () => {
     ]);
     source.setSnapshot(markedPending);
     await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: markedPending });
-    expect(driver.instances[0]?.content).toMatchObject({ bucketCount: 2, deliveryCount: 1 });
+    expect(driver.instances[0]?.content).toMatchObject({
+      bucketCount: 2,
+      deliveryCount: 1,
+      completedDeliveryCount: 1,
+      totalDeliveryCount: 2,
+    });
 
     await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
     expect(driver.instances[0]?.ended).toBe(true);
@@ -251,6 +265,8 @@ describe('LiveActivityCoordinator', () => {
       date: TODAY,
       bucketCount: 2,
       deliveryCount: 1,
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 1,
       isObsolete: false,
       actionSessionId: 'opaque-widget-session',
       actionRevision: 7,
@@ -277,6 +293,8 @@ describe('LiveActivityCoordinator', () => {
       date: TODAY,
       bucketCount: 2,
       deliveryCount: 1,
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 1,
       isObsolete: false,
     });
   });
@@ -519,6 +537,8 @@ describe('LiveActivityCoordinator', () => {
       date: TODAY,
       bucketCount: 2,
       deliveryCount: 1,
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 1,
       isObsolete: true,
     });
     expect(coordinator.getSnapshot().canStart).toBe(false);

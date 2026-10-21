@@ -213,7 +213,6 @@ function upgradeSharedToolbarTabTransition(controller) {
   const markerIndex = contents.indexOf('Emporio Rigatti: shared toolbar ownership transition');
   if (markerIndex === -1) return;
 
-  // The OSLog plugin injects event calls inside these branches, so use stable anchors.
   const hasCurrentGuard =
     contents.indexOf('BOOL isNavigationTransitionCompletion =', markerIndex) !== -1 &&
     contents.indexOf(
@@ -298,11 +297,8 @@ static char RNSSharedToolbarExperimentSkippedRepairRolesKey;
 static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce(
     RNSTabBarController *controller,
     NSArray<UIBarButtonItem *> *items,
-    NSString *reason,
-    NSString **diagnosticReason)
+    NSString *reason)
 {
-  if (diagnosticReason == NULL) return NO;
-  *diagnosticReason = @"detached_custom_view";
   if (controller == nil || items.count == 0 ||
       ![RNSCurrentToolbarMorphExperimentVariant() isEqualToString:@"B"]) {
     return NO;
@@ -313,11 +309,9 @@ static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce(
     NSString *itemRole = RNSRoleForToolbarMorphItem(item);
     if (![itemRole isEqualToString:@"home-search"] &&
         ![itemRole isEqualToString:@"settings-profile"]) {
-      *diagnosticReason = @"experiment_b_shared_side_preserved";
       return NO;
     }
     if (role != nil && ![role isEqualToString:itemRole]) {
-      *diagnosticReason = @"experiment_b_shared_side_preserved";
       return NO;
     }
     role = itemRole;
@@ -326,7 +320,6 @@ static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce(
   NSMutableSet<NSString *> *skippedRoles =
       objc_getAssociatedObject(controller, &RNSSharedToolbarExperimentSkippedRepairRolesKey);
   if ([skippedRoles containsObject:role]) {
-    *diagnosticReason = @"experiment_b_recovery";
     return NO;
   }
   if (![reason isEqualToString:@"tab-transition-completion"]) return NO;
@@ -340,7 +333,6 @@ static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce(
   }
 
   [skippedRoles addObject:role];
-  *diagnosticReason = @"experiment_b_skip_once";
   return YES;
 }
 
@@ -919,12 +911,10 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   if (canCheckAttachment) [bar layoutIfNeeded];
   BOOL repairLeft = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(leftItems, bar);
   BOOL repairRight = canCheckAttachment && RNSSharedToolbarItemsNeedAttachment(rightItems, bar);
-  NSString *repairReasonLeft = @"detached_custom_view";
-  NSString *repairReasonRight = @"detached_custom_view";
   BOOL skipAttachmentRepairLeft = repairLeft &&
-      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, leftItems, reason, &repairReasonLeft);
+      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, leftItems, reason);
   BOOL skipAttachmentRepairRight = repairRight &&
-      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, rightItems, reason, &repairReasonRight);
+      RNSShouldSkipSharedToolbarExperimentRepairOnce(self, rightItems, reason);
   if (repairLeft || repairRight) {
     // Re-register only detached sides after exclusive ownership has been established.
     // This is synchronous lifecycle reconciliation, not a retry or an animated morph.

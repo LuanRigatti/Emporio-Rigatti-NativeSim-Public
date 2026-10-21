@@ -1,8 +1,0 @@
-{
-  "name": "toolbar-morph-diagnostics",
-  "version": "0.1.0",
-  "description": "Temporary native OSLog instrumentation for tab toolbar morph diagnosis.",
-  "license": "MIT",
-  "author": "PAReact",
-  "homepage": "https://expo.dev"
-}

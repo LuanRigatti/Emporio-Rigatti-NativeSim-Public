@@ -1,5 +1,3 @@
-import { useLayoutEffect } from 'react';
-
 import { Button, HStack, Host, Image, RNHostView, ZStack } from '@expo/ui/swift-ui';
 import {
   accessibilityHint as accessibilityHintModifier,
@@ -18,7 +16,6 @@ import { View } from 'react-native';
 
 import { Avatar } from '@/components/feedback';
 import { triggerNativeButtonHaptic } from '@/utils/haptics';
-import { recordToolbarMorphAccessoryLifecycle } from '@/utils/toolbarMorphDiagnostics';
 
 import {
   HOME_TOOLBAR_AVATAR_SIZE,
@@ -29,8 +26,6 @@ import {
   HOME_TOOLBAR_WIDTH,
 } from './NativeHomeToolbarActions.constants';
 import type { NativeHomeToolbarActionsProps } from './NativeHomeToolbarActions.types';
-
-let nextToolbarMorphDiagnosticInstance = 1;
 
 export default function NativeHomeToolbarActionsSwiftUI({
   mode = 'profileActions',
@@ -46,21 +41,6 @@ export default function NativeHomeToolbarActionsSwiftUI({
   showSearch = true,
   toolbarMorphDiagnosticRole,
 }: NativeHomeToolbarActionsProps) {
-  useLayoutEffect(() => {
-    if (!toolbarMorphDiagnosticRole) return undefined;
-
-    const instance = nextToolbarMorphDiagnosticInstance++;
-    recordToolbarMorphAccessoryLifecycle(toolbarMorphDiagnosticRole, 'accessory_mount', instance);
-
-    return () => {
-      recordToolbarMorphAccessoryLifecycle(
-        toolbarMorphDiagnosticRole,
-        'accessory_unmount',
-        instance,
-      );
-    };
-  }, [toolbarMorphDiagnosticRole]);
-
   if (mode === 'searchAction') {
     return (
       <View

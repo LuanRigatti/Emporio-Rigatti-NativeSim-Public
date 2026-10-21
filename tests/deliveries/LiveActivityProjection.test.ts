@@ -35,6 +35,8 @@ describe('Live Activity projection', () => {
       date: '2026-10-03',
       bucketCount: 2,
       deliveryCount: 1,
+      completedDeliveryCount: 2,
+      totalDeliveryCount: 3,
     });
   });
 
@@ -53,6 +55,8 @@ describe('Live Activity projection', () => {
       date: '2026-10-03',
       bucketCount: 0,
       deliveryCount: 0,
+      completedDeliveryCount: 2,
+      totalDeliveryCount: 2,
     });
   });
 
@@ -68,6 +72,8 @@ describe('Live Activity projection', () => {
       date: '2026-10-03',
       bucketCount: 0,
       deliveryCount: 0,
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 0,
     });
   });
 

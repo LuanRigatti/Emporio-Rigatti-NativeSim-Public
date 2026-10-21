@@ -1,5 +1,15 @@
-import { Divider, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { font, imageScale, monospacedDigit, opacity, padding } from '@expo/ui/swift-ui/modifiers';
+import { Divider, HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import {
+  font,
+  frame,
+  monospacedDigit,
+  opacity,
+  padding,
+  progressViewStyle,
+  resizable,
+  foregroundStyle,
+  tint,
+} from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
 import type { LiveActivityContent } from './LiveActivityContracts';
@@ -12,10 +22,41 @@ function WholesaleDeliveryLiveActivity(
 
   const [year, month, day] = props.date.split('-');
   const dateLabel = `${day}/${month}/${year}`;
+  const monthLabels = [
+    'jan.',
+    'fev.',
+    'mar.',
+    'abr.',
+    'mai.',
+    'jun.',
+    'jul.',
+    'ago.',
+    'set.',
+    'out.',
+    'nov.',
+    'dez.',
+  ];
+  const monthIndex = Number(month) - 1;
+  const expandedDateLabel = `${Number(day)} ${monthLabels[monthIndex] ?? month} ${year}`;
+  const completedCount = Number.isFinite(props.completedDeliveryCount)
+    ? Math.max(0, Math.floor(props.completedDeliveryCount))
+    : 0;
+  const totalCount = Number.isFinite(props.totalDeliveryCount)
+    ? Math.max(0, Math.floor(props.totalDeliveryCount))
+    : 0;
+  const displayedCompletedCount = totalCount > 0 ? Math.min(completedCount, totalCount) : 0;
+  const progress = totalCount > 0 ? displayedCompletedCount / totalCount : 0;
   const freshnessLabel =
     props.isObsolete || environment.isStale
       ? `Dados desatualizados · ${dateLabel}`
       : `Atacado · ${dateLabel}`;
+  const sharedImageDirectory = (
+    environment as LiveActivityEnvironment & { widgetsDirectory?: string | null }
+  ).widgetsDirectory;
+  const compactBrandMarkURI =
+    typeof sharedImageDirectory === 'string' && sharedImageDirectory.startsWith('file://')
+      ? `${sharedImageDirectory.endsWith('/') ? sharedImageDirectory : `${sharedImageDirectory}/`}resumo-financeiro-mark-dark.png`
+      : undefined;
 
   return {
     banner: (
@@ -49,53 +90,90 @@ function WholesaleDeliveryLiveActivity(
       </VStack>
     ),
     compactLeading: (
-      <HStack>
-        <Image systemName="shippingbox.fill" modifiers={[imageScale('small')]} />
-        <Text modifiers={[monospacedDigit()]}>{props.bucketCount}</Text>
-      </HStack>
+      <Image
+        uiImage={compactBrandMarkURI}
+        modifiers={[resizable(), frame({ width: 20, height: 20 })]}
+      />
     ),
     compactTrailing: (
-      <HStack>
-        <Image systemName="checklist" modifiers={[imageScale('small')]} />
-        <Text modifiers={[monospacedDigit()]}>{props.deliveryCount}</Text>
-      </HStack>
+      <Text modifiers={[font({ weight: 'semibold' }), monospacedDigit()]}>
+        {props.deliveryCount}
+      </Text>
     ),
     minimal: <Image systemName="shippingbox.fill" />,
     expandedCenter: (
-      <VStack spacing={0}>
-        <Spacer minLength={8} />
-        <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>
-        <Spacer minLength={0} />
-      </VStack>
+      <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
+        <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
+          <Text
+            modifiers={[
+              font({ weight: 'semibold', size: 34 }),
+              foregroundStyle('#FFFFFF'),
+              monospacedDigit(),
+            ]}
+          >
+            {props.deliveryCount}
+          </Text>
+          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>
+            Entregas pendentes
+          </Text>
+        </VStack>
+        <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
+          <Text
+            modifiers={[
+              font({ weight: 'semibold', size: 34 }),
+              foregroundStyle('#FFFFFF'),
+              monospacedDigit(),
+            ]}
+          >
+            {props.bucketCount}
+          </Text>
+          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>Baldes pendentes</Text>
+        </VStack>
+      </HStack>
     ),
     expandedLeading: (
-      <VStack spacing={0}>
-        <Spacer minLength={0} />
-        <HStack>
-          <Image systemName="shippingbox.fill" />
-          <VStack spacing={0}>
-            <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
-            <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
-              {props.bucketCount}
-            </Text>
-          </VStack>
-        </HStack>
-        <Spacer minLength={0} />
-      </VStack>
+      <HStack spacing={8}>
+        <Image
+          uiImage={compactBrandMarkURI}
+          modifiers={[resizable(), frame({ width: 38, height: 38 })]}
+        />
+        <VStack spacing={0}>
+          <Text modifiers={[font({ weight: 'semibold', size: 15 }), foregroundStyle('#FFFFFF')]}>
+            Entregas de hoje
+          </Text>
+          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>Atacado</Text>
+        </VStack>
+      </HStack>
     ),
     expandedTrailing: (
-      <VStack spacing={0}>
+      <HStack>
         <Spacer minLength={0} />
-        <HStack>
-          <VStack spacing={0}>
-            <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
-            <Text modifiers={[font({ weight: 'semibold', size: 20 }), monospacedDigit()]}>
-              {props.deliveryCount}
-            </Text>
-          </VStack>
-          <Image systemName="checklist" />
-        </HStack>
-        <Spacer minLength={0} />
+        <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle('#8E8E93')]}>
+          {expandedDateLabel}
+        </Text>
+      </HStack>
+    ),
+    expandedBottom: (
+      <VStack spacing={4} modifiers={[frame({ maxWidth: Infinity })]}>
+        <ProgressView
+          value={progress}
+          modifiers={[
+            progressViewStyle('linear'),
+            tint('#0A84FF'),
+            frame({ height: 8 }),
+            frame({ maxWidth: Infinity }),
+          ]}
+        />
+        <Text
+          modifiers={[
+            font({ textStyle: 'caption' }),
+            foregroundStyle('#8E8E93'),
+            monospacedDigit(),
+            frame({ maxWidth: Infinity, alignment: 'center' }),
+          ]}
+        >
+          {displayedCompletedCount} / {totalCount}
+        </Text>
       </VStack>
     ),
   };

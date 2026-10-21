@@ -358,15 +358,26 @@ nativas existentes.
   `src/features/deliveries/liveActivity/LiveActivityCoordinator.ts`, a
   projeção compartilhada e o contrato de ownership por UID. A origem válida é
   um snapshot remoto completo de hoje; não substitua por cache ou dados de
-  consulta parcial/filtrada. Baldes usam
-  `financialCalculationService.calculateQuantidade`; a contagem de entregas
-  considera somente registros ainda pendentes.
+  consulta parcial/filtrada. `LiveActivityProjection` é a fonte canônica para
+  entregas/baldes pendentes e para entregas concluídas/total do dia; o progresso
+  visual é concluídas/total, com fração zero quando o total é zero. Baldes usam
+  `financialCalculationService.calculateQuantidade`. Alterações em qualquer
+  desses contadores devem participar da comparação de conteúdo do coordenador
+  para que mudanças apenas no progresso atualizem ActivityKit. A Dynamic Island
+  deve usar as regiões nativas do Expo (`expandedLeading`, `expandedTrailing`,
+  `expandedCenter` e `expandedBottom`), sem ocupar a área de sensores/câmera com
+  offsets artificiais.
 - Snapshots completos e mutações locais elegíveis atualizam a Activity. A
   conclusão confirmada pelo widget também atualiza ActivityKit sem abrir a UI:
   `RigattiDeliveryCompletionIntent` conforma `LiveActivityIntent`, roda no
   processo do app em background e lê do App Group a mesma projeção de pendências
   do widget. A atividade guarda apenas o session ID opaco para validar que a
   conta corresponde; não inclui UID. Esse caminho local não depende de APNs.
+  Preserve a ordem do ACK: após a confirmação remota, persista a atualização da
+  timeline no App Group e solicite novo `WidgetCenter.reloadTimelines` para o
+  estado confirmado; o reload inicial do estado `pending` fornece feedback
+  imediato. Em seguida, atualize a atividade a partir da projeção persistida,
+  sem nova consulta Firestore.
   Ainda não há `onSnapshot` do Firestore nem push para Live Activity habilitado
   no config; mudanças externas ao app e ao widget podem aguardar a próxima
   consulta completa. Ao voltar ao primeiro plano, o coordenador reconcilia com

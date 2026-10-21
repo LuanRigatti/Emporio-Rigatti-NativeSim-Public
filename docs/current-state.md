@@ -62,7 +62,10 @@ histórico das entregas e devem ser preservadas como histórico.
   Build. A publicação deste snapshot não inclui deploy, prebuild, compilação ou
   validação em dispositivo.
 
-## Live Activity iOS Atacado e Dynamic Island — código auditado em 2026-10-20
+## Live Activity iOS Atacado e Dynamic Island — código no working tree em 2026-10-20
+
+Este bloco registra a implementação verificada no working tree da branch
+`Codex`, no HEAD `e7ee08d77cfc721b2fd2503ac8c20a28e0401aa9`, em 2026-10-20.
 
 - A Live Activity de Atacado é implementada em
   `src/features/deliveries/liveActivity/` com `expo-widgets` e
@@ -75,26 +78,41 @@ histórico das entregas e devem ser preservadas como histórico.
   ao UID atual. Para iniciar ou atualizar as contagens com dados atuais, exige
   um snapshot remoto completo das entregas de hoje; cache, consulta parcial ou
   filtrada não habilitam essa origem.
-- O conteúdo projetado mostra a data, a quantidade de baldes e a quantidade de
-  entregas ainda pendentes, calculadas pela projeção compartilhada com o
-  serviço financeiro. Não apresenta clientes ou ações individuais.
-- A interface define a apresentação de banner na Tela Bloqueada e as regiões
-  compacta, mínima e expandida da Dynamic Island. Exibe ícones de caixa/lista,
-  data, rótulo Atacado, contagens e um aviso quando os dados estão obsoletos ou
-  a ActivityKit considera a atividade stale.
-- O coordenador publica snapshots completos após consultas remotas elegíveis e
-  mutações locais quando já há snapshot completo para a data. Quando uma
-  conclusão é confirmada pelo App Intent do widget, esse intent conforma
-  `LiveActivityIntent`, executa no processo do app em background sem abrir a
-  interface e atualiza ActivityKit a partir da projeção de pendências já
-  persistida no App Group. A atividade recebe somente o identificador opaco da
-  sessão de autorização; UID e contas não são copiados para o estado da
-  atividade. Não é necessário APNs para esse caminho local. Ao voltar ao
-  primeiro plano, o coordenador reconcilia a sessão e consulta novamente o dia
-  atual. Não há listener Firestore `onSnapshot` nem atualização remota por push
-  configurada (`enablePushNotifications: false` em `app.config.js`); mudanças
-  feitas fora desta sessão podem ficar sem refletir até uma consulta completa
-  posterior.
+- `LiveActivityProjection` é a projeção canônica: `deliveryCount` e
+  `bucketCount` representam entregas e baldes pendentes;
+  `completedDeliveryCount` conta entregas concluídas e `totalDeliveryCount`
+  conta todas as entregas do dia. Baldes seguem
+  `financialCalculationService.calculateQuantidade`. A mesma projeção alimenta
+  os dados do widget Entregas do Dia.
+- Visual atual da Dynamic Island: no modo compacto, a região leading mostra o
+  monograma ER do splash dark e a trailing mostra somente o número de entregas
+  pendentes. Na expansão, leading reúne o monograma e “Entregas de hoje /
+  Atacado”, trailing mostra a data, center apresenta entregas e baldes
+  pendentes lado a lado, e bottom mostra uma barra azul e `concluídas / total`.
+  A fração é concluídas dividido pelo total, atualizada pela projeção; com total
+  zero, a barra vale zero e o texto é `0 / 0`. A composição usa as regiões
+  nativas `expandedLeading`, `expandedTrailing`, `expandedCenter` e
+  `expandedBottom`, sob o fundo preto nativo. O banner da Tela Bloqueada e as
+  outras regiões não foram redesenhados por esse ajuste.
+- Snapshots completos e mutações confirmadas de adicionar, editar, excluir ou
+  concluir entregas atualizam a atividade pelo coordenador sem reiniciá-la.
+  Mudanças nos contadores pendentes, concluídas ou total são comparadas para
+  que alterações apenas no progresso também publiquem conteúdo novo. A
+  conclusão acionada no widget usa `RigattiDeliveryCompletionIntent`, que
+  conforma `LiveActivityIntent` e roda no processo do app em background sem
+  abrir a interface. Após o ACK remoto, o intent persiste a confirmação no App
+  Group, solicita novo reload de `EntregasDoDia` e atualiza ActivityKit a partir
+  do snapshot compartilhado. Há também um reload inicial do estado `pending`
+  para resposta visual imediata; o reload após a confirmação publica os dados
+  finais persistidos. O WidgetKit controla quando o conteúdo recarregado é
+  efetivamente renderizado. O caminho local não precisa de APNs.
+- A atividade guarda somente o identificador opaco da sessão para validar a
+  conta; UID e dados financeiros não são copiados para seu estado. Não há
+  listener Firestore `onSnapshot` nem push remoto habilitado
+  (`enablePushNotifications: false` em `app.config.js`); mudanças feitas fora
+  dos fluxos do app/widget podem aguardar a próxima consulta completa. Ao
+  voltar ao primeiro plano, o coordenador reconcilia a sessão e consulta o dia
+  atual.
 - `staleDate` aponta para a próxima meia-noite local. Isso marca os dados como
   stale, mas não encerra a ActivityKit automaticamente; a reconciliação ao
   voltar ao primeiro plano pode marcá-la obsoleta e publicar dados atuais.
@@ -109,13 +127,17 @@ histórico das entregas e devem ser preservadas como histórico.
   estiver desativada, a toolbar ainda pode parecer disponível e a ação retorna
   erro genérico. Também pode haver erro reportado depois que ActivityKit já
   encerrou a atividade se a limpeza do ownership local falhar.
-- Este registro descreve implementação encontrada no código, não validação em
-  dispositivo: nesta auditoria documental não foram executados testes,
-  compilação ou validação física em iPhone. Os testes existentes de projeção,
-  coordenação, snapshots Firestore e reconciliação após restore não foram
-  executados nesta tarefa. A afirmação posterior no snapshot histórico de que
-  Live Activities/Dynamic Island não haviam sido adicionadas pertence ao
-  checkpoint histórico ali registrado e não descreve este código atual.
+- As instrumentações temporárias de diagnóstico de toolbar morph, rendering,
+  conclusão, snapshots, sincronização e runtime de widgets foram removidas.
+  Permanecem logs nativos de falhas operacionais, sem tracing de fluxo normal.
+- Na implementação visual/projeção foram aprovadas 5 suítes direcionadas (38
+  testes), TypeScript e ESLint direcionado. Isso é validação automatizada do
+  código, não comprovação da apresentação no iPhone. A validação física ainda
+  está pendente; o conteúdo nativo atualizado requer nova iOS Development
+  Build para ser verificado no dispositivo. Nenhuma build ou validação física
+  foi feita neste registro documental. A afirmação histórica de que Live
+  Activities/Dynamic Island não haviam sido adicionadas vale somente para o
+  checkpoint histórico correspondente.
 
 ## Histórico — manutenção e validações do Expo SDK 57 (2026-10-03)
 

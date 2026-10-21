@@ -91,6 +91,8 @@ describe('EntregasDoDia widget action reconciliation', () => {
       date: DATE,
       state: 'pending',
       deliveryCount: 1,
+      completedDeliveryCount: 1,
+      totalDeliveryCount: 2,
       deliveries: [{ id: 'delivery-b' }],
       actionSessionId: SESSION_ID,
       actionRevision: 1,

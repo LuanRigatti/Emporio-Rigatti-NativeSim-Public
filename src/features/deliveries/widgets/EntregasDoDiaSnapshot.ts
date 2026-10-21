@@ -25,6 +25,9 @@ export type EntregasDoDiaWidgetProps = {
   date: string;
   state: EntregasDoDiaWidgetState;
   deliveryCount: number;
+  /** Optional to preserve timelines created before daily progress was added. */
+  completedDeliveryCount?: number;
+  totalDeliveryCount?: number;
   deliveries: EntregasDoDiaWidgetRow[];
   completedDeliveryIds?: string[];
   deliveryRouteURL?: string;
@@ -47,6 +50,8 @@ export function unavailableEntregasDoDiaWidgetProps(
     date,
     state: 'unavailable',
     deliveryCount: 0,
+    completedDeliveryCount: 0,
+    totalDeliveryCount: 0,
     deliveries: [],
     ...(deliveryRouteURL ? { deliveryRouteURL } : {}),
   };
@@ -98,7 +103,7 @@ export function projectEntregasDoDiaSnapshot(
     .sort(compareWidgetDeliveryOrder);
   const canonicalSummary = projectWholesaleDeliverySnapshot({
     ...snapshot,
-    deliveries: pendingDeliveries,
+    deliveries: dayDeliveries,
   });
   const state: EntregasDoDiaWidgetState =
     pendingDeliveries.length > 0 ? 'pending' : dayDeliveries.length > 0 ? 'all_completed' : 'empty';
@@ -107,6 +112,8 @@ export function projectEntregasDoDiaSnapshot(
     date: snapshot.date,
     state,
     deliveryCount: canonicalSummary.deliveryCount,
+    completedDeliveryCount: canonicalSummary.completedDeliveryCount,
+    totalDeliveryCount: canonicalSummary.totalDeliveryCount,
     deliveries: pendingDeliveries.map((delivery) => {
       const quantity = Number.isFinite(delivery.quantidade)
         ? new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(delivery.quantidade)
@@ -140,6 +147,12 @@ export function createEntregasDoDiaTimeline(
     date: current.date,
     state: current.state,
     deliveryCount: current.deliveryCount,
+    ...(current.completedDeliveryCount === undefined
+      ? {}
+      : { completedDeliveryCount: current.completedDeliveryCount }),
+    ...(current.totalDeliveryCount === undefined
+      ? {}
+      : { totalDeliveryCount: current.totalDeliveryCount }),
     deliveries: current.deliveries,
     ...(deliveryRouteURL ? { deliveryRouteURL } : {}),
     ...(current.actionSessionId ? { actionSessionId: current.actionSessionId } : {}),
@@ -155,6 +168,8 @@ export function createEntregasDoDiaTimeline(
         date: nextProps.date,
         state: nextProps.state,
         deliveryCount: nextProps.deliveryCount,
+        completedDeliveryCount: nextProps.completedDeliveryCount,
+        totalDeliveryCount: nextProps.totalDeliveryCount,
         deliveries: nextProps.deliveries,
         ...(nextProps.deliveryRouteURL ? { deliveryRouteURL: nextProps.deliveryRouteURL } : {}),
       },

@@ -8,6 +8,7 @@ import {
   type DeliveryDateSnapshotEvent,
 } from '@/services/deliveries/FirestoreDeliveryDataSource';
 import { todayIso } from '@/utils/data';
+import { recordWidgetOperationalFailure } from '@/utils/widgetOperationalErrors';
 
 import { getDeliveryWidgetActionsNative } from '@/services/deliveries/DeliveryWidgetActionsNative';
 import {
@@ -17,10 +18,6 @@ import {
   type EntregasDoDiaWidgetProps,
   type EntregasDoDiaWidgetTimelineProps,
 } from './EntregasDoDiaSnapshot';
-import {
-  logDeliveryWidgetSnapshotDiagnostic,
-  logEntregasWidgetRuntimeEvent,
-} from './EntregasDoDiaWidgetDiagnostics';
 
 export type DeliverySnapshotSource = Pick<
   typeof firestoreDeliveryDataSource,
@@ -118,7 +115,6 @@ export class EntregasDoDiaSnapshotCoordinator {
   private currentSnapshot: EntregasDoDiaWidgetProps;
   private lastPublishedSnapshot: string | null = null;
   private widgetDriver: DeliveryWidgetDriver | null = null;
-  private hasLoggedRuntimeTimelineReadback = false;
   private readonly reconcilingDates = new Set<string>();
   private readonly unsubscribeDateSnapshots: () => void;
 
@@ -166,7 +162,6 @@ export class EntregasDoDiaSnapshotCoordinator {
       return;
     }
 
-    if (this.isIOS) logEntregasWidgetRuntimeEvent('coordinator_started', true);
     this.activeUid = normalizedUid;
     this.activeSessionVersion = sessionVersion;
     const generation = ++this.generation;
@@ -252,32 +247,6 @@ export class EntregasDoDiaSnapshotCoordinator {
     const uid = this.activeUid;
     const sessionVersion = this.activeSessionVersion;
     if (!uid || eventUid !== uid || eventDate !== today) return;
-    if (event.type === 'refreshing') {
-      logDeliveryWidgetSnapshotDiagnostic(
-        'snapshot_refresh_started',
-        this.currentSnapshot.state,
-        this.currentSnapshot.deliveries.length,
-        true,
-      );
-    } else if (event.type === 'invalidated') {
-      logDeliveryWidgetSnapshotDiagnostic('snapshot_invalidated', 'unavailable', 0, false);
-    } else {
-      const pendingCount = event.snapshot.deliveries.filter(
-        (delivery) => !delivery.entregue,
-      ).length;
-      const state =
-        pendingCount > 0
-          ? 'pending'
-          : event.snapshot.deliveries.length > 0
-            ? 'all_completed'
-            : 'empty';
-      logDeliveryWidgetSnapshotDiagnostic(
-        event.cause === 'mutation' ? 'snapshot_mutation_published' : 'snapshot_query_published',
-        state,
-        pendingCount,
-        true,
-      );
-    }
     const receipts = this.readActionReceipts(uid).filter((receipt) => receipt.date === eventDate);
     if (receipts.length > 0) {
       this.reconcileActionReceipts(uid, sessionVersion, receipts);
@@ -335,14 +304,6 @@ export class EntregasDoDiaSnapshotCoordinator {
     }
     this.currentSnapshot = enrichedSnapshot;
     const signature = JSON.stringify(enrichedSnapshot);
-    if (enrichedSnapshot.state === 'unavailable') {
-      logDeliveryWidgetSnapshotDiagnostic(
-        'snapshot_unavailable',
-        'unavailable',
-        enrichedSnapshot.deliveries.length,
-        false,
-      );
-    }
     if (signature === this.lastPublishedSnapshot) return;
     this.lastPublishedSnapshot = signature;
     this.publishTimeline();
@@ -427,37 +388,16 @@ export class EntregasDoDiaSnapshotCoordinator {
     if (!this.isIOS || !this.widgetDriver) return;
     const routeURL = this.currentSnapshot.deliveryRouteURL;
     const entries = createEntregasDoDiaTimeline(this.currentSnapshot, this.now(), routeURL);
-    logDeliveryWidgetSnapshotDiagnostic(
-      'timeline_publish_started',
-      this.currentSnapshot.state,
-      this.currentSnapshot.deliveries.length,
-      true,
-    );
     try {
       this.widgetDriver.updateTimeline(entries);
-      logDeliveryWidgetSnapshotDiagnostic(
-        'timeline_publish_succeeded',
-        this.currentSnapshot.state,
-        this.currentSnapshot.deliveries.length,
-        true,
-      );
-      if (!this.hasLoggedRuntimeTimelineReadback) {
-        this.hasLoggedRuntimeTimelineReadback = true;
-        logEntregasWidgetRuntimeEvent('timeline_publish_succeeded', true);
-      }
-    } catch {
+    } catch (error) {
       // Widget publishing is best-effort; a later source event or foreground refresh retries it.
       this.lastPublishedSnapshot = null;
-      logDeliveryWidgetSnapshotDiagnostic(
-        'timeline_publish_failed',
-        this.currentSnapshot.state,
-        this.currentSnapshot.deliveries.length,
-        false,
+      recordWidgetOperationalFailure(
+        'delivery_timeline_publish_failed',
+        'update_timeline',
+        error,
       );
-      if (!this.hasLoggedRuntimeTimelineReadback) {
-        this.hasLoggedRuntimeTimelineReadback = true;
-        logEntregasWidgetRuntimeEvent('timeline_publish_failed', false);
-      }
     }
   }
 
@@ -507,16 +447,19 @@ export class EntregasDoDiaSnapshotCoordinator {
       const driver = await this.loadWidgetDriver();
       if (generation !== this.generation) return;
       this.widgetDriver = driver;
-      logEntregasWidgetRuntimeEvent('module_loaded', true);
       const uid = this.activeUid;
       const preservedActionTimeline = uid
         ? await this.restoreConfirmedActionTimeline(driver, uid, generation)
         : false;
       if (generation !== this.generation) return;
       if (!preservedActionTimeline) this.publishTimeline();
-    } catch {
+    } catch (error) {
       if (generation === this.generation) {
-        logEntregasWidgetRuntimeEvent('module_load_failed', false);
+        recordWidgetOperationalFailure(
+          'delivery_widget_module_load_failed',
+          'widget_module_load',
+          error,
+        );
       }
       // expo-widgets is an optional native module in Expo Go.
     }

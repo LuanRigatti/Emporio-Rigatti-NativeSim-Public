@@ -71,6 +71,8 @@ describe('EntregasDoDia snapshot', () => {
       date: '2026-10-15',
       state: 'pending',
       deliveryCount: 2,
+      completedDeliveryCount: 1,
+      totalDeliveryCount: 3,
       deliveryRouteURL: 'pareact://historico?mode=wholesale',
       deliveries: [
         {
@@ -182,10 +184,24 @@ describe('EntregasDoDia snapshot', () => {
     expect(allCompleted).toMatchObject({
       state: 'all_completed',
       deliveryCount: 0,
+      completedDeliveryCount: 1,
+      totalDeliveryCount: 1,
       deliveries: [],
     });
-    expect(empty).toMatchObject({ state: 'empty', deliveryCount: 0, deliveries: [] });
-    expect(unavailable).toMatchObject({ state: 'unavailable', deliveryCount: 0, deliveries: [] });
+    expect(empty).toMatchObject({
+      state: 'empty',
+      deliveryCount: 0,
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 0,
+      deliveries: [],
+    });
+    expect(unavailable).toMatchObject({
+      state: 'unavailable',
+      deliveryCount: 0,
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 0,
+      deliveries: [],
+    });
     expect(new Set([pending.state, allCompleted.state, empty.state, unavailable.state]).size).toBe(
       4,
     );
@@ -226,11 +242,21 @@ describe('EntregasDoDia snapshot', () => {
     expect(timeline).toHaveLength(2);
     expect(timeline[0]?.date).toEqual(new Date(2026, 9, 15, 12));
     expect(timeline[1]?.date).toEqual(new Date(2026, 9, 16));
-    expect(timeline[0]?.props).toMatchObject({ date: '2026-10-15', state: 'pending' });
+    expect(timeline[0]?.props).toMatchObject({
+      date: '2026-10-15',
+      state: 'pending',
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 1,
+    });
     expect(timeline[0]?.props.deliveries[0]?.completionURL).toBe(
       'pareact://historico/entrega/one?date=2026-10-15',
     );
-    expect(timeline[1]?.props).toMatchObject({ date: '2026-10-16', state: 'unavailable' });
+    expect(timeline[1]?.props).toMatchObject({
+      date: '2026-10-16',
+      state: 'unavailable',
+      completedDeliveryCount: 0,
+      totalDeliveryCount: 0,
+    });
     for (const entry of timeline) expectPropertyListValue(entry.props);
   });
 });

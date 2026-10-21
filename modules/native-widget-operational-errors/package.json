@@ -1,0 +1,8 @@
+{
+  "name": "native-widget-operational-errors",
+  "version": "0.1.0",
+  "description": "OSLog records for operational widget publication failures.",
+  "license": "MIT",
+  "author": "PAReact",
+  "homepage": "https://expo.dev"
+}

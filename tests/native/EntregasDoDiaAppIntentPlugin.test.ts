@@ -74,32 +74,23 @@ describe('EntregasDoDia App Intent CNG integration', () => {
       );
       const generatedSwift = fs.readFileSync(intentPath, 'utf8');
       expect(generatedSwift).toContain('import os');
-      expect(generatedSwift).toContain('category: "DeliveryCompletion"');
+      expect(generatedSwift).toContain('category: "WidgetOperationalErrors"');
       expect(generatedSwift).toContain(
         'subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget"',
       );
       [
-        'intent_perform_started',
-        'snapshot_rejected_wrong_source',
-        'snapshot_rejected_missing_entry_index',
-        'snapshot_rejected_invalid_target',
-        'snapshot_rejected_delivery_missing',
-        'capability_validation_succeeded',
-        'capability_validation_failed',
-        'session_validation_succeeded',
-        'request_started',
-        'request_failed',
-        'http_response',
-        'remote_confirmation_received',
-        'snapshot_rejected_remote',
-        'receipt_recorded',
-        'receipt_record_failed',
-        'timeline_session_rejected',
-        'revision_accepted',
-        'timeline_write_succeeded',
-        'timeline_mutation_failed',
-        'timeline_reload_requested',
+        'delivery_widget_authorization_unavailable',
+        'delivery_timeline_begin_failed',
+        'delivery_remote_confirmation_failed',
+        'delivery_remote_confirmation_invalid',
+        'delivery_receipt_persist_failed',
+        'delivery_timeline_session_rejected',
+        'delivery_timeline_confirmation_failed',
+        'live_activity_projection_failed',
+        'live_activity_projection_unavailable',
+        'live_activity_serialization_failed',
       ].forEach((marker) => expect(generatedSwift).toContain(marker));
+      expect(generatedSwift).not.toMatch(/logger\.(?:info|debug)\(/);
       expect(generatedSwift).not.toMatch(
         /logger\.(?:info|error).*?(?:uid|deliveryId|sessionId|capability|clientName|valueLabel)/i,
       );
@@ -253,8 +244,21 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(perform.indexOf('RigattiDeliveryWidgetKeychain.confirmDeliveryCompletion')).toBeLessThan(
       perform.indexOf('RigattiDeliveryLiveActivityUpdater.shared.updateAfterConfirmedDelivery'),
     );
-    expect(perform.indexOf('timeline_reload_requested')).toBeLessThan(
-      perform.indexOf('request_started'),
+    const widgetReloadCall = 'WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")';
+    const pendingWidgetReloadIndex = perform.indexOf(widgetReloadCall);
+    const confirmedWidgetReloadIndex = perform.lastIndexOf(widgetReloadCall);
+    expect(perform.match(/WidgetCenter\.shared\.reloadTimelines\(ofKind:/g)).toHaveLength(2);
+    expect(pendingWidgetReloadIndex).toBeGreaterThan(
+      perform.indexOf('RigattiDeliveryWidgetKeychain.beginDeliveryCompletion'),
+    );
+    expect(pendingWidgetReloadIndex).toBeLessThan(
+      perform.indexOf('RigattiDeliveryWidgetActionAPI.complete'),
+    );
+    expect(confirmedWidgetReloadIndex).toBeGreaterThan(
+      perform.indexOf('RigattiDeliveryWidgetKeychain.confirmDeliveryCompletion'),
+    );
+    expect(confirmedWidgetReloadIndex).toBeLessThan(
+      perform.indexOf('RigattiDeliveryLiveActivityUpdater.shared.updateAfterConfirmedDelivery'),
     );
     expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessGroup as String: accessGroup');
     expect(DELIVERY_ACTION_SWIFT).toContain('kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly');
@@ -269,13 +273,19 @@ describe('EntregasDoDia App Intent CNG integration', () => {
       'WidgetsStorage.set(timeline, forKey: "__expo_widgets_EntregasDoDia_timeline")',
     );
     expect(DELIVERY_ACTION_SWIFT).toContain('static func confirmedDeliveryProjection(');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'props["completedDeliveryCount"] = completedCount < totalCount',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('totalCount - completedCount == oldCount');
+    expect(DELIVERY_ACTION_SWIFT).toContain('totalCount - completedCount == count');
     expect(DELIVERY_ACTION_SWIFT).toContain('row["activityBucketCount"] as? NSNumber');
     expect(DELIVERY_ACTION_SWIFT).toContain('props["actionSessionId"] as? String == sessionId');
     expect(DELIVERY_ACTION_SWIFT).toContain('state.name == "WholesaleDeliveryLiveActivity"');
+    expect(DELIVERY_ACTION_SWIFT).toContain('props["completedDeliveryCount"] = completedCount');
+    expect(DELIVERY_ACTION_SWIFT).toContain('props["totalDeliveryCount"] = totalCount');
     expect(DELIVERY_ACTION_SWIFT).toContain('staleDate: content.staleDate');
     expect(DELIVERY_ACTION_SWIFT).not.toMatch(/import\s+Firebase|refreshToken|adminCredential/i);
     expect(DELIVERY_ACTION_SWIFT).not.toContain('UIApplication.shared');
-    expect(DELIVERY_ACTION_SWIFT).toContain('event=http_response status_code=');
     const receiptStorage = DELIVERY_ACTION_SWIFT.slice(
       DELIVERY_ACTION_SWIFT.indexOf('static func recordReceipt'),
     );

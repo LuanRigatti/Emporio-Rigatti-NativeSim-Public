@@ -22,6 +22,7 @@ import {
 } from '@/services/retail-finance';
 import { retailFinanceDatasetService } from '@/services/retail-finance/RetailFinanceDatasetService';
 import { locationTrackingService, summarizeRouteKilometersByDate } from '@/services/routes';
+import { recordWidgetOperationalFailure } from '@/utils/widgetOperationalErrors';
 
 import {
   createFinanceWidgetTimeline,
@@ -33,12 +34,6 @@ import {
   type ResumoFinanceiroWidgetProps,
   type ResumoFinanceiroWidgetTimelineProps,
 } from './ResumoFinanceiroSnapshot';
-import {
-  recordFinanceWidgetPublishResult,
-  recordFinanceWidgetPublishStart,
-  recordFinanceWidgetRuntimeEvent,
-  recordFinanceWidgetTimelineRead,
-} from './ResumoFinanceiroWidgetDiagnostics';
 
 type WholesaleFinanceSnapshot = {
   snapshotSessionScopeKey: string | undefined;
@@ -78,11 +73,8 @@ class ResumoFinanceiroSnapshotCoordinator {
   private activeSessionScopeKey: string | null = null;
   private generation = 0;
   private wholesaleRevision = 0;
-  private hasLoggedRuntimeTimelineReadback = false;
   private updateWidgetTimeline:
     ((entries: WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[]) => void) | null = null;
-  private readWidgetTimeline:
-    (() => Promise<WidgetTimelineEntry<ResumoFinanceiroWidgetTimelineProps>[]>) | null = null;
   private snapshot: ResumoFinanceiroWidgetProps = unavailableFinanceWidgetProps(
     getFinanceWidgetMonthKey(new Date()),
   );
@@ -104,7 +96,6 @@ class ResumoFinanceiroSnapshotCoordinator {
       return;
     }
 
-    recordFinanceWidgetRuntimeEvent('coordinator_started', true);
     this.activeUid = normalizedUid;
     this.activeSessionVersion = sessionVersion;
     this.activeSessionScopeKey = nextSessionScopeKey;
@@ -277,23 +268,12 @@ class ResumoFinanceiroSnapshotCoordinator {
       new Date(),
       Linking.createURL('/financeiro'),
     );
-    recordFinanceWidgetPublishStart(entries);
     try {
       updateWidgetTimeline(entries);
-      recordFinanceWidgetPublishResult(true, 'update_timeline');
-      if (!this.hasLoggedRuntimeTimelineReadback) {
-        this.hasLoggedRuntimeTimelineReadback = true;
-        recordFinanceWidgetRuntimeEvent('timeline_publish_succeeded', true);
-      }
     } catch (error) {
-      recordFinanceWidgetPublishResult(false, 'update_timeline', error);
-      if (!this.hasLoggedRuntimeTimelineReadback) {
-        this.hasLoggedRuntimeTimelineReadback = true;
-        recordFinanceWidgetRuntimeEvent('timeline_publish_failed', false);
-      }
+      recordWidgetOperationalFailure('finance_timeline_publish_failed', 'update_timeline', error);
       throw error;
     }
-    this.recordPublishedTimelineRead();
   }
 
   private async loadWidget(generation: number): Promise<void> {
@@ -304,28 +284,16 @@ class ResumoFinanceiroSnapshotCoordinator {
       if (this.generation !== generation) return;
       this.updateWidgetTimeline =
         resumoFinanceiroWidget.updateTimeline.bind(resumoFinanceiroWidget);
-      this.readWidgetTimeline = resumoFinanceiroWidget.getTimeline.bind(resumoFinanceiroWidget);
-      recordFinanceWidgetRuntimeEvent('module_loaded', true);
       this.publishTimeline();
-    } catch {
+    } catch (error) {
       if (!this.updateWidgetTimeline) {
-        recordFinanceWidgetPublishResult(false, 'widget_module_load');
-        recordFinanceWidgetRuntimeEvent('module_load_failed', false);
+        recordWidgetOperationalFailure(
+          'finance_widget_module_load_failed',
+          'widget_module_load',
+          error,
+        );
       }
       // expo-widgets is an optional native module in Expo Go.
-    }
-  }
-
-  private recordPublishedTimelineRead(): void {
-    const readWidgetTimeline = this.readWidgetTimeline;
-    if (!readWidgetTimeline) return;
-
-    try {
-      void readWidgetTimeline()
-        .then((entries) => recordFinanceWidgetTimelineRead(true, entries))
-        .catch(() => recordFinanceWidgetTimelineRead(false, []));
-    } catch {
-      recordFinanceWidgetTimelineRead(false, []);
     }
   }
 }

@@ -553,6 +553,8 @@ export class LiveActivityCoordinator {
       left.date === right.date &&
       left.bucketCount === right.bucketCount &&
       left.deliveryCount === right.deliveryCount &&
+      left.completedDeliveryCount === right.completedDeliveryCount &&
+      left.totalDeliveryCount === right.totalDeliveryCount &&
       left.isObsolete === right.isObsolete &&
       left.actionSessionId === right.actionSessionId &&
       left.actionRevision === right.actionRevision

@@ -5,6 +5,8 @@ export type LiveActivityProjection = {
   date: string;
   bucketCount: number;
   deliveryCount: number;
+  completedDeliveryCount: number;
+  totalDeliveryCount: number;
 };
 
 export function projectWholesaleDeliverySnapshot(
@@ -15,6 +17,8 @@ export function projectWholesaleDeliverySnapshot(
     date: snapshot.date,
     bucketCount: financialCalculationService.calculateQuantidade([...pendingDeliveries]),
     deliveryCount: pendingDeliveries.length,
+    completedDeliveryCount: snapshot.deliveries.filter((delivery) => delivery.entregue).length,
+    totalDeliveryCount: snapshot.deliveries.length,
   };
 }
 

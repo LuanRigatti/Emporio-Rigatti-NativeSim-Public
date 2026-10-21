@@ -797,10 +797,9 @@ describe('Home toolbar coordinator patch', () => {
       expect(skipHelper).toContain('RNSRoleForToolbarMorphItem(item)');
       expect(skipHelper).toContain('isEqualToString:@"home-search"');
       expect(skipHelper).toContain('isEqualToString:@"settings-profile"');
-      expect(skipHelper).toContain('experiment_b_skip_once');
-      expect(skipHelper).toContain('experiment_b_recovery');
-      expect(skipHelper).toContain('experiment_b_shared_side_preserved');
       expect(skipHelper).toContain('RNSSharedToolbarExperimentSkippedRepairRolesKey');
+      expect(skipHelper).toContain('[skippedRoles containsObject:role]');
+      expect(skipHelper).toContain('[skippedRoles addObject:role]');
       expect(coordinator).toContain('if (repairLeft && !skipAttachmentRepairLeft) {');
       expect(coordinator).toContain('if (repairRight && !skipAttachmentRepairRight) {');
       expect(coordinator).toContain('RNSSharedToolbarItemsNeedAttachment(leftItems, bar)');

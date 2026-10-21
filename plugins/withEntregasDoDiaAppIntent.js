@@ -22,18 +22,14 @@ import os
 import Security
 import WidgetKit
 
-private enum RigattiDeliveryCompletionDiagnostics {
+private enum RigattiWidgetOperationalErrors {
   private static let logger = os.Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "com.pareact.mobile.ExpoWidgetsTarget",
-    category: "DeliveryCompletion"
+    category: "WidgetOperationalErrors"
   )
 
-  static func event(_ name: String) {
-    logger.info("event=\(name, privacy: .public)")
-  }
-
-  static func httpResponse(_ statusCode: Int) {
-    logger.info("event=http_response status_code=\(statusCode, privacy: .public)")
+  static func failure(_ name: String) {
+    logger.error("event=\(name, privacy: .public)")
   }
 }
 
@@ -145,6 +141,7 @@ enum RigattiDeliveryWidgetKeychain {
       let states = actionStates[sessionDateKey] ?? [:]
       let confirmedIds = confirmedDeliveryIds[sessionDateKey] ?? []
       let incomingIds = Set(rows.compactMap { $0["id"] as? String })
+      let incomingDeliveryCount = rows.count
       let completedIdsToKeep = confirmedIds.intersection(incomingIds)
       let mergedRows = rows.map { row in
         guard let deliveryId = row["id"] as? String,
@@ -158,6 +155,11 @@ enum RigattiDeliveryWidgetKeychain {
         }
         return merged
       }
+      let reconciledCompletedIds = Set(rows.compactMap { row -> String? in
+        guard let deliveryId = row["id"] as? String,
+              completedIdsToKeep.contains(deliveryId) else { return nil }
+        return deliveryId
+      })
       rows = mergedRows.filter { row in
         guard let deliveryId = row["id"] as? String else { return true }
         return !confirmedIds.contains(deliveryId)
@@ -165,6 +167,18 @@ enum RigattiDeliveryWidgetKeychain {
       if rows.count != (props["deliveries"] as? [[String: Any]])?.count {
         props["deliveryCount"] = rows.count
         props["state"] = rows.isEmpty ? "all_completed" : "pending"
+        if !reconciledCompletedIds.isEmpty,
+           let completedCount = (props["completedDeliveryCount"] as? NSNumber)?.intValue,
+           let totalCount = (props["totalDeliveryCount"] as? NSNumber)?.intValue,
+           completedCount >= 0,
+           totalCount >= completedCount,
+           totalCount - completedCount == incomingDeliveryCount {
+          let remainingCount = totalCount - completedCount
+          props["completedDeliveryCount"] = completedCount + min(
+            remainingCount,
+            reconciledCompletedIds.count
+          )
+        }
       }
       props["deliveries"] = rows
       if completedIdsToKeep.isEmpty {
@@ -285,6 +299,15 @@ enum RigattiDeliveryWidgetKeychain {
         props["deliveries"] = rows
         props["completedDeliveryIds"] = completedIds
         props["deliveryCount"] = rows.count
+        if let completedCount = (props["completedDeliveryCount"] as? NSNumber)?.intValue,
+           let totalCount = (props["totalDeliveryCount"] as? NSNumber)?.intValue,
+           completedCount >= 0,
+           totalCount >= completedCount,
+           totalCount - completedCount == oldCount {
+          props["completedDeliveryCount"] = completedCount < totalCount
+            ? completedCount + 1
+            : totalCount
+        }
         props["state"] = rows.isEmpty ? "all_completed" : "pending"
         let currentRevision = (props["actionRevision"] as? NSNumber)?.intValue ?? 0
         props["actionRevision"] = max(currentRevision, revision)
@@ -313,7 +336,13 @@ enum RigattiDeliveryWidgetKeychain {
   static func confirmedDeliveryProjection(
     sessionId: String,
     date: String
-  ) throws -> (bucketCount: Double, deliveryCount: Int, actionRevision: Int)? {
+  ) throws -> (
+    bucketCount: Double,
+    deliveryCount: Int,
+    completedDeliveryCount: Int?,
+    totalDeliveryCount: Int?,
+    actionRevision: Int
+  )? {
     try withTimelineMutationLock {
       guard isActive(sessionId: sessionId),
             let storedTimeline = WidgetsStorage.getArray(forKey: "__expo_widgets_EntregasDoDia_timeline") else {
@@ -347,7 +376,25 @@ enum RigattiDeliveryWidgetKeychain {
           bucketCount += bucketValue.doubleValue
         }
         guard rowsAreValid, bucketCount.isFinite else { return nil }
-        return (bucketCount, count, revision)
+        let completedCount = (props["completedDeliveryCount"] as? NSNumber)?.intValue
+        let totalCount = (props["totalDeliveryCount"] as? NSNumber)?.intValue
+        let progressCounts: (completed: Int, total: Int)?
+        if let completedCount,
+           let totalCount,
+           completedCount >= 0,
+           totalCount >= completedCount,
+           totalCount - completedCount == count {
+          progressCounts = (completedCount, totalCount)
+        } else {
+          progressCounts = nil
+        }
+        return (
+          bucketCount,
+          count,
+          progressCounts?.completed,
+          progressCounts?.total,
+          revision
+        )
       }
       return nil
     }
@@ -750,33 +797,17 @@ private enum RigattiDeliveryWidgetActionAPI {
     body["sessionId"] = credential.sessionId
     request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-    let httpResult: (Data, URLResponse)
-    do {
-      httpResult = try await URLSession.shared.data(for: request)
-    } catch {
-      RigattiDeliveryCompletionDiagnostics.event("http_request_failed")
-      throw error
-    }
+    let httpResult = try await URLSession.shared.data(for: request)
     let data = httpResult.0
     let response = httpResult.1
     guard let httpResponse = response as? HTTPURLResponse else {
-      RigattiDeliveryCompletionDiagnostics.event("http_response_invalid")
       throw RigattiDeliveryWidgetActionError.unavailable
     }
-    RigattiDeliveryCompletionDiagnostics.httpResponse(httpResponse.statusCode)
     guard (200..<300).contains(httpResponse.statusCode) else {
-      RigattiDeliveryCompletionDiagnostics.event("http_response_rejected")
       throw RigattiDeliveryWidgetActionError.unavailable
     }
-    let json: Any
-    do {
-      json = try JSONSerialization.jsonObject(with: data)
-    } catch {
-      RigattiDeliveryCompletionDiagnostics.event("http_payload_invalid")
-      throw error
-    }
+    let json = try JSONSerialization.jsonObject(with: data)
     guard let result = json as? [String: Any] else {
-      RigattiDeliveryCompletionDiagnostics.event("http_payload_invalid")
       throw RigattiDeliveryWidgetActionError.unavailable
     }
     return result
@@ -850,17 +881,13 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
   }
 
   func perform() async throws -> some IntentResult {
-    RigattiDeliveryCompletionDiagnostics.event("intent_perform_started")
     guard source == "EntregasDoDia" else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_wrong_source")
       return .result()
     }
     guard entryIndex != nil else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_missing_entry_index")
       return .result()
     }
     guard let action = Self.parseTarget(target) else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_invalid_target")
       return .result()
     }
 
@@ -868,10 +895,9 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
     do {
       credential = try RigattiDeliveryWidgetKeychain.activeCredential()
     } catch {
-      RigattiDeliveryCompletionDiagnostics.event("capability_validation_failed")
+      RigattiWidgetOperationalErrors.failure("delivery_widget_authorization_unavailable")
       return .result()
     }
-    RigattiDeliveryCompletionDiagnostics.event("capability_validation_succeeded")
 
     let actionId = UUID().uuidString
     let didBegin: Bool
@@ -883,20 +909,15 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
         actionId: actionId
       )
     } catch {
-      RigattiDeliveryCompletionDiagnostics.event("timeline_mutation_failed")
+      RigattiWidgetOperationalErrors.failure("delivery_timeline_begin_failed")
       return .result()
     }
     guard didBegin else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_delivery_missing")
       return .result()
     }
-    RigattiDeliveryCompletionDiagnostics.event("session_validation_succeeded")
 
-    RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
-    RigattiDeliveryCompletionDiagnostics.event("timeline_reload_requested")
     WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")
 
-    RigattiDeliveryCompletionDiagnostics.event("request_started")
     let result: [String: Any]
     do {
       result = try await RigattiDeliveryWidgetActionAPI.complete(
@@ -905,15 +926,13 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
         date: action.date
       )
     } catch {
-      RigattiDeliveryCompletionDiagnostics.event("request_failed")
-      if (try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
+      RigattiWidgetOperationalErrors.failure("delivery_remote_confirmation_failed")
+      _ = try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
         sessionId: credential.sessionId,
         date: action.date,
         deliveryId: action.deliveryId,
         actionId: actionId
-      )) == true {
-        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
-      }
+      )
       return .result()
     }
 
@@ -922,19 +941,15 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
       expectedDate: action.date,
       expectedDeliveryId: action.deliveryId
     ) else {
-      RigattiDeliveryCompletionDiagnostics.event("snapshot_rejected_remote")
-      if (try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
+      RigattiWidgetOperationalErrors.failure("delivery_remote_confirmation_invalid")
+      _ = try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
         sessionId: credential.sessionId,
         date: action.date,
         deliveryId: action.deliveryId,
         actionId: actionId
-      )) == true {
-        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
-      }
+      )
       return .result()
     }
-    RigattiDeliveryCompletionDiagnostics.event("remote_confirmation_received")
-    RigattiDeliveryCompletionDiagnostics.event("revision_accepted")
 
     do {
       try RigattiDeliveryWidgetKeychain.recordReceipt(
@@ -942,10 +957,9 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
         date: action.date,
         revision: revision
       )
-      RigattiDeliveryCompletionDiagnostics.event("receipt_recorded")
     } catch {
       // Firestore already confirmed this delivery; local UI must still converge immediately.
-      RigattiDeliveryCompletionDiagnostics.event("receipt_record_failed")
+      RigattiWidgetOperationalErrors.failure("delivery_receipt_persist_failed")
     }
 
     var didApplyConfirmedTimeline = false
@@ -958,23 +972,21 @@ struct RigattiDeliveryCompletionIntent: LiveActivityIntent {
       )
       if didApply {
         didApplyConfirmedTimeline = true
-        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
       } else {
-        RigattiDeliveryCompletionDiagnostics.event("timeline_session_rejected")
+        RigattiWidgetOperationalErrors.failure("delivery_timeline_session_rejected")
       }
     } catch {
-      RigattiDeliveryCompletionDiagnostics.event("timeline_mutation_failed")
-      if (try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
+      RigattiWidgetOperationalErrors.failure("delivery_timeline_confirmation_failed")
+      _ = try? RigattiDeliveryWidgetKeychain.failDeliveryCompletion(
         sessionId: credential.sessionId,
         date: action.date,
         deliveryId: action.deliveryId,
         actionId: actionId
-      )) == true {
-        RigattiDeliveryCompletionDiagnostics.event("timeline_write_succeeded")
-      }
+      )
     }
 
     if didApplyConfirmedTimeline {
+      WidgetCenter.shared.reloadTimelines(ofKind: "EntregasDoDia")
       await RigattiDeliveryLiveActivityUpdater.shared.updateAfterConfirmedDelivery(
         sessionId: credential.sessionId,
         date: action.date
@@ -1023,22 +1035,27 @@ private actor RigattiDeliveryLiveActivityUpdater {
   static let shared = RigattiDeliveryLiveActivityUpdater()
 
   func updateAfterConfirmedDelivery(sessionId: String, date: String) async {
-    let projection: (bucketCount: Double, deliveryCount: Int, actionRevision: Int)?
+    let projection: (
+      bucketCount: Double,
+      deliveryCount: Int,
+      completedDeliveryCount: Int?,
+      totalDeliveryCount: Int?,
+      actionRevision: Int
+    )?
     do {
       projection = try RigattiDeliveryWidgetKeychain.confirmedDeliveryProjection(
         sessionId: sessionId,
         date: date
       )
     } catch {
-      RigattiDeliveryCompletionDiagnostics.event("live_activity_projection_failed")
+      RigattiWidgetOperationalErrors.failure("live_activity_projection_failed")
       return
     }
     guard let projection else {
-      RigattiDeliveryCompletionDiagnostics.event("live_activity_projection_unavailable")
+      RigattiWidgetOperationalErrors.failure("live_activity_projection_unavailable")
       return
     }
 
-    var updatedCount = 0
     for activity in Activity<LiveActivityAttributes>.activities {
       let content = activity.content
       let state = content.state
@@ -1053,27 +1070,38 @@ private actor RigattiDeliveryLiveActivityUpdater {
       let nextRevision = max(currentRevision, projection.actionRevision)
       let currentBucketCount = (props["bucketCount"] as? NSNumber)?.doubleValue
       let currentDeliveryCount = (props["deliveryCount"] as? NSNumber)?.intValue
+      let currentCompletedCount = (props["completedDeliveryCount"] as? NSNumber)?.intValue
+      let currentTotalCount = (props["totalDeliveryCount"] as? NSNumber)?.intValue
+      let completedCountChanged = projection.completedDeliveryCount.map {
+        currentCompletedCount != $0
+      } ?? false
+      let totalCountChanged = projection.totalDeliveryCount.map {
+        currentTotalCount != $0
+      } ?? false
       guard currentBucketCount != projection.bucketCount ||
             currentDeliveryCount != projection.deliveryCount ||
+            completedCountChanged ||
+            totalCountChanged ||
             currentRevision != nextRevision else { continue }
 
       props["bucketCount"] = projection.bucketCount
       props["deliveryCount"] = projection.deliveryCount
+      if let completedCount = projection.completedDeliveryCount,
+         let totalCount = projection.totalDeliveryCount {
+        props["completedDeliveryCount"] = completedCount
+        props["totalDeliveryCount"] = totalCount
+      }
       props["actionRevision"] = nextRevision
       guard let updatedProps = try? JSONSerialization.data(withJSONObject: props, options: [.sortedKeys]),
             let propsString = String(data: updatedProps, encoding: .utf8) else {
-        RigattiDeliveryCompletionDiagnostics.event("live_activity_serialization_failed")
+        RigattiWidgetOperationalErrors.failure("live_activity_serialization_failed")
         continue
       }
 
       let nextState = LiveActivityAttributes.ContentState(name: state.name, props: propsString)
       await activity.update(ActivityContent(state: nextState, staleDate: content.staleDate))
-      updatedCount += 1
     }
 
-    RigattiDeliveryCompletionDiagnostics.event(
-      updatedCount > 0 ? "live_activity_updated" : "live_activity_no_matching_session"
-    )
   }
 }
 

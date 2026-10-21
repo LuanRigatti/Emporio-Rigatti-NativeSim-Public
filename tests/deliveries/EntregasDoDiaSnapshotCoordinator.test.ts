@@ -5,12 +5,11 @@ import type {
   FirestoreDeliveryDataSource,
 } from '@/services/deliveries/FirestoreDeliveryDataSource';
 
-const mockLogDeliveryDiagnostic = jest.fn();
-const mockLogDeliveryRuntimeEvent = jest.fn();
+const mockRecordWidgetOperationalFailure = jest.fn();
 
-jest.mock('@/features/deliveries/widgets/EntregasDoDiaWidgetDiagnostics', () => ({
-  logDeliveryWidgetSnapshotDiagnostic: (...args: unknown[]) => mockLogDeliveryDiagnostic(...args),
-  logEntregasWidgetRuntimeEvent: (...args: unknown[]) => mockLogDeliveryRuntimeEvent(...args),
+jest.mock('@/utils/widgetOperationalErrors', () => ({
+  recordWidgetOperationalFailure: (...args: unknown[]) =>
+    mockRecordWidgetOperationalFailure(...args),
 }));
 
 jest.mock('@/services/deliveries/FirestoreDeliveryDataSource', () => ({
@@ -94,8 +93,7 @@ function makeHarness(initialSnapshot: CompleteDeliveryDateSnapshot | null = null
 
 describe('EntregasDoDiaSnapshotCoordinator', () => {
   beforeEach(() => {
-    mockLogDeliveryDiagnostic.mockClear();
-    mockLogDeliveryRuntimeEvent.mockClear();
+    mockRecordWidgetOperationalFailure.mockClear();
   });
 
   it('publishes an existing complete daily snapshot without issuing a new query', async () => {
@@ -105,9 +103,7 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
 
     expect(source.getCompleteDateSnapshot).toHaveBeenCalledWith('user-a', '2026-10-15', 7);
     expect(updateTimeline).toHaveBeenCalledTimes(1);
-    expect(mockLogDeliveryRuntimeEvent).toHaveBeenNthCalledWith(1, 'coordinator_started', true);
-    expect(mockLogDeliveryRuntimeEvent).toHaveBeenCalledWith('module_loaded', true);
-    expect(mockLogDeliveryRuntimeEvent).toHaveBeenCalledWith('timeline_publish_succeeded', true);
+    expect(mockRecordWidgetOperationalFailure).not.toHaveBeenCalled();
     expect(updateTimeline.mock.calls[0]?.[0][0]?.props).toMatchObject({
       state: 'pending',
       deliveryCount: 1,
@@ -143,21 +139,44 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
     coordinator.dispose();
   });
 
-  it('logs unavailable when a complete source event has no matching canonical snapshot', async () => {
+  it('keeps unavailable data published when a complete event has no canonical snapshot', async () => {
     const { coordinator, updateTimeline, emit } = makeHarness();
     coordinator.setSession('user-a', 7);
     await flushWidgetDriver();
-    mockLogDeliveryDiagnostic.mockClear();
-
     emit({ type: 'complete', snapshot: makeSnapshot('user-a') });
 
     expect(updateTimeline).toHaveBeenCalledTimes(1);
-    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
-      'snapshot_unavailable',
-      'unavailable',
-      0,
-      false,
+    expect(updateTimeline.mock.calls[0]?.[0][0]?.props).toMatchObject({
+      state: 'unavailable',
+      deliveries: [],
+    });
+    coordinator.dispose();
+  });
+
+  it('records a timeline publication failure and retries on the next source snapshot', async () => {
+    const { coordinator, updateTimeline, setCompleteSnapshot, emit } = makeHarness();
+    const publicationError = new Error('native widget update failed');
+    updateTimeline.mockImplementationOnce(() => {
+      throw publicationError;
+    });
+
+    coordinator.setSession('user-a', 7);
+    await flushWidgetDriver();
+
+    expect(mockRecordWidgetOperationalFailure).toHaveBeenCalledWith(
+      'delivery_timeline_publish_failed',
+      'update_timeline',
+      publicationError,
     );
+
+    const confirmedSnapshot = makeSnapshot('user-a');
+    setCompleteSnapshot(confirmedSnapshot);
+    emit({ type: 'complete', snapshot: confirmedSnapshot });
+    expect(updateTimeline).toHaveBeenCalledTimes(2);
+    expect(updateTimeline.mock.calls[1]?.[0][0]?.props).toMatchObject({
+      state: 'pending',
+      deliveryCount: 1,
+    });
     coordinator.dispose();
   });
 
@@ -224,12 +243,6 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
     emit({ type: 'refreshing', uid: 'user-a', date: '2026-10-15' });
     expect(updateTimeline).toHaveBeenCalledTimes(1);
     expect(updateTimeline.mock.calls[0]?.[0][0]?.props).toMatchObject({ state: 'pending' });
-    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
-      'snapshot_refresh_started',
-      'pending',
-      1,
-      true,
-    );
 
     const allCompleted = {
       ...initial,
@@ -243,12 +256,6 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
       state: 'all_completed',
       deliveries: [],
     });
-    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
-      'snapshot_mutation_published',
-      'all_completed',
-      0,
-      true,
-    );
     coordinator.dispose();
   });
 
@@ -291,12 +298,6 @@ describe('EntregasDoDiaSnapshotCoordinator', () => {
     expect(updateTimeline.mock.calls[1]?.[0][0]?.props).toMatchObject({
       state: 'unavailable',
     });
-    expect(mockLogDeliveryDiagnostic).toHaveBeenCalledWith(
-      'snapshot_invalidated',
-      'unavailable',
-      0,
-      false,
-    );
 
     coordinator.setSession('user-b', 8);
     await flushWidgetDriver();

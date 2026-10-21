@@ -38,7 +38,7 @@ function WholesaleDeliveryLiveActivity(
     'dez.',
   ];
   const monthIndex = Number(month) - 1;
-  const expandedDateLabel = `${Number(day)} ${monthLabels[monthIndex] ?? month} ${year}`;
+  const expandedDateLabel = `${Number(day)} ${monthLabels[monthIndex] ?? month}`;
   const completedCount = Number.isFinite(props.completedDeliveryCount)
     ? Math.max(0, Math.floor(props.completedDeliveryCount))
     : 0;
@@ -107,7 +107,7 @@ function WholesaleDeliveryLiveActivity(
         <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
           <Text
             modifiers={[
-              font({ weight: 'semibold', size: 34 }),
+              font({ weight: 'bold', size: 34 }),
               foregroundStyle('#FFFFFF'),
               monospacedDigit(),
             ]}
@@ -119,7 +119,7 @@ function WholesaleDeliveryLiveActivity(
         <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
           <Text
             modifiers={[
-              font({ weight: 'semibold', size: 34 }),
+              font({ weight: 'bold', size: 34 }),
               foregroundStyle('#FFFFFF'),
               monospacedDigit(),
             ]}
@@ -133,7 +133,11 @@ function WholesaleDeliveryLiveActivity(
     expandedLeading: (
       <Image
         uiImage={compactBrandMarkURI}
-        modifiers={[resizable(), frame({ width: 38, height: 38 })]}
+        modifiers={[
+          resizable(),
+          frame({ width: 42, height: 42 }),
+          frame({ maxWidth: Infinity, alignment: 'trailing' }),
+        ]}
       />
     ),
     expandedTrailing: (
@@ -150,8 +154,9 @@ function WholesaleDeliveryLiveActivity(
           value={progress}
           modifiers={[
             gaugeStyle('linearCapacity'),
-            controlSize('large'),
+            controlSize('extraLarge'),
             tint('#0A84FF'),
+            padding({ horizontal: 'default' }),
             frame({ maxWidth: Infinity }),
           ]}
         />

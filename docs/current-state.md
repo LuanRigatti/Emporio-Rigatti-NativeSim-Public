@@ -89,11 +89,13 @@ descreve implementação e testes automatizados; não afirma validação física
   os dados do widget Entregas do Dia.
 - Visual atual da Dynamic Island: no modo compacto, `leading` usa o monograma
   ER do splash dark em 25 pt e `trailing` exibe somente o número reativo de
-  entregas pendentes. Na expansão, `leading` mostra apenas o monograma, `trailing`
-  mostra a data discreta, `center` apresenta os números grandes de entregas e
-  baldes pendentes lado a lado com os labels `Entregas` e `Baldes`, e `bottom`
-  usa um Gauge linear azul e `concluídas / total`. O Gauge usa o estilo nativo
-  `linearCapacity` em tamanho grande. A fração é concluídas dividido pelo total,
+  entregas pendentes. Na expansão, `leading` mostra o monograma em 42 pt,
+  alinhado à direita de sua região nativa; `trailing` mostra a data discreta
+  curta, sem ano; `center` apresenta números em negrito para entregas e baldes
+  pendentes lado a lado com os labels `Entregas` e `Baldes`; e `bottom` usa um
+  Gauge linear azul com `concluídas / total`. O Gauge usa o estilo nativo
+  `linearCapacity` em tamanho extra grande, com espaçamento horizontal padrão.
+  A fração é concluídas dividido pelo total,
   atualizada pela projeção; com total zero, a barra vale zero e o texto é
   `0 / 0`. A composição usa as regiões nativas `expandedLeading`,
   `expandedTrailing`, `expandedCenter` e `expandedBottom`, sob o fundo preto

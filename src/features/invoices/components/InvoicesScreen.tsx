@@ -232,7 +232,13 @@ function DocumentTypeCard({
       >
         {title}
       </Text>
-      <GlassCard style={[styles.typeCard, { borderRadius: theme.radius.xl + theme.spacing.sm }]}>
+      <GlassCard
+        style={[
+          styles.typeCard,
+          groups.length === 0 && styles.emptyTypeCard,
+          { borderRadius: theme.radius.xl + theme.spacing.sm },
+        ]}
+      >
         {groups.length > 0 ? (
           groups.map((group) => (
             <View key={group.date} style={styles.dateGroup}>
@@ -335,7 +341,16 @@ function DocumentTypeCard({
             </View>
           ))
         ) : (
-          <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[
+              theme.typography.footnote,
+              {
+                color: theme.colors.textSecondary,
+                fontSize: theme.typography.footnote.fontSize + 2,
+                textAlign: 'center',
+              },
+            ]}
+          >
             {emptyLabel}
           </Text>
         )}
@@ -357,6 +372,7 @@ const styles = StyleSheet.create({
   typeSection: { width: '100%' },
   typeList: { width: '100%' },
   typeCard: { gap: 12, overflow: 'hidden', padding: 16 },
+  emptyTypeCard: { justifyContent: 'center', minHeight: 95 },
   typeTitle: { marginBottom: 8, marginLeft: 16 },
   dateGroup: { gap: 6 },
   groupTitle: { marginLeft: 4 },

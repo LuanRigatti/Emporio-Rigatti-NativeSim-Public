@@ -12,6 +12,7 @@ import type { RouteDistanceSummary } from './routeTrackingDistance';
 import { isExpoGoRuntime } from '@/platform/runtimeEnvironment';
 
 import { ROUTE_LOCATION_TASK_NAME } from './LocationTrackingTask';
+import { routeTrackingLiveActivityCoordinator } from '@/features/location/liveActivity/RouteTrackingLiveActivityCoordinator';
 import {
   firestoreRouteFinancialLedgerDataSource,
   type RouteFinancialLedgerMigrationResult,
@@ -94,7 +95,18 @@ export class LocationTrackingService {
       this.assertCurrentSession(session);
       await Location.startLocationUpdatesAsync(ROUTE_LOCATION_TASK_NAME, routeLocationTaskOptions);
       this.assertCurrentSession(session);
-      return route;
+      const confirmedRoute = await routeTrackingRepository.getRoute(session);
+      this.assertCurrentSession(session);
+      const startedRoute =
+        confirmedRoute?.routeId === routeId && confirmedRoute.ownerUid === session.uid
+          ? confirmedRoute
+          : route;
+      await routeTrackingLiveActivityCoordinator
+        .startForRoute(startedRoute, session)
+        .catch((error: unknown) => {
+          console.warn('[RouteTracking] Falha ao iniciar a Live Activity GPS.', error);
+        });
+      return startedRoute;
     } catch (error) {
       await routeTrackingRepository.requestStop(routeId, Date.now(), session);
       throw error;
@@ -266,6 +278,11 @@ export class LocationTrackingService {
       await Location.startLocationUpdatesAsync(ROUTE_LOCATION_TASK_NAME, routeLocationTaskOptions);
       this.assertCurrentSession(session);
     }
+    await routeTrackingLiveActivityCoordinator
+      .startForRoute(activeRoute, session)
+      .catch((error: unknown) => {
+        console.warn('[RouteTracking] Falha ao restaurar a Live Activity GPS.', error);
+      });
     return activeRoute;
   }
 
@@ -311,6 +328,11 @@ export class LocationTrackingService {
 
     const finishedRoute = await routeTrackingRepository.finishRoute(routeId, Date.now(), session);
     if (!finishedRoute || !routeTrackingRepository.isSessionCurrent(session)) return finishedRoute;
+    await routeTrackingLiveActivityCoordinator
+      .endForRoute(finishedRoute, session)
+      .catch((error: unknown) => {
+        console.warn('[RouteTracking] Falha ao encerrar a Live Activity GPS.', error);
+      });
 
     let completedSummary: RouteFinancialSummary | null = null;
     try {

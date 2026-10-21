@@ -10,12 +10,9 @@ import {
 } from '@/components/native';
 import { useHomeModeTransition } from '@/features/home/hooks/useHomeModeTransition';
 import { useAppMode } from '@/providers';
-import { useAppTheme } from '@/theme';
+import { getLiquidGlassTint, useAppTheme } from '@/theme';
 import type { AppMode } from '@/types/appMode';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
-
-const DARK_MODE_MODE_SELECTOR_GLASS_TINT = 'rgba(28, 28, 30, 0.82)' as const;
-const LIGHT_MODE_MODE_SELECTOR_GLASS_TINT = 'rgba(242, 244, 245, 0.85)' as const;
 
 export type HomeModeSelectorController = {
   mode: AppMode;
@@ -87,29 +84,35 @@ export function HomeToolbar({ onSearchPress, modeSelector }: HomeToolbarProps) {
           />
         </Stack.Toolbar.View>
       </Stack.Toolbar>
-      {onSearchPress ? (
-        <Stack.Toolbar placement="right">
-          <Stack.Toolbar.View>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.View>
+          {mode === 'wholesale' && onSearchPress ? (
             <NativeHomeToolbarActions
-              mode="searchAction"
-              name=""
+              accessibilityHint="Abre o seletor de modo Atacado ou Varejo."
+              accessibilityLabel="Alterar modo. Modo atual: Atacado"
+              mode="modeAndSearchActions"
+              onModePress={modeSelector.open}
               onSearchPress={onSearchPress}
               searchAccessibilityHint="Abre a busca de produtos"
               searchAccessibilityLabel="Busca"
               toolbarMorphDiagnosticRole="home-search"
             />
-          </Stack.Toolbar.View>
-        </Stack.Toolbar>
-      ) : null}
+          ) : (
+            <NativeHomeToolbarActions
+              accessibilityHint="Abre o seletor de modo Atacado ou Varejo."
+              accessibilityLabel={`Alterar modo. Modo atual: ${mode === 'retail' ? 'Varejo' : 'Atacado'}`}
+              mode="modeOnlyAction"
+              onModePress={modeSelector.open}
+              toolbarMorphDiagnosticRole="home-search"
+            />
+          )}
+        </Stack.Toolbar.View>
+      </Stack.Toolbar>
       <NativeSheet
         accessibilityLabel="Modo de venda"
-        detents={[{ fraction: 0.25 }]}
+        detents={[{ fraction: 0.4 }]}
         glassSurface
-        glassTint={
-          resolvedMode === 'dark'
-            ? DARK_MODE_MODE_SELECTOR_GLASS_TINT
-            : LIGHT_MODE_MODE_SELECTOR_GLASS_TINT
-        }
+        glassTint={getLiquidGlassTint(resolvedMode)}
         onDismiss={modeSelector.onDismiss}
         onVisibleChange={modeSelector.onVisibleChange}
         presentationBackgroundInteraction="disabled"

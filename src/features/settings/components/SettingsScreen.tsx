@@ -53,7 +53,7 @@ export function SettingsScreen() {
       <ProgressiveCollapsibleScreen
         compactTitle="Configurações"
         contentGap={0}
-        contentTopInset={theme.spacing.xxxl + theme.spacing.xl + 2 + theme.spacing.sm}
+        contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
         largeTitle={
           <View style={[styles.header, { marginBottom: theme.spacing.xl }]}>{header}</View>
         }

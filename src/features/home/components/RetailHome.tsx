@@ -34,7 +34,7 @@ export function RetailHome({ modeSelector }: { modeSelector: HomeModeSelectorCon
   const { currency: maskCurrency } = useTestModePresentation();
   const metrics = useRetailHomeMetrics();
   const homeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
-  const modeLabel = modeSelector.mode === 'retail' ? 'Varejo' : 'Atacado';
+  const homeTitle = 'Home';
 
   const handleOpenRegistrar = useCallback(() => {
     triggerLightImpactHaptic();
@@ -46,22 +46,10 @@ export function RetailHome({ modeSelector }: { modeSelector: HomeModeSelectorCon
       includeTopSafeArea={false}
       mode="transparent"
       largeTitle
-      title={
-        <HomeModeTitle
-          accessibilityLabel={`Alterar modo. Modo atual: ${modeLabel}`}
-          label={modeLabel}
-          onPress={modeSelector.open}
-        />
-      }
+      title={<HomeModeTitle label={homeTitle} />}
     />
   );
-  const renderHomeModeTitle = () => (
-    <HomeModeTitleCompactRN
-      accessibilityLabel={`Alterar modo. Modo atual: ${modeLabel}`}
-      label={modeLabel}
-      onPress={modeSelector.open}
-    />
-  );
+  const renderHomeModeTitle = () => <HomeModeTitleCompactRN label={homeTitle} />;
 
   const metricsUnavailable = Boolean(metrics.error && !metrics.hasData);
   const loadingValue = metrics.loading || metrics.refreshing;
@@ -71,7 +59,7 @@ export function RetailHome({ modeSelector }: { modeSelector: HomeModeSelectorCon
       <HomeToolbar modeSelector={modeSelector} />
       <ProgressiveCollapsibleScreen
         compactTitle={renderHomeModeTitle()}
-        compactTitleInteractive
+        compactTitleAccessibilityManaged
         contentGap={theme.spacing.lg}
         contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
         largeTitle={

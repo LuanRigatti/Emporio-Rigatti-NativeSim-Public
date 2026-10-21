@@ -310,7 +310,6 @@ export function HistoryScreen() {
         onWeekChange: handleSelectWeek,
         placement: 'right',
         selectedDate,
-        splitDayAndMonthInteraction: viewMode === 'day',
         weekGroups,
         weekSelection: selectedWeek,
       }),

@@ -403,6 +403,26 @@ nativas existentes.
   automatizados não provam apresentação, interações ou atualização no iPhone.
   Mudanças em config plugin, Info.plist, capabilities ou extensão nativa exigem
   nova iOS Development Build e validação física quando autorizadas.
+- O rastreamento GPS tem a atividade independente `RouteTrackingLiveActivity`
+  em `src/features/location/liveActivity/`; preserve o isolamento da fábrica
+  Atacado. A distância vem somente de `RouteTrackingRepository`/`routeTrackingMath`.
+  `LocationTrackingTask` encaminha a rota depois da persistência local confirmada,
+  com guardas por UID, `routeId` e início da sessão. Atualize ActivityKit quando
+  o valor exibido em décimos de quilômetro mudar, coalescendo o que não altera a
+  apresentação; ao parar, sempre envie o snapshot final. Não crie segundo
+  rastreador, consulta Firestore, APNs ou polling para alimentar a atividade.
+- O tempo é renderizado pelo `Text(timerInterval:)` nativo do SwiftUI com o
+  início persistido, sem timer JavaScript. A integração de distância usa lotes
+  do serviço GPS existente; o iOS controla a entrega de callbacks e a frequência
+  de apresentação de ActivityKit, portanto atualizações em background não têm
+  frequência garantida e podem parar se o sistema não executar o processo.
+  Encerrar o app pelo seletor interrompe as atualizações de localização em
+  background; ao reabrir, reconcilie a rota persistida e retome conforme as
+  permissões. O ActivityKit limita a atividade ativa a oito horas.
+  Falha/indisponibilidade da
+  atividade não pode impedir persistência ou encerramento da rota. Uma nova
+  declaração `createLiveActivity` também precisa ser incluída na extensão
+  `expo-widgets` da iOS Development Build para validação nativa.
 
 ## Development Build
 

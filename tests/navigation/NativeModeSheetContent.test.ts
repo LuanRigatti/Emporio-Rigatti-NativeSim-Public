@@ -134,12 +134,33 @@ describe('NativeModeSheetContent', () => {
       const buttons = findNodes(renderer.root, 'swift-button');
       const images = findNodes(renderer.root, 'swift-image');
       const verticalStacks = findNodes(renderer.root, 'swift-vstack');
-      const card = verticalStacks[1];
+      const optionsStack = verticalStacks[1];
 
       expect(buttons).toHaveLength(2);
-      expect(findNodes(renderer.root, 'swift-divider')).toHaveLength(1);
+      expect(findNodes(renderer.root, 'swift-divider')).toHaveLength(0);
       expect(verticalStacks).toHaveLength(2);
-      expect(findNodes(card, 'swift-button')).toHaveLength(2);
+      expect(findNodes(optionsStack, 'swift-button')).toHaveLength(2);
+      expect(optionsStack.props.spacing).toBe(12);
+      expect(optionsStack.props.modifiers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'frame',
+            args: [{ maxWidth: Infinity, alignment: 'topLeading' }],
+          }),
+        ]),
+      );
+      expect(verticalStacks[0].props.modifiers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'padding',
+            args: [{ horizontal: 16, top: 8, bottom: 16 }],
+          }),
+          expect.objectContaining({
+            name: 'frame',
+            args: [{ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }],
+          }),
+        ]),
+      );
       expect(findNodes(renderer.root, 'swift-text').map((node) => node.props.children)).toEqual([
         'Modo de venda',
         'Atacado',
@@ -158,31 +179,73 @@ describe('NativeModeSheetContent', () => {
               String(child.type)),
         ),
       ).toEqual(['swift-image', 'swift-text', 'swift-spacer']);
-      expect(card.props.modifiers).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            name: 'background',
-            args: [
-              '#FFFFFF',
-              {
-                name: 'roundedRectangle',
-                args: [{ cornerRadius: 22, roundedCornerStyle: 'continuous' }],
-              },
-            ],
-          }),
-        ]),
-      );
       buttons.forEach((button) => {
         expect(button.props.modifiers).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
               name: 'frame',
-              args: [{ maxWidth: Infinity, minHeight: 56, alignment: 'leading' }],
+              args: [
+                {
+                  maxWidth: Infinity,
+                  minHeight: 72,
+                  alignment: 'center',
+                },
+              ],
             }),
-            expect.objectContaining({ name: 'contentShape' }),
+          ]),
+        );
+        const row = findNodes(button, 'swift-hstack')[0];
+        expect(row.props.alignment).toBe('center');
+        expect(findNodes(button, 'swift-text')[0].props.modifiers).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: 'font',
+              args: [{ textStyle: 'body', weight: 'regular', design: 'rounded' }],
+            }),
+          ]),
+        );
+        expect(row.props.modifiers).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: 'frame',
+              args: [
+                {
+                  maxWidth: Infinity,
+                  minHeight: 72,
+                  alignment: 'leading',
+                },
+              ],
+            }),
+            expect.objectContaining({
+              name: 'background',
+              args: [
+                '#FFFFFF',
+                {
+                  name: 'roundedRectangle',
+                  args: [{ cornerRadius: 22, roundedCornerStyle: 'continuous' }],
+                },
+              ],
+            }),
+            expect.objectContaining({
+              name: 'contentShape',
+              args: [
+                {
+                  name: 'roundedRectangle',
+                  args: [{ cornerRadius: 22, roundedCornerStyle: 'continuous' }],
+                },
+              ],
+            }),
           ]),
         );
       });
+      expect(
+        buttons.map(
+          (button) =>
+            (button.props.modifiers as { name: string; args: unknown[] }[]).find(
+              (modifier) => modifier.name === 'accessibilityLabel',
+            )?.args[0],
+        ),
+      ).toEqual(['Atacado', 'Varejo']);
       expect(
         buttons.map(
           (button) =>

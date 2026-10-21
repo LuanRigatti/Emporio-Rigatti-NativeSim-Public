@@ -209,12 +209,12 @@ Essas abstrações devem ser reutilizadas antes da criação de uma composição
   content inset recebe compensação equivalente. O compact title dessas
   superfícies usa `18 pt`; não aplicar automaticamente esse ajuste ou tamanho
   às Stack routes.
-- Na Home, o large AppMode title pode continuar SwiftUI/Host; o compact AppMode
-  title aprovado usa `HomeModeTitleCompactRN`, `AppText` e um `Pressable`
-  acessível reutilizando o handler atual. Não envolver um Button SwiftUI em
-  `Pressable` nem usar Host SwiftUI no compact slot da Home sem nova evidência
-  física. Esta exceção é específica da composição de títulos da Home e não deve
-  ser generalizada para outros controles SwiftUI.
+- Na Home, os títulos grande e compacto são texto estático (`Home`) em ambos os
+  modos. O large title usa SwiftUI/Host; o compact title usa
+  `HomeModeTitleCompactRN` e `AppText`, sem affordance ou interação. A seleção
+  Atacado/Varejo pertence às ações nativas de `Stack.Toolbar`; não envolver
+  controles SwiftUI em `Pressable` nem transferir a interação de modo ao
+  título.
 - `PremiumScreen.collapsibleTitle` é infraestrutura anterior mantida para
   compatibilidade com consumidores remanescentes; não é o pipeline atual das
   superfícies migradas. Sua remoção deve ocorrer em mudança separada, após

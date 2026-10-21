@@ -67,7 +67,7 @@ function WholesaleHome({ modeSelector }: { modeSelector: HomeModeSelectorControl
     return () => clearInterval(timer);
   }, []);
 
-  const modeLabel = modeSelector.mode === 'retail' ? 'Varejo' : 'Atacado';
+  const homeTitle = 'Home';
   const openDocumentsCount = useMemo(
     () => countOpenDocuments(invoiceDeliveries, clients),
     [invoiceDeliveries, clients],
@@ -106,28 +106,16 @@ function WholesaleHome({ modeSelector }: { modeSelector: HomeModeSelectorControl
       includeTopSafeArea={false}
       mode="transparent"
       largeTitle
-      title={
-        <HomeModeTitle
-          accessibilityLabel={`Alterar modo. Modo atual: ${modeLabel}`}
-          label={modeLabel}
-          onPress={modeSelector.open}
-        />
-      }
+      title={<HomeModeTitle label={homeTitle} />}
     />
   );
-  const renderHomeModeTitle = () => (
-    <HomeModeTitleCompactRN
-      accessibilityLabel={`Alterar modo. Modo atual: ${modeLabel}`}
-      label={modeLabel}
-      onPress={modeSelector.open}
-    />
-  );
+  const renderHomeModeTitle = () => <HomeModeTitleCompactRN label={homeTitle} />;
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <HomeToolbar modeSelector={modeSelector} onSearchPress={handleOpenSearch} />
       <ProgressiveCollapsibleScreen
         compactTitle={renderHomeModeTitle()}
-        compactTitleInteractive
+        compactTitleAccessibilityManaged
         contentGap={theme.spacing.lg}
         contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}
         largeTitle={

@@ -149,8 +149,8 @@ describe('PremiumScreen collapsible title contract', () => {
   });
 
   it.each([
-    ['src/app/(tabs)/dashboard/index.tsx', 'compactTitleInteractive'],
-    ['src/features/home/components/RetailHome.tsx', 'compactTitleInteractive'],
+    ['src/app/(tabs)/dashboard/index.tsx', 'compactTitleAccessibilityManaged'],
+    ['src/features/home/components/RetailHome.tsx', 'compactTitleAccessibilityManaged'],
     ['src/app/(tabs)/financeiro/index.tsx', 'compactTitle="Finanças"'],
     ['src/app/(tabs)/registrar/index.tsx', 'compactTitle="Registrar"'],
     [
@@ -168,6 +168,21 @@ describe('PremiumScreen collapsible title contract', () => {
     const source = readFileSync(path, 'utf8');
     expect(source).toContain('ProgressiveCollapsibleScreen');
     expect(source).toContain(compactTitleProp);
+  });
+
+  it('aligns the Settings large-content inset with Home and Finance', () => {
+    const alignedInset =
+      'contentTopInset={theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2}';
+    const dashboardSource = readFileSync('src/app/(tabs)/dashboard/index.tsx', 'utf8');
+    const financeSource = readFileSync('src/app/(tabs)/financeiro/index.tsx', 'utf8');
+    const settingsSource = readFileSync(
+      'src/features/settings/components/SettingsScreen.tsx',
+      'utf8',
+    );
+
+    expect(dashboardSource).toContain(alignedInset);
+    expect(financeSource).toContain(alignedInset);
+    expect(settingsSource).toContain(alignedInset);
   });
 
   it('retains the legacy PremiumScreen API for out-of-scope routes', () => {
@@ -210,9 +225,11 @@ describe('PremiumScreen collapsible title contract', () => {
       registrarSource.indexOf('export function RegistrarDeliveryScreen'),
     );
     expect(deliverySource).toContain(
-      "collapsibleTitle={showLargeTitle ? { compactTitle: 'Entregas' } : undefined}",
+      'collapsibleTitle={showLargeTitle ? { compactTitle: clientSelectionTitle } : undefined}',
     );
-    expect(registrarSource).toContain("compactTitle: 'Entregas'");
+    expect(registrarSource).toContain(
+      "const clientSelectionTitle = inlineClientSelection ? 'Clientes' : 'Entregas';",
+    );
     expect(registrarSource).toContain('compactTitle="Registrar"');
   });
 });

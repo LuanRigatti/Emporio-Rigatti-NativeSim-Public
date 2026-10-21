@@ -15,6 +15,20 @@ const historyDeliveryCardSource = readFileSync(
 );
 
 describe('Document and open payment client rows', () => {
+  it('raises and centers only the empty document cards', () => {
+    expect(invoicesScreenSource).toContain('groups.length === 0 && styles.emptyTypeCard');
+    expect(invoicesScreenSource).toContain(
+      "emptyTypeCard: { justifyContent: 'center', minHeight: 95 }",
+    );
+    expect(invoicesScreenSource).toContain(
+      "typeCard: { gap: 12, overflow: 'hidden', padding: 16 }",
+    );
+    expect(invoicesScreenSource).toContain('emptyLabel="Nenhuma nota fiscal pendente"');
+    expect(invoicesScreenSource).toContain('emptyLabel="Nenhum boleto pendente"');
+    expect(invoicesScreenSource).toContain('fontSize: theme.typography.footnote.fontSize + 2');
+    expect(invoicesScreenSource).toMatch(/theme\.colors\.textSecondary,[\s\S]*textAlign: 'center'/);
+  });
+
   it('reuses the History person icon with the app background in both screens', () => {
     const historyIcon =
       '<OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />';

@@ -1,5 +1,4 @@
-import { Button, Divider, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { Fragment } from 'react';
+import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import type { SFSymbol } from 'sf-symbols-typescript';
 import {
   accessibilityLabel,
@@ -31,8 +30,8 @@ export default function NativeModeSheetContent({ mode, onSelect }: NativeModeShe
       alignment="leading"
       spacing={spacing.xxl}
       modifiers={[
-        frame({ maxWidth: Infinity, alignment: 'topLeading' }),
         padding({ horizontal: spacing.md, top: spacing.xs, bottom: spacing.md }),
+        frame({ maxWidth: Infinity, maxHeight: Infinity, alignment: 'topLeading' }),
       ]}
     >
       <Text
@@ -49,69 +48,69 @@ export default function NativeModeSheetContent({ mode, onSelect }: NativeModeShe
 
       <VStack
         alignment="leading"
-        spacing={0}
-        modifiers={[
-          frame({ maxWidth: Infinity, alignment: 'leading' }),
-          background(
-            theme.colors.surfaceElevated,
-            shapes.roundedRectangle({
-              cornerRadius: theme.radius.xl,
-              roundedCornerStyle: 'continuous',
-            }),
-          ),
-        ]}
+        spacing={spacing.sm}
+        modifiers={[frame({ maxWidth: Infinity, alignment: 'topLeading' })]}
       >
-        {NATIVE_MODE_OPTIONS.map((option, index) => {
+        {NATIVE_MODE_OPTIONS.map((option) => {
           const selected = option.mode === mode;
           const systemImages =
             option.mode === 'wholesale'
               ? { active: 'shippingbox.fill', inactive: 'shippingbox' }
               : { active: 'bag.fill', inactive: 'bag' };
           const systemImage = (selected ? systemImages.active : systemImages.inactive) as SFSymbol;
+          const cardShape = shapes.roundedRectangle({
+            cornerRadius: theme.radius.xl,
+            roundedCornerStyle: 'continuous',
+          });
 
           return (
-            <Fragment key={option.mode}>
-              <Button
+            <Button
+              key={option.mode}
+              modifiers={[
+                buttonStyle('plain'),
+                frame({
+                  maxWidth: Infinity,
+                  minHeight: 72,
+                  alignment: 'center',
+                }),
+                accessibilityLabel(option.title),
+                accessibilityValue(selected ? 'Selecionado' : 'Não selecionado'),
+              ]}
+              onPress={() => {
+                if (!selected) triggerLightImpactHaptic();
+                onSelect(option.mode);
+              }}
+            >
+              <HStack
+                alignment="center"
+                spacing={spacing.sm}
                 modifiers={[
-                  buttonStyle('plain'),
-                  frame({ maxWidth: Infinity, minHeight: 56, alignment: 'leading' }),
-                  contentShape(shapes.rectangle()),
-                  accessibilityLabel(option.title),
-                  accessibilityValue(selected ? 'Selecionado' : 'Não selecionado'),
+                  frame({
+                    maxWidth: Infinity,
+                    minHeight: 72,
+                    alignment: 'leading',
+                  }),
+                  padding({ horizontal: spacing.md }),
+                  contentShape(cardShape),
+                  background(theme.colors.surfaceElevated, cardShape),
                 ]}
-                onPress={() => {
-                  if (!selected) triggerLightImpactHaptic();
-                  onSelect(option.mode);
-                }}
               >
-                <HStack
-                  alignment="center"
-                  spacing={spacing.sm}
+                <Image
+                  color={selected ? theme.colors.contrastSurface : theme.colors.textSecondary}
+                  size={20}
+                  systemName={systemImage}
+                />
+                <Text
                   modifiers={[
-                    frame({ maxWidth: Infinity, minHeight: 56, alignment: 'leading' }),
-                    padding({ horizontal: spacing.md }),
+                    roundedFont({ textStyle: 'body', weight: 'regular' }),
+                    foregroundStyle(theme.colors.textPrimary),
                   ]}
                 >
-                  <Image
-                    color={selected ? theme.colors.contrastSurface : theme.colors.textSecondary}
-                    size={20}
-                    systemName={systemImage}
-                  />
-                  <Text
-                    modifiers={[
-                      roundedFont({ size: 17, weight: 'regular' }),
-                      foregroundStyle(theme.colors.textPrimary),
-                    ]}
-                  >
-                    {option.title}
-                  </Text>
-                  <Spacer />
-                </HStack>
-              </Button>
-              {index < NATIVE_MODE_OPTIONS.length - 1 ? (
-                <Divider modifiers={[padding({ leading: spacing.xxxl, trailing: spacing.md })]} />
-              ) : null}
-            </Fragment>
+                  {option.title}
+                </Text>
+                <Spacer />
+              </HStack>
+            </Button>
           );
         })}
       </VStack>

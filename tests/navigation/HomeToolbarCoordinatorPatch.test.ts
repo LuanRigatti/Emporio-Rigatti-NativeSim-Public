@@ -328,7 +328,7 @@ describe('Home toolbar coordinator patch', () => {
       expect(eligibility).toContain('viewController.viewIfLoaded.window != sharedWindow');
 
       expect(staging).toContain('home-toolbar-item:leading-anchor:44x44|');
-      expect(staging).toContain('home-toolbar-item:search:Busca:magnifyingglass:94x44|');
+      expect(staging).toContain('home-toolbar-item:home-actions|');
       expect(staging).toContain('toolbar-morph:home-search');
       expect(staging).toContain(
         'RNSHomeToolbarItemArraysHaveSameInstances(cachedLeftItems, leftItems)',
@@ -427,7 +427,7 @@ describe('Home toolbar coordinator patch', () => {
         'if (![leftSignature hasPrefix:@"home-toolbar-item:leading-anchor:44x44|"] ||',
       );
       expect(staging).toContain(
-        '![rightSignature hasPrefix:@"home-toolbar-item:search:Busca:magnifyingglass:94x44|"] ||',
+        '![rightSignature hasPrefix:@"home-toolbar-item:home-actions|"] ||',
       );
       expect(staging).not.toMatch(
         /!\[\[RNSHomeToolbarItemSemanticSignature\((?:left|right)Items\[0\]\) \?:/,

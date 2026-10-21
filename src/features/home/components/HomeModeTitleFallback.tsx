@@ -1,39 +1,17 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme';
 
 export type HomeModeTitleProps = {
-  accessibilityLabel: string;
   compact?: boolean;
   label: string;
-  onPress: () => void;
 };
 
-export default function HomeModeTitleFallback({
-  accessibilityLabel,
-  compact = false,
-  label,
-  onPress,
-}: HomeModeTitleProps) {
-  const { reduceMotionEnabled, theme } = useAppTheme();
-  const pressedScale = reduceMotionEnabled
-    ? theme.animations.reducedMotion.scale
-    : theme.animations.scale.pressed;
+export default function HomeModeTitleFallback({ compact = false, label }: HomeModeTitleProps) {
+  const { theme } = useAppTheme();
 
   return (
-    <Pressable
-      accessibilityHint="Abre o seletor de modo"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.container,
-        {
-          marginLeft: -(theme.spacing.xxs * 2),
-          transform: [{ scale: pressed ? pressedScale : 1 }],
-        },
-      ]}
-    >
+    <View style={[styles.container, { marginLeft: -(theme.spacing.xxs * 2) }]}>
       <Text
         numberOfLines={1}
         style={[
@@ -45,12 +23,12 @@ export default function HomeModeTitleFallback({
       >
         {label}
       </Text>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { alignItems: 'center', flexDirection: 'row', gap: 6 },
-  title: { fontFamily: 'System', fontSize: 36, fontWeight: '700' },
+  container: { alignSelf: 'flex-start' },
+  title: { fontFamily: 'System', fontSize: 37, fontWeight: '700' },
   compactTitle: { fontSize: 17, fontWeight: '600' },
 });

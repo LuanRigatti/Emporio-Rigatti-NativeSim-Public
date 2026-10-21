@@ -1,4 +1,8 @@
-type NativeHomeToolbarActionsBaseProps = {
+type NativeHomeToolbarMorphProps = {
+  toolbarMorphDiagnosticRole?: 'home-search' | 'settings-profile';
+};
+
+type NativeHomeToolbarActionsBaseProps = NativeHomeToolbarMorphProps & {
   name: string;
   imageUri?: string | null;
   foregroundColor?: string;
@@ -6,7 +10,6 @@ type NativeHomeToolbarActionsBaseProps = {
   accessibilityHint?: string;
   searchAccessibilityLabel?: string;
   searchAccessibilityHint?: string;
-  toolbarMorphDiagnosticRole?: 'home-search' | 'settings-profile';
 };
 
 type NativeHomeToolbarProfileActionsProps = NativeHomeToolbarActionsBaseProps & {
@@ -16,12 +19,27 @@ type NativeHomeToolbarProfileActionsProps = NativeHomeToolbarActionsBaseProps & 
   showSearch?: boolean;
 };
 
-type NativeHomeToolbarSearchActionProps = NativeHomeToolbarActionsBaseProps & {
-  mode: 'searchAction';
-  onProfilePress?: never;
+type NativeHomeToolbarModeActionBaseProps = NativeHomeToolbarMorphProps & {
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  onModePress: () => void;
+};
+
+type NativeHomeToolbarModeAndSearchActionsProps = NativeHomeToolbarModeActionBaseProps & {
+  mode: 'modeAndSearchActions';
   onSearchPress: () => void;
-  showSearch?: never;
+  searchAccessibilityLabel?: string;
+  searchAccessibilityHint?: string;
+};
+
+type NativeHomeToolbarModeOnlyActionProps = NativeHomeToolbarModeActionBaseProps & {
+  mode: 'modeOnlyAction';
+  onSearchPress?: never;
+  searchAccessibilityLabel?: never;
+  searchAccessibilityHint?: never;
 };
 
 export type NativeHomeToolbarActionsProps =
-  NativeHomeToolbarProfileActionsProps | NativeHomeToolbarSearchActionProps;
+  | NativeHomeToolbarProfileActionsProps
+  | NativeHomeToolbarModeAndSearchActionsProps
+  | NativeHomeToolbarModeOnlyActionProps;

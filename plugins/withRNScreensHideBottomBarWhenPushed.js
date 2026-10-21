@@ -545,7 +545,7 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
       ? (sourceNavigationItem.leftBarButtonItems ?: @[]) : (sourceNavigationItem.rightBarButtonItems ?: @[]);
   NSArray<UIBarButtonItem *> *cachedSideItems = [side isEqualToString:@"left"] ? cachedLeftItems : cachedRightItems;
   NSString *expectedSignature = [side isEqualToString:@"left"]
-      ? @"home-toolbar-item:leading-anchor:44x44|" : @"home-toolbar-item:search:Busca:magnifyingglass:94x44|";
+      ? @"home-toolbar-item:leading-anchor:44x44|" : @"home-toolbar-item:home-actions|";
   BOOL isCachedItem = NO;
   for (UIBarButtonItem *candidate in cachedSideItems) if (candidate == item) isCachedItem = YES;
   BOOL isOwnedByDestination = NO;
@@ -559,7 +559,9 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
       !RNSHomeToolbarItemArraysHaveSameInstances(cachedRightItems, destinationRightItems) ||
       ![RNSHomeToolbarItemSemanticSignature(item) hasPrefix:expectedSignature] ||
       !RNSHomeToolbarViewContainsAccessibilityIdentifier(item.customView,
-          [side isEqualToString:@"left"] ? @"home-toolbar-item:leading-anchor:44x44" : @"toolbar-morph:home-search")) {
+          [side isEqualToString:@"left"] ? @"home-toolbar-item:leading-anchor:44x44" : @"home-toolbar-item:home-actions") ||
+      ([side isEqualToString:@"right"] &&
+       !RNSHomeToolbarViewContainsAccessibilityIdentifier(item.customView, @"toolbar-morph:home-search"))) {
     return NO;
   }
 
@@ -600,9 +602,11 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   NSString *leftSignature = RNSHomeToolbarItemSemanticSignature(leftItems[0]) ?: @"";
   NSString *rightSignature = RNSHomeToolbarItemSemanticSignature(rightItems[0]) ?: @"";
   if (![leftSignature hasPrefix:@"home-toolbar-item:leading-anchor:44x44|"] ||
-      ![rightSignature hasPrefix:@"home-toolbar-item:search:Busca:magnifyingglass:94x44|"] ||
+      ![rightSignature hasPrefix:@"home-toolbar-item:home-actions|"] ||
       !RNSHomeToolbarViewContainsAccessibilityIdentifier(leftItems[0].customView,
           @"home-toolbar-item:leading-anchor:44x44") ||
+      !RNSHomeToolbarViewContainsAccessibilityIdentifier(rightItems[0].customView,
+          @"home-toolbar-item:home-actions") ||
       !RNSHomeToolbarViewContainsAccessibilityIdentifier(rightItems[0].customView,
           @"toolbar-morph:home-search")) {
     return @"home_toolbar_identity_mismatch";

@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { createElement, Fragment, type ComponentProps, type ReactNode } from 'react';
+import { createElement, type ComponentProps, type ReactNode } from 'react';
 import { readFileSync } from 'node:fs';
 
+import {
+  HOME_TOOLBAR_CONTROL_SIZE,
+  HOME_TOOLBAR_SEARCH_WIDTH,
+} from '@/components/native/NativeHomeToolbarActions/NativeHomeToolbarActions.constants';
 import { HomeToolbar, useHomeModeSelector } from '@/components/navigation/HomeToolbar';
 
 const mockSetMode = jest.fn();
@@ -89,6 +93,8 @@ jest.mock('@/features/home/hooks/useHomeModeTransition', () => ({
 }));
 
 jest.mock('@/theme', () => ({
+  getLiquidGlassTint: (mode: 'light' | 'dark') =>
+    mode === 'dark' ? 'dark-sheet-tint' : 'light-sheet-tint',
   useAppTheme: () => ({ resolvedMode: mockResolvedMode }),
 }));
 
@@ -101,28 +107,36 @@ const mockTriggerLightImpactHaptic = jest.requireMock('@/utils/haptics')
 
 function ModeToolbarHarness(props: Omit<ComponentProps<typeof HomeToolbar>, 'modeSelector'>) {
   const modeSelector = useHomeModeSelector();
-  return createElement(
-    Fragment,
-    null,
-    createElement(HomeToolbar, { ...props, modeSelector }),
-    createElement('mode-selector-trigger', { onPress: modeSelector.open }),
-  );
+  return createElement(HomeToolbar, { ...props, modeSelector });
 }
 
-function renderToolbar(options: { searchAvailable?: boolean } = {}): ReactTestRenderer {
+function renderToolbar(options: { searchAvailable?: boolean; onSearchPress?: () => void } = {}) {
   let renderer!: ReactTestRenderer;
+  const onSearchPress =
+    options.searchAvailable === false ? undefined : (options.onSearchPress ?? jest.fn());
+
   act(() => {
-    renderer = create(
-      createElement(ModeToolbarHarness, {
-        onSearchPress: options.searchAvailable === false ? undefined : jest.fn(),
-      }),
-    );
+    renderer = create(createElement(ModeToolbarHarness, { onSearchPress }));
   });
   return renderer;
 }
 
 function findNodes(instance: ReactTestInstance, type: string) {
   return instance.findAll((node) => String(node.type) === type);
+}
+
+function findToolbarAction(instance: ReactTestInstance, mode: string) {
+  return findNodes(instance, 'native-home-toolbar-actions').find(
+    (node) => node.props.mode === mode,
+  );
+}
+
+function pressModeAction(renderer: ReactTestRenderer) {
+  const action =
+    findToolbarAction(renderer.root, 'modeAndSearchActions') ??
+    findToolbarAction(renderer.root, 'modeOnlyAction');
+  if (!action) throw new Error('Home mode toolbar action was not rendered');
+  act(() => action.props.onModePress());
 }
 
 describe('HomeToolbar', () => {
@@ -137,10 +151,10 @@ describe('HomeToolbar', () => {
   });
 
   it.each(['wholesale', 'retail'] as const)(
-    'passes the current mode to the sheet for %s',
+    'passes the current mode to the shared sheet for %s',
     (mode) => {
       mockAppMode.mode = mode;
-      const renderer = renderToolbar();
+      const renderer = renderToolbar({ searchAvailable: mode === 'wholesale' });
       const modeSheetContent = findNodes(renderer.root, 'native-mode-sheet-content');
 
       expect(modeSheetContent).toHaveLength(1);
@@ -148,104 +162,145 @@ describe('HomeToolbar', () => {
     },
   );
 
-  it('keeps the right slot as Busca with magnifyingglass for Wholesale', () => {
+  it('renders one Atacado capsule with separate mode and Search actions', () => {
     mockAppMode.mode = 'wholesale';
     const renderer = renderToolbar();
+    const action = findToolbarAction(renderer.root, 'modeAndSearchActions');
 
-    const action = findNodes(renderer.root, 'native-home-toolbar-actions').find(
-      (node) => node.props.mode === 'searchAction',
-    );
     expect(action?.props).toEqual(
       expect.objectContaining({
-        mode: 'searchAction',
-        name: '',
+        accessibilityHint: 'Abre o seletor de modo Atacado ou Varejo.',
+        accessibilityLabel: 'Alterar modo. Modo atual: Atacado',
+        mode: 'modeAndSearchActions',
+        onModePress: expect.any(Function),
         onSearchPress: expect.any(Function),
         searchAccessibilityHint: 'Abre a busca de produtos',
         searchAccessibilityLabel: 'Busca',
         toolbarMorphDiagnosticRole: 'home-search',
       }),
     );
-    expect(
-      readFileSync(
-        'src/components/native/NativeHomeToolbarActions/NativeHomeToolbarActionsSwiftUI.ios.tsx',
-        'utf8',
-      ),
-    ).toContain('systemImage="magnifyingglass"');
+    expect(findNodes(renderer.root, 'native-home-toolbar-actions')).toHaveLength(1);
     expect(findNodes(renderer.root, 'toolbar-button')).toHaveLength(0);
   });
 
-  it('uses a fixed-size native SwiftUI custom view for Search without matchContents', () => {
+  it('uses a single fixed native Host with two independently labeled 44-point buttons', () => {
     const homeToolbarSource = readFileSync('src/components/navigation/HomeToolbar.tsx', 'utf8');
-    const dashboardSource = readFileSync('src/app/(tabs)/dashboard/index.tsx', 'utf8');
     const nativeActionsSource = readFileSync(
       'src/components/native/NativeHomeToolbarActions/NativeHomeToolbarActionsSwiftUI.ios.tsx',
+      'utf8',
+    );
+    const fallbackActionsSource = readFileSync(
+      'src/components/native/NativeHomeToolbarActions/NativeHomeToolbarActionsFallback.tsx',
       'utf8',
     );
     const toolbarConstantsSource = readFileSync(
       'src/components/native/NativeHomeToolbarActions/NativeHomeToolbarActions.constants.ts',
       'utf8',
     );
-    const searchModeStart = nativeActionsSource.indexOf("if (mode === 'searchAction')");
-    const profileModeStart = nativeActionsSource.indexOf('const toolbarWidth', searchModeStart);
-    const searchModeSource = nativeActionsSource.slice(searchModeStart, profileModeStart);
+    const actionStart = nativeActionsSource.indexOf(
+      "if (props.mode === 'modeAndSearchActions' || props.mode === 'modeOnlyAction')",
+    );
+    const profileStart = nativeActionsSource.indexOf('\n  const {', actionStart);
+    const modeActionsSource = nativeActionsSource.slice(actionStart, profileStart);
 
     expect(homeToolbarSource).toContain('<Stack.Toolbar.View hidesSharedBackground>');
     expect(homeToolbarSource).toContain('home-toolbar-item:leading-anchor:44x44');
-    expect(homeToolbarSource).toContain('mode="searchAction"');
+    expect(homeToolbarSource).toContain('<Stack.Toolbar placement="right">');
+    expect(homeToolbarSource).toContain('<Stack.Toolbar.View>');
+    expect(homeToolbarSource).toContain('toolbarMorphDiagnosticRole="home-search"');
     expect(homeToolbarSource).not.toContain('<Stack.Toolbar.Button');
     expect(homeToolbarSource).not.toContain('HomeSearchToolbarExperimentSelector');
-    expect(homeToolbarSource).not.toContain('[ToolbarMorphJS]');
-    expect(dashboardSource).not.toContain('HomeSearchToolbarExperimentSelector');
-    expect(dashboardSource).not.toContain('searchToolbarVariant');
-    expect(searchModeSource).toContain('width: HOME_TOOLBAR_SEARCH_WIDTH');
-    expect(searchModeSource).toContain('height: HOME_TOOLBAR_CONTROL_SIZE');
-    expect(searchModeSource).toContain("buttonStyle('plain')");
-    expect(searchModeSource).toContain('label="Busca"');
-    expect(searchModeSource).toContain('systemImage="magnifyingglass"');
-    expect(searchModeSource).toContain('toolbar-morph:${toolbarMorphDiagnosticRole}');
-    expect(searchModeSource).not.toContain('matchContents');
-    expect(searchModeSource).not.toContain('glassEffect');
-    expect(searchModeSource).not.toContain('background(');
-    expect(toolbarConstantsSource).toContain('HOME_TOOLBAR_SEARCH_WIDTH = 94');
+    expect(modeActionsSource.match(/<Button/g)).toHaveLength(2);
+    expect(modeActionsSource.match(/systemName="cube"/g)).toHaveLength(1);
+    expect(fallbackActionsSource).toContain('name="cube-outline"');
+    expect(modeActionsSource.match(/systemName="magnifyingglass"/g)).toHaveLength(1);
+    expect(modeActionsSource).not.toContain('Divider');
+    expect(modeActionsSource).not.toContain('opacity(0.55)');
+    expect(fallbackActionsSource).not.toContain('styles.divider');
+    expect(fallbackActionsSource).toContain(
+      "justifyContent: hasSearch ? 'space-between' : 'center'",
+    );
+    expect(fallbackActionsSource).toContain('width: toolbarWidth');
+    expect(modeActionsSource.match(/width: HOME_TOOLBAR_CONTROL_SIZE/g)).toHaveLength(2);
+    expect(modeActionsSource.match(/height: HOME_TOOLBAR_CONTROL_SIZE/g)).toHaveLength(5);
+    expect(modeActionsSource.match(/font\(\{ size: 22, weight: 'regular' \}\)/g)).toHaveLength(2);
+    expect(modeActionsSource).toMatch(
+      /<Host\s+style=\{\{ height: HOME_TOOLBAR_CONTROL_SIZE, width: toolbarWidth \}\}/,
+    );
+    expect(modeActionsSource).toContain('testID="home-toolbar-item:home-actions"');
+    expect(modeActionsSource).toContain('collapsable={false}');
+    expect(modeActionsSource).toMatch(
+      /frame\(\{\s*width: toolbarWidth,\s*height: HOME_TOOLBAR_CONTROL_SIZE,/,
+    );
+    expect(modeActionsSource).toContain('spacing={actionSpacing}');
+    expect(modeActionsSource).toContain('alignment="center"');
+    expect(modeActionsSource).toContain(
+      'const actionSpacing = hasSearch ? toolbarWidth - 2 * HOME_TOOLBAR_CONTROL_SIZE : 0;',
+    );
+    const interButtonSpacing = HOME_TOOLBAR_SEARCH_WIDTH - 2 * HOME_TOOLBAR_CONTROL_SIZE;
+    const modeCenter = HOME_TOOLBAR_CONTROL_SIZE / 2;
+    const searchCenter = HOME_TOOLBAR_SEARCH_WIDTH - HOME_TOOLBAR_CONTROL_SIZE / 2;
+    expect(interButtonSpacing).toBe(12);
+    expect(2 * HOME_TOOLBAR_CONTROL_SIZE + interButtonSpacing).toBe(100);
+    expect(searchCenter - modeCenter).toBe(56);
+    expect(modeCenter).toBe(HOME_TOOLBAR_SEARCH_WIDTH - searchCenter);
+    expect(interButtonSpacing).toBeGreaterThanOrEqual(0);
+    expect(modeActionsSource).toContain("accessibilityIdentifier('home-mode-toolbar')");
+    expect(modeActionsSource).toContain("accessibilityIdentifier('home-search-toolbar')");
+    expect(modeActionsSource).not.toContain('<Text');
+    expect(modeActionsSource).not.toContain('matchContents');
+    expect(modeActionsSource).not.toContain('glassEffect');
+    expect(modeActionsSource).not.toContain('background(');
+    expect(modeActionsSource).toContain('toolbar-morph:${props.toolbarMorphDiagnosticRole}');
+    expect(toolbarConstantsSource).toContain('HOME_TOOLBAR_SEARCH_WIDTH = 100');
     expect(findNodes(renderToolbar().root, 'native-button')).toHaveLength(0);
   });
 
-  it('does not render a right Search item for Retail', () => {
+  it('renders only the mode icon in the Retail right slot', () => {
     mockAppMode.mode = 'retail';
     const renderer = renderToolbar({ searchAvailable: false });
+    const action = findToolbarAction(renderer.root, 'modeOnlyAction');
 
-    expect(findNodes(renderer.root, 'toolbar-button')).toHaveLength(0);
-    expect(
-      findNodes(renderer.root, 'native-home-toolbar-actions').some(
-        (node) => node.props.mode === 'searchAction',
-      ),
-    ).toBe(false);
+    expect(action?.props).toEqual(
+      expect.objectContaining({
+        accessibilityHint: 'Abre o seletor de modo Atacado ou Varejo.',
+        accessibilityLabel: 'Alterar modo. Modo atual: Varejo',
+        mode: 'modeOnlyAction',
+        onModePress: expect.any(Function),
+        toolbarMorphDiagnosticRole: 'home-search',
+      }),
+    );
+    expect(action?.props.onSearchPress).toBeUndefined();
+    expect(findNodes(renderer.root, 'native-home-toolbar-actions')).toHaveLength(1);
   });
 
-  it('keeps the NativeSheet available to the shared mode selector controller', () => {
-    const renderer = renderToolbar();
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
+  it('opens the existing mode sheet and emits its existing light haptic from either toolbar variant', () => {
+    for (const mode of ['wholesale', 'retail'] as const) {
+      mockAppMode.mode = mode;
+      mockTriggerLightImpactHaptic.mockClear();
+      const renderer = renderToolbar({ searchAvailable: mode === 'wholesale' });
 
-    expect(findNodes(renderer.root, 'native-sheet')[0].props.visible).toBe(false);
+      expect(findNodes(renderer.root, 'native-sheet')[0].props.visible).toBe(false);
+      pressModeAction(renderer);
 
-    act(() => trigger.props.onPress());
-
-    expect(findNodes(renderer.root, 'native-sheet')[0].props.visible).toBe(true);
+      expect(findNodes(renderer.root, 'native-sheet')[0].props.visible).toBe(true);
+      expect(mockTriggerLightImpactHaptic).toHaveBeenCalledTimes(1);
+    }
   });
 
-  it('uses the 85% scoped Light Mode tint and preserves the mode selector sheet contract', () => {
+  it('preserves the shared Light Mode tint and mode selector sheet contract', () => {
     const renderer = renderToolbar();
     const modeSheet = findNodes(renderer.root, 'native-sheet')[0];
 
     expect(modeSheet.props.presentationBackgroundColor).toBeUndefined();
     expect(modeSheet.props.presentationBackgroundInteraction).toBe('disabled');
     expect(modeSheet.props.glassSurface).toBe(true);
-    expect(modeSheet.props.glassTint).toBe('rgba(242, 244, 245, 0.85)');
-    expect(modeSheet.props.detents).toEqual([{ fraction: 0.25 }]);
+    expect(modeSheet.props.glassTint).toBe('light-sheet-tint');
+    expect(modeSheet.props.detents).toEqual([{ fraction: 0.4 }]);
     expect(modeSheet.props.accessibilityLabel).toBe('Modo de venda');
   });
 
-  it('uses 82% dark gray native Glass tint without changing modal dimming in Dark Mode', () => {
+  it('preserves the shared Dark Mode tint without changing modal dimming', () => {
     mockResolvedMode = 'dark';
     const renderer = renderToolbar();
     const modeSheet = findNodes(renderer.root, 'native-sheet')[0];
@@ -253,27 +308,21 @@ describe('HomeToolbar', () => {
     expect(modeSheet.props.presentationBackgroundColor).toBeUndefined();
     expect(modeSheet.props.presentationBackgroundInteraction).toBe('disabled');
     expect(modeSheet.props.glassSurface).toBe(true);
-    expect(modeSheet.props.glassTint).toBe('rgba(28, 28, 30, 0.82)');
+    expect(modeSheet.props.glassTint).toBe('dark-sheet-tint');
   });
 
-  it('emits one light haptic when opening the mode selector', () => {
-    const renderer = renderToolbar();
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
+  it.each([
+    ['wholesale', 'retail'],
+    ['retail', 'wholesale'],
+  ] as const)('requests the %s to %s transition after native sheet dismissal', (from, to) => {
+    mockAppMode.mode = from;
+    const renderer = renderToolbar({ searchAvailable: from === 'wholesale' });
 
-    act(() => trigger.props.onPress());
-
-    expect(mockTriggerLightImpactHaptic).toHaveBeenCalledTimes(1);
-  });
-
-  it('requests the mode transition only after native dismissal from Wholesale to Retail', () => {
-    const renderer = renderToolbar();
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
-
-    act(() => trigger.props.onPress());
+    pressModeAction(renderer);
     const modeSheetContent = findNodes(renderer.root, 'native-mode-sheet-content')[0];
     const sheet = findNodes(renderer.root, 'native-sheet')[0];
 
-    act(() => modeSheetContent.props.onSelect('retail'));
+    act(() => modeSheetContent.props.onSelect(to));
 
     expect(mockSetMode).not.toHaveBeenCalled();
     expect(mockRequestModeTransition).not.toHaveBeenCalled();
@@ -281,35 +330,13 @@ describe('HomeToolbar', () => {
 
     act(() => sheet.props.onDismiss());
 
-    expect(mockRequestModeTransition.mock.calls).toEqual([['retail']]);
-    expect(mockSetMode).not.toHaveBeenCalled();
-  });
-
-  it('requests the mode transition only after native dismissal from Retail to Wholesale', () => {
-    mockAppMode.mode = 'retail';
-    const renderer = renderToolbar({ searchAvailable: false });
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
-
-    act(() => trigger.props.onPress());
-    const modeSheetContent = findNodes(renderer.root, 'native-mode-sheet-content')[0];
-    const sheet = findNodes(renderer.root, 'native-sheet')[0];
-
-    act(() => modeSheetContent.props.onSelect('wholesale'));
-
-    expect(mockSetMode).not.toHaveBeenCalled();
-    expect(sheet.props.visible).toBe(false);
-
-    act(() => sheet.props.onDismiss());
-
-    expect(mockRequestModeTransition.mock.calls).toEqual([['wholesale']]);
+    expect(mockRequestModeTransition.mock.calls).toEqual([[to]]);
     expect(mockSetMode).not.toHaveBeenCalled();
   });
 
   it('closes without writing when the current mode is selected again', () => {
     const renderer = renderToolbar();
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
-
-    act(() => trigger.props.onPress());
+    pressModeAction(renderer);
     const modeSheetContent = findNodes(renderer.root, 'native-mode-sheet-content')[0];
 
     act(() => modeSheetContent.props.onSelect('wholesale'));
@@ -326,10 +353,9 @@ describe('HomeToolbar', () => {
 
   it('does not change mode when the sheet is dismissed without a selection', () => {
     const renderer = renderToolbar();
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
     const sheet = findNodes(renderer.root, 'native-sheet')[0];
 
-    act(() => trigger.props.onPress());
+    pressModeAction(renderer);
     act(() => sheet.props.onDismiss());
 
     expect(mockSetMode).not.toHaveBeenCalled();
@@ -337,12 +363,10 @@ describe('HomeToolbar', () => {
 
   it('applies a pending mode only once if dismissal is reported more than once', () => {
     const renderer = renderToolbar();
-    const trigger = findNodes(renderer.root, 'mode-selector-trigger')[0];
     const sheet = findNodes(renderer.root, 'native-sheet')[0];
 
-    act(() => trigger.props.onPress());
+    pressModeAction(renderer);
     act(() => findNodes(renderer.root, 'native-mode-sheet-content')[0].props.onSelect('retail'));
-
     act(() => sheet.props.onDismiss());
     act(() => sheet.props.onDismiss());
 
@@ -351,41 +375,44 @@ describe('HomeToolbar', () => {
     expect(mockSetMode).not.toHaveBeenCalled();
   });
 
-  it('reserves a neutral 44-point real custom view in the Home left toolbar', () => {
+  it('keeps the neutral 44-point anchor on the left and one native action on the right', () => {
     const renderer = renderToolbar();
     const toolbars = findNodes(renderer.root, 'toolbar');
     const leftToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'left');
+    const rightToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'right');
 
+    expect(toolbars).toHaveLength(2);
     expect(leftToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
-    expect(findNodes(leftToolbar!, 'toolbar-view')[0].props.hidesSharedBackground).toBe(true);
+    expect(rightToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
     expect(findNodes(leftToolbar!, 'native-home-toolbar-actions')).toHaveLength(0);
+    expect(findNodes(rightToolbar!, 'native-home-toolbar-actions')).toHaveLength(1);
+    expect(findNodes(leftToolbar!, 'toolbar-view')[0].props.hidesSharedBackground).toBe(true);
     expect(readFileSync('src/components/navigation/HomeToolbar.tsx', 'utf8')).toContain(
       'width: HOME_TOOLBAR_CONTROL_SIZE',
     );
   });
 
-  it('renders a neutral left custom view and the search action on the right', () => {
-    const renderer = renderToolbar();
-    const toolbars = findNodes(renderer.root, 'toolbar');
-
-    expect(toolbars).toHaveLength(2);
-    const leftToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'left');
-    const rightToolbar = toolbars.find((toolbar) => toolbar.props.placement === 'right');
-
-    expect(leftToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
-    expect(rightToolbar?.props.directChildTypes).toEqual(['MockToolbarView']);
-    expect(findNodes(leftToolbar!, 'native-home-toolbar-actions')).toHaveLength(0);
-    expect(findNodes(rightToolbar!, 'native-home-toolbar-actions')[0].props.mode).toBe(
-      'searchAction',
-    );
-  });
-
-  it('keeps toolbar mounts stable while the Wholesale search action updates', () => {
+  it('keeps the shared right toolbar mounted while switching between modes', () => {
     const renderer = renderToolbar();
     const initialMounts = mockToolbarMounts;
     const initialUnmounts = mockToolbarUnmounts;
-    expect(findNodes(renderer.root, 'native-home-toolbar-actions')).toHaveLength(1);
+    expect(findToolbarAction(renderer.root, 'modeAndSearchActions')).toBeDefined();
 
+    mockAppMode.mode = 'retail';
+    act(() =>
+      renderer.update(
+        createElement(ModeToolbarHarness, {
+          onSearchPress: undefined,
+        }),
+      ),
+    );
+
+    expect(findToolbarAction(renderer.root, 'modeOnlyAction')).toBeDefined();
+    expect(findNodes(renderer.root, 'native-home-toolbar-actions')).toHaveLength(1);
+    expect(mockToolbarMounts).toBe(initialMounts);
+    expect(mockToolbarUnmounts).toBe(initialUnmounts);
+
+    mockAppMode.mode = 'wholesale';
     act(() =>
       renderer.update(
         createElement(ModeToolbarHarness, {
@@ -394,41 +421,31 @@ describe('HomeToolbar', () => {
       ),
     );
 
-    expect(findNodes(renderer.root, 'native-home-toolbar-actions')).toHaveLength(1);
-    expect(findNodes(renderer.root, 'native-home-toolbar-actions')[0].props.mode).toBe(
-      'searchAction',
-    );
+    expect(findToolbarAction(renderer.root, 'modeAndSearchActions')).toBeDefined();
     expect(mockToolbarMounts).toBe(initialMounts);
     expect(mockToolbarUnmounts).toBe(initialUnmounts);
   });
 
-  it('keeps the Search control conditional on the canonical Home handler', () => {
-    const renderer = renderToolbar({ searchAvailable: false });
-
-    expect(findNodes(renderer.root, 'toolbar-button')).toHaveLength(0);
-    expect(
-      findNodes(renderer.root, 'native-home-toolbar-actions').some(
-        (node) => node.props.mode === 'searchAction',
-      ),
-    ).toBe(false);
-  });
-
-  it('routes the right toolbar action to the canonical Home Search handler', () => {
+  it('keeps Search limited to Wholesale and routes its independent action to the supplied handler', () => {
     const onSearchPress = jest.fn();
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        createElement(ModeToolbarHarness, {
-          onSearchPress,
-        }),
-      );
-    });
+    const renderer = renderToolbar({ onSearchPress });
+    const action = findToolbarAction(renderer.root, 'modeAndSearchActions');
 
-    const searchAction = findNodes(renderer.root, 'native-home-toolbar-actions').find(
-      (node) => node.props.mode === 'searchAction',
-    );
-    act(() => searchAction?.props.onSearchPress());
-
+    act(() => action?.props.onSearchPress());
     expect(onSearchPress).toHaveBeenCalledTimes(1);
+
+    mockAppMode.mode = 'retail';
+    let retailRenderer!: ReactTestRenderer;
+    act(() => {
+      retailRenderer = create(createElement(ModeToolbarHarness, { onSearchPress: undefined }));
+    });
+    expect(findToolbarAction(retailRenderer.root, 'modeAndSearchActions')).toBeUndefined();
+    expect(findToolbarAction(retailRenderer.root, 'modeOnlyAction')).toBeDefined();
+
+    const dashboardSource = readFileSync('src/app/(tabs)/dashboard/index.tsx', 'utf8');
+    const retailHomeSource = readFileSync('src/features/home/components/RetailHome.tsx', 'utf8');
+    expect(dashboardSource).toContain('onSearchPress={handleOpenSearch}');
+    expect(dashboardSource).toContain("router.push('/pesquisa')");
+    expect(retailHomeSource).not.toContain('onSearchPress=');
   });
 });

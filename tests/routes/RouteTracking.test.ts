@@ -16,6 +16,7 @@ import {
   getRouteFinancialLedgerPendingKey,
 } from '@/services/routes/FirestoreRouteFinancialLedgerDataSource';
 import { handleRouteLocationTask } from '@/services/routes/LocationTrackingTask';
+import { routeTrackingLiveActivityCoordinator } from '@/features/location/liveActivity/RouteTrackingLiveActivityCoordinator';
 import {
   getRouteTrackingHistoryStorageKey,
   getRouteTrackingStorageKey,
@@ -51,7 +52,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('expo-location', () => ({
   Accuracy: { High: 'high' },
   ActivityType: { AutomotiveNavigation: 'automotiveNavigation' },
+  getBackgroundPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
+  getForegroundPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
+  hasServicesEnabledAsync: jest.fn(async () => true),
+  isBackgroundLocationAvailableAsync: jest.fn(async () => true),
   hasStartedLocationUpdatesAsync: jest.fn(),
+  requestBackgroundPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
   startLocationUpdatesAsync: jest.fn(),
   stopLocationUpdatesAsync: jest.fn(),
 }));
@@ -60,6 +67,8 @@ jest.mock('expo-task-manager', () => ({
   isAvailableAsync: jest.fn().mockResolvedValue(true),
   isTaskDefined: jest.fn().mockReturnValue(true),
 }));
+
+jest.mock('@/platform/runtimeEnvironment', () => ({ isExpoGoRuntime: () => false }));
 
 jest.mock('firebase/firestore', () => ({
   collection: jest.fn(),
@@ -175,6 +184,64 @@ describe('route tracking stop lifecycle', () => {
     expect(await routeTrackingRepository.getActiveRoute()).toBeNull();
   });
 
+  it('ends the matching GPS Live Activity with the finalized route snapshot', async () => {
+    const service = await createActiveRoute();
+    hasStartedLocationUpdatesAsync.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const endActivity = jest
+      .spyOn(routeTrackingLiveActivityCoordinator, 'endForRoute')
+      .mockResolvedValue(undefined);
+
+    const result = await service.stopRouteTracking('route-1');
+
+    expect(endActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ active: false, routeId: 'route-1' }),
+      expect.objectContaining({ uid: TEST_UID }),
+    );
+    expect(result?.active).toBe(false);
+    endActivity.mockRestore();
+  });
+
+  it('starts the GPS Live Activity only after native location tracking is confirmed', async () => {
+    const service = new LocationTrackingService();
+    hasStartedLocationUpdatesAsync.mockResolvedValue(false);
+    const startActivity = jest
+      .spyOn(routeTrackingLiveActivityCoordinator, 'startForRoute')
+      .mockResolvedValue(undefined);
+
+    const startedRoute = await service.startRouteTracking('route-start-activity');
+
+    expect(startLocationUpdatesAsync).toHaveBeenCalledWith(
+      'pareact-route-location-updates',
+      expect.objectContaining({ distanceInterval: 25, deferredUpdatesDistance: 50 }),
+    );
+    expect(startActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ active: true, routeId: 'route-start-activity' }),
+      expect.objectContaining({ uid: TEST_UID }),
+    );
+    expect(startedRoute.active).toBe(true);
+    startActivity.mockRestore();
+  });
+
+  it('keeps the confirmed GPS route active if Live Activity startup fails', async () => {
+    const service = new LocationTrackingService();
+    hasStartedLocationUpdatesAsync.mockResolvedValue(false);
+    const startActivity = jest
+      .spyOn(routeTrackingLiveActivityCoordinator, 'startForRoute')
+      .mockRejectedValueOnce(new Error('ActivityKit unavailable'));
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const startedRoute = await service.startRouteTracking('route-start-failure');
+
+    expect(startedRoute.active).toBe(true);
+    await expect(routeTrackingRepository.getActiveRoute()).resolves.toMatchObject({
+      active: true,
+      routeId: 'route-start-failure',
+    });
+    expect(startActivity).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+    startActivity.mockRestore();
+  });
+
   it('keeps a locally finalized route when its Firestore ledger sync fails', async () => {
     const service = await createActiveRoute();
     const sync = jest
@@ -249,6 +316,40 @@ describe('route tracking stop lifecycle', () => {
     expect(restored?.active).toBe(false);
     expect(startLocationUpdatesAsync).not.toHaveBeenCalled();
     expect(await routeTrackingRepository.getActiveRoute()).toBeNull();
+  });
+});
+
+describe('background route updates for the GPS Live Activity', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    routeTrackingRepository.setSessionUser('gps-task-user', 1);
+  });
+
+  it('forwards the canonical route only after the accepted batch is persisted', async () => {
+    const route = await routeTrackingRepository.createActiveRoute('gps-task-route');
+    const forwarded: number[] = [];
+    const updateSpy = jest
+      .spyOn(routeTrackingLiveActivityCoordinator, 'updateFromBackground')
+      .mockImplementation(async (confirmedRoute, session) => {
+        const persistedRoute = await routeTrackingRepository.getRoute(session ?? undefined);
+        expect(persistedRoute?.accumulatedDistanceMeters).toBe(
+          confirmedRoute.accumulatedDistanceMeters,
+        );
+        forwarded.push(confirmedRoute.accumulatedDistanceMeters);
+      });
+
+    await handleRouteLocationTask({
+      data: {
+        locations: [
+          location(-25.4296, -49.2719, route.startTimestamp + 1_000),
+          location(-25.4306, -49.2719, route.startTimestamp + 11_000),
+        ],
+      },
+    });
+
+    expect(forwarded).toHaveLength(1);
+    expect(forwarded[0]).toBeGreaterThan(100);
+    updateSpy.mockRestore();
   });
 });
 

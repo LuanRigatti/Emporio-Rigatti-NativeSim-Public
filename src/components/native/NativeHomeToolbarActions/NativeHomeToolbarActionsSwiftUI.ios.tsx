@@ -11,7 +11,6 @@ import {
   padding,
   shapes,
 } from '@expo/ui/swift-ui/modifiers';
-
 import { View } from 'react-native';
 
 import { Avatar } from '@/components/feedback';
@@ -27,56 +26,106 @@ import {
 } from './NativeHomeToolbarActions.constants';
 import type { NativeHomeToolbarActionsProps } from './NativeHomeToolbarActions.types';
 
-export default function NativeHomeToolbarActionsSwiftUI({
-  mode = 'profileActions',
-  accessibilityHint: profileHint,
-  accessibilityLabel: profileLabel = 'Abrir perfil da conta',
-  foregroundColor,
-  imageUri,
-  name,
-  onProfilePress,
-  onSearchPress,
-  searchAccessibilityLabel = 'Abrir Pesquisa',
-  searchAccessibilityHint = 'Abre a busca de produtos',
-  showSearch = true,
-  toolbarMorphDiagnosticRole,
-}: NativeHomeToolbarActionsProps) {
-  if (mode === 'searchAction') {
+export default function NativeHomeToolbarActionsSwiftUI(props: NativeHomeToolbarActionsProps) {
+  if (props.mode === 'modeAndSearchActions' || props.mode === 'modeOnlyAction') {
+    const hasSearch = props.mode === 'modeAndSearchActions';
+    const toolbarWidth = hasSearch ? HOME_TOOLBAR_SEARCH_WIDTH : HOME_TOOLBAR_CONTROL_SIZE;
+    const actionSpacing = hasSearch ? toolbarWidth - 2 * HOME_TOOLBAR_CONTROL_SIZE : 0;
+    const onSearchPress = props.mode === 'modeAndSearchActions' ? props.onSearchPress : undefined;
+
     return (
       <View
         accessible={false}
         collapsable={false}
-        style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_SEARCH_WIDTH }}
-        testID="home-toolbar-item:search:Busca:magnifyingglass:94x44"
+        style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: toolbarWidth }}
+        testID="home-toolbar-item:home-actions"
       >
         <Host
-          style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: HOME_TOOLBAR_SEARCH_WIDTH }}
+          style={{ height: HOME_TOOLBAR_CONTROL_SIZE, width: toolbarWidth }}
           testID={
-            toolbarMorphDiagnosticRole ? `toolbar-morph:${toolbarMorphDiagnosticRole}` : undefined
+            props.toolbarMorphDiagnosticRole
+              ? `toolbar-morph:${props.toolbarMorphDiagnosticRole}`
+              : undefined
           }
         >
-          <Button
-            label="Busca"
+          <HStack
+            alignment="center"
+            spacing={actionSpacing}
             modifiers={[
-              buttonStyle('plain'),
-              controlSize('regular'),
               frame({
-                width: HOME_TOOLBAR_SEARCH_WIDTH,
+                width: toolbarWidth,
                 height: HOME_TOOLBAR_CONTROL_SIZE,
                 alignment: 'center',
               }),
-              contentShape(shapes.rectangle()),
-              accessibilityLabel(searchAccessibilityLabel),
-              accessibilityHintModifier(searchAccessibilityHint),
-              accessibilityIdentifier('home-search-toolbar'),
             ]}
-            onPress={onSearchPress}
-            systemImage="magnifyingglass"
-          />
+          >
+            <Button
+              modifiers={[
+                padding({ all: 0 }),
+                buttonStyle('plain'),
+                controlSize('regular'),
+                frame({
+                  width: HOME_TOOLBAR_CONTROL_SIZE,
+                  height: HOME_TOOLBAR_CONTROL_SIZE,
+                  alignment: 'center',
+                }),
+                contentShape(shapes.rectangle()),
+                accessibilityLabel(props.accessibilityLabel ?? 'Alterar modo de venda'),
+                ...(props.accessibilityHint
+                  ? [accessibilityHintModifier(props.accessibilityHint)]
+                  : []),
+                accessibilityIdentifier('home-mode-toolbar'),
+              ]}
+              onPress={props.onModePress}
+            >
+              <Image modifiers={[font({ size: 22, weight: 'regular' })]} systemName="cube" />
+            </Button>
+            {hasSearch ? (
+              <>
+                <Button
+                  modifiers={[
+                    padding({ all: 0 }),
+                    buttonStyle('plain'),
+                    controlSize('regular'),
+                    frame({
+                      width: HOME_TOOLBAR_CONTROL_SIZE,
+                      height: HOME_TOOLBAR_CONTROL_SIZE,
+                      alignment: 'center',
+                    }),
+                    contentShape(shapes.rectangle()),
+                    accessibilityLabel(props.searchAccessibilityLabel ?? 'Abrir Pesquisa'),
+                    ...(props.searchAccessibilityHint
+                      ? [accessibilityHintModifier(props.searchAccessibilityHint)]
+                      : []),
+                    accessibilityIdentifier('home-search-toolbar'),
+                  ]}
+                  onPress={onSearchPress}
+                >
+                  <Image
+                    modifiers={[font({ size: 22, weight: 'regular' })]}
+                    systemName="magnifyingglass"
+                  />
+                </Button>
+              </>
+            ) : null}
+          </HStack>
         </Host>
       </View>
     );
   }
+
+  const {
+    accessibilityHint: profileHint,
+    accessibilityLabel: profileLabel = 'Abrir perfil da conta',
+    foregroundColor,
+    imageUri,
+    name,
+    onProfilePress,
+    onSearchPress,
+    searchAccessibilityLabel = 'Abrir Pesquisa',
+    showSearch = true,
+    toolbarMorphDiagnosticRole,
+  } = props;
 
   const toolbarWidth = showSearch ? HOME_TOOLBAR_WIDTH : HOME_TOOLBAR_CONTROL_SIZE;
   return (

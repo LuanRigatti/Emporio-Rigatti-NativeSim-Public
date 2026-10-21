@@ -75,6 +75,7 @@ jest.mock('@/providers', () => {
     InitialCacheHydrationContext,
     SessionProvider: mockPassthrough,
     TestModeProvider: mockPassthrough,
+    useAppMode: () => ({ isReady: true, mode: 'wholesale', setMode: jest.fn() }),
     useSession: () => mockSessionState,
   };
 });
@@ -153,6 +154,18 @@ jest.mock('@/theme', () => ({
   }),
 }));
 jest.mock('@/features/quick-actions/QuickActionRouter', () => ({ QuickActionRouter: () => null }));
+jest.mock('@/features/deliveries/liveActivity/LiveActivityCoordinator', () => ({
+  wholesaleDeliveryLiveActivityCoordinator: {
+    attach: () => () => undefined,
+    setSession: jest.fn(),
+  },
+}));
+jest.mock('@/features/location/liveActivity/RouteTrackingLiveActivityCoordinator', () => ({
+  routeTrackingLiveActivityCoordinator: {
+    attach: () => () => undefined,
+    setSession: jest.fn(),
+  },
+}));
 jest.mock('@/features/retail-orders/components/RetailOrderFlowProvider', () => ({
   RetailOrderFlowProvider: mockPassthrough,
 }));

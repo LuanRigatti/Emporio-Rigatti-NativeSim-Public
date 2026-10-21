@@ -40,6 +40,7 @@ import { firestoreFactoryReceiptDataSource } from '@/services/factory-purchases'
 import { carSettingsStorage } from '@/services/car';
 import { costSettingsStorage } from '@/services/costs';
 import { locationTrackingService, routeTrackingRepository } from '@/services/routes';
+import { routeTrackingLiveActivityCoordinator } from '@/features/location/liveActivity/RouteTrackingLiveActivityCoordinator';
 import { stockPeriodSnapshotCache } from '@/services/stock/StockPeriodSnapshotCache';
 import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
@@ -86,7 +87,14 @@ function AppShell() {
     [resolvedMode, theme],
   );
 
-  useEffect(() => wholesaleDeliveryLiveActivityCoordinator.attach(), []);
+  useEffect(() => {
+    const detachWholesale = wholesaleDeliveryLiveActivityCoordinator.attach();
+    const detachRouteTracking = routeTrackingLiveActivityCoordinator.attach();
+    return () => {
+      detachWholesale();
+      detachRouteTracking();
+    };
+  }, []);
 
   useEffect(() => {
     routeTrackingRepository.setSessionUser(sessionUid, sessionVersion);
@@ -117,6 +125,10 @@ function AppShell() {
           .catch(() => undefined);
       }
       void wholesaleDeliveryLiveActivityCoordinator.setSession(
+        isAuthenticated ? (sessionUid ?? null) : null,
+        sessionVersion,
+      );
+      void routeTrackingLiveActivityCoordinator.setSession(
         isAuthenticated ? (sessionUid ?? null) : null,
         sessionVersion,
       );

@@ -44,6 +44,35 @@ consistente entre os checkouts oficiais, sem variantes específicas por ambiente
 As menções às branches nas seções posteriores deste documento registram o
 histórico das entregas e devem ser preservadas como histórico.
 
+## Home, Configurações e Histórico — apresentação atual (2026-10-21)
+
+- Os títulos grande e compacto das Homes Atacado e Varejo exibem `Home` e são
+  texto estático, sem affordance ou semântica de botão. A troca de modo é aberta
+  pelo controle da toolbar e continua usando `modeSelector.open` e o `NativeSheet`
+  compartilhado. O título grande usa `37 pt` tanto no SwiftUI quanto no fallback;
+  o tamanho do título compacto permanece inalterado.
+- Configurações alinha o título grande e o conteúdo inicial dos cards ao mesmo
+  inset vertical usado por Home e Finanças, sem alterar o layout compartilhado
+  de `ProgressiveCollapsibleScreen`.
+- O `(tabs)` conserva a `UINavigationBar`/`Stack.Toolbar` compartilhada, a
+  âncora leading nativa de `44×44 pt`, o shared background e o morph Liquid Glass.
+  No Atacado, o slot direito contém uma cápsula nativa de `100×44 pt` com duas
+  ações SwiftUI independentes de `44×44 pt`: `cube` para modo e `magnifyingglass`
+  para `/pesquisa`. Os símbolos têm `22 pt`, centros separados por `56 pt` e
+  `12 pt` de espaçamento. No Varejo, o slot contém somente o controle de modo de
+  `44×44 pt`, sem espaço reservado para busca.
+- O seletor de modo mantém o `NativeSheet` existente e seu detent de `0.4`. Atacado
+  e Varejo são cards SwiftUI independentes, de largura igual, altura mínima de
+  `72 pt`, gap de `12 pt` e raio de `22 pt`; a altura pode crescer com Dynamic
+  Type. Cada card inteiro é selecionável e preserva o haptic existente.
+- No Histórico Atacado, Dia/Mês/Ano agora aparecem sob um único item nativo de
+  toolbar com shared background. O menu da data mantém as opções nativas de dia,
+  mês e ano; o Histórico Varejo mantém seu `NativePeriodActionGroup`.
+- Os ajustes visuais descritos aqui são TS/TSX, foram aprovados pelo usuário no
+  iPhone e não acrescentam código nativo; atualizações do app usam Fast Refresh
+  e não exigem nova iOS Development Build. A cápsula aprovada mantém sua
+  geometria de `100×44 pt`.
+
 ## Widget iOS de entregas do dia — estado publicado em 2026-10-20
 
 - A conclusão pelo widget usa o App Intent `RigattiDeliveryCompletionIntent`.
@@ -156,6 +185,68 @@ descreve implementação e testes automatizados; não afirma validação física
   build ou validação física foi feita nesta atualização. A afirmação histórica
   de que Live Activities/Dynamic Island não haviam sido adicionadas vale
   somente para o checkpoint histórico correspondente.
+
+## Live Activity iOS do Rastreamento GPS — implementação em 2026-10-21
+
+- O rastreamento GPS possui a atividade independente
+  `RouteTrackingLiveActivity`, criada com `expo-widgets` e ActivityKit. Ela usa
+  fábrica, coordenador e ownership próprios; não encerra nem atualiza a Live
+  Activity Atacado, cujo contrato permanece em
+  `src/features/deliveries/liveActivity/`.
+- O início é automático depois que a sessão local da rota foi confirmada e
+  `expo-location` confirmou o início das atualizações. A identidade local da
+  ActivityKit associa UID, `routeId`, `startTimestamp` e ID da atividade.
+  Repetições do início são idempotentes. A reconciliação ocorre ao autenticar e
+  ao retomar o app, sem iniciar uma rota GPS por conta própria. Logout/troca de
+  UID encerra somente atividades GPS desta fábrica.
+- A fonte exclusiva dos quilômetros é `accumulatedDistanceMeters` do registro
+  ativo produzido por `RouteTrackingRepository` e `routeTrackingMath`. O
+  `LocationTrackingTask` chama o coordenador somente depois que
+  `appendLocationSamplesForBackground()` retorna a rota aceita e persistida.
+  A atividade recebe distância acumulada, timestamps e `routeId`; não recebe
+  coordenadas. A tela Localização não é necessária para esse caminho.
+- O app já solicita localização por distância e usa lotes/deferimento do
+  serviço GPS existente (`distanceInterval: 25` e
+  `deferredUpdatesDistance: 50`). A atividade publica quando um lote persistido
+  altera o valor exibido em décimos de quilômetro; lotes repetidos e mudanças
+  menores que não alteram esse valor são coalescidos. Ao parar, sempre envia o
+  snapshot final. Não foi adicionado timer JS, consulta Firestore ou aumento da
+  frequência de GPS. O iOS pode adiar/suspender execuções e limitar quando
+  ActivityKit renderiza atualizações; não há intervalo garantido. Se o usuário
+  encerrar o app, o Expo Location para as atualizações em background; ao abrir
+  novamente, o app reconcilia a rota ativa e pode retomar o serviço se as
+  permissões permitirem. A distância na Activity não avança enquanto nenhuma
+  tarefa de localização é executada; a rota local continua sendo a fonte
+  persistida.
+- O tempo usa `Text(timerInterval:)` do SwiftUI, ancorado no
+  `startTimestamp` persistido e sem `setInterval` JavaScript. Ao parar, a
+  apresentação recebe o `endTimestamp` confirmado como pausa final. A faixa
+  ativa é limitada a oito horas, em alinhamento com o limite documentado de
+  atividade ativa pelo ActivityKit; a plataforma pode encerrar a atividade e
+  controlar sua permanência na Tela Bloqueada.
+- Compacta: seta de navegação branca à esquerda e o asset original ER do splash
+  dark à direita; a apresentação minimal usa somente a seta. Expandida: ER em
+  `expandedLeading`, seta em `expandedTrailing`, status discreto em
+  `expandedCenter` e quilômetros/tempo em duas colunas em `expandedBottom`.
+  A Tela Bloqueada usa os mesmos dados e timer. O fundo da Dynamic Island é
+  nativo; textos, símbolo e opacidade do monograma se adaptam a
+  `isLuminanceReduced`. O layout não aplica offsets sobre a área dos sensores.
+  O toque abre `/configuracoes/localizacao`. Quando Atacado e GPS coexistem, o ActivityKit
+  decide qual atividade destacar; o código não força prioridade.
+- Falhas, indisponibilidade ou desativação da Live Activity não desfazem o
+  início, a gravação ou a conclusão da rota. Encerrar a rota publica o snapshot
+  local final confirmado e encerra imediatamente somente a atividade GPS
+  correspondente. Rotas novas usam distância e tempo próprios. Um tombstone
+  local evita recriar a mesma atividade se ela foi dispensada pelo usuário ou
+  sistema.
+- A validação automatizada desta implementação passou: TypeScript, ESLint
+  direcionado, formatação Prettier dos novos módulos e 4 suítes direcionadas
+  (84 testes). Esses resultados validam tipos e regras de coordenação; não
+  comprovam atualização real de ActivityKit em background, layout nativo ou
+  escolha de apresentação do iOS. A validação em iPhone físico está pendente.
+  Como o novo `createLiveActivity` integra a extensão
+  `expo-widgets` ao app iOS, validar o runtime requer nova iOS Development
+  Build. Não foi executada build nesta implementação.
 
 ## Histórico — manutenção e validações do Expo SDK 57 (2026-10-03)
 
@@ -363,14 +454,17 @@ divergência com seções históricas deste documento.
   materialização necessária ao reveal inicial nativo; um `Spacer`/fixed-space
   de mesma largura não preservou esse efeito, e a âncora oculta o background
   compartilhado para não desenhar uma cápsula vazia.
-- No Atacado, o slot direito usa `NativeHomeToolbarActions` com ação nativa
-  SwiftUI `plain` para `magnifyingglass` + `Busca`, mantendo o shared background
-  como única superfície e navegando para `/pesquisa`. No Varejo, Search não é
-  renderizada. O perfil não fica mais na Home: Configurações usa o mesmo
-  `HomeProfileSheetProvider` e Profile Sheet no slot direito.
-- O usuário validou fisicamente no iPhone o estado atual das toolbars, do
-  NativeTabs e do pipeline de títulos. Esta migração não altera código nativo,
-  configuração ou config plugin e não requer nova iOS Development Build.
+- No Atacado, `NativeHomeToolbarActions` fornece uma cápsula compartilhada de
+  `100×44 pt`, com `cube`/modo à esquerda e `magnifyingglass`/`/pesquisa` à
+  direita. Cada botão tem hit area de `44×44 pt`; os símbolos têm `22 pt`, os
+  centros ficam a `56 pt` e o espaçamento é `12 pt`. No Varejo, o mesmo slot
+  mostra somente `cube`/modo, em `44×44 pt`, sem espaço para busca. A ação de
+  modo reutiliza `modeSelector.open`; a busca continua navegando para
+  `/pesquisa`. O perfil permanece no slot direito de Configurações.
+- A cápsula continua dentro do `Stack.Toolbar.View` nativo, com shared background
+  e morph Liquid Glass. O estado de Varejo mantém o shared background sem
+  adicionar uma segunda área visual. Os ajustes de dimensões e títulos são
+  TS/TSX e não exigem nova iOS Development Build.
 
 ### Apresentação dos Bottom Sheets
 
@@ -383,6 +477,8 @@ divergência com seções históricas deste documento.
   `presentationBackgroundInteraction="disabled"`, deixando o iOS escurecer a
   tela atrás do sheet. Os controles e materiais internos continuam
   independentes da superfície externa.
+- O seletor de modo da Home usa detent de `0.4`; cada opção Atacado/Varejo
+  mantém uma linha SwiftUI nativa de largura completa e altura mínima de `56 pt`.
 - O Bottom Sheet de Detalhes da compra da Fábrica não faz parte desse conjunto
   de mudanças e mantém a composição que consta no código atual.
 
@@ -412,14 +508,18 @@ divergência com seções históricas deste documento.
   Atacado/Varejo, Registrar principal, Registrar → Dados Diários, Histórico
   Atacado/Varejo, Configurações, Pesquisa, Em aberto, Registrar Entrega,
   Documentos e Fábrica.
-- Na Home, o large AppMode title continua SwiftUI/Host. O compact title usa
-  `HomeModeTitleCompactRN`, React Native com `AppText` e `Pressable` acessível,
-  reutilizando `modeSelector.open`; Atacado e Varejo compartilham a solução. O
-  compact slot não usa Host SwiftUI nem `compactTitleAboveBlur`.
-- O usuário confirmou no iPhone large/compact title, morph, Progressive Blur,
-  scroll, interação, toolbars, Back/swipe-back, NativeTabs, altura vertical e
-  tipografia de `18 pt` nas Tab roots, além do tap no compact title da Home e da
-  troca Atacado/Varejo.
+- Na Home, os títulos grande e compacto são estáticos e exibem `Home` nos dois
+  modos. O título grande continua SwiftUI/Host; o compacto usa
+  `HomeModeTitleCompactRN` com `AppText`, sem `Pressable` ou handler de modo.
+  `compactTitleAccessibilityManaged` mantém a alternância de exposição
+  acessível entre título grande e compacto; camadas fixas não capturam toques.
+  A seleção Atacado/Varejo pertence à toolbar. O compact slot não usa Host
+  SwiftUI nem `compactTitleAboveBlur`.
+- A remoção do wrapper interativo/animado do título grande mantém o Host
+  SwiftUI diretamente no wrapper de layout da Home, preservando o sizing nativo
+  durante o retorno pela navegação. Não se adicionaram delays, offsets ou
+  compensações nos cards. O pipeline de Progressive Blur e scroll permanece
+  compartilhado.
 - O opt-in `nativeTabRoot` do Registrar Varejo está implementado e foi validado
   fisicamente no iPhone após a correção. O usuário aprovou o alinhamento e o
   tamanho de `18 pt` do compact title, o morph/Progressive Blur e o scroll, com
@@ -496,9 +596,10 @@ contraditos pelo snapshot operacional acima.
   permanece em cards inline e `NativeRetailProductFormSheet` não participa do
   fluxo de runtime.
 - A Home é contextual ao `AppMode`: `wholesale` exibe a experiência Atacado e
-  `retail` exibe a experiência Varejo, com título dinâmico `Atacado`/`Varejo`
-  e o seletor existente. A rota `/pesquisa` inicia sem sugestões visíveis e
-  usa o botão nativo da própria rota para alternar o conteúdo de ajuda existente.
+  `retail` exibe a experiência Varejo; ambos mostram o título estático `Home`.
+  O seletor de modo fica na toolbar, e a busca `/pesquisa` permanece disponível
+  somente no Atacado. A rota `/pesquisa` inicia sem sugestões visíveis e usa o
+  botão nativo da própria rota para alternar o conteúdo de ajuda existente.
 - O método de pagamento selecionado aparece no trigger do fluxo Retail. Em
   pedidos `created`, `deliveryCost` pode ser alterado isoladamente mesmo com
   pagamento `posted`; `discount`, `deliveryFee` e alterações comerciais

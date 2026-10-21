@@ -40,7 +40,7 @@ const AnimatedBlurView =
 export type ProgressiveCollapsibleScreenProps = {
   children: ReactNode;
   compactTitle: ReactNode;
-  compactTitleInteractive?: boolean;
+  compactTitleAccessibilityManaged?: boolean;
   contentGap?: number;
   contentTopInset: number;
   fixedContent?: ReactNode;
@@ -56,7 +56,7 @@ export type ProgressiveCollapsibleScreenProps = {
 export function ProgressiveCollapsibleScreen({
   children,
   compactTitle,
-  compactTitleInteractive = false,
+  compactTitleAccessibilityManaged = false,
   contentGap,
   contentTopInset,
   fixedContent,
@@ -96,13 +96,16 @@ export function ProgressiveCollapsibleScreen({
   useAnimatedReaction(
     () => scrollY.value >= PREMIUM_TITLE_ACCESSIBILITY_SWITCH_AT,
     (nextCompactTitleActive, previousCompactTitleActive) => {
-      if (!compactTitleInteractive || nextCompactTitleActive === previousCompactTitleActive) {
+      if (
+        !compactTitleAccessibilityManaged ||
+        nextCompactTitleActive === previousCompactTitleActive
+      ) {
         return;
       }
 
       runOnJS(setCompactTitleAccessibility)(nextCompactTitleActive);
     },
-    [compactTitleInteractive, setCompactTitleAccessibility],
+    [compactTitleAccessibilityManaged, setCompactTitleAccessibility],
   );
 
   const largeTitleStyle = useAnimatedStyle(() => ({
@@ -158,11 +161,11 @@ export function ProgressiveCollapsibleScreen({
 
   const fixedHeaderContent = (
     <View
-      accessibilityElementsHidden={compactTitleInteractive && !compactTitleActive}
+      accessibilityElementsHidden={compactTitleAccessibilityManaged && !compactTitleActive}
       importantForAccessibility={
-        compactTitleInteractive && !compactTitleActive ? 'no-hide-descendants' : 'auto'
+        compactTitleAccessibilityManaged && !compactTitleActive ? 'no-hide-descendants' : 'auto'
       }
-      pointerEvents={compactTitleInteractive && compactTitleActive ? 'auto' : 'none'}
+      pointerEvents="none"
       style={styles.fixedHeaderContent}
     >
       {typeof compactTitle === 'string' || typeof compactTitle === 'number' ? (
@@ -224,10 +227,7 @@ export function ProgressiveCollapsibleScreen({
             <BlurView intensity={15} tint={progressiveBlurTint} style={StyleSheet.absoluteFill} />
           </MaskedView>
         </Animated.View>
-        <Animated.View
-          pointerEvents={compactTitleInteractive ? 'box-none' : 'none'}
-          style={[styles.fixedHeader, compactTitleStyle]}
-        >
+        <Animated.View pointerEvents="none" style={[styles.fixedHeader, compactTitleStyle]}>
           {fixedHeaderContent}
           {fixedHeaderBlur}
         </Animated.View>
@@ -253,9 +253,11 @@ export function ProgressiveCollapsibleScreen({
         >
           <View style={[styles.content, { gap: contentGap ?? theme.spacing.lg }]}>
             <Animated.View
-              accessibilityElementsHidden={compactTitleInteractive && compactTitleActive}
+              accessibilityElementsHidden={compactTitleAccessibilityManaged && compactTitleActive}
               importantForAccessibility={
-                compactTitleInteractive && compactTitleActive ? 'no-hide-descendants' : 'auto'
+                compactTitleAccessibilityManaged && compactTitleActive
+                  ? 'no-hide-descendants'
+                  : 'auto'
               }
               style={[styles.largeTitle, largeTitleContainerStyle, largeTitleStyle]}
             >

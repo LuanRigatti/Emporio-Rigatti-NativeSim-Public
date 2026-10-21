@@ -32,6 +32,7 @@ jobs:
           set -euo pipefail
           node <<'NODE'
           const { execFileSync } = require('node:child_process');
+          const fs = require('node:fs');
 
           function compareVersions(left, right) {
             const a = left.split('.').map(Number);
@@ -48,13 +49,34 @@ jobs:
             throw new Error(`Expo SDK 58 requires Node.js >=22.13.x; found ${nodeVersion}`);
           }
 
+          const nativeSimWorkflow = fs.readFileSync('.github/workflows/native-sim.yml', 'utf8');
+          const nodeVersionMatches = [...nativeSimWorkflow.matchAll(/^\s*node-version:\s*['"]?([^'"\s#]+)['"]?\s*$/gm)];
+          if (nodeVersionMatches.length !== 1) {
+            throw new Error(`Expected one explicit Node.js selector in native-sim.yml; found ${nodeVersionMatches.length}`);
+          }
+
+          const configuredNodeVersion = nodeVersionMatches[0][1];
+          const configuredNodeParts = /^(\d+)(?:\.(\d+|x))?(?:\.(\d+|x))?$/.exec(configuredNodeVersion);
+          if (!configuredNodeParts) {
+            throw new Error(`Unsupported NativeSim Node.js selector: ${configuredNodeVersion}`);
+          }
+
+          const major = Number(configuredNodeParts[1]);
+          const minor = configuredNodeParts[2];
+          const nativeSimMeetsNodeMinimum =
+            major > 22 ||
+            (major === 22 && (minor === undefined || minor === 'x' || Number(minor) >= 13));
+          if (!nativeSimMeetsNodeMinimum) {
+            throw new Error(`NativeSim workflow Node.js must resolve to >=22.13.x for Expo SDK 58; configured ${configuredNodeVersion}`);
+          }
+
           const xcodeOutput = execFileSync('xcodebuild', ['-version'], { encoding: 'utf8' });
           const xcodeVersion = xcodeOutput.match(/^Xcode (\d+(?:\.\d+)+)$/m)?.[1];
           if (!xcodeVersion || compareVersions(xcodeVersion, '26.4.0') < 0) {
             throw new Error(`Expo SDK 58 requires Xcode >=26.4; found ${xcodeVersion ?? 'unknown'}`);
           }
 
-          console.log(`SDK 58 toolchain confirmed: Node.js ${nodeVersion}, Xcode ${xcodeVersion}`);
+          console.log(`SDK 58 toolchain confirmed: Node.js ${nodeVersion}, NativeSim selector ${configuredNodeVersion}, Xcode ${xcodeVersion}`);
           NODE
 
       - name: Cache npm and CocoaPods downloads

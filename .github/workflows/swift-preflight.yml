@@ -27,6 +27,36 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify SDK 58 toolchain minimums
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process');
+
+          function compareVersions(left, right) {
+            const a = left.split('.').map(Number);
+            const b = right.split('.').map(Number);
+            for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+              const difference = (a[index] ?? 0) - (b[index] ?? 0);
+              if (difference !== 0) return Math.sign(difference);
+            }
+            return 0;
+          }
+
+          const nodeVersion = process.versions.node;
+          if (compareVersions(nodeVersion, '22.13.0') < 0) {
+            throw new Error(`Expo SDK 58 requires Node.js >=22.13.x; found ${nodeVersion}`);
+          }
+
+          const xcodeOutput = execFileSync('xcodebuild', ['-version'], { encoding: 'utf8' });
+          const xcodeVersion = xcodeOutput.match(/^Xcode (\d+(?:\.\d+)+)$/m)?.[1];
+          if (!xcodeVersion || compareVersions(xcodeVersion, '26.4.0') < 0) {
+            throw new Error(`Expo SDK 58 requires Xcode >=26.4; found ${xcodeVersion ?? 'unknown'}`);
+          }
+
+          console.log(`SDK 58 toolchain confirmed: Node.js ${nodeVersion}, Xcode ${xcodeVersion}`);
+          NODE
+
       - name: Cache npm and CocoaPods downloads
         uses: actions/cache@v4
         with:
@@ -52,7 +82,7 @@ jobs:
 
       - name: Install CocoaPods
         timeout-minutes: 25
-        run: npx pod-install ios
+        run: pod install --project-directory=ios
 
       - name: Verify toolbar morph plugin output and native targets
         timeout-minutes: 10
@@ -72,48 +102,21 @@ jobs:
             throw new Error(`Unexpected native patch anchors: RNScreens ${screensVersion}, ExpoUI ${expoUiVersion}`);
           }
 
-          const pluginMarker = 'Emporio Rigatti: temporary toolbar morph OSLog diagnostics';
+          const controllerPath = 'node_modules/react-native-screens/ios/tabs/host/RNSTabBarController.mm';
+          const headerConfigPath = 'node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm';
+          const controller = fs.readFileSync(controllerPath, 'utf8');
+          const headerConfig = fs.readFileSync(headerConfigPath, 'utf8');
           const requiredMarkers = [
-            [
-              'node_modules/react-native-screens/ios/RNSScreenStackHeaderSubview.mm',
-              `${pluginMarker} custom accessory logger import`,
-            ],
-            [
-              'node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm',
-              `${pluginMarker} declarative item logger import`,
-            ],
-            [
-              'node_modules/react-native-screens/ios/RNSScreenStackHeaderConfig.mm',
-              'Emporio Rigatti: shared tab toolbar config helpers',
-            ],
-            [
-              'node_modules/react-native-screens/ios/tabs/host/RNSTabBarController.mm',
-              `${pluginMarker} coordinator capture`,
-            ],
-            [
-              'node_modules/react-native-screens/ios/tabs/host/RNSTabBarController.mm',
-              'Emporio Rigatti: shared tab toolbar controller',
-            ],
-            [
-              'node_modules/react-native-screens/ios/RNSScreenStack.mm',
-              `${pluginMarker} stack logger import`,
-            ],
-            [
-              'node_modules/react-native-screens/ios/RNSToolbarMorphDiagnostics.h',
-              `${pluginMarker} shared native logger`,
-            ],
-            [
-              'node_modules/@expo/ui/ios/HostView.swift',
-              `${pluginMarker} Host props diagnostics`,
-            ],
-            [
-              'node_modules/@expo/ui/ios/HostView.swift',
-              `${pluginMarker} Host native layout event`,
-            ],
+            [controllerPath, 'Emporio Rigatti: shared tab toolbar controller'],
+            [controllerPath, 'static inline NSString *RNSCurrentToolbarMorphExperimentVariant(void)'],
+            [controllerPath, 'static inline NSString *RNSRoleForToolbarMorphIdentifier(NSString *identifier)'],
+            [controllerPath, 'static inline NSString *RNSRoleForToolbarMorphItem(UIBarButtonItem *item)'],
+            [controllerPath, 'static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce('],
+            [headerConfigPath, 'Emporio Rigatti: shared tab toolbar config helpers'],
           ];
 
           for (const [path, marker] of requiredMarkers) {
-            const source = fs.readFileSync(path, 'utf8');
+            const source = path === controllerPath ? controller : headerConfig;
             if (!source.includes(marker)) {
               throw new Error(`Expected applied config-plugin marker is missing: ${path} :: ${marker}`);
             }
@@ -128,10 +131,8 @@ jobs:
           }
 
           const appConfig = fs.readFileSync('app.config.js', 'utf8');
-          const diagnosticsIndex = appConfig.indexOf("'./plugins/withToolbarMorphDiagnostics'");
-          const coordinatorIndex = appConfig.indexOf("'./plugins/withRNScreensHideBottomBarWhenPushed'");
-          if (diagnosticsIndex < 0 || coordinatorIndex <= diagnosticsIndex) {
-            throw new Error('The toolbar coordinator must execute before morph diagnostics in dangerous-mod order.');
+          if (!appConfig.includes("'./plugins/withRNScreensHideBottomBarWhenPushed'")) {
+            throw new Error('The shared toolbar coordinator config plugin is not registered.');
           }
 
           const podsProject = 'ios/Pods/Pods.xcodeproj';
@@ -140,13 +141,13 @@ jobs:
               encoding: 'utf8',
             }),
           ).project;
-          const requiredTargets = ['RNScreens', 'ExpoUI', 'ToolbarMorphDiagnostics'];
+          const requiredTargets = ['RNScreens', 'ExpoUI'];
           const missingTargets = requiredTargets.filter((target) => !pods.targets.includes(target));
           if (missingTargets.length > 0) {
             throw new Error(`Generated CocoaPods project is missing native targets: ${missingTargets.join(', ')}`);
           }
 
-          console.log(`Verified coordinator + morph plugin markers and ExpoUI patches.`);
+          console.log(`Verified current shared toolbar helpers and ExpoUI patches.`);
           console.log(`Generated native targets confirmed: ${requiredTargets.join(', ')}`);
           NODE
 
@@ -158,7 +159,7 @@ jobs:
           LOG_DIR="build/toolbar-morph-preflight"
           mkdir -p "$LOG_DIR"
 
-          for TARGET_NAME in RNScreens ExpoUI ToolbarMorphDiagnostics; do
+          for TARGET_NAME in RNScreens ExpoUI; do
             echo "::group::Compile $TARGET_NAME only"
             xcodebuild \
               -project "$PODS_PROJECT" \
@@ -225,12 +226,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build/native-card-context-menu-preflight/xcodebuild.log
 
-      - name: Verify NativeWidgetDiagnostics Pods target
+      - name: Verify NativeWidgetOperationalErrors Pods target
         timeout-minutes: 5
         run: |
           set -euo pipefail
           PODS_PROJECT="ios/Pods/Pods.xcodeproj"
-          TARGET_NAME="NativeWidgetDiagnostics"
+          TARGET_NAME="NativeWidgetOperationalErrors"
           [ -d "$PODS_PROJECT" ] || { echo "::error::CocoaPods project not found at $PODS_PROJECT"; exit 1; }
 
           TARGETS_JSON=$(xcodebuild -list -json -project "$PODS_PROJECT")
@@ -249,38 +250,38 @@ jobs:
             });
           ' "$TARGET_NAME"
 
-          mkdir -p build/native-widget-diagnostics-preflight
+          mkdir -p build/native-widget-operational-errors-preflight
           xcodebuild \
             -showBuildSettings \
             -project "$PODS_PROJECT" \
             -target "$TARGET_NAME" \
             -configuration Release \
             -sdk iphonesimulator \
-            > build/native-widget-diagnostics-preflight/pods-build-settings.txt
+            > build/native-widget-operational-errors-preflight/pods-build-settings.txt
 
-          grep -Fq 'CONFIGURATION = Release' build/native-widget-diagnostics-preflight/pods-build-settings.txt || {
-            echo '::error::NativeWidgetDiagnostics did not resolve to the Release configuration'
+          grep -Fq 'CONFIGURATION = Release' build/native-widget-operational-errors-preflight/pods-build-settings.txt || {
+            echo '::error::NativeWidgetOperationalErrors did not resolve to the Release configuration'
             exit 1
           }
-          grep -Fq 'SDKROOT = iphonesimulator' build/native-widget-diagnostics-preflight/pods-build-settings.txt || {
-            echo '::error::NativeWidgetDiagnostics did not resolve to the iOS Simulator SDK'
+          grep -Fq 'SDKROOT = iphonesimulator' build/native-widget-operational-errors-preflight/pods-build-settings.txt || {
+            echo '::error::NativeWidgetOperationalErrors did not resolve to the iOS Simulator SDK'
             exit 1
           }
           echo "Confirmed $TARGET_NAME / Release / iphonesimulator"
 
-      - name: Compile NativeWidgetDiagnostics only
+      - name: Compile NativeWidgetOperationalErrors only
         timeout-minutes: 30
         run: |
           set -euo pipefail
           xcodebuild \
             -project ios/Pods/Pods.xcodeproj \
-            -target NativeWidgetDiagnostics \
+            -target NativeWidgetOperationalErrors \
             -configuration Release \
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee build/native-widget-diagnostics-preflight/xcodebuild.log
+            build 2>&1 | tee build/native-widget-operational-errors-preflight/xcodebuild.log
 
-      - name: Verify generated WidgetKit configuration
+      - name: Verify generated WidgetKit, App Intents, and Live Activity configuration
         timeout-minutes: 5
         run: |
           set -euo pipefail
@@ -288,15 +289,23 @@ jobs:
           WIDGET_TARGET="ExpoWidgetsTarget"
           WIDGET_DIR="ios/ExpoWidgetsTarget"
           WIDGET_INFO_PLIST="$WIDGET_DIR/Info.plist"
+          WIDGET_INDEX_SWIFT="$WIDGET_DIR/index.swift"
           WIDGET_SWIFT="$WIDGET_DIR/ResumoFinanceiro.swift"
           DELIVERIES_WIDGET_SWIFT="$WIDGET_DIR/EntregasDoDia.swift"
+          DELIVERY_INTENT_SWIFT="node_modules/expo-widgets/ios/Widgets/DeliveryWidgetCompletionIntent.swift"
+          EXPO_WIDGETS_LIVE_ACTIVITY_SWIFT="node_modules/expo-widgets/ios/Widgets/WidgetLiveActivity.swift"
+          EXPO_WIDGETS_PODSPEC="node_modules/expo-widgets/ios/ExpoWidgets.podspec"
           WIDGET_ENTITLEMENTS="$WIDGET_DIR/ExpoWidgetsTarget.entitlements"
           WIDGETS_UTILS_SWIFT="node_modules/expo-widgets/ios/Widgets/Utils.swift"
           WIDGETS_ENTRY_VIEW_SWIFT="node_modules/expo-widgets/ios/Widgets/EntryView.swift"
           [ -d "$APP_PROJECT" ] || { echo "::error::Generated app project not found at $APP_PROJECT"; exit 1; }
           [ -f "$WIDGET_INFO_PLIST" ] || { echo "::error::Generated WidgetKit Info.plist not found at $WIDGET_INFO_PLIST"; exit 1; }
+          [ -f "$WIDGET_INDEX_SWIFT" ] || { echo "::error::Generated WidgetKit bundle source not found at $WIDGET_INDEX_SWIFT"; exit 1; }
           [ -f "$WIDGET_SWIFT" ] || { echo "::error::Generated widget Swift source not found at $WIDGET_SWIFT"; exit 1; }
           [ -f "$DELIVERIES_WIDGET_SWIFT" ] || { echo "::error::Generated deliveries widget Swift source not found at $DELIVERIES_WIDGET_SWIFT"; exit 1; }
+          [ -f "$DELIVERY_INTENT_SWIFT" ] || { echo "::error::Generated delivery Live Activity intent source not found at $DELIVERY_INTENT_SWIFT"; exit 1; }
+          [ -f "$EXPO_WIDGETS_LIVE_ACTIVITY_SWIFT" ] || { echo "::error::Expo Widgets ActivityKit source not found at $EXPO_WIDGETS_LIVE_ACTIVITY_SWIFT"; exit 1; }
+          [ -f "$EXPO_WIDGETS_PODSPEC" ] || { echo "::error::Expo Widgets podspec not found at $EXPO_WIDGETS_PODSPEC"; exit 1; }
           [ -f "$WIDGET_ENTITLEMENTS" ] || { echo "::error::Generated WidgetKit App Group entitlements not found at $WIDGET_ENTITLEMENTS"; exit 1; }
           [ -f "$WIDGETS_UTILS_SWIFT" ] || { echo "::error::Expo Widgets shared environment source not found at $WIDGETS_UTILS_SWIFT"; exit 1; }
           [ -f "$WIDGETS_ENTRY_VIEW_SWIFT" ] || { echo "::error::Expo Widgets shared entry view source not found at $WIDGETS_ENTRY_VIEW_SWIFT"; exit 1; }
@@ -327,15 +336,23 @@ jobs:
             exit 1
           }
 
-          node - "$WIDGET_SWIFT" "$DELIVERIES_WIDGET_SWIFT" "$WIDGETS_UTILS_SWIFT" "$WIDGETS_ENTRY_VIEW_SWIFT" <<'NODE'
+          node - "$WIDGET_INDEX_SWIFT" "$WIDGET_SWIFT" "$DELIVERIES_WIDGET_SWIFT" "$WIDGETS_UTILS_SWIFT" "$WIDGETS_ENTRY_VIEW_SWIFT" "$DELIVERY_INTENT_SWIFT" "$EXPO_WIDGETS_LIVE_ACTIVITY_SWIFT" "$EXPO_WIDGETS_PODSPEC" <<'NODE'
           const fs = require('node:fs');
 
-          const [financePath, deliveriesPath, utilsPath, entryViewPath] = process.argv.slice(2);
+          const [indexPath, financePath, deliveriesPath, utilsPath, entryViewPath, intentPath, liveActivityPath, podspecPath] = process.argv.slice(2);
+          const index = fs.readFileSync(indexPath, 'utf8');
           const finance = fs.readFileSync(financePath, 'utf8');
           const deliveries = fs.readFileSync(deliveriesPath, 'utf8');
           const utils = fs.readFileSync(utilsPath, 'utf8');
           const entryView = fs.readFileSync(entryViewPath, 'utf8');
+          const intent = fs.readFileSync(intentPath, 'utf8');
+          const liveActivity = fs.readFileSync(liveActivityPath, 'utf8');
+          const podspec = fs.readFileSync(podspecPath, 'utf8');
           const count = (source, fragment) => source.split(fragment).length - 1;
+
+          if (!index.includes('WidgetLiveActivity()')) {
+            throw new Error('::error::Generated WidgetKit bundle does not register WidgetLiveActivity()');
+          }
 
           for (const [path, source, fragments] of [
             [financePath, finance, ['AppIntentConfiguration(', 'getWidgetEnvironment(environment: environment)']],
@@ -382,13 +399,44 @@ jobs:
             throw new Error('::error::Expo Widgets shared entry view is not using the shared environment helper');
           }
 
-          console.log('Confirmed both generated widget sources, finance iOS 17 annotations, and shared branding environment');
+          for (const fragment of [
+            '// RIGATTI_DELIVERY_WIDGET_ACTIONS_V1',
+            'import ActivityKit',
+            'struct RigattiDeliveryCompletionIntent: LiveActivityIntent',
+            'Activity<LiveActivityAttributes>.activities',
+          ]) {
+            if (!intent.includes(fragment)) {
+              throw new Error(`::error::Generated delivery Live Activity intent is missing ${fragment}`);
+            }
+          }
+          for (const fragment of [
+            'import ActivityKit',
+            'struct LiveActivityAttributes: ActivityAttributes',
+            'ActivityConfiguration(for: LiveActivityAttributes.self)',
+          ]) {
+            if (!liveActivity.includes(fragment)) {
+              throw new Error(`::error::Expo Widgets ActivityKit source is missing ${fragment}`);
+            }
+          }
+          if (!podspec.includes('s.source_files = "**/*.{h,m,swift}"')) {
+            throw new Error('::error::ExpoWidgets podspec does not include generated Swift intent sources');
+          }
+
+          console.log('Confirmed generated widgets, Live Activity App Intent/ActivityKit source, and shared branding environment');
           NODE
 
           WIDGET_APP_GROUP=$(/usr/libexec/PlistBuddy -c 'Print :ExpoWidgetsAppGroupIdentifier' "$WIDGET_INFO_PLIST")
           WIDGET_ENTITLEMENT_GROUP=$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.application-groups:0' "$WIDGET_ENTITLEMENTS")
           [ -n "$WIDGET_APP_GROUP" ] && [ "$WIDGET_APP_GROUP" = "$WIDGET_ENTITLEMENT_GROUP" ] || {
             echo '::error::WidgetKit Info.plist App Group identifier does not match its generated App Group entitlement'
+            exit 1
+          }
+          WIDGET_ACTIONS_ENDPOINT=$(/usr/libexec/PlistBuddy -c 'Print :RigattiDeliveryWidgetActionsURL' "$WIDGET_INFO_PLIST")
+          WIDGET_ACTIONS_ACCESS_GROUP=$(/usr/libexec/PlistBuddy -c 'Print :RigattiDeliveryWidgetKeychainAccessGroup' "$WIDGET_INFO_PLIST")
+          WIDGET_KEYCHAIN_ACCESS_GROUP=$(/usr/libexec/PlistBuddy -c 'Print :keychain-access-groups:0' "$WIDGET_ENTITLEMENTS")
+          [ -n "$WIDGET_ACTIONS_ENDPOINT" ] && [ -n "$WIDGET_ACTIONS_ACCESS_GROUP" ] && \
+            [ "$WIDGET_ACTIONS_ACCESS_GROUP" = "$WIDGET_KEYCHAIN_ACCESS_GROUP" ] || {
+            echo '::error::Delivery App Intent endpoint/keychain configuration is missing or inconsistent'
             exit 1
           }
 
@@ -409,7 +457,7 @@ jobs:
             exit 1
           }
 
-          echo "Confirmed WidgetKit target $WIDGET_TARGET, extension point $EXTENSION_POINT, Release / iphonesimulator, and matching App Group configuration"
+          echo "Confirmed WidgetKit target $WIDGET_TARGET, Live Activity registration, App Intent configuration, Release / iphonesimulator, and matching App Groups"
 
       - name: Compile WidgetKit CocoaPods dependencies only
         timeout-minutes: 45

@@ -280,6 +280,13 @@ describe('Home toolbar coordinator patch', () => {
       const stack = readFileSync(path.join(fixtureRoot, 'ios/RNSScreenStack.mm'), 'utf8');
 
       expect(eligibilityStart).toBeGreaterThanOrEqual(0);
+      expect(nativeController).not.toMatch(/RNSLogToolbarMorph(?:Navigation|Ownership|Items)\s*\(/);
+      expect(nativeController).toContain(
+        'static inline NSString *RNSCurrentToolbarMorphExperimentVariant(void)',
+      );
+      expect(nativeController).toContain(
+        'static inline NSString *RNSRoleForToolbarMorphItem(UIBarButtonItem *item)',
+      );
       expect(nativeController).toContain('#import "RNSScreen.h"');
       expect(
         nativeController.indexOf('static BOOL RNSHomeToolbarNavigationItemContainsItem'),
@@ -329,15 +336,10 @@ describe('Home toolbar coordinator patch', () => {
       expect(staging).toContain('RNSHomeToolbarNavigationItemContainsItem(owner, candidate)');
       expect(staging).toContain('sourceOwnsExactItems');
       expect(staging).toContain('destinationAlreadyOwnsExactItems');
-      expect(staging).toContain('RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before"');
       expect(staging).toContain(
-        'RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release"',
+        '// Emporio Rigatti: initial Splash Home toolbar exclusive transfer',
       );
-      expect(staging).toContain(
-        'RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply"',
-      );
-      expect(staging).toContain('@"before_transfer", navigationController.navigationBar');
-      expect(staging).toContain('@"after_transfer", sharedNavigationController.navigationBar');
+      expect(staging).not.toMatch(/RNSLogToolbarMorph/);
       expect(staging).not.toContain('UIBarButtonItem alloc');
 
       const sourceReleaseIndex = staging.indexOf(
@@ -354,11 +356,7 @@ describe('Home toolbar coordinator patch', () => {
 
       expect(capture).toContain('stageInitialHomeToolbarItemsForViewController:viewController');
       expect(capture).toContain('initial_home_toolbar_staged');
-      expect(capture).toContain('isFirstHomeToolbarMaterialization');
-      expect(capture).toContain(
-        'RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_result"',
-      );
-      expect(capture).toContain('rootTransitionCoordinator != nil');
+      expect(capture).not.toMatch(/RNSLogToolbarMorph/);
       expect(capture).toContain(
         'if (![initialHomeStageResult isEqualToString:@"initial_home_toolbar_staged"])',
       );

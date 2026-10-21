@@ -294,6 +294,37 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
 
 static char RNSSharedToolbarExperimentSkippedRepairRolesKey;
 
+static inline NSString *RNSCurrentToolbarMorphExperimentVariant(void)
+{
+  id variant = NSBundle.mainBundle.infoDictionary[@"EmporioToolbarMorphExperimentVariant"];
+  return [variant isEqual:@"B"] ? @"B" : @"A";
+}
+
+static inline NSString *RNSRoleForToolbarMorphIdentifier(NSString *identifier)
+{
+  if ([identifier isEqualToString:@"toolbar-morph:home-search"] ||
+      [identifier hasPrefix:@"home-toolbar-item:search:"]) return @"home-search";
+  if ([identifier isEqualToString:@"toolbar-morph:settings-profile"]) return @"settings-profile";
+  return nil;
+}
+
+static inline NSString *RNSFindToolbarMorphRoleInView(UIView *view, NSUInteger depth)
+{
+  if (view == nil || depth > 8) return nil;
+  NSString *role = RNSRoleForToolbarMorphIdentifier(view.accessibilityIdentifier);
+  if (role != nil) return role;
+  for (UIView *child in view.subviews) {
+    role = RNSFindToolbarMorphRoleInView(child, depth + 1);
+    if (role != nil) return role;
+  }
+  return nil;
+}
+
+static inline NSString *RNSRoleForToolbarMorphItem(UIBarButtonItem *item)
+{
+  return RNSFindToolbarMorphRoleInView(item.customView, 0);
+}
+
 static BOOL RNSShouldSkipSharedToolbarExperimentRepairOnce(
     RNSTabBarController *controller,
     NSArray<UIBarButtonItem *> *items,
@@ -631,51 +662,16 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
     }
   }
 
-  id<UIViewControllerTransitionCoordinator> rootTransitionCoordinator =
-      sharedNavigationController.transitionCoordinator;
-  BOOL rootTransitionActive = rootTransitionCoordinator != nil;
-  RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_started", sharedNavigationController,
-      fromViewController, tabsScreenViewController, @"replace", @"eligible", YES,
-      rootTransitionActive, NO);
-  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before", leftItems, sourceNavigationItem,
-      destinationNavigationItem, @"left", @"before_transfer", NO, rootTransitionActive);
-  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_before", rightItems, sourceNavigationItem,
-      destinationNavigationItem, @"right", @"before_transfer", NO, rootTransitionActive);
-  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_before", leftItems, nil,
-      @"left", @"initial_materialization", @"before_transfer", navigationController.navigationBar,
-      NO, rootTransitionActive);
-  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_before", rightItems, nil,
-      @"right", @"initial_materialization", @"before_transfer", navigationController.navigationBar,
-      NO, rootTransitionActive);
-
   // Emporio Rigatti: initial Splash Home toolbar exclusive transfer
   if (sourceOwnsExactItems) {
     [sourceNavigationItem setLeftBarButtonItems:nil animated:NO];
     [sourceNavigationItem setRightBarButtonItems:nil animated:NO];
   }
-  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release", leftItems,
-      sourceNavigationItem, destinationNavigationItem, @"left", @"source_released", NO,
-      rootTransitionActive);
-  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_source_release", rightItems,
-      sourceNavigationItem, destinationNavigationItem, @"right", @"source_released", NO,
-      rootTransitionActive);
   [navigationController setNavigationBarHidden:YES animated:NO];
   if (destinationIsEmpty) {
     [destinationNavigationItem setLeftBarButtonItems:leftItems animated:NO];
     [destinationNavigationItem setRightBarButtonItems:rightItems animated:NO];
   }
-  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply", leftItems,
-      destinationNavigationItem, sourceNavigationItem, @"left", @"destination_applied", NO,
-      rootTransitionActive);
-  RNSLogToolbarMorphOwnership(@"initial_home_replace_owner_after_destination_apply", rightItems,
-      destinationNavigationItem, sourceNavigationItem, @"right", @"destination_applied", NO,
-      rootTransitionActive);
-  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_after", leftItems, nil,
-      @"left", @"initial_materialization", @"after_transfer", sharedNavigationController.navigationBar,
-      NO, rootTransitionActive);
-  RNSLogToolbarMorphItems(@"initial_home_replace_attachment_after", rightItems, nil,
-      @"right", @"initial_materialization", @"after_transfer", sharedNavigationController.navigationBar,
-      NO, rootTransitionActive);
   // Emporio Rigatti: initial Splash Home toolbar transfer complete
   return @"initial_home_toolbar_staged";
 }
@@ -685,20 +681,16 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   if (navigationController == nil || navigationController.viewControllers.count != 1 ||
       navigationController.topViewController != viewController) return;
   BOOL isTabSource = NO;
-  BOOL isSelectedHomeSource = NO;
   NSArray<RNSTabsScreenViewController *> *installedControllers = [self installedScreenControllers];
   for (NSUInteger tabIndex = 0; tabIndex < installedControllers.count; tabIndex++) {
     UIViewController *tab = installedControllers[tabIndex];
     if (RNSFindNestedNavigationController(tab) == navigationController) {
       isTabSource = YES;
-      isSelectedHomeSource = tabIndex == 0 && [self isScreenControllerCurrentlySelected:tab];
       break;
     }
   }
   if (!isTabSource) return; // Never capture the root Stack's placeholders or pushed screens.
   UINavigationItem *item = viewController.navigationItem;
-  BOOL isFirstHomeToolbarMaterialization = isSelectedHomeSource &&
-      objc_getAssociatedObject(item, &RNSSharedToolbarMaterializedItemsKey) == nil;
   NSDictionary *materialized = @{@"left": item.leftBarButtonItems ?: @[], @"right": item.rightBarButtonItems ?: @[]};
   NSDictionary *pendingMaterialized = objc_getAssociatedObject(item, &RNSSharedToolbarPendingMaterializedItemsKey);
   if (pendingMaterialized != nil) {
@@ -710,18 +702,6 @@ static BOOL RNSSharedToolbarItemsNeedAttachment(NSArray<UIBarButtonItem *> *item
   NSArray<UIBarButtonItem *> *rightItems = materialized[@"right"] ?: @[];
   NSString *initialHomeStageResult = [self stageInitialHomeToolbarItemsForViewController:viewController
       navigationController:navigationController leftItems:leftItems rightItems:rightItems];
-  UINavigationController *rootNavigationController = self.parentViewController.navigationController;
-  id<UIViewControllerTransitionCoordinator> rootTransitionCoordinator =
-      rootNavigationController.transitionCoordinator;
-  if (isSelectedHomeSource && (isFirstHomeToolbarMaterialization || rootTransitionCoordinator != nil)) {
-    UIViewController *rootFromViewController =
-        [rootTransitionCoordinator viewControllerForKey:UITransitionContextFromViewControllerKey];
-    RNSLogToolbarMorphNavigation(@"initial_home_replace_stage_result", rootNavigationController,
-        rootFromViewController, self.parentViewController,
-        [initialHomeStageResult isEqualToString:@"initial_home_toolbar_staged"] ? @"replace" : @"other",
-        initialHomeStageResult, rootTransitionCoordinator.isAnimated, YES,
-        rootTransitionCoordinator.isCancelled);
-  }
   if (![initialHomeStageResult isEqualToString:@"initial_home_toolbar_staged"]) {
     // Transfer registration before installation: the hidden source bar must not own these items.
     [item setLeftBarButtonItems:nil animated:NO];

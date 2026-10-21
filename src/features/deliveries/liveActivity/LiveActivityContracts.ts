@@ -11,12 +11,18 @@ export type LiveActivityOwnership = {
   uid: string;
   activityId: string;
   content: LiveActivityContent;
+  /** Local-only IDs used to distinguish new pending deliveries after system dismissal. */
+  deliveryIds?: string[];
 };
 
 export interface LiveActivityInstance {
   getId(): string;
   update(content: LiveActivityContent, staleDate?: Date): Promise<void>;
-  end(dismissalPolicy?: 'default' | 'immediate'): Promise<void>;
+  end(
+    dismissalPolicy?: 'default' | 'immediate',
+    content?: LiveActivityContent,
+    contentDate?: Date,
+  ): Promise<void>;
 }
 
 export interface LiveActivityDriver {

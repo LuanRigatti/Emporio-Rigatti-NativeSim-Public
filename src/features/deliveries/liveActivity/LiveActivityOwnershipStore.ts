@@ -21,7 +21,10 @@ export class AsyncStorageLiveActivityOwnershipStore implements Store {
         typeof value.content.date !== 'string' ||
         typeof value.content.bucketCount !== 'number' ||
         typeof value.content.deliveryCount !== 'number' ||
-        typeof value.content.isObsolete !== 'boolean'
+        typeof value.content.isObsolete !== 'boolean' ||
+        (value.deliveryIds !== undefined &&
+          (!Array.isArray(value.deliveryIds) ||
+            value.deliveryIds.some((deliveryId) => typeof deliveryId !== 'string')))
       ) {
         return null;
       }

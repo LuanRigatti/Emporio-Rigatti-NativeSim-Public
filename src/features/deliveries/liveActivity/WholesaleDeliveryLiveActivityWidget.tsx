@@ -1,11 +1,12 @@
-import { Divider, HStack, Image, ProgressView, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Divider, Gauge, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
+  controlSize,
   font,
   frame,
+  gaugeStyle,
   monospacedDigit,
   opacity,
   padding,
-  progressViewStyle,
   resizable,
   foregroundStyle,
   tint,
@@ -92,7 +93,7 @@ function WholesaleDeliveryLiveActivity(
     compactLeading: (
       <Image
         uiImage={compactBrandMarkURI}
-        modifiers={[resizable(), frame({ width: 20, height: 20 })]}
+        modifiers={[resizable(), frame({ width: 25, height: 25 })]}
       />
     ),
     compactTrailing: (
@@ -113,9 +114,7 @@ function WholesaleDeliveryLiveActivity(
           >
             {props.deliveryCount}
           </Text>
-          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>
-            Entregas pendentes
-          </Text>
+          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>Entregas</Text>
         </VStack>
         <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
           <Text
@@ -127,23 +126,15 @@ function WholesaleDeliveryLiveActivity(
           >
             {props.bucketCount}
           </Text>
-          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>Baldes pendentes</Text>
+          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>Baldes</Text>
         </VStack>
       </HStack>
     ),
     expandedLeading: (
-      <HStack spacing={8}>
-        <Image
-          uiImage={compactBrandMarkURI}
-          modifiers={[resizable(), frame({ width: 38, height: 38 })]}
-        />
-        <VStack spacing={0}>
-          <Text modifiers={[font({ weight: 'semibold', size: 15 }), foregroundStyle('#FFFFFF')]}>
-            Entregas de hoje
-          </Text>
-          <Text modifiers={[font({ size: 13 }), foregroundStyle('#8E8E93')]}>Atacado</Text>
-        </VStack>
-      </HStack>
+      <Image
+        uiImage={compactBrandMarkURI}
+        modifiers={[resizable(), frame({ width: 38, height: 38 })]}
+      />
     ),
     expandedTrailing: (
       <HStack>
@@ -155,12 +146,12 @@ function WholesaleDeliveryLiveActivity(
     ),
     expandedBottom: (
       <VStack spacing={4} modifiers={[frame({ maxWidth: Infinity })]}>
-        <ProgressView
+        <Gauge
           value={progress}
           modifiers={[
-            progressViewStyle('linear'),
+            gaugeStyle('linearCapacity'),
+            controlSize('large'),
             tint('#0A84FF'),
-            frame({ height: 8 }),
             frame({ maxWidth: Infinity }),
           ]}
         />

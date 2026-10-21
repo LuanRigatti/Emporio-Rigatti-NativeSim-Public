@@ -269,17 +269,6 @@ jest.mock('@/features/retail-orders/components/RetailOrderRegistrarScreen', () =
 jest.mock('@/hooks/useClients', () => ({ useClients: () => mockUseClients() }));
 jest.mock('@/hooks/useDeliveries', () => ({ useDeliveries: mockUseDeliveries }));
 jest.mock('@/hooks/useCostSettings', () => ({ useCostSettings: mockUseCostSettings }));
-jest.mock('@/features/deliveries/liveActivity/LiveActivityCoordinator', () => ({
-  wholesaleDeliveryLiveActivityCoordinator: { toggleFromToolbar: jest.fn() },
-}));
-jest.mock('@/features/deliveries/liveActivity/useLiveActivityCoordinator', () => ({
-  useLiveActivityCoordinatorState: () => ({
-    canStart: false,
-    isActive: false,
-    isBusy: false,
-    supported: false,
-  }),
-}));
 jest.mock('@/providers', () => ({
   useAppMode: () => ({ mode: 'wholesale' }),
   useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),

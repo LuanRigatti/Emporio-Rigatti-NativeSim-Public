@@ -26,8 +26,6 @@ export type LiveActivityCoordinatorState = {
   canStart: boolean;
 };
 
-export type LiveActivityActionResult = { ok: true } | { ok: false; message: string };
-
 type Session = {
   uid: string | null;
   sessionVersion: number;
@@ -48,11 +46,6 @@ type CoordinatorDependencies = {
   } | null;
   getWidgetActionRevision?: (sessionId: string, date: string) => number;
 };
-
-const UNSUPPORTED_MESSAGE = 'A Atividade ao vivo está disponível somente na versão iOS instalada.';
-const INCOMPLETE_MESSAGE =
-  'Aguarde o carregamento completo das entregas de hoje e tente novamente.';
-const ACTION_ERROR_MESSAGE = 'Não foi possível atualizar a Atividade ao vivo. Tente novamente.';
 
 export class LiveActivityCoordinator {
   private readonly source: FirestoreDeliveryDataSource;
@@ -250,83 +243,13 @@ export class LiveActivityCoordinator {
           return;
         }
         this.updateState({ canStart: true });
-        if (this.activeInstance && this.ownership?.uid === session.uid) {
-          await this.publishFreshSnapshot(snapshot, session.uid, session.sessionVersion);
-        }
+        await this.reconcileConfirmedSnapshot(snapshot, session);
       });
     } catch {
       this.updateState({
         isActive: Boolean(this.activeInstance),
         canStart: Boolean(this.getCurrentCompleteSnapshot()),
       });
-    }
-  }
-
-  public async toggleFromToolbar(): Promise<LiveActivityActionResult> {
-    const session = this.session;
-    if (!this.isIOS || this.state.supported !== true) {
-      return { ok: false, message: UNSUPPORTED_MESSAGE };
-    }
-    if (!session?.uid) return { ok: false, message: UNSUPPORTED_MESSAGE };
-    const uid = session.uid;
-
-    this.updateState({ isBusy: true });
-    try {
-      return await this.enqueue(async () => {
-        if (!this.isCurrentSession(session)) {
-          return { ok: false, message: ACTION_ERROR_MESSAGE };
-        }
-        try {
-          const driver = await this.getDriver();
-          if (!driver) return { ok: false, message: UNSUPPORTED_MESSAGE };
-
-          const wasActiveWhenOperationStarted = Boolean(this.activeInstance || this.state.isActive);
-          const existing = await this.recoverActivity(driver, uid, driver.getInstances());
-          const action = wasActiveWhenOperationStarted ? 'stop' : existing ? 'refresh' : 'start';
-          if (action === 'stop') {
-            return await this.stopAllInstances(driver);
-          }
-
-          const date = todayIso(this.now());
-          const snapshot = this.source.getCompleteDateSnapshot(uid, date, session.sessionVersion);
-          if (!snapshot) {
-            this.updateState({ isActive: Boolean(existing), canStart: false });
-            return { ok: false, message: INCOMPLETE_MESSAGE };
-          }
-
-          if (action === 'refresh' && existing) {
-            this.updateState({ isActive: true, canStart: true });
-            await this.publishFreshSnapshot(snapshot, uid, session.sessionVersion);
-            return { ok: true };
-          }
-
-          const content = this.createContent(snapshot, uid, session.sessionVersion);
-          const activity = driver.start(
-            content,
-            '/historico?mode=wholesale',
-            nextLocalMidnight(content.date),
-          );
-          const ownership = { uid, activityId: activity.getId(), content };
-          try {
-            await this.ownershipStore.write(ownership);
-          } catch {
-            await activity.end('immediate').catch(() => undefined);
-            this.activeInstance = null;
-            this.ownership = null;
-            this.updateState({ isActive: false, canStart: true });
-            return { ok: false, message: ACTION_ERROR_MESSAGE };
-          }
-          this.activeInstance = activity;
-          this.ownership = ownership;
-          this.updateState({ isActive: true, canStart: true });
-          return { ok: true };
-        } catch {
-          this.updateState({ canStart: Boolean(this.getCurrentCompleteSnapshot()) });
-          return { ok: false, message: ACTION_ERROR_MESSAGE };
-        }
-      });
-    } finally {
-      this.updateState({ isBusy: false });
     }
   }
 
@@ -411,6 +334,149 @@ export class LiveActivityCoordinator {
     return this.driverPromise;
   }
 
+  private async reconcileConfirmedSnapshot(
+    snapshot: CompleteDeliveryDateSnapshot,
+    session: Session,
+  ): Promise<void> {
+    if (!session.uid || !this.isCurrentSession(session) || snapshot.uid !== session.uid) return;
+    const driver = await this.getDriver();
+    if (!driver || !this.isCurrentSession(session)) return;
+
+    const active = await this.recoverActivity(driver, session.uid, driver.getInstances());
+    if (!this.isCurrentSession(session)) return;
+
+    const projection = projectWholesaleDeliverySnapshot(snapshot);
+    if (active) {
+      if (projection.deliveryCount === 0) {
+        await this.endForConfirmedSnapshot(active, snapshot, session);
+      } else {
+        this.updateState({ isActive: true, canStart: true });
+        await this.publishFreshSnapshot(snapshot, session.uid, session.sessionVersion);
+      }
+      return;
+    }
+
+    if (projection.deliveryCount === 0) {
+      this.activeInstance = null;
+      this.ownership = null;
+      await this.clearOwnershipSafely();
+      this.updateState({ isActive: false, canStart: true });
+      return;
+    }
+
+    const previousOwnership = this.ownership;
+    const mayStart =
+      !previousOwnership ||
+      previousOwnership.uid !== session.uid ||
+      previousOwnership.content.date !== snapshot.date ||
+      this.hasNewPendingDelivery(snapshot, previousOwnership);
+    if (!mayStart) {
+      if (!previousOwnership.deliveryIds) {
+        const migratedOwnership = {
+          ...previousOwnership,
+          deliveryIds: this.deliveryIds(snapshot),
+        };
+        this.ownership = migratedOwnership;
+        await this.ownershipStore.write(migratedOwnership).catch(() => undefined);
+      }
+      // ActivityKit no longer exposes a system-dismissed activity through getInstances().
+      // Keep ownership as a same-day tombstone so foreground reconciliation won't recreate it.
+      this.updateState({ isActive: false, canStart: true });
+      return;
+    }
+
+    if (AppState.currentState === 'background' || AppState.currentState === 'inactive') {
+      this.updateState({ isActive: false, canStart: true });
+      return;
+    }
+
+    await this.startForSnapshot(driver, snapshot, session);
+  }
+
+  private async startForSnapshot(
+    driver: LiveActivityDriver,
+    snapshot: CompleteDeliveryDateSnapshot,
+    session: Session,
+  ): Promise<void> {
+    if (!session.uid || !this.isCurrentSession(session)) return;
+    const content = this.createContent(snapshot, session.uid, session.sessionVersion);
+    try {
+      const activity = driver.start(
+        content,
+        '/historico?mode=wholesale',
+        nextLocalMidnight(content.date),
+      );
+      const ownership: LiveActivityOwnership = {
+        uid: session.uid,
+        activityId: activity.getId(),
+        content,
+        deliveryIds: this.deliveryIds(snapshot),
+      };
+      try {
+        await this.ownershipStore.write(ownership);
+      } catch {
+        await activity.end('immediate').catch(() => undefined);
+        return;
+      }
+      if (!this.isCurrentSession(session)) {
+        await activity.end('immediate').catch(() => undefined);
+        await this.clearOwnershipSafely();
+        return;
+      }
+      this.activeInstance = activity;
+      this.ownership = ownership;
+      this.updateState({ isActive: true, canStart: true });
+    } catch {
+      // ActivityKit enforces the user's Live Activities authorization at start time.
+      this.updateState({ isActive: false, canStart: true });
+    }
+  }
+
+  private async endForConfirmedSnapshot(
+    instance: LiveActivityInstance,
+    snapshot: CompleteDeliveryDateSnapshot,
+    session: Session,
+  ): Promise<void> {
+    if (!session.uid || !this.isCurrentSession(session)) return;
+    const content = this.createContent(snapshot, session.uid, session.sessionVersion);
+    try {
+      await instance.end('immediate', content, this.now());
+      this.activeInstance = null;
+      this.ownership = null;
+      this.updateState({ isActive: false, canStart: true });
+      await this.clearOwnershipSafely();
+    } catch {
+      try {
+        await instance.update(content, nextLocalMidnight(content.date));
+        const ownership: LiveActivityOwnership = {
+          uid: session.uid,
+          activityId: instance.getId(),
+          content,
+          deliveryIds: this.deliveryIds(snapshot),
+        };
+        this.activeInstance = instance;
+        this.ownership = ownership;
+        await this.ownershipStore.write(ownership);
+      } catch {
+        // Keep the last ownership state and retry on the next confirmed snapshot.
+      }
+      this.updateState({ isActive: true, canStart: true });
+    }
+  }
+
+  private hasNewPendingDelivery(
+    snapshot: CompleteDeliveryDateSnapshot,
+    ownership: LiveActivityOwnership,
+  ): boolean {
+    if (!ownership.deliveryIds) return false;
+    const knownIds = new Set(ownership.deliveryIds);
+    return snapshot.deliveries.some((delivery) => !delivery.entregue && !knownIds.has(delivery.id));
+  }
+
+  private deliveryIds(snapshot: CompleteDeliveryDateSnapshot): string[] {
+    return snapshot.deliveries.map((delivery) => delivery.id).sort();
+  }
+
   private async recoverActivity(
     driver: LiveActivityDriver,
     uid: string,
@@ -425,8 +491,8 @@ export class LiveActivityCoordinator {
 
     if (instances.length === 0) {
       this.activeInstance = null;
-      this.ownership = null;
-      if (storedOwnership) await this.clearOwnershipSafely();
+      this.ownership = storedOwnership?.uid === uid ? storedOwnership : null;
+      if (storedOwnership && storedOwnership.uid !== uid) await this.clearOwnershipSafely();
       return null;
     }
 
@@ -467,13 +533,24 @@ export class LiveActivityCoordinator {
     if (!instance || !existingOwnership || existingOwnership.uid !== uid) return;
 
     const content = this.createContent(snapshot, uid, sessionVersion);
-    if (this.sameContent(existingOwnership.content, content)) return;
-
+    const deliveryIds = this.deliveryIds(snapshot);
     const nextOwnership: LiveActivityOwnership = {
       uid,
       activityId: instance.getId(),
       content,
+      deliveryIds,
     };
+    const sameDeliveryIds =
+      existingOwnership.deliveryIds?.length === deliveryIds.length &&
+      existingOwnership.deliveryIds.every((id, index) => id === deliveryIds[index]);
+    if (this.sameContent(existingOwnership.content, content)) {
+      if (!sameDeliveryIds) {
+        this.ownership = nextOwnership;
+        await this.ownershipStore.write(nextOwnership);
+      }
+      return;
+    }
+
     await instance.update(content, nextLocalMidnight(content.date));
     this.ownership = nextOwnership;
     await this.ownershipStore.write(nextOwnership);
@@ -492,34 +569,6 @@ export class LiveActivityCoordinator {
     } catch {
       this.updateState({ isActive: true });
     }
-  }
-
-  private async stopAllInstances(driver: LiveActivityDriver): Promise<LiveActivityActionResult> {
-    const instances = driver.getInstances();
-    const candidates = new Map<string, LiveActivityInstance>();
-    instances.forEach((instance) => candidates.set(instance.getId(), instance));
-    if (this.activeInstance) candidates.set(this.activeInstance.getId(), this.activeInstance);
-    const results = await Promise.allSettled(
-      [...candidates.values()].map((instance) => instance.end('immediate')),
-    );
-    const failed = results.some((result) => result.status === 'rejected');
-    if (failed) {
-      this.updateState({ isActive: true, canStart: false });
-      return { ok: false, message: ACTION_ERROR_MESSAGE };
-    }
-
-    this.activeInstance = null;
-    this.ownership = null;
-    this.updateState({
-      isActive: false,
-      canStart: Boolean(this.getCurrentCompleteSnapshot()),
-    });
-    try {
-      await this.ownershipStore.clear();
-    } catch {
-      return { ok: false, message: ACTION_ERROR_MESSAGE };
-    }
-    return { ok: true };
   }
 
   private async endInstances(instances: LiveActivityInstance[]): Promise<void> {

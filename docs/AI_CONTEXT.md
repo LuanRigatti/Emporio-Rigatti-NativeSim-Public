@@ -14,13 +14,13 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 
 # Stack
 
-- Baseline de código auditado em 2026-10-20 neste checkout `Codex`, HEAD
-  `72e10d6cb48e5f706b49a2520e3772095e3df946`: Expo SDK 58 (`expo ~58.0.12`),
-  React `19.3.0`, React Native `0.88.0`, Expo Router `~58.0.21`,
-  `@expo/ui ~58.0.19` e `expo-widgets ~58.0.19`, conforme `package.json`.
-  Confirme Git e manifest antes de assumir que esse baseline continua atual.
+- Versões conferidas em 2026-10-21 neste checkout `Codex`, conforme
+  `package.json`: Expo SDK 58 (`expo ~58.0.12`), React `19.3.0`, React Native
+  `0.88.0`, Expo Router `~58.0.21`, `@expo/ui ~58.0.19` e
+  `expo-widgets ~58.0.19`. Confirme o HEAD no Git e as versões no manifest;
+  este contexto não fixa o SHA atual.
 - A validação parcial no NativeSim reportada pelo usuário refere-se somente ao
-  checkpoint histórico `5dfc143`; não valida o HEAD acima nem comprova
+  checkpoint histórico `5dfc143`; não valida o HEAD atual nem comprova
   comportamento em iPhone físico. Não assumir que outras branches foram
   migradas; confirmar cada checkout pelo Git e pelo respectivo manifest.
 - React Native
@@ -358,9 +358,14 @@ nativas existentes.
   `src/features/deliveries/liveActivity/LiveActivityCoordinator.ts`, a
   projeção compartilhada e o contrato de ownership por UID. A origem válida é
   um snapshot remoto completo de hoje; não substitua por cache ou dados de
-  consulta parcial/filtrada. `LiveActivityProjection` é a fonte canônica para
-  entregas/baldes pendentes e para entregas concluídas/total do dia; o progresso
-  visual é concluídas/total, com fração zero quando o total é zero. Baldes usam
+  consulta parcial/filtrada. A atividade inicia automaticamente quando há
+  pendências e o app está ativo; ao abrir/retomar, recupere a instância existente
+  antes de criar outra. Mutações confirmadas do app atualizam a mesma atividade;
+  ao zerar pendências, encerre-a com conteúdo final. A toolbar de
+  `/registrar-entrega` não oferece ativação manual.
+  `LiveActivityProjection` é a fonte canônica para entregas/baldes pendentes e
+  para entregas concluídas/total do dia; o progresso visual é concluídas/total,
+  com fração zero quando o total é zero. Baldes usam
   `financialCalculationService.calculateQuantidade`. Alterações em qualquer
   desses contadores devem participar da comparação de conteúdo do coordenador
   para que mudanças apenas no progresso atualizem ActivityKit. A Dynamic Island
@@ -376,16 +381,21 @@ nativas existentes.
   Preserve a ordem do ACK: após a confirmação remota, persista a atualização da
   timeline no App Group e solicite novo `WidgetCenter.reloadTimelines` para o
   estado confirmado; o reload inicial do estado `pending` fornece feedback
-  imediato. Em seguida, atualize a atividade a partir da projeção persistida,
-  sem nova consulta Firestore.
+  imediato. Em seguida, atualize ActivityKit a partir da projeção persistida —
+  ou encerre imediatamente a atividade quando `deliveryCount` chegar a zero —
+  sem nova consulta Firestore. A conclusão pelo widget usa o App Intent mesmo
+  com o JavaScript do app suspenso; valide essa execução em build nativa.
   Ainda não há `onSnapshot` do Firestore nem push para Live Activity habilitado
   no config; mudanças externas ao app e ao widget podem aguardar a próxima
   consulta completa. Ao voltar ao primeiro plano, o coordenador reconcilia com
   uma consulta completa.
 - A data limite é a próxima meia-noite local. `staleDate` marca a Activity
-  como stale, mas não a encerra. Preserve encerramento explícito pela toolbar,
-  encerramento na troca/logout do UID e limpeza de atividades órfãs ou
-  duplicadas.
+  como stale, mas não a encerra. Logout/troca de UID encerra as instâncias;
+  preserve a limpeza de órfãs e duplicatas. Se o sistema dispensar a atividade,
+  o tombstone local impede recriação para os mesmos IDs naquele UID/dia; um novo
+  ID pendente pode iniciar uma atividade nova. Sem push remoto ou listener
+  `onSnapshot`, mudanças feitas fora do app/widget podem aguardar a reconciliação
+  ao voltar ao primeiro plano.
 - O toque abre `/historico?mode=wholesale`; preserve esse deep link e o modo
   Atacado de destino. `supported` representa disponibilidade do driver, não a
   autorização do usuário no sistema; ActivityKit pode rejeitar o início.

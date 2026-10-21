@@ -1099,7 +1099,12 @@ private actor RigattiDeliveryLiveActivityUpdater {
       }
 
       let nextState = LiveActivityAttributes.ContentState(name: state.name, props: propsString)
-      await activity.update(ActivityContent(state: nextState, staleDate: content.staleDate))
+      let nextContent = ActivityContent(state: nextState, staleDate: content.staleDate)
+      if projection.deliveryCount == 0 {
+        await activity.end(nextContent, dismissalPolicy: .immediate)
+      } else {
+        await activity.update(nextContent)
+      }
     }
 
   }

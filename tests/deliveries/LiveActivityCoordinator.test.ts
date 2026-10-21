@@ -11,6 +11,7 @@ import type {
   LiveActivityOwnership,
   LiveActivityOwnershipStore,
 } from '@/features/deliveries/liveActivity/LiveActivityContracts';
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
@@ -79,11 +80,18 @@ class FakeActivity implements LiveActivityInstance {
     if (this.failUpdate) throw new Error('ActivityKit update failed');
     this.content = content;
   });
-  public readonly end = jest.fn(async (_policy?: 'default' | 'immediate') => {
-    if (this.failEnd) throw new Error('ActivityKit end failed');
-    this.ended = true;
-    this.removeFromDriver(this.id);
-  });
+  public readonly end = jest.fn(
+    async (
+      _policy?: 'default' | 'immediate',
+      content?: LiveActivityContent,
+      _contentDate?: Date,
+    ) => {
+      if (this.failEnd) throw new Error('ActivityKit end failed');
+      if (content) this.content = content;
+      this.ended = true;
+      this.removeFromDriver(this.id);
+    },
+  );
 
   public constructor(
     private readonly id: string,
@@ -105,7 +113,6 @@ class FakeDriver implements LiveActivityDriver {
       return instance;
     },
   );
-  public failStart = false;
 
   public add(id: string, content: LiveActivityContent) {
     const instance = new FakeActivity(id, content, (itemId) => {
@@ -163,14 +170,6 @@ function makeCoordinator(
   return { coordinator, driver, ownershipStore };
 }
 
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
-
 describe('LiveActivityCoordinator', () => {
   let attachedCoordinators: LiveActivityCoordinator[];
 
@@ -182,7 +181,7 @@ describe('LiveActivityCoordinator', () => {
     attachedCoordinators.forEach((coordinator) => coordinator.detach());
   });
 
-  it('starts, updates pending counts from complete snapshots, and ends the ActivityKit instance', async () => {
+  it('starts automatically from a complete pending snapshot and ends at zero', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(
       snapshot('user-a', [delivery('pending', 2), delivery('already-delivered', 3, true)]),
@@ -191,8 +190,7 @@ describe('LiveActivityCoordinator', () => {
     attachedCoordinators.push(coordinator);
 
     await coordinator.setSession('user-a', 1);
-    expect(coordinator.getSnapshot()).toMatchObject({ supported: true, canStart: true });
-    await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
+
     expect(driver.start).toHaveBeenCalledTimes(1);
     expect(driver.start).toHaveBeenCalledWith(
       expect.anything(),
@@ -207,43 +205,49 @@ describe('LiveActivityCoordinator', () => {
       totalDeliveryCount: 2,
       isObsolete: false,
     });
-    expect(ownershipStore.value?.activityId).toBe('activity-1');
+    expect(ownershipStore.value?.deliveryIds).toEqual(['already-delivered', 'pending']);
 
-    const markedDelivered = snapshot('user-a', [
+    const completed = snapshot('user-a', [
       delivery('pending', 2, true),
       delivery('already-delivered', 3, true),
     ]);
-    source.setSnapshot(markedDelivered);
-    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: markedDelivered });
-    expect(driver.instances[0]?.content).toMatchObject({
-      bucketCount: 0,
-      deliveryCount: 0,
-      completedDeliveryCount: 2,
-      totalDeliveryCount: 2,
-    });
+    source.setSnapshot(completed);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: completed });
 
-    const markedPending = snapshot('user-a', [
-      delivery('pending', 2),
-      delivery('already-delivered', 3, true),
-    ]);
-    source.setSnapshot(markedPending);
-    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: markedPending });
-    expect(driver.instances[0]?.content).toMatchObject({
-      bucketCount: 2,
-      deliveryCount: 1,
-      completedDeliveryCount: 1,
-      totalDeliveryCount: 2,
-    });
-
-    await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
+    expect(driver.instances[0]?.end).toHaveBeenCalledWith(
+      'immediate',
+      expect.objectContaining({
+        bucketCount: 0,
+        deliveryCount: 0,
+        completedDeliveryCount: 2,
+        totalDeliveryCount: 2,
+      }),
+      expect.any(Date),
+    );
     expect(driver.instances[0]?.ended).toBe(true);
     expect(ownershipStore.value).toBeNull();
     expect(coordinator.getSnapshot().isActive).toBe(false);
   });
 
-  it('binds widget-triggered ActivityKit updates to the matching opaque authorization session', async () => {
+  it('starts again when a new pending delivery is added after completion', async () => {
     const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot('user-a'));
+    source.setSnapshot(snapshot('user-a', []));
+    const { coordinator, driver } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+    await coordinator.setSession('user-a', 1);
+    expect(driver.start).not.toHaveBeenCalled();
+
+    const pending = snapshot('user-a', [delivery('new-delivery', 4)]);
+    source.setSnapshot(pending);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: pending });
+
+    expect(driver.start).toHaveBeenCalledTimes(1);
+    expect(driver.instances[0]?.content.deliveryCount).toBe(1);
+  });
+
+  it('updates an active instance from confirmed snapshots without changing its UID fence', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
     const authorization = {
       uid: 'user-a',
       sessionId: 'opaque-widget-session',
@@ -257,24 +261,21 @@ describe('LiveActivityCoordinator', () => {
       7,
     );
     attachedCoordinators.push(coordinator);
-
     await coordinator.setSession('user-a', 4);
-    await coordinator.toggleFromToolbar();
 
-    expect(driver.instances[0]?.content).toEqual({
-      date: TODAY,
-      bucketCount: 2,
-      deliveryCount: 1,
-      completedDeliveryCount: 0,
-      totalDeliveryCount: 1,
-      isObsolete: false,
+    const changed = snapshot('user-a', [delivery('one'), delivery('new', 5)]);
+    source.setSnapshot(changed);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: changed });
+
+    expect(driver.instances[0]?.content).toMatchObject({
+      deliveryCount: 2,
       actionSessionId: 'opaque-widget-session',
       actionRevision: 7,
     });
     expect(JSON.stringify(driver.instances[0]?.content)).not.toContain('user-a');
   });
 
-  it('does not attach a widget authorization session from another UID or session version', async () => {
+  it('does not attach widget authorization from another UID or session version', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(snapshot('user-a'));
     const { coordinator, driver } = makeCoordinator(
@@ -287,19 +288,11 @@ describe('LiveActivityCoordinator', () => {
     attachedCoordinators.push(coordinator);
 
     await coordinator.setSession('user-a', 4);
-    await coordinator.toggleFromToolbar();
 
-    expect(driver.instances[0]?.content).toEqual({
-      date: TODAY,
-      bucketCount: 2,
-      deliveryCount: 1,
-      completedDeliveryCount: 0,
-      totalDeliveryCount: 1,
-      isObsolete: false,
-    });
+    expect(driver.instances[0]?.content).not.toHaveProperty('actionSessionId');
   });
 
-  it('recovers the owned activity, refreshes it, and ends duplicate instances', async () => {
+  it('recovers an owned activity, refreshes it, and ends duplicates', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(snapshot());
     const driver = new FakeDriver();
@@ -310,6 +303,7 @@ describe('LiveActivityCoordinator', () => {
       uid: 'user-a',
       activityId: 'known-activity',
       content: first.content,
+      deliveryIds: ['one'],
     };
     const { coordinator } = makeCoordinator(source, driver, ownershipStore);
     attachedCoordinators.push(coordinator);
@@ -319,176 +313,130 @@ describe('LiveActivityCoordinator', () => {
     expect(driver.start).not.toHaveBeenCalled();
     expect(first.ended).toBe(false);
     expect(duplicate.ended).toBe(true);
-    expect(driver.getInstances()).toEqual([first]);
     expect(first.content).toMatchObject({ bucketCount: 2, deliveryCount: 1, isObsolete: false });
-    expect(driver.start).not.toHaveBeenCalled();
   });
 
-  it('serializes simultaneous toggles against the latest active state without duplicate starts', async () => {
+  it('serializes concurrent confirmed snapshots without duplicate starts', async () => {
     const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
+    source.setSnapshot(snapshot('user-a', []));
     const { coordinator, driver } = makeCoordinator(source);
     attachedCoordinators.push(coordinator);
-
     await coordinator.setSession('user-a', 1);
-    const results = await Promise.all([
-      coordinator.toggleFromToolbar(),
-      coordinator.toggleFromToolbar(),
+
+    const pending = snapshot();
+    source.setSnapshot(pending);
+    await Promise.all([
+      coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: pending }),
+      coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: pending }),
     ]);
 
-    expect(results).toEqual([{ ok: true }, { ok: true }]);
     expect(driver.start).toHaveBeenCalledTimes(1);
-    expect(driver.getInstances()).toHaveLength(0);
+    expect(driver.getInstances()).toHaveLength(1);
   });
 
-  it('invalidates canStart synchronously when foreground reconciliation begins without an active activity', async () => {
+  it('does not restart a system-dismissed activity until a new pending delivery is added', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(snapshot());
-    const { coordinator } = makeCoordinator(source);
+    const { coordinator, driver, ownershipStore } = makeCoordinator(source);
     attachedCoordinators.push(coordinator);
-
     await coordinator.setSession('user-a', 1);
-    expect(coordinator.getSnapshot().canStart).toBe(true);
+    const dismissed = driver.instances[0];
+    if (!dismissed) throw new Error('Expected an automatically started activity.');
+    dismissed.ended = true;
 
-    const loadStarted = deferred<void>();
-    const loadResult = deferred<Delivery[]>();
-    source.load.mockImplementationOnce(async (uid, filters) => {
-      loadStarted.resolve();
-      await loadResult.promise;
-      if (source.current) source.emit({ type: 'complete', snapshot: source.current });
-      return [];
-    });
+    await (coordinator as unknown as { handleForeground: () => Promise<void> }).handleForeground();
 
-    const foreground = (
-      coordinator as unknown as { handleForeground: () => Promise<void> }
-    ).handleForeground();
-
-    expect(coordinator.getSnapshot().canStart).toBe(false);
-    await loadStarted.promise;
-    expect(coordinator.getSnapshot().canStart).toBe(false);
-
-    loadResult.resolve([]);
-    await foreground;
-
-    expect(coordinator.getSnapshot().canStart).toBe(true);
-  });
-
-  it('keeps an active activity stoppable while foreground waits for a complete snapshot', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const { coordinator, driver } = makeCoordinator(source);
-    attachedCoordinators.push(coordinator);
-
-    await coordinator.setSession('user-a', 1);
-    await coordinator.toggleFromToolbar();
-    const active = driver.instances[0];
-    if (!active) throw new Error('Expected a started fake activity.');
-    source.setSnapshot(null);
-
-    const loadStarted = deferred<void>();
-    const loadResult = deferred<Delivery[]>();
-    source.load.mockImplementationOnce(async () => {
-      loadStarted.resolve();
-      return loadResult.promise;
-    });
-
-    const foreground = (
-      coordinator as unknown as { handleForeground: () => Promise<void> }
-    ).handleForeground();
-    await loadStarted.promise;
-
-    expect(coordinator.getSnapshot()).toMatchObject({ isActive: true, canStart: false });
-    await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
-    expect(active.ended).toBe(true);
-
-    loadResult.resolve([]);
-    await foreground;
+    expect(driver.start).toHaveBeenCalledTimes(1);
     expect(coordinator.getSnapshot().isActive).toBe(false);
-  });
+    expect(ownershipStore.value).not.toBeNull();
 
-  it('adopts and refreshes an activity found during the serialized start action without duplicating it', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const driver = new FakeDriver();
-    const ownershipStore = new FakeOwnershipStore();
-    const { coordinator } = makeCoordinator(source, driver, ownershipStore);
-    attachedCoordinators.push(coordinator);
+    const withNewDelivery = snapshot('user-a', [delivery('one'), delivery('new-pending')]);
+    source.setSnapshot(withNewDelivery);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: withNewDelivery });
 
-    await coordinator.setSession('user-a', 1);
-    const existing = driver.add('late-existing-activity', content({ bucketCount: 8 }));
-    ownershipStore.value = {
-      uid: 'user-a',
-      activityId: 'late-existing-activity',
-      content: existing.content,
-    };
-
-    await expect(coordinator.toggleFromToolbar()).resolves.toEqual({ ok: true });
-
-    expect(driver.start).not.toHaveBeenCalled();
-    expect(driver.getInstances()).toEqual([existing]);
-    expect(existing.ended).toBe(false);
-    expect(existing.update).toHaveBeenCalledWith(
-      expect.objectContaining({ bucketCount: 2, deliveryCount: 1, isObsolete: false }),
-      expect.any(Date),
-    );
+    expect(driver.start).toHaveBeenCalledTimes(2);
     expect(coordinator.getSnapshot().isActive).toBe(true);
   });
 
-  it('uses the state present when the queued action runs and recovers ActivityKit before stopping', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const driver = new FakeDriver();
-    const ownershipStore = new FakeOwnershipStore();
-    const { coordinator } = makeCoordinator(source, driver, ownershipStore);
-    attachedCoordinators.push(coordinator);
-
-    await coordinator.setSession('user-a', 1);
-
-    const queueGate = deferred<void>();
-    const internal = coordinator as unknown as {
-      enqueue: (operation: () => Promise<void>) => Promise<void>;
-      updateState: (patch: { isActive?: boolean }) => void;
-    };
-    const precedingOperation = internal.enqueue(async () => {
-      await queueGate.promise;
-      internal.updateState({ isActive: true });
-    });
-    const action = coordinator.toggleFromToolbar();
-
-    const existing = driver.add('recovered-before-action', content());
-    ownershipStore.value = {
-      uid: 'user-a',
-      activityId: 'recovered-before-action',
-      content: existing.content,
-    };
-    ownershipStore.read.mockClear();
-    queueGate.resolve();
-
-    await Promise.all([precedingOperation, action]);
-
-    expect(existing.ended).toBe(true);
-    expect(driver.start).not.toHaveBeenCalled();
-    expect(driver.getInstances()).toEqual([]);
-    expect(ownershipStore.read).toHaveBeenCalledTimes(1);
-    expect(existing.end.mock.invocationCallOrder[0]).toBeGreaterThan(
-      ownershipStore.read.mock.invocationCallOrder[0] ?? 0,
-    );
-    expect(coordinator.getSnapshot().isActive).toBe(false);
-  });
-
-  it('refuses to start from an unknown or incomplete date snapshot', async () => {
+  it('does not start without a complete current-day snapshot', async () => {
     const source = new FakeSnapshotSource();
     const { coordinator, driver } = makeCoordinator(source);
     attachedCoordinators.push(coordinator);
 
     await coordinator.setSession('user-a', 1);
-    await expect(coordinator.toggleFromToolbar()).resolves.toMatchObject({ ok: false });
 
     expect(driver.start).not.toHaveBeenCalled();
     expect(coordinator.getSnapshot().canStart).toBe(false);
   });
 
-  it('does not report an activity when instance recovery itself fails', async () => {
+  it('does not duplicate an existing activity during foreground reconciliation', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const { coordinator, driver } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+    await coordinator.setSession('user-a', 1);
+    const active = driver.instances[0];
+    if (!active) throw new Error('Expected an automatically started activity.');
+
+    await (coordinator as unknown as { handleForeground: () => Promise<void> }).handleForeground();
+
+    expect(driver.start).toHaveBeenCalledTimes(1);
+    expect(driver.getInstances()).toEqual([active]);
+    expect(active.content.isObsolete).toBe(false);
+    expect(coordinator.getSnapshot().isActive).toBe(true);
+  });
+
+  it('ends the prior UID activity before starting for a new authenticated session', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot('user-a'));
+    const { coordinator, driver, ownershipStore } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+    await coordinator.setSession('user-a', 1);
+    const previous = driver.instances[0];
+
+    source.setSnapshot(snapshot('user-b', [delivery('other-user', 8)]));
+    await coordinator.setSession('user-b', 2);
+
+    expect(previous?.ended).toBe(true);
+    expect(ownershipStore.value?.uid).toBe('user-b');
+    expect(driver.start).toHaveBeenCalledTimes(2);
+    expect(driver.instances[1]?.content.deliveryCount).toBe(1);
+  });
+
+  it('marks an active payload obsolete while the complete date is being revalidated', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot());
+    const { coordinator, driver } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+    await coordinator.setSession('user-a', 1);
+
+    await coordinator.handleDateSnapshotEvent({ type: 'invalidated', uid: 'user-a', date: TODAY });
+    expect(driver.instances[0]?.content.isObsolete).toBe(true);
+    expect(coordinator.getSnapshot().canStart).toBe(false);
+
+    await coordinator.handleDateSnapshotEvent({ type: 'refreshing', uid: 'user-a', date: TODAY });
+    expect(driver.instances[0]?.content.isObsolete).toBe(true);
+  });
+
+  it('does not report an activity active when ActivityKit rejects an automatic start', async () => {
+    const source = new FakeSnapshotSource();
+    source.setSnapshot(snapshot('user-a', []));
+    const { coordinator, driver } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+    await coordinator.setSession('user-a', 1);
+    driver.start.mockImplementationOnce(() => {
+      throw new Error('Live Activities disabled');
+    });
+
+    const pending = snapshot();
+    source.setSnapshot(pending);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: pending });
+
+    expect(coordinator.getSnapshot()).toMatchObject({ supported: true, isActive: false });
+    expect(driver.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts once after a transient ActivityKit recovery failure', async () => {
     const source = new FakeSnapshotSource();
     source.setSnapshot(snapshot());
     const driver = new FakeDriver();
@@ -500,97 +448,44 @@ describe('LiveActivityCoordinator', () => {
 
     await coordinator.setSession('user-a', 1);
 
-    expect(coordinator.getSnapshot().isActive).toBe(false);
-  });
-
-  it('ends the prior UID activity and clears ownership when the session changes', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot('user-a'));
-    const { coordinator, driver, ownershipStore } = makeCoordinator(source);
-    attachedCoordinators.push(coordinator);
-
-    await coordinator.setSession('user-a', 1);
-    await coordinator.toggleFromToolbar();
-    const previous = driver.instances[0];
-    source.setSnapshot(snapshot('user-b', [delivery('other-user', 8)]));
-
-    await coordinator.setSession('user-b', 2);
-
-    expect(previous?.ended).toBe(true);
-    expect(driver.getInstances()).toEqual([]);
-    expect(ownershipStore.value).toBeNull();
-    expect(coordinator.getSnapshot().canStart).toBe(true);
-    expect(driver.start).toHaveBeenCalledTimes(1);
-  });
-
-  it('preserves old counts as obsolete when a full-date query is invalidated', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const { coordinator, driver } = makeCoordinator(source);
-    attachedCoordinators.push(coordinator);
-
-    await coordinator.setSession('user-a', 1);
-    await coordinator.toggleFromToolbar();
-    await coordinator.handleDateSnapshotEvent({ type: 'invalidated', uid: 'user-a', date: TODAY });
-
-    expect(driver.instances[0]?.content).toEqual({
-      date: TODAY,
-      bucketCount: 2,
-      deliveryCount: 1,
-      completedDeliveryCount: 0,
-      totalDeliveryCount: 1,
-      isObsolete: true,
-    });
-    expect(coordinator.getSnapshot().canStart).toBe(false);
-  });
-
-  it('keeps Live Activity invalidation behavior when a date query only begins revalidation', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const { coordinator, driver } = makeCoordinator(source);
-    attachedCoordinators.push(coordinator);
-
-    await coordinator.setSession('user-a', 1);
-    await coordinator.toggleFromToolbar();
-    await coordinator.handleDateSnapshotEvent({ type: 'refreshing', uid: 'user-a', date: TODAY });
-
-    expect(driver.instances[0]?.content).toMatchObject({ isObsolete: true });
-    expect(coordinator.getSnapshot().canStart).toBe(false);
-  });
-
-  it('contains ActivityKit start, update, and end failures', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const { coordinator, driver, ownershipStore } = makeCoordinator(source);
-    attachedCoordinators.push(coordinator);
-    await coordinator.setSession('user-a', 1);
-
-    driver.start.mockImplementationOnce(() => {
-      throw new Error('ActivityKit start failed');
-    });
-    await expect(coordinator.toggleFromToolbar()).resolves.toMatchObject({ ok: false });
-    expect(coordinator.getSnapshot().isActive).toBe(false);
-
-    await coordinator.toggleFromToolbar();
-    const active = driver.instances[0];
-    if (!active) throw new Error('Expected a started fake activity.');
-    active.failUpdate = true;
-    const newer = snapshot('user-a', [delivery('one', 9)]);
-    source.setSnapshot(newer);
-    await expect(
-      coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: newer }),
-    ).resolves.toBeUndefined();
-    expect(active.content.bucketCount).toBe(2);
-    expect(ownershipStore.value?.content.bucketCount).toBe(2);
-
-    active.failEnd = true;
-    await expect(coordinator.toggleFromToolbar()).resolves.toMatchObject({ ok: false });
     expect(coordinator.getSnapshot().isActive).toBe(true);
+    expect(driver.start).toHaveBeenCalledTimes(1);
+    expect(driver.getInstances()).toHaveLength(1);
   });
 
-  it('marks the last known payload obsolete after relaunch before revalidating the date', async () => {
+  it('retains the last good payload on update failure and retries a failed end', async () => {
     const source = new FakeSnapshotSource();
-    source.setSnapshot(null);
+    source.setSnapshot(snapshot());
+    const { coordinator, driver, ownershipStore } = makeCoordinator(source);
+    attachedCoordinators.push(coordinator);
+    await coordinator.setSession('user-a', 1);
+    const active = driver.instances[0];
+    if (!active) throw new Error('Expected an automatically started activity.');
+
+    active.failUpdate = true;
+    const changed = snapshot('user-a', [delivery('one', 8)]);
+    source.setSnapshot(changed);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: changed });
+    expect(active.content.bucketCount).toBe(2);
+    expect(coordinator.getSnapshot().isActive).toBe(true);
+
+    active.failUpdate = false;
+    active.failEnd = true;
+    const completed = snapshot('user-a', [delivery('one', 8, true)]);
+    source.setSnapshot(completed);
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: completed });
+    expect(active.ended).toBe(false);
+    expect(active.content.deliveryCount).toBe(0);
+    expect(ownershipStore.value?.content.deliveryCount).toBe(0);
+
+    active.failEnd = false;
+    await coordinator.handleDateSnapshotEvent({ type: 'complete', snapshot: completed });
+    expect(active.ended).toBe(true);
+    expect(ownershipStore.value).toBeNull();
+  });
+
+  it('keeps old counts marked obsolete if no complete snapshot is available after relaunch', async () => {
+    const source = new FakeSnapshotSource();
     const driver = new FakeDriver();
     const recovered = driver.add('recovered', content({ bucketCount: 6 }));
     const ownershipStore = new FakeOwnershipStore();
@@ -598,6 +493,7 @@ describe('LiveActivityCoordinator', () => {
       uid: 'user-a',
       activityId: 'recovered',
       content: recovered.content,
+      deliveryIds: ['one'],
     };
     const { coordinator } = makeCoordinator(source, driver, ownershipStore);
     attachedCoordinators.push(coordinator);
@@ -605,29 +501,6 @@ describe('LiveActivityCoordinator', () => {
     await coordinator.setSession('user-a', 1);
 
     expect(recovered.content).toMatchObject({ bucketCount: 6, isObsolete: true });
-    expect(coordinator.getSnapshot().isActive).toBe(true);
-    expect(coordinator.getSnapshot().canStart).toBe(false);
-  });
-
-  it('refreshes ActivityKit instances on foreground and notices normal expiration', async () => {
-    const source = new FakeSnapshotSource();
-    source.setSnapshot(snapshot());
-    const driver = new FakeDriver();
-    const expired = driver.add('expired-activity', content());
-    const ownershipStore = new FakeOwnershipStore();
-    ownershipStore.value = {
-      uid: 'user-a',
-      activityId: 'expired-activity',
-      content: expired.content,
-    };
-    const { coordinator } = makeCoordinator(source, driver, ownershipStore);
-    attachedCoordinators.push(coordinator);
-
-    await coordinator.setSession('user-a', 1);
-    expired.ended = true;
-    await (coordinator as unknown as { handleForeground: () => Promise<void> }).handleForeground();
-
-    expect(coordinator.getSnapshot()).toMatchObject({ isActive: false, canStart: true });
-    expect(ownershipStore.value).toBeNull();
+    expect(coordinator.getSnapshot()).toMatchObject({ isActive: true, canStart: false });
   });
 });

@@ -284,6 +284,11 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     expect(DELIVERY_ACTION_SWIFT).toContain('props["completedDeliveryCount"] = completedCount');
     expect(DELIVERY_ACTION_SWIFT).toContain('props["totalDeliveryCount"] = totalCount');
     expect(DELIVERY_ACTION_SWIFT).toContain('staleDate: content.staleDate');
+    expect(DELIVERY_ACTION_SWIFT).toContain('if projection.deliveryCount == 0 {');
+    expect(DELIVERY_ACTION_SWIFT).toContain(
+      'await activity.end(nextContent, dismissalPolicy: .immediate)',
+    );
+    expect(DELIVERY_ACTION_SWIFT).toContain('await activity.update(nextContent)');
     expect(DELIVERY_ACTION_SWIFT).not.toMatch(/import\s+Firebase|refreshToken|adminCredential/i);
     expect(DELIVERY_ACTION_SWIFT).not.toContain('UIApplication.shared');
     const receiptStorage = DELIVERY_ACTION_SWIFT.slice(

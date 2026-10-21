@@ -384,15 +384,36 @@ jobs:
             }
           }
 
-          const brandingFragments = [
-            '// ResumoFinanceiro shared branding image directory',
+          function extractEnvironmentHelper(anchor, label) {
+            const start = utils.indexOf(anchor);
+            const end = utils.indexOf('  return env', start);
+            if (start < 0 || end <= start) {
+              throw new Error(`::error::Expo Widgets ${label} helper is missing or malformed`);
+            }
+            return utils.slice(start, end);
+          }
+
+          const widgetEnvironment = extractEnvironmentHelper(
+            'public func getWidgetEnvironment(environment: EnvironmentValues) -> [String: Any] {',
+            'widget environment',
+          );
+          const liveActivityEnvironment = extractEnvironmentHelper(
+            'func getLiveActivityEnvironment(for environment: EnvironmentValues, in context: ActivityViewContext<LiveActivityAttributes>) -> [String: Any] {',
+            'Live Activity environment',
+          );
+          const sharedEnvironmentFragments = [
             'Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String',
             'FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)',
             'env["widgetsDirectory"] = appGroupContainer.appendingPathComponent("ExpoWidgets", isDirectory: true).absoluteString',
           ];
-          for (const fragment of brandingFragments) {
-            if (count(utils, fragment) !== 1) {
-              throw new Error(`::error::Expo Widgets shared environment is missing or duplicates branding fragment: ${fragment}`);
+          for (const [label, source, marker] of [
+            ['widget environment', widgetEnvironment, '// ResumoFinanceiro shared branding image directory'],
+            ['Live Activity environment', liveActivityEnvironment, '// Rigatti Live Activity shared branding image directory'],
+          ]) {
+            for (const fragment of [marker, ...sharedEnvironmentFragments]) {
+              if (count(source, fragment) !== 1) {
+                throw new Error(`::error::Expo Widgets ${label} is missing or duplicates branding fragment: ${fragment}`);
+              }
             }
           }
           if (count(entryView, 'getWidgetEnvironment(environment: environment)') !== 1) {

@@ -13,16 +13,45 @@ import {
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
 import type { RouteTrackingLiveActivityContent } from './RouteTrackingLiveActivityContracts';
-import {
-  formatRouteTrackingKilometers,
-  getRouteTrackingTimerInterval,
-} from './RouteTrackingLiveActivityPresentation';
 
 function RouteTrackingLiveActivity(
   props: RouteTrackingLiveActivityContent,
   environment: LiveActivityEnvironment,
 ) {
   'widget';
+
+  const maxActiveActivityDurationMs = 8 * 60 * 60 * 1000;
+
+  function formatRouteTrackingKilometers(distanceMeters: number): string {
+    if (!Number.isFinite(distanceMeters) || distanceMeters < 0) return '—';
+
+    const tenthsOfKilometer = Math.round(distanceMeters / 100);
+    const integerPart = Math.floor(tenthsOfKilometer / 10).toString();
+    const decimalPart = tenthsOfKilometer % 10;
+    const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${groupedInteger},${decimalPart}`;
+  }
+
+  function getRouteTrackingTimerInterval(startTimestamp: number, endTimestamp?: number) {
+    if (!Number.isFinite(startTimestamp) || startTimestamp <= 0) return null;
+    if (
+      endTimestamp !== undefined &&
+      (!Number.isFinite(endTimestamp) || endTimestamp < startTimestamp)
+    ) {
+      return null;
+    }
+
+    const lower = new Date(startTimestamp);
+    if (endTimestamp !== undefined) {
+      const upper = new Date(endTimestamp);
+      return { lower, pauseTime: upper, upper };
+    }
+
+    return {
+      lower,
+      upper: new Date(startTimestamp + maxActiveActivityDurationMs),
+    };
+  }
 
   const sharedImageDirectory = (
     environment as LiveActivityEnvironment & { widgetsDirectory?: string | null }

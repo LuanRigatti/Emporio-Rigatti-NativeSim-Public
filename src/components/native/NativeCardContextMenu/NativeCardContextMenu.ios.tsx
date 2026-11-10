@@ -11,6 +11,7 @@ export default function NativeCardContextMenu({
   preview,
   style,
   title,
+  triggerMatchContents = true,
 }: NativeCardContextMenuProps) {
   const actionButtons = actions.map((action) => (
     <Button
@@ -26,7 +27,7 @@ export default function NativeCardContextMenu({
     <Host ignoreSafeArea="all" matchContents={matchContents} style={style as StyleProp<ViewStyle>}>
       <ContextMenu>
         <ContextMenu.Trigger>
-          <RNHostView matchContents>
+          <RNHostView matchContents={triggerMatchContents}>
             <>{children}</>
           </RNHostView>
         </ContextMenu.Trigger>

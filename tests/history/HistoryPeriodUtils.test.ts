@@ -1,6 +1,7 @@
 import type { HistoryDelivery } from '@/features/history/data/historyMocks';
 import {
   createHistoryWeekGroups,
+  createStableListReferenceResolver,
   createHistoryWeekItems,
   createWholesaleHistoryWeekGroups,
   formatHistoryDayHeading,
@@ -18,6 +19,7 @@ const delivery = (id: string, data: string, cliente: string): HistoryDelivery =>
   formaPagamento: '',
   id,
   observacoes: '',
+  paymentStatus: 'Não Pago',
   quantidadeBaldes: 1,
   status: 'concluída',
   valor: 'R$ 0,00',
@@ -144,6 +146,19 @@ describe('history period utilities', () => {
     );
 
     expect(groups.map((group) => group.date)).toEqual(['2026-09-21', '2026-09-27']);
+  });
+
+  it('reuses 651 delivery references when a global revision only replaces the array', () => {
+    const original = Array.from({ length: 651 }, (_, index) => ({ id: `delivery-${index}` }));
+    const revisedArray = [...original];
+    const resolveStableList = createStableListReferenceResolver();
+
+    expect(resolveStableList(original)).toBe(original);
+    expect(resolveStableList(revisedArray)).toBe(original);
+
+    const changedArray = [...revisedArray];
+    changedArray[325] = { id: 'delivery-updated' };
+    expect(resolveStableList(changedArray)).toBe(changedArray);
   });
 
   it('keeps calendar weeks continuous across month and year boundaries', () => {

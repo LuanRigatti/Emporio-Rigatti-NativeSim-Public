@@ -26,12 +26,14 @@ describe('mockDeliveryDataSource', () => {
     expect(mockDeliveryDataSource.getAll()).toContainEqual(delivery);
     expect(delivery.quantidade).toBe(2);
     expect(delivery.valor).toBe(99.6);
-    expect(delivery.status).toBe('NÃ£o Pago');
+    expect(delivery.status).toBe('Não Pago');
+    expect(delivery.entregue).toBe(false);
 
     mockDeliveryDataSource.toggleStatus(delivery.id);
-    expect(mockDeliveryDataSource.getAll().find((item) => item.id === delivery.id)?.status).toBe(
-      'Pago',
-    );
+    expect(mockDeliveryDataSource.getAll().find((item) => item.id === delivery.id)).toMatchObject({
+      entregue: true,
+      status: 'Não Pago',
+    });
 
     mockDeliveryDataSource.remove(delivery.id);
     expect(mockDeliveryDataSource.getAll().some((item) => item.id === delivery.id)).toBe(false);

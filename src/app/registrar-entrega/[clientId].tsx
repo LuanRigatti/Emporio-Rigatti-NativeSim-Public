@@ -1,5 +1,10 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import {
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+  type NativeStackNavigationProp,
+} from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
@@ -21,8 +26,12 @@ import { useAppSafeAreaInsets } from '@/providers';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import { useCancelPendingReturnIntentsOnGestureCancel } from '@/utils/navigation/usePendingReturnNavigationIntent';
 
 export default function RegistrarDeliveryClientRoute() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  useCancelPendingReturnIntentsOnGestureCancel(navigation, 'registrar-entrega/[clientId]');
   const { clientId: routeClientId } = useLocalSearchParams<{ clientId?: string | string[] }>();
   const router = useRouter();
   const { clients, loading: clientsLoading } = useClients();
@@ -43,6 +52,7 @@ export default function RegistrarDeliveryClientRoute() {
   const [quantity, setQuantity] = useState(1);
   const [quantityDirection, setQuantityDirection] = useState<'up' | 'down'>('up');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const bucketPrice = selectedItem?.bucketPrice ?? DEFAULT_REGISTRAR_DELIVERY_BUCKET_PRICE;
   const totalValue = calculateRegistrarDeliveryTotal(bucketPrice, quantity);
@@ -59,8 +69,9 @@ export default function RegistrarDeliveryClientRoute() {
   );
 
   const handleAdd = useCallback(() => {
-    if (!selectedItem || testModeEnabled || isSubmitting) return;
+    if (!selectedItem || testModeEnabled || isSubmittingRef.current) return;
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     void createRegistrarDeliveryFromConfirmation({
       clients,
@@ -79,20 +90,14 @@ export default function RegistrarDeliveryClientRoute() {
           router.back();
           return;
         }
+        isSubmittingRef.current = false;
         setIsSubmitting(false);
       })
-      .catch(() => setIsSubmitting(false));
-  }, [
-    bucketPrice,
-    clients,
-    create,
-    date,
-    isSubmitting,
-    quantity,
-    router,
-    selectedItem,
-    testModeEnabled,
-  ]);
+      .catch(() => {
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+      });
+  }, [bucketPrice, clients, create, date, quantity, router, selectedItem, testModeEnabled]);
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
@@ -180,7 +185,7 @@ export default function RegistrarDeliveryClientRoute() {
           <RetailOrderPrimaryButton
             accessibilityLabel="Adicionar entrega"
             disabled={testModeEnabled || isSubmitting}
-            label="Adicionar"
+            label={isSubmitting ? 'Salvando...' : 'Adicionar'}
             onPress={handleAdd}
             preserveDisabledAppearance
           />

@@ -204,3 +204,22 @@ export function groupHistoryDeliveriesByDate(
       ),
     }));
 }
+
+export function preserveListWhenItemReferencesMatch<T>(
+  previous: readonly T[],
+  next: readonly T[],
+): readonly T[] {
+  if (previous.length !== next.length) return next;
+  for (let index = 0; index < previous.length; index += 1) {
+    if (previous[index] !== next[index]) return next;
+  }
+  return previous;
+}
+
+export function createStableListReferenceResolver<T>(): (next: readonly T[]) => readonly T[] {
+  let previous: readonly T[] = [];
+  return (next) => {
+    previous = preserveListWhenItemReferencesMatch(previous, next);
+    return previous;
+  };
+}

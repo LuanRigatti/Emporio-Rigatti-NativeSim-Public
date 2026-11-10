@@ -15,7 +15,11 @@ function statusLabel(status: DeliveryStatus): string {
   return status === 'pendente' ? 'Pendente' : 'Entregue';
 }
 
-export function DeliveryStatusBadge({ disabled = false, onPress, status }: DeliveryStatusBadgeProps) {
+export function DeliveryStatusBadge({
+  disabled = false,
+  onPress,
+  status,
+}: DeliveryStatusBadgeProps) {
   const { theme } = useAppTheme();
   const statusColors = {
     concluída: { background: theme.colors.successSurface, foreground: theme.colors.success },
@@ -25,7 +29,7 @@ export function DeliveryStatusBadge({ disabled = false, onPress, status }: Deliv
   return (
     <AnimatedPressable
       accessibilityLabel={`Status: ${statusLabel(status)}`}
-      accessibilityHint="Toque para alternar entre pendente e concluída"
+      accessibilityHint="Toque para editar os estados de entrega e pagamento."
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -40,8 +44,8 @@ export function DeliveryStatusBadge({ disabled = false, onPress, status }: Deliv
           paddingVertical: 2,
         },
       ]}
-      >
-        <View
+    >
+      <View
         style={[
           styles.dot,
           { backgroundColor: statusColors.foreground, borderRadius: theme.radius.pill },

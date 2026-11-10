@@ -46,6 +46,7 @@ import { ThemeProvider, useAppTheme } from '@/theme';
 import { QuickActionRouter } from '@/features/quick-actions/QuickActionRouter';
 import { RetailOrderFlowProvider } from '@/features/retail-orders/components/RetailOrderFlowProvider';
 import { HomeModeTransitionHost } from '@/features/home/components/HomeModeTransitionHost';
+import { cancelPendingReturnIntentsForGestureCancelledRoute } from '@/utils/navigation/usePendingReturnNavigationIntent';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -147,21 +148,24 @@ function AppShell() {
       };
     }
 
-    void Promise.allSettled([
+    const hydrationTasks = [
       firestoreClientDataSource.hydrateFromCache(user.id),
       firestoreDeliveryDataSource.hydrateFromCache(user.id),
       costSettingsStorage.load(user.id),
-      carSettingsStorage.load(),
+      carSettingsStorage.load(user.id, sessionVersion, { canRun: () => active }),
       locationTrackingService.hydrateFinancialRouteSummariesFromCache(),
       Font.loadAsync(Ionicons.font),
-    ]).finally(() => {
-      if (active) setHydratedSessionKey(sessionKey);
+    ];
+    void Promise.allSettled(hydrationTasks).then(() => {
+      if (active) {
+        setHydratedSessionKey(sessionKey);
+      }
     });
 
     return () => {
       active = false;
     };
-  }, [sessionKey, status, user?.id]);
+  }, [sessionKey, sessionVersion, status, user?.id]);
 
   useEffect(() => {
     if (!isAuthenticated || !sessionUid) return;
@@ -598,6 +602,10 @@ function AppShell() {
                 />
                 <Stack.Screen
                   name="faturamento-mensal"
+                  listeners={{
+                    gestureCancel: () =>
+                      cancelPendingReturnIntentsForGestureCancelledRoute('faturamento-mensal'),
+                  }}
                   options={{
                     animation: 'default',
                     gestureEnabled: true,
@@ -614,6 +622,10 @@ function AppShell() {
                 </Stack.Screen>
                 <Stack.Screen
                   name="lucro-liquido-mensal"
+                  listeners={{
+                    gestureCancel: () =>
+                      cancelPendingReturnIntentsForGestureCancelledRoute('lucro-liquido-mensal'),
+                  }}
                   options={{
                     animation: 'default',
                     gestureEnabled: true,

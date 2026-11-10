@@ -263,7 +263,11 @@ describe('real AppShell route preload', () => {
     expect(mockClientDataSource.hydrateFromCache).toHaveBeenCalledWith('uid-a');
     expect(mockDeliveryDataSource.hydrateFromCache).toHaveBeenCalledWith('uid-a');
     expect(mockCostSettingsStorage.load).toHaveBeenCalledWith('uid-a');
-    expect(mockCarSettingsStorage.load).toHaveBeenCalledTimes(1);
+    expect(mockCarSettingsStorage.load).toHaveBeenCalledWith(
+      'uid-a',
+      1,
+      expect.objectContaining({ canRun: expect.any(Function) }),
+    );
     expect(mockRouteService.hydrateFinancialRouteSummariesFromCache).toHaveBeenCalledTimes(1);
     expect(mockFactoryDataSource.restore).not.toHaveBeenCalled();
     expect(jest.mocked(AsyncStorage.getItem).mock.calls.map(([key]) => key)).toContain(

@@ -14,6 +14,7 @@ import type { NativeAnimatedNumberProps } from './NativeAnimatedNumber.types';
 
 export default function NativeAnimatedNumberSwiftUI({
   alignment = 'leading',
+  animateFirstValue = false,
   animationEnabled = true,
   color,
   fontSize = 32,
@@ -29,12 +30,16 @@ export default function NativeAnimatedNumberSwiftUI({
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (animationEnabled && value !== null && !animationReady) {
+    if (!animateFirstValue && animationEnabled && value !== null && !animationReady) {
       setAnimationReady(true);
     }
-  }, [animationEnabled, animationReady, value]);
+  }, [animateFirstValue, animationEnabled, animationReady, value]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const hasValue = value !== null;
+  const numberAnimation = Animation.easeInOut({
+    duration: animateFirstValue && (!animationEnabled || !hasValue) ? 0 : 0.18,
+  });
   const isTrailing = alignment === 'trailing';
   const fillsHorizontalSpace = horizontalSizing === 'fill';
   const useIntrinsicHorizontalSize = isTrailing && !fillsHorizontalSpace;
@@ -64,8 +69,10 @@ export default function NativeAnimatedNumberSwiftUI({
             alignment,
           }),
           contentTransition('numericText'),
-          ...(animationEnabled && animationReady
-            ? [animation(Animation.easeInOut({ duration: 0.18 }), value ?? 0)]
+          // Availability also triggers the transition when the first confirmed value is zero.
+          ...(animateFirstValue ? [animation(numberAnimation, hasValue)] : []),
+          ...(animateFirstValue || (animationEnabled && animationReady)
+            ? [animation(numberAnimation, value ?? 0)]
             : []),
         ]}
       >

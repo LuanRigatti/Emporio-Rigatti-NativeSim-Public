@@ -1,12 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import {
-  router,
-  Stack,
-  useFocusEffect,
-  useIsFocused,
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+import { router, Stack, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -20,6 +13,7 @@ import {
 import { FinancialSeriesChart } from '@/components/Charts';
 import { PremiumCard, ProgressiveCollapsibleScreen, SummaryCard } from '@/components/premium';
 import { FinancialTrendIndicator, renderFinancePeriodToolbarItems } from '@/features/finance';
+import { useWholesaleChartNavigation } from '@/features/finance/hooks/useWholesaleChartNavigation';
 import { getCurrentHistoryPeriod } from '@/features/history/utils/historyDateUtils';
 import {
   createHistoryWeekGroups,
@@ -28,27 +22,38 @@ import {
 } from '@/features/history/utils/historyPeriodUtils';
 import { useFinancialData } from '@/hooks/useFinancialData';
 import { useFinancialFuelCosts } from '@/hooks/useFinancialFuelCosts';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { useRetailCategories } from '@/hooks/useRetailCategories';
 import { useRetailFinance } from '@/hooks/useRetailFinance';
-import { useAppMode, useAppSafeAreaInsets } from '@/providers';
+import { useAppMode, useAppSafeAreaInsets, useAuth, useTestMode } from '@/providers';
 import { expenseQueryForWholesaleFinanceSelection } from '@/services/costs';
 import {
+  createFinancialPresentationScopeKey,
+  FINANCIAL_PRESENTATION_SUMMARY_FIELDS,
   financialCalculationService,
+  financialPresentationCache,
   formatWholesaleFinancePeriodLabel,
   wholesaleFinanceFiltersForSelection,
+  type FinancialPresentationSummary,
+  type FinancialPresentationValues,
 } from '@/services/finance';
+import { isActiveAuthSession } from '@/services/auth/ActiveAuthSession';
 import { locationTrackingService, summarizeRouteKilometersByDate } from '@/services/routes';
 import { retailFinanceViewForCategory, type RetailFinanceView } from '@/services/retail-finance';
-import type { WholesaleFinanceSelection } from '@/types/data';
+import type {
+  FinancialComparison,
+  FinancialSummary,
+  WholesaleFinanceSelection,
+} from '@/types/data';
 import type { RouteFinancialSummary } from '@/types/routeTracking';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
-import { triggerLightImpactHaptic } from '@/utils/haptics';
 import { todayIso } from '@/utils/data';
 import { getFinanceWidgetMonthKey } from '@/features/finance/widgets/ResumoFinanceiroSnapshot';
 
 export default function FinanceiroRoute() {
   const { mode: requestedModeParam } = useLocalSearchParams<{ mode?: string | string[] }>();
   const { isReady, mode, setMode } = useAppMode();
+  const { sessionVersion, user } = useAuth();
   const modeIntentState = useRef<'idle' | 'applying' | 'consumed'>('idle');
   const requestedMode =
     requestedModeParam === 'wholesale' || requestedModeParam === 'retail'
@@ -78,7 +83,11 @@ export default function FinanceiroRoute() {
 
   if (requestedMode && (!isReady || mode !== requestedMode)) return null;
 
-  return mode === 'retail' ? <RetailFinanceScreen /> : <WholesaleFinanceScreen />;
+  return mode === 'retail' ? (
+    <RetailFinanceScreen />
+  ) : (
+    <WholesaleFinanceScreen key={`${user?.id ?? 'unauthenticated'}:${sessionVersion}`} />
+  );
 }
 
 const WHOLESALE_FINANCE_PERIOD_ITEMS = [
@@ -90,12 +99,54 @@ const WHOLESALE_FINANCE_PERIOD_ITEMS = [
 
 type WholesaleFinancePeriodKind = WholesaleFinanceSelection['kind'];
 
+type ScopedFinancialPresentation = {
+  uid: string;
+  sessionVersion: number;
+  source: 'persistent' | 'live';
+  snapshotSessionScopeKey?: string | null;
+  scopeKey: string;
+  values: FinancialPresentationValues;
+};
+
+type DisplayFinancialSummary = FinancialSummary | FinancialPresentationSummary;
+
+function financialComparisonsMatch(
+  first: FinancialComparison | null | undefined,
+  second: FinancialComparison | null | undefined,
+): boolean {
+  if (first == null || second == null) return first == null && second == null;
+  return (
+    first.atual === second.atual &&
+    first.anterior === second.anterior &&
+    first.diferenca === second.diferenca &&
+    first.percentual === second.percentual &&
+    first.subiu === second.subiu
+  );
+}
+
+function financialPresentationValuesMatch(
+  first: FinancialPresentationValues,
+  second: FinancialPresentationValues,
+): boolean {
+  return (
+    first.faturamento === second.faturamento &&
+    first.lucroLiquido === second.lucroLiquido &&
+    financialComparisonsMatch(first.faturamentoComparison, second.faturamentoComparison) &&
+    financialComparisonsMatch(first.lucroLiquidoComparison, second.lucroLiquidoComparison) &&
+    FINANCIAL_PRESENTATION_SUMMARY_FIELDS.every(
+      (field) => first.summary[field] === second.summary[field],
+    )
+  );
+}
+
 function WholesaleFinanceScreen() {
-  const router = useRouter();
   const { resolvedMode, theme } = useAppTheme();
   const insets = useAppSafeAreaInsets();
+  const { status: authStatus, user: authUser, sessionVersion } = useAuth();
+  const { enabled: testModeEnabled, isReady: testModeReady } = useTestMode();
   const financeCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const isFocused = useIsFocused();
+  const connectivity = useConnectivity();
   const initialHistoryPeriod = getCurrentHistoryPeriod();
   const [selectedMonth, setSelectedMonth] = useState(initialHistoryPeriod.month);
   const [selectedYear, setSelectedYear] = useState(initialHistoryPeriod.year);
@@ -106,16 +157,35 @@ function WholesaleFinanceScreen() {
     kind: 'month',
     month: `${initialHistoryPeriod.year}-${String(initialHistoryPeriod.month).padStart(2, '0')}`,
   }));
-  const [displayedHeroValues, setDisplayedHeroValues] = useState<{
+  const [displayedRevenue, setDisplayedRevenue] = useState<{
+    uid?: string;
+    sessionVersion?: number;
     scopeKey?: string;
+    sessionScopeKey?: string | null;
+    requestScopeKey?: string;
     faturamento: number | null;
-    lucroLiquido: number | null;
-  }>({ faturamento: null, lucroLiquido: null });
+  }>({ faturamento: null });
+  const [lastConfirmedNetProfit, setLastConfirmedNetProfit] = useState<{
+    uid: string;
+    sessionVersion: number;
+    snapshotSessionScopeKey: string;
+    scopeKey: string;
+    requestScopeKey: string;
+    value: number;
+    comparison: FinancialComparison | undefined;
+  }>();
+  const [storedPresentation, setStoredPresentation] = useState<ScopedFinancialPresentation | null>(
+    null,
+  );
+  const presentationReadGeneration = useRef(0);
+  const livePresentationReadyRef = useRef(false);
   const initialRouteSessions = locationTrackingService.getMemoryFinancialRouteSummaries();
   const [routeSessions, setRouteSessions] = useState<RouteFinancialSummary[]>(
     () => initialRouteSessions ?? [],
   );
   const [routesLoaded, setRoutesLoaded] = useState(() => initialRouteSessions !== null);
+  const lastConnectivityState = useRef<boolean | null>(null);
+  const retryAfterReconnectSettles = useRef(false);
   const selectedPeriod = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
   const wholesaleSelection = useMemo<WholesaleFinanceSelection>(() => {
     if (periodKind === 'day') return { date: selectedDay, kind: 'day' };
@@ -129,6 +199,103 @@ function WholesaleFinanceScreen() {
     if (periodKind === 'all') return { kind: 'all' };
     return { kind: 'month', month: selectedPeriod };
   }, [periodKind, selectedDay, selectedPeriod, selectedWeek]);
+  const financialPresentationScopeKey = useMemo(
+    () =>
+      createFinancialPresentationScopeKey(
+        wholesaleSelection,
+        wholesaleFinanceFiltersForSelection(wholesaleSelection),
+      ),
+    [wholesaleSelection],
+  );
+  const presentationContextRef = useRef({
+    uid: authUser?.id ?? null,
+    sessionVersion,
+    scopeKey: financialPresentationScopeKey,
+    isFocused,
+    authStatus,
+    testModeEnabled,
+    testModeReady,
+  });
+  useEffect(() => {
+    presentationContextRef.current = {
+      uid: authUser?.id ?? null,
+      sessionVersion,
+      scopeKey: financialPresentationScopeKey,
+      isFocused,
+      authStatus,
+      testModeEnabled,
+      testModeReady,
+    };
+  }, [
+    authStatus,
+    authUser?.id,
+    financialPresentationScopeKey,
+    isFocused,
+    sessionVersion,
+    testModeEnabled,
+    testModeReady,
+  ]);
+
+  useEffect(() => {
+    const generation = ++presentationReadGeneration.current;
+    const uid = authUser?.id;
+    if (authStatus !== 'authenticated' || !uid || !testModeReady || testModeEnabled) {
+      return () => {
+        if (presentationReadGeneration.current === generation) {
+          presentationReadGeneration.current += 1;
+        }
+      };
+    }
+
+    const canApplyRead = () => {
+      const current = presentationContextRef.current;
+      return (
+        presentationReadGeneration.current === generation &&
+        !livePresentationReadyRef.current &&
+        current.uid === uid &&
+        current.sessionVersion === sessionVersion &&
+        current.scopeKey === financialPresentationScopeKey &&
+        current.authStatus === 'authenticated' &&
+        current.testModeReady &&
+        !current.testModeEnabled &&
+        isActiveAuthSession(uid, sessionVersion)
+      );
+    };
+
+    void financialPresentationCache
+      .readWithStatus(uid, financialPresentationScopeKey)
+      .then((result) => {
+        if (result.status === 'miss' || !canApplyRead()) return;
+        const { entry } = result;
+        setStoredPresentation({
+          uid,
+          sessionVersion,
+          source: 'persistent',
+          scopeKey: financialPresentationScopeKey,
+          values: {
+            faturamento: entry.faturamento,
+            lucroLiquido: entry.lucroLiquido,
+            faturamentoComparison: entry.faturamentoComparison,
+            lucroLiquidoComparison: entry.lucroLiquidoComparison,
+            summary: entry.summary,
+          },
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      if (presentationReadGeneration.current === generation) {
+        presentationReadGeneration.current += 1;
+      }
+    };
+  }, [
+    authStatus,
+    authUser?.id,
+    financialPresentationScopeKey,
+    sessionVersion,
+    testModeEnabled,
+    testModeReady,
+  ]);
   const financialQuery = useMemo(
     () => expenseQueryForWholesaleFinanceSelection(wholesaleSelection),
     [wholesaleSelection],
@@ -141,10 +308,15 @@ function WholesaleFinanceScreen() {
         : JSON.stringify(financialQuery);
   const {
     comparisonSnapshot,
+    coverage: financeCoverage,
+    confirmedDeliveryPreview,
     error,
+    hasPreviouslyConfirmedSnapshot,
     loading,
     remoteComplete,
-    routesCoverage,
+    refreshing,
+    reload,
+    requestScopeKey,
     snapshot,
     snapshotSessionScopeKey,
     snapshotScopeKey,
@@ -181,6 +353,16 @@ function WholesaleFinanceScreen() {
     [routesLoaded, routeSessions],
   );
   const hasStableSnapshot = snapshot !== null && snapshotScopeKey === requestedScopeKey;
+  // The all-time cache omits a request key for its single canonical query.
+  const visibleRequestScopeKey =
+    snapshotScopeKey === 'all' ? 'all' : financeCoverage.requestScopeKey;
+  const hasDisplayedRevenueForVisibleScope =
+    displayedRevenue.uid === authUser?.id &&
+    displayedRevenue.sessionVersion === sessionVersion &&
+    displayedRevenue.scopeKey === snapshotScopeKey &&
+    displayedRevenue.sessionScopeKey !== undefined &&
+    displayedRevenue.sessionScopeKey === snapshotSessionScopeKey &&
+    displayedRevenue.requestScopeKey === visibleRequestScopeKey;
   /* eslint-disable react-hooks/set-state-in-effect -- this state stores only the last stable visible scope. */
   useEffect(() => {
     if (!hasStableSnapshot) return;
@@ -190,7 +372,7 @@ function WholesaleFinanceScreen() {
   }, [hasStableSnapshot, wholesaleSelection]);
   /* eslint-enable react-hooks/set-state-in-effect */
   const summarySelection = hasStableSnapshot ? wholesaleSelection : displayedSelection;
-  const hasVisibleSnapshot = hasStableSnapshot || displayedHeroValues.scopeKey !== undefined;
+  const hasVisibleSnapshot = hasStableSnapshot || hasDisplayedRevenueForVisibleScope;
   const activeSnapshot = hasVisibleSnapshot ? snapshot : null;
   const activeComparisonSnapshot = hasVisibleSnapshot ? comparisonSnapshot : null;
   const fuelExpenses = useMemo(
@@ -211,10 +393,7 @@ function WholesaleFinanceScreen() {
     [summarySelection],
   );
   const isNetProfitReady =
-    activeSnapshot !== null &&
-    routesLoaded &&
-    fuelCostsReady &&
-    (routesCoverage === 'local-only' || remoteComplete);
+    activeSnapshot !== null && routesLoaded && fuelCostsReady && remoteComplete;
 
   const summary = useMemo(
     () =>
@@ -252,10 +431,200 @@ function WholesaleFinanceScreen() {
       summarySelection.kind,
     ],
   );
-  const currentFaturamentoValue = summary?.faturamento ?? null;
-  const currentLucroLiquidoValue = isNetProfitReady && summary ? summary.lucroLiquido : null;
-  const faturamentoReady = summary !== undefined && currentFaturamentoValue !== null;
+  const confirmedDeliveryPreviewFaturamento = confirmedDeliveryPreview
+    ? financialCalculationService.calculateFaturamento(
+        financialCalculationService.filterDeliveries(
+          confirmedDeliveryPreview,
+          wholesaleFinanceFiltersForSelection(wholesaleSelection),
+        ),
+      )
+    : null;
+  const hasProgressiveRevenuePreview =
+    summary === undefined && confirmedDeliveryPreviewFaturamento !== null;
+  const currentFaturamentoValue = summary?.faturamento ?? confirmedDeliveryPreviewFaturamento;
+  const currentLucroLiquidoValue =
+    hasStableSnapshot &&
+    snapshotSessionScopeKey &&
+    visibleRequestScopeKey !== undefined &&
+    isNetProfitReady &&
+    summary
+      ? summary.lucroLiquido
+      : null;
+  const faturamentoReady = currentFaturamentoValue !== null;
   const lucroLiquidoReady = isNetProfitReady && currentLucroLiquidoValue !== null;
+  const isOffline =
+    connectivity?.isConnected === false || connectivity?.isInternetReachable === false;
+  const previousNetProfit =
+    lastConfirmedNetProfit?.uid === authUser?.id &&
+    lastConfirmedNetProfit?.sessionVersion === sessionVersion &&
+    (snapshotSessionScopeKey === undefined ||
+      snapshotSessionScopeKey === null ||
+      lastConfirmedNetProfit?.snapshotSessionScopeKey === snapshotSessionScopeKey) &&
+    lastConfirmedNetProfit?.scopeKey === requestedScopeKey &&
+    lastConfirmedNetProfit?.requestScopeKey === requestScopeKey
+      ? lastConfirmedNetProfit
+      : undefined;
+  const hasConfirmedNetProfitForVisibleScope = lucroLiquidoReady || previousNetProfit !== undefined;
+  const isShowingPreviouslyConfirmedNetProfit =
+    hasConfirmedNetProfitForVisibleScope &&
+    (!lucroLiquidoReady || isOffline || loading || refreshing || Boolean(error));
+  const canReuseDisplayedNetProfit =
+    previousNetProfit !== undefined && isShowingPreviouslyConfirmedNetProfit;
+  const showingPriorNetProfitWithoutSnapshotProof =
+    canReuseDisplayedNetProfit && (!hasStableSnapshot || !hasPreviouslyConfirmedSnapshot);
+  const canPresentCurrentNetProfit = lucroLiquidoReady && !canReuseDisplayedNetProfit;
+  const currentLivePresentationReady = Boolean(
+    authStatus === 'authenticated' &&
+    authUser?.id &&
+    testModeReady &&
+    !testModeEnabled &&
+    hasStableSnapshot &&
+    snapshotSessionScopeKey &&
+    visibleRequestScopeKey !== undefined &&
+    remoteComplete &&
+    !isOffline &&
+    !loading &&
+    !refreshing &&
+    !error &&
+    currentFaturamentoValue !== null &&
+    lucroLiquidoReady &&
+    summary,
+  );
+  useEffect(() => {
+    livePresentationReadyRef.current = currentLivePresentationReady;
+  }, [currentLivePresentationReady]);
+  const scopedStoredPresentation =
+    storedPresentation &&
+    storedPresentation.uid === authUser?.id &&
+    storedPresentation.sessionVersion === sessionVersion &&
+    storedPresentation.scopeKey === financialPresentationScopeKey &&
+    authStatus === 'authenticated' &&
+    testModeReady &&
+    !testModeEnabled &&
+    (storedPresentation.source === 'persistent' ||
+      snapshotSessionScopeKey === undefined ||
+      snapshotSessionScopeKey === null ||
+      storedPresentation.snapshotSessionScopeKey === snapshotSessionScopeKey) &&
+    isActiveAuthSession(authUser?.id ?? null, sessionVersion)
+      ? storedPresentation.values
+      : null;
+  const showingStoredPresentation =
+    scopedStoredPresentation !== null && !currentLivePresentationReady;
+  const currentFinanceDataNotice = hasProgressiveRevenuePreview
+    ? error
+      ? 'Faturamento confirmado. Os demais indicadores aguardam cobertura financeira completa.'
+      : undefined
+    : hasConfirmedNetProfitForVisibleScope && isOffline
+      ? 'Sem conexão. Exibindo o último resultado confirmado.'
+      : hasConfirmedNetProfitForVisibleScope && error
+        ? 'A atualização não foi confirmada. Exibindo o último resultado confirmado.'
+        : showingPriorNetProfitWithoutSnapshotProof
+          ? 'Exibindo o último resultado confirmado enquanto o período é atualizado.'
+          : canReuseDisplayedNetProfit
+            ? undefined
+            : (error ??
+              (activeSnapshot !== null && !financeCoverage.remoteComplete
+                ? 'Os valores locais ou em cache são provisórios até haver confirmação remota completa.'
+                : undefined));
+  const financeDataNotice = showingStoredPresentation ? undefined : currentFinanceDataNotice;
+  const financeNoticeSource =
+    showingStoredPresentation || showingPriorNetProfitWithoutSnapshotProof
+      ? undefined
+      : hasProgressiveRevenuePreview
+        ? undefined
+        : financeCoverage.source;
+  const preserveStoredFaturamentoComparison =
+    !showingStoredPresentation &&
+    currentLivePresentationReady &&
+    scopedStoredPresentation !== null &&
+    financialComparisonsMatch(
+      comparison?.faturamento,
+      scopedStoredPresentation.faturamentoComparison,
+    );
+  const preserveStoredNetProfitComparison =
+    !showingStoredPresentation &&
+    currentLivePresentationReady &&
+    scopedStoredPresentation !== null &&
+    financialComparisonsMatch(
+      comparison?.lucroLiquido,
+      scopedStoredPresentation.lucroLiquidoComparison,
+    );
+  const displayedFaturamentoComparison = showingStoredPresentation
+    ? (scopedStoredPresentation?.faturamentoComparison ?? undefined)
+    : preserveStoredFaturamentoComparison
+      ? (scopedStoredPresentation?.faturamentoComparison ?? undefined)
+      : comparison?.faturamento;
+  const displayedNetProfitComparison = showingStoredPresentation
+    ? (scopedStoredPresentation?.lucroLiquidoComparison ?? undefined)
+    : preserveStoredNetProfitComparison
+      ? (scopedStoredPresentation?.lucroLiquidoComparison ?? undefined)
+      : ((canPresentCurrentNetProfit ? comparison?.lucroLiquido : undefined) ??
+        previousNetProfit?.comparison);
+  const currentLivePresentationValues = useMemo<FinancialPresentationValues | null>(
+    () =>
+      currentLivePresentationReady &&
+      summary !== undefined &&
+      currentFaturamentoValue !== null &&
+      currentLucroLiquidoValue !== null
+        ? {
+            faturamento: currentFaturamentoValue,
+            lucroLiquido: currentLucroLiquidoValue,
+            faturamentoComparison: displayedFaturamentoComparison ?? null,
+            lucroLiquidoComparison: displayedNetProfitComparison ?? null,
+            summary: {
+              quantidadeBaldes: summary.quantidadeBaldes,
+              lucroBruto: summary.lucroBruto,
+              valoresPagos: summary.valoresPagos,
+              valoresPendentes: summary.valoresPendentes,
+              custoTotalBaldes: summary.custoTotalBaldes,
+              custoCombustivel: summary.custoCombustivel,
+              custoOutros: summary.custoOutros,
+              custoLuz: summary.custoLuz,
+              custoMedioCombustivelPorEntrega: summary.custoMedioCombustivelPorEntrega,
+              margemBruta: summary.margemBruta,
+              margemLiquida: summary.margemLiquida,
+              precoMedioBalde: summary.precoMedioBalde,
+              lucroLiquidoPorBalde: summary.lucroLiquidoPorBalde,
+              custoMedioBalde: summary.custoMedioBalde,
+            },
+          }
+        : null,
+    [
+      currentFaturamentoValue,
+      currentLivePresentationReady,
+      currentLucroLiquidoValue,
+      displayedFaturamentoComparison,
+      displayedNetProfitComparison,
+      summary,
+    ],
+  );
+  const displayedSummary: DisplayFinancialSummary | undefined = showingStoredPresentation
+    ? scopedStoredPresentation?.summary
+    : summary;
+  const displayedSummaryHasCompleteProfitFields = showingStoredPresentation || isNetProfitReady;
+  useEffect(() => {
+    const isOnline =
+      connectivity?.isConnected === true && connectivity.isInternetReachable !== false;
+    const isOffline =
+      connectivity?.isConnected === false || connectivity?.isInternetReachable === false;
+    const nextState = isOnline ? true : isOffline ? false : null;
+    const previousState = lastConnectivityState.current;
+    lastConnectivityState.current = nextState;
+
+    if (previousState === false && nextState === true && isFocused && !remoteComplete) {
+      if (loading || refreshing) retryAfterReconnectSettles.current = true;
+      else reload();
+    }
+
+    if (!loading && !refreshing) {
+      if (remoteComplete) {
+        retryAfterReconnectSettles.current = false;
+      } else if (retryAfterReconnectSettles.current && nextState === true && isFocused) {
+        retryAfterReconnectSettles.current = false;
+        reload();
+      }
+    }
+  }, [connectivity, isFocused, loading, refreshing, remoteComplete, reload]);
 
   useEffect(() => {
     if (
@@ -294,44 +663,161 @@ function WholesaleFinanceScreen() {
     wholesaleSelection.kind,
   ]);
 
-  const keepingPreviousSummary = !hasStableSnapshot && displayedHeroValues.scopeKey !== undefined;
-  const displayedFaturamentoValue = faturamentoReady
-    ? currentFaturamentoValue
-    : keepingPreviousSummary
-      ? displayedHeroValues.faturamento
-      : null;
-  const displayedLucroLiquidoValue = lucroLiquidoReady
-    ? currentLucroLiquidoValue
-    : keepingPreviousSummary
-      ? displayedHeroValues.lucroLiquido
-      : null;
-
+  const displayedFaturamentoValue = showingStoredPresentation
+    ? (scopedStoredPresentation?.faturamento ?? null)
+    : faturamentoReady
+      ? currentFaturamentoValue
+      : hasDisplayedRevenueForVisibleScope
+        ? displayedRevenue.faturamento
+        : null;
+  const displayedLucroLiquidoValue = showingStoredPresentation
+    ? (scopedStoredPresentation?.lucroLiquido ?? null)
+    : canReuseDisplayedNetProfit
+      ? previousNetProfit.value
+      : currentLucroLiquidoValue;
+  const showHeroCards =
+    summary !== undefined ||
+    canReuseDisplayedNetProfit ||
+    hasProgressiveRevenuePreview ||
+    showingStoredPresentation;
+  // Keep SwiftUI Text identity stable across revalidation of the same account and presentation scope.
+  const netProfitNumberKey = JSON.stringify([
+    authUser?.id,
+    sessionVersion,
+    financialPresentationScopeKey,
+  ]);
   /* eslint-disable react-hooks/set-state-in-effect -- stores only stable data, never animation frames. */
   useEffect(() => {
-    if (!hasStableSnapshot || (!faturamentoReady && !lucroLiquidoReady)) return;
-    setDisplayedHeroValues((current) => {
-      const base =
-        current.scopeKey === requestedScopeKey
-          ? current
-          : { faturamento: null, lucroLiquido: null, scopeKey: requestedScopeKey };
-      const next = {
-        faturamento: faturamentoReady ? currentFaturamentoValue : base.faturamento,
-        lucroLiquido: lucroLiquidoReady ? currentLucroLiquidoValue : base.lucroLiquido,
-        scopeKey: requestedScopeKey,
-      };
-      return next.faturamento === current.faturamento &&
-        next.lucroLiquido === current.lucroLiquido &&
-        next.scopeKey === current.scopeKey
+    const uid = authUser?.id;
+    if (!uid || !hasStableSnapshot || !faturamentoReady) return;
+    setDisplayedRevenue((current) =>
+      current.faturamento === currentFaturamentoValue &&
+      current.uid === uid &&
+      current.sessionVersion === sessionVersion &&
+      current.scopeKey === requestedScopeKey &&
+      current.sessionScopeKey === snapshotSessionScopeKey &&
+      current.requestScopeKey === visibleRequestScopeKey
         ? current
-        : next;
-    });
+        : {
+            uid,
+            sessionVersion,
+            faturamento: currentFaturamentoValue,
+            scopeKey: requestedScopeKey,
+            sessionScopeKey: snapshotSessionScopeKey,
+            requestScopeKey: visibleRequestScopeKey,
+          },
+    );
   }, [
     currentFaturamentoValue,
-    currentLucroLiquidoValue,
+    authUser?.id,
     faturamentoReady,
     hasStableSnapshot,
-    lucroLiquidoReady,
     requestedScopeKey,
+    snapshotSessionScopeKey,
+    sessionVersion,
+    visibleRequestScopeKey,
+  ]);
+
+  useEffect(() => {
+    const uid = authUser?.id;
+    if (
+      !canPresentCurrentNetProfit ||
+      currentLucroLiquidoValue === null ||
+      !uid ||
+      !snapshotSessionScopeKey
+    ) {
+      return;
+    }
+    setLastConfirmedNetProfit((current) =>
+      current?.uid === uid &&
+      current?.sessionVersion === sessionVersion &&
+      current?.snapshotSessionScopeKey === snapshotSessionScopeKey &&
+      current?.scopeKey === requestedScopeKey &&
+      current?.requestScopeKey === requestScopeKey &&
+      current.value === currentLucroLiquidoValue &&
+      current.comparison === displayedNetProfitComparison
+        ? current
+        : {
+            uid,
+            sessionVersion,
+            snapshotSessionScopeKey,
+            scopeKey: requestedScopeKey,
+            requestScopeKey,
+            value: currentLucroLiquidoValue,
+            comparison: displayedNetProfitComparison,
+          },
+    );
+  }, [
+    canPresentCurrentNetProfit,
+    currentLucroLiquidoValue,
+    displayedNetProfitComparison,
+    authUser?.id,
+    requestedScopeKey,
+    requestScopeKey,
+    sessionVersion,
+    snapshotSessionScopeKey,
+  ]);
+
+  useEffect(() => {
+    const uid = authUser?.id;
+    const values = currentLivePresentationValues;
+    if (
+      !currentLivePresentationReady ||
+      !isFocused ||
+      authStatus !== 'authenticated' ||
+      !uid ||
+      !testModeReady ||
+      testModeEnabled ||
+      !values ||
+      !isActiveAuthSession(uid, sessionVersion)
+    ) {
+      return;
+    }
+
+    const scopeKey = financialPresentationScopeKey;
+    setStoredPresentation((current) => {
+      if (
+        current?.uid === uid &&
+        current.sessionVersion === sessionVersion &&
+        current.scopeKey === scopeKey &&
+        current.source === 'live' &&
+        current.snapshotSessionScopeKey === snapshotSessionScopeKey &&
+        financialPresentationValuesMatch(current.values, values)
+      ) {
+        return current;
+      }
+      return { uid, sessionVersion, source: 'live', snapshotSessionScopeKey, scopeKey, values };
+    });
+
+    const canPersist = () => {
+      const context = presentationContextRef.current;
+      return (
+        context.uid === uid &&
+        context.sessionVersion === sessionVersion &&
+        context.scopeKey === scopeKey &&
+        context.isFocused &&
+        context.authStatus === 'authenticated' &&
+        context.testModeReady &&
+        !context.testModeEnabled &&
+        livePresentationReadyRef.current &&
+        isActiveAuthSession(uid, sessionVersion)
+      );
+    };
+
+    void financialPresentationCache
+      .writeWithStatus(uid, scopeKey, values, canPersist)
+      .catch(() => undefined);
+  }, [
+    authStatus,
+    authUser?.id,
+    currentLivePresentationReady,
+    currentLivePresentationValues,
+    financialPresentationScopeKey,
+    isFocused,
+    sessionVersion,
+    snapshotSessionScopeKey,
+    testModeEnabled,
+    testModeReady,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -351,23 +837,11 @@ function WholesaleFinanceScreen() {
   );
   const canOpenMonthlyDetails = hasStableSnapshot && wholesaleSelection.kind === 'month';
   const canOpenMonthlyNetProfitDetails = canOpenMonthlyDetails && routesLoaded && fuelCostsReady;
-  const handleOpenFaturamento = () => {
-    if (!canOpenMonthlyDetails) return;
-    triggerLightImpactHaptic();
-    router.push({
-      pathname: '/faturamento-mensal',
-      params: { period: selectedPeriod },
-    });
-  };
-
-  const handleOpenLucroLiquido = () => {
-    if (!canOpenMonthlyDetails) return;
-    triggerLightImpactHaptic();
-    router.push({
-      pathname: '/lucro-liquido-mensal',
-      params: { period: selectedPeriod },
-    });
-  };
+  const openMonthlyChart = useWholesaleChartNavigation(
+    selectedPeriod,
+    canOpenMonthlyDetails,
+    canOpenMonthlyNetProfitDetails,
+  );
 
   const handleSelectWeek = useCallback((weekStart: string) => {
     setSelectedWeek(getHistoryWeekRange(weekStart));
@@ -453,13 +927,15 @@ function WholesaleFinanceScreen() {
           selectionAnimationMode="slidingBubble"
           selectedKey={periodKind}
         />
-        {summary ? (
+        {showHeroCards ? (
           <>
             <PremiumCard
               accessibilityLabel={
                 canOpenMonthlyDetails ? 'Abrir detalhes do faturamento' : undefined
               }
-              onPress={canOpenMonthlyDetails ? handleOpenFaturamento : undefined}
+              onPress={
+                canOpenMonthlyDetails ? () => openMonthlyChart('faturamento-mensal') : undefined
+              }
               preservePressableIdentity
               style={[
                 styles.heroCard,
@@ -483,12 +959,12 @@ function WholesaleFinanceScreen() {
                   ) : null}
                 </View>
                 <FinancialTrendIndicator
-                  comparison={comparison?.faturamento}
-                  visible={comparison !== undefined}
+                  comparison={displayedFaturamentoComparison}
+                  visible={displayedFaturamentoComparison !== undefined}
                 />
               </View>
               <NativeAnimatedNumber
-                animationEnabled={faturamentoReady}
+                animationEnabled={displayedFaturamentoValue !== null}
                 color={theme.colors.textPrimary}
                 ignoreSafeArea="all"
                 text={
@@ -503,7 +979,11 @@ function WholesaleFinanceScreen() {
               accessibilityLabel={
                 canOpenMonthlyNetProfitDetails ? 'Abrir detalhes do lucro líquido' : undefined
               }
-              onPress={canOpenMonthlyNetProfitDetails ? handleOpenLucroLiquido : undefined}
+              onPress={
+                canOpenMonthlyNetProfitDetails
+                  ? () => openMonthlyChart('lucro-liquido-mensal')
+                  : undefined
+              }
               preservePressableIdentity
               style={[
                 styles.heroCard,
@@ -527,33 +1007,51 @@ function WholesaleFinanceScreen() {
                   ) : null}
                 </View>
                 <FinancialTrendIndicator
-                  comparison={isNetProfitReady ? comparison?.lucroLiquido : undefined}
-                  visible={isNetProfitReady && comparison !== undefined}
+                  comparison={displayedNetProfitComparison}
+                  visible={displayedNetProfitComparison !== undefined}
                 />
               </View>
               <NativeAnimatedNumber
-                animationEnabled={lucroLiquidoReady}
-                color={theme.colors.textPrimary}
+                key={netProfitNumberKey}
+                animateFirstValue
+                animationEnabled={displayedLucroLiquidoValue !== null}
+                color={
+                  displayedLucroLiquidoValue === null
+                    ? theme.colors.textSecondary
+                    : theme.colors.textPrimary
+                }
+                fontSize={
+                  displayedLucroLiquidoValue === null
+                    ? theme.typography.footnote.fontSize
+                    : undefined
+                }
+                fontWeight={displayedLucroLiquidoValue === null ? 'regular' : undefined}
                 ignoreSafeArea="all"
                 text={
                   displayedLucroLiquidoValue !== null
                     ? formatCurrency(displayedLucroLiquidoValue)
-                    : ''
+                    : loading || refreshing
+                      ? 'Aguardando confirmação'
+                      : 'Lucro líquido indisponível'
                 }
                 value={displayedLucroLiquidoValue}
               />
             </PremiumCard>
+          </>
+        ) : null}
+        {displayedSummary ? (
+          <>
             <SummaryCard
               rows={[
                 {
                   label: 'Baldes vendidos',
-                  value: summary ? String(summary.quantidadeBaldes) : '',
+                  value: String(displayedSummary.quantidadeBaldes),
                 },
-                { label: 'Lucro bruto', value: summary ? formatCurrency(summary.lucroBruto) : '' },
-                { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+                { label: 'Lucro bruto', value: formatCurrency(displayedSummary.lucroBruto) },
+                { label: 'Recebido', value: formatCurrency(displayedSummary.valoresPagos) },
                 {
                   label: 'A receber',
-                  value: summary ? formatCurrency(summary.valoresPendentes) : '',
+                  value: formatCurrency(displayedSummary.valoresPendentes),
                 },
               ]}
               style={{ backgroundColor: financeCardSurface }}
@@ -563,21 +1061,21 @@ function WholesaleFinanceScreen() {
               rows={[
                 {
                   label: 'Custo dos baldes',
-                  value: summary ? formatCurrency(summary.custoTotalBaldes) : '',
+                  value: formatCurrency(displayedSummary.custoTotalBaldes),
                 },
                 {
                   label: 'Custo combustível',
-                  value:
-                    isNetProfitReady && summary ? formatCurrency(summary.custoCombustivel) : '',
+                  value: displayedSummaryHasCompleteProfitFields
+                    ? formatCurrency(displayedSummary.custoCombustivel)
+                    : '',
                 },
-                { label: 'Outros', value: summary ? formatCurrency(summary.custoOutros) : '' },
-                { label: 'Luz do período', value: summary ? formatCurrency(summary.custoLuz) : '' },
+                { label: 'Outros', value: formatCurrency(displayedSummary.custoOutros) },
+                { label: 'Luz do período', value: formatCurrency(displayedSummary.custoLuz) },
                 {
                   label: 'Custo médio de entrega',
-                  value:
-                    isNetProfitReady && summary
-                      ? formatCurrency(summary.custoMedioCombustivelPorEntrega)
-                      : '',
+                  value: displayedSummaryHasCompleteProfitFields
+                    ? formatCurrency(displayedSummary.custoMedioCombustivelPorEntrega)
+                    : '',
                 },
               ]}
               style={{ backgroundColor: financeCardSurface }}
@@ -585,18 +1083,20 @@ function WholesaleFinanceScreen() {
             />
             <SummaryCard
               rows={[
-                { label: 'Recebido', value: summary ? formatCurrency(summary.valoresPagos) : '' },
+                { label: 'Recebido', value: formatCurrency(displayedSummary.valoresPagos) },
                 {
                   label: 'A receber',
-                  value: summary ? formatCurrency(summary.valoresPendentes) : '',
+                  value: formatCurrency(displayedSummary.valoresPendentes),
                 },
                 {
                   label: 'Margem bruta',
-                  value: summary ? `${summary.margemBruta.toFixed(1)}%` : '',
+                  value: `${displayedSummary.margemBruta.toFixed(1)}%`,
                 },
                 {
                   label: 'Margem líquida',
-                  value: isNetProfitReady && summary ? `${summary.margemLiquida.toFixed(1)}%` : '',
+                  value: displayedSummaryHasCompleteProfitFields
+                    ? `${displayedSummary.margemLiquida.toFixed(1)}%`
+                    : '',
                 },
               ]}
               style={{ backgroundColor: financeCardSurface }}
@@ -606,31 +1106,45 @@ function WholesaleFinanceScreen() {
               rows={[
                 {
                   label: 'Venda p/ balde',
-                  value: summary ? formatCurrency(summary.precoMedioBalde) : '',
+                  value: formatCurrency(displayedSummary.precoMedioBalde),
                 },
                 {
                   label: 'Lucro p/ balde',
-                  value:
-                    isNetProfitReady && summary ? formatCurrency(summary.lucroLiquidoPorBalde) : '',
+                  value: displayedSummaryHasCompleteProfitFields
+                    ? formatCurrency(displayedSummary.lucroLiquidoPorBalde)
+                    : '',
                 },
                 {
                   label: 'Custo p/ balde',
-                  value: isNetProfitReady && summary ? formatCurrency(summary.custoMedioBalde) : '',
+                  value: displayedSummaryHasCompleteProfitFields
+                    ? formatCurrency(displayedSummary.custoMedioBalde)
+                    : '',
                 },
               ]}
               style={{ backgroundColor: financeCardSurface }}
               title="POR BALDE"
             />
-            {error ? (
-              <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
-                Dados exibidos do último cache válido. {error}
-              </Text>
-            ) : null}
           </>
+        ) : null}
+        {showHeroCards ? (
+          !showingStoredPresentation && financeDataNotice ? (
+            <Text style={[theme.typography.footnote, { color: theme.colors.textSecondary }]}>
+              {financeNoticeSource === 'cache'
+                ? 'Dados exibidos do cache local. '
+                : financeNoticeSource === 'local'
+                  ? 'Dados locais sem confirmação remota. '
+                  : ''}
+              {financeDataNotice}
+            </Text>
+          ) : !showingStoredPresentation && hasProgressiveRevenuePreview && loading ? (
+            <Loading label="Carregando demais indicadores..." />
+          ) : null
         ) : loading ? (
           <Loading label="Carregando Finanças Atacado..." />
         ) : error ? (
-          <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>{error}</Text>
+          <Text style={[theme.typography.footnote, { color: theme.colors.danger }]}>
+            Lucro líquido indisponível. {error}
+          </Text>
         ) : null}
       </ProgressiveCollapsibleScreen>
     </>

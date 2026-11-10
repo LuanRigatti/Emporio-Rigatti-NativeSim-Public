@@ -4,6 +4,7 @@ import { ENABLE_FIRESTORE_DAILY_MONTHLY } from '@/config/featureFlags';
 import { useAuth } from '@/providers';
 import {
   dailyExpenseToCostValues,
+  FirestoreDailyMonthlyRecordMissingError,
   firestoreDailyMonthlyDataSource,
   localDailyDataDataSource,
   type CostValues,
@@ -110,13 +111,16 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
       if (draft.legacyFuelCost !== undefined) values.fuel = String(draft.legacyFuelCost);
 
       try {
-        const saved = await firestoreDailyMonthlyDataSource.saveDaily(user.id, date, values);
+        const saved = await firestoreDailyMonthlyDataSource.saveDaily(user.id, date, values, {
+          createIfMissing: previous === undefined,
+        });
         setSnapshot((current) =>
           current
             ? { ...current, gastosDiarios: { ...current.gastosDiarios, [date]: saved } }
             : current,
         );
       } catch (remoteError) {
+        if (remoteError instanceof FirestoreDailyMonthlyRecordMissingError) throw remoteError;
         if (__DEV__) console.warn('[useExpenses] Firestore save fallback local.', remoteError);
         await saveDailyLocally(user.id, date, values);
         setSnapshot((current) =>
@@ -162,11 +166,13 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
         light: String(draft.light),
         other: '',
       };
+      const previous = snapshot?.gastosMensais[draft.month];
       try {
         const saved = await firestoreDailyMonthlyDataSource.saveMonthly(
           user.id,
           draft.month,
           values,
+          { createIfMissing: previous === undefined },
         );
         setSnapshot((current) =>
           current
@@ -174,6 +180,7 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
             : current,
         );
       } catch (remoteError) {
+        if (remoteError instanceof FirestoreDailyMonthlyRecordMissingError) throw remoteError;
         if (__DEV__) console.warn('[useExpenses] Firestore save fallback local.', remoteError);
         await saveMonthlyLocally(user.id, draft.month, values);
         setSnapshot((current) =>
@@ -192,7 +199,7 @@ export function useExpenses(filters: ExpenseFilters = { period: 'day' }) {
         );
       }
     },
-    [mutate, user],
+    [mutate, snapshot, user],
   );
 
   return {

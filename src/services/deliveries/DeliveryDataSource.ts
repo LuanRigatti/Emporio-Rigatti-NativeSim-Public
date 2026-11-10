@@ -32,7 +32,12 @@ function mapHistoryDelivery(delivery: ReturnType<typeof getHistoryDeliveries>[nu
     quantidade: delivery.quantidadeBaldes,
     valor: normalizeMoney(delivery.valor) ?? 0,
     precoUnitarioHistorico: delivery.precoUnitarioHistorico,
-    status: delivery.status === 'pendente' ? 'NÃ£o Pago' : 'Pago',
+    status:
+      delivery.paymentStatus === 'Pago' ||
+      (!delivery.paymentStatus &&
+        (delivery.formaPagamento === 'Dinheiro' || delivery.formaPagamento === 'Pix'))
+        ? 'Pago'
+        : 'Não Pago',
     entregue: delivery.status !== 'pendente',
     data: normalizeLegacyDate(delivery.data) ?? delivery.data,
     metodoPagamento:

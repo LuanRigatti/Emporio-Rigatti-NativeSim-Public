@@ -33,11 +33,19 @@ jest.mock('firebase/firestore', () => ({
   __esModule: true,
   collection: jest.fn((...args: unknown[]) => ({ path: args.join('/') })),
   doc: jest.fn((...args: unknown[]) => ({ id: 'doc-mock-id', path: args.join('/') })),
-  getDocs: jest.fn(async () => ({ empty: true, docs: [] })),
-  getDoc: jest.fn(async () => ({ exists: () => false })),
+  getDocs: jest.fn(async () => ({
+    empty: true,
+    docs: [],
+    metadata: { fromCache: false, hasPendingWrites: false },
+  })),
+  getDoc: jest.fn(async () => ({
+    exists: () => false,
+    metadata: { fromCache: false, hasPendingWrites: false },
+  })),
   setDoc: jest.fn(async () => undefined),
   deleteDoc: jest.fn(async () => undefined),
   updateDoc: jest.fn(async () => undefined),
+  deleteField: jest.fn(() => ({ type: 'deleteField' })),
   runTransaction: jest.fn(
     async (_database: unknown, updateFunction: (transaction: never) => unknown) =>
       updateFunction({} as never),
@@ -105,10 +113,12 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     mockedGetDocs
       .mockResolvedValueOnce({
         empty: false,
+        metadata: { fromCache: false, hasPendingWrites: false },
         docs: page1Docs,
       } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>)
       .mockResolvedValueOnce({
         empty: false,
+        metadata: { fromCache: false, hasPendingWrites: false },
         docs: page2Docs,
       } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
 
@@ -184,7 +194,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
 
     resolveFirestore({
       empty: false,
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
       docs: [
         {
           id: remoteDelivery.id,
@@ -204,6 +214,156 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     await expect(load).resolves.toEqual([remoteDelivery]);
     expect(dataSource.getHistoricalDataState()).toBe('remote');
     expect(dataSource.getCached({ mode: 'all' }, 'uid-test')).toEqual([remoteDelivery]);
+  });
+
+  it('exposes the exact confirmed delivery period independently from the merged store', async () => {
+    const filter = { mode: 'all' as const, startDate: '2026-08-01', endDate: '2026-08-31' };
+    const augustDelivery = {
+      id: 'del-august-confirmed',
+      clientNameSnapshot: 'Cliente sintético',
+      date: '2026-08-10',
+      quantity: 2,
+      totalValue: 100,
+      status: 'Pago',
+      delivered: true,
+    };
+    mockedGetDocs
+      .mockResolvedValueOnce({
+        empty: false,
+        size: 1,
+        docs: [{ id: augustDelivery.id, data: () => augustDelivery }],
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never)
+      .mockResolvedValueOnce({
+        empty: true,
+        size: 0,
+        docs: [],
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    dataSource.setSessionUser('uid-test', 31);
+    const first = await dataSource.loadWithMetadata('uid-test', filter, {}, 31);
+    const confirmedEmpty = await dataSource.loadWithMetadata(
+      'uid-test',
+      filter,
+      { force: true },
+      31,
+    );
+
+    expect(first.provenance).toMatchObject({
+      uid: 'uid-test',
+      sessionVersion: 31,
+      scope: filter,
+      origin: 'server',
+      fromCache: false,
+      hasPendingWrites: false,
+      coverage: 'complete',
+      remoteConfirmed: true,
+    });
+    expect(first.querySnapshot).toHaveLength(1);
+    expect(confirmedEmpty.provenance.remoteConfirmed).toBe(true);
+    expect(confirmedEmpty.querySnapshot).toEqual([]);
+    expect(confirmedEmpty.deliveries).toHaveLength(1);
+  });
+
+  it.each([
+    ['cache', { fromCache: true, hasPendingWrites: false }],
+    ['pending writes', { fromCache: false, hasPendingWrites: true }],
+  ])('does not confirm a delivery period from %s metadata', async (_label, metadata) => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: true,
+      size: 0,
+      docs: [],
+      metadata,
+    } as never);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    dataSource.setSessionUser('uid-test', 9);
+    const result = await dataSource.loadWithMetadata(
+      'uid-test',
+      { mode: 'all', date: '2026-08-10' },
+      {},
+      9,
+    );
+
+    expect(result.provenance.remoteConfirmed).toBe(false);
+    expect(result.provenance.coverage).toBe('incomplete');
+    expect(result.provenance.fromCache).toBe(metadata.fromCache);
+    expect(result.provenance.hasPendingWrites).toBe(metadata.hasPendingWrites);
+  });
+
+  it('keeps a failed period query distinguishable from a confirmed empty result', async () => {
+    mockedGetDocs.mockRejectedValueOnce(new Error('synthetic network failure'));
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    await expect(
+      dataSource.loadWithMetadata('uid-test', {
+        mode: 'all',
+        date: '2026-08-10',
+      }),
+    ).rejects.toThrow('synthetic network failure');
+  });
+
+  it('aggregates pending-write metadata across the complete historical query', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: false,
+      size: 1,
+      docs: [
+        {
+          id: 'historical-pending',
+          data: () => ({
+            clientNameSnapshot: 'Cliente sintético',
+            date: '2026-08-10',
+            quantity: 1,
+            totalValue: 50,
+            status: 'Pago',
+            delivered: true,
+          }),
+        },
+      ],
+      metadata: { fromCache: false, hasPendingWrites: true },
+    } as never);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    dataSource.setSessionUser('uid-test', 44);
+    const result = await dataSource.loadAllHistoricalWithMetadata('uid-test', 44, {
+      revalidate: true,
+    });
+
+    expect(result.provenance).toMatchObject({
+      origin: 'local-pending',
+      coverage: 'incomplete',
+      remoteConfirmed: false,
+      uid: 'uid-test',
+      sessionVersion: 44,
+    });
+    expect(result.querySnapshot).toHaveLength(1);
+    expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
+  });
+
+  it('confirms a complete empty historical query from an empty server page', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      empty: true,
+      size: 0,
+      docs: [],
+      metadata: { fromCache: false, hasPendingWrites: false },
+    } as never);
+
+    const dataSource = new FirestoreDeliveryDataSource();
+    dataSource.setSessionUser('uid-test', 45);
+    const result = await dataSource.loadAllHistoricalWithMetadata('uid-test', 45, {
+      revalidate: true,
+    });
+
+    expect(result.querySnapshot).toEqual([]);
+    expect(result.provenance).toMatchObject({
+      origin: 'server',
+      coverage: 'complete',
+      remoteConfirmed: true,
+      uid: 'uid-test',
+      sessionVersion: 45,
+    });
   });
 
   it('hydrates the historical cache for first-render filtered queries', async () => {
@@ -312,7 +472,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     await expect(historicalLoad).resolves.toEqual(cachedDeliveries);
     resolveFiltered({
       empty: false,
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
       docs: [
         {
           id: 'del-filtered',
@@ -699,7 +859,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
 
     resolveHistorical({
       empty: false,
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
       docs: [
         {
           id: 'history-a',
@@ -731,7 +891,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
 
     resolveFiltered({
       empty: false,
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
       docs: [
         {
           id: 'history-a',
@@ -934,7 +1094,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
           }),
         },
       ],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
 
     const loaded = await new FirestoreDeliveryDataSource().load('uid-test', {
@@ -963,7 +1123,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
         status: 'Não Pago',
         delivered: false,
       }),
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
 
     const updated = await new FirestoreDeliveryDataSource().update(
@@ -1010,7 +1170,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
         status: 'Não Pago',
         delivered: false,
       }),
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
 
     const updated = await new FirestoreDeliveryDataSource().update(
@@ -1106,7 +1266,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
           }),
         },
       ],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
     const dataSource = new FirestoreDeliveryDataSource();
     const events: unknown[] = [];
@@ -1144,7 +1304,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
           }),
         },
       ],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
     mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
       updateFunction({
@@ -1185,7 +1345,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
           }),
         },
       ],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
     const dataSource = new FirestoreDeliveryDataSource();
     await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' });
@@ -1232,7 +1392,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
           }),
         },
       ],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
     await readDuringWrite;
 
@@ -1258,7 +1418,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
           }),
         },
       ],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
     const dataSource = new FirestoreDeliveryDataSource();
     const events: unknown[] = [];
@@ -1292,7 +1452,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     mockedGetDocs.mockResolvedValueOnce({
       empty: true,
       docs: [],
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDocs>>);
     await dataSource.load('uid-test', { mode: 'today', date: '2026-10-15' }, { force: true });
     expect(dataSource.getCompleteDateSnapshot('uid-test', '2026-10-15')).not.toBeNull();
@@ -1374,7 +1534,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
       exists: () => true,
       id: 'delivery-race',
       data: () => staleRemoteDocument,
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
 
     const dataSource = new FirestoreDeliveryDataSource();
@@ -1413,7 +1573,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
         status: 'Não Pago',
         delivered: false,
       }),
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
 
     const dataSource = new FirestoreDeliveryDataSource();
@@ -1449,7 +1609,7 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
         status: 'Não Pago',
         delivered: true,
       }),
-      metadata: { fromCache: false },
+      metadata: { fromCache: false, hasPendingWrites: false },
     } as unknown as Awaited<ReturnType<typeof firestoreModule.getDoc>>);
     const transactionUpdate = jest.fn();
     mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
@@ -1520,7 +1680,6 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
       data: '2026-10-10',
       entregue: true,
       id: 'bulk-paid-delivery',
-      metodoPagamento: 'Pix',
       quantidade: 1,
       status: 'Não Pago',
       valor: 75,
@@ -1533,16 +1692,535 @@ describe('FirestoreDeliveryDataSource - loadAllHistorical & Cache', () => {
     const startingRevision = source.getRevision();
 
     const result = await source.applyCommittedPaidDeliveryUpdates('uid-test', 7, [
-      { id: delivery.id, date: delivery.data },
+      { id: delivery.id, date: delivery.data, paymentDate: '2026-11-07' },
     ]);
 
     expect(result.cacheInvalidationComplete).toBe(true);
     expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test', 7)).toMatchObject([
-      { id: delivery.id, metodoPagamento: 'Pix', status: 'Pago', valor: 75 },
+      {
+        id: delivery.id,
+        dataPagamento: '2026-11-07',
+        status: 'Pago',
+        valor: 75,
+      },
     ]);
     expect(source.getRevision()).toBeGreaterThan(startingRevision);
     expect(firestoreHistoricalDeliveryCache.getMemory('uid-test')).toBeNull();
     expect(mockAsyncStorage.has('firestore-deliveries-cache-v1:uid-test:2026-10-10')).toBe(false);
     expect(mockedUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it.each(['Dinheiro', 'Pix'] as const)(
+    'records %s with an effective date and preserves delivery value/date',
+    async (method) => {
+      const delivery: Delivery = {
+        clientId: 'client:ana',
+        cliente: 'Ana',
+        data: '2026-10-10',
+        entregue: true,
+        id: `settle-${method}`,
+        quantidade: 2,
+        status: 'Não Pago',
+        valor: 125.5,
+      };
+      const source = new FirestoreDeliveryDataSource();
+      await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+      await source.hydrateFromCache('uid-test', delivery.data);
+
+      await source.settle('uid-test', [delivery.id], method);
+
+      expect(mockedUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          status: 'Pago',
+          paymentMethod: method,
+          paymentDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        }),
+      );
+      expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')).toMatchObject([
+        {
+          data: delivery.data,
+          dataPagamento: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+          metodoPagamento: method,
+          status: 'Pago',
+          valor: delivery.valor,
+        },
+      ]);
+    },
+  );
+
+  it('changes only the payment method and leaves an unknown legacy payment date unknown', async () => {
+    const delivery: Delivery = {
+      clientId: 'client:ana',
+      cliente: 'Ana',
+      data: '2026-08-02',
+      entregue: true,
+      id: 'legacy-payment',
+      quantidade: 1,
+      status: 'Pago',
+      valor: 78,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({ exists: () => true, data: () => ({ status: 'Pago' }) }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.updatePaymentMethod('uid-test', delivery.id, 'Pix');
+
+    expect(transactionUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ paymentMethod: 'Pix' }),
+    );
+    expect(transactionUpdate.mock.calls[0]?.[1]).not.toHaveProperty('paymentDate');
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')).toMatchObject([
+      { data: delivery.data, metodoPagamento: 'Pix', status: 'Pago', valor: delivery.valor },
+    ]);
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')?.[0]).not.toHaveProperty(
+      'dataPagamento',
+    );
+  });
+
+  it('undoes only payment metadata and restores a delivered record to unpaid cache state', async () => {
+    const delivery: Delivery = {
+      clientId: 'client:ana',
+      cliente: 'Ana',
+      data: '2026-10-10',
+      dataPagamento: '2026-11-07',
+      entregue: true,
+      id: 'paid-to-reverse',
+      metodoPagamento: 'Dinheiro',
+      quantidade: 2,
+      status: 'Pago',
+      valor: 150,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({ status: 'Pago', delivered: true }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.reverseSettlement('uid-test', delivery.id);
+
+    expect(transactionUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'Não Pago',
+        paymentMethod: { type: 'deleteField' },
+        paymentDate: { type: 'deleteField' },
+      }),
+    );
+    expect(
+      source.getCached({ mode: 'all', status: 'Não Pago', deliveryStatus: 'Entregue' }, 'uid-test'),
+    ).toMatchObject([
+      { data: delivery.data, entregue: true, status: 'Não Pago', valor: delivery.valor },
+    ]);
+    expect(
+      source.getCached({ mode: 'all', status: 'Não Pago' }, 'uid-test')?.[0],
+    ).not.toHaveProperty('metodoPagamento');
+    expect(
+      source.getCached({ mode: 'all', status: 'Não Pago' }, 'uid-test')?.[0],
+    ).not.toHaveProperty('dataPagamento');
+  });
+
+  it('dates an open-payment status settlement without inventing a method', async () => {
+    const delivery: Delivery = {
+      clientId: 'client:ana',
+      cliente: 'Ana',
+      data: '2026-10-10',
+      entregue: true,
+      id: 'open-payment-unknown-method',
+      quantidade: 2,
+      status: 'Não Pago',
+      valor: 150,
+    };
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.editMany('uid-test', [delivery.id], { status: 'Pago' });
+
+    expect(mockedUpdateDoc).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'Pago',
+        paymentMethod: { type: 'deleteField' },
+        paymentDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    );
+    const saved = source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')?.[0];
+    expect(saved).toMatchObject({ data: delivery.data, entregue: true, valor: delivery.valor });
+    expect(saved?.dataPagamento).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    expect(saved).not.toHaveProperty('metodoPagamento');
+  });
+
+  it('writes delivery completion and new payment in one transaction and publishes one paid state', async () => {
+    const delivery: Delivery = {
+      cliente: 'Ana',
+      data: '2026-10-10',
+      entregue: false,
+      id: 'history-workflow-settle',
+      quantidade: 2,
+      status: 'Não Pago',
+      valor: 125.5,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({
+            clientNameSnapshot: 'Ana',
+            date: delivery.data,
+            delivered: false,
+            quantity: delivery.quantidade,
+            status: 'Não Pago',
+            totalValue: delivery.valor,
+          }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.updateHistoryWorkflow('uid-test', delivery.id, {
+      delivered: true,
+      expected: {
+        dataPagamento: undefined,
+        entregue: false,
+        metodoPagamento: undefined,
+        status: 'Não Pago',
+      },
+      paymentReversalConfirmed: false,
+      paymentSelection: 'Pix',
+      paymentSelectionChanged: true,
+    });
+
+    expect(mockedRunTransaction).toHaveBeenCalledTimes(1);
+    expect(mockedUpdateDoc).not.toHaveBeenCalled();
+    expect(transactionUpdate).toHaveBeenCalledTimes(1);
+    expect(transactionUpdate.mock.calls[0]?.[1]).toMatchObject({
+      delivered: true,
+      paymentMethod: 'Pix',
+      paymentDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      status: 'Pago',
+    });
+    expect(transactionUpdate.mock.calls[0]?.[1]).not.toHaveProperty('totalValue');
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')).toMatchObject([
+      {
+        data: delivery.data,
+        entregue: true,
+        metodoPagamento: 'Pix',
+        status: 'Pago',
+        valor: delivery.valor,
+      },
+    ]);
+    expect(
+      source.getCached({ mode: 'all', status: 'Não Pago', deliveryStatus: 'Entregue' }, 'uid-test'),
+    ).toEqual([]);
+  });
+
+  it('corrects a paid method without changing its original payment date or value', async () => {
+    const delivery: Delivery = {
+      cliente: 'Ana',
+      data: '2026-08-02',
+      dataPagamento: '2026-08-06',
+      entregue: true,
+      id: 'history-workflow-method',
+      metodoPagamento: 'Pix',
+      quantidade: 1,
+      status: 'Pago',
+      valor: 78,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({
+            clientNameSnapshot: 'Ana',
+            date: delivery.data,
+            delivered: true,
+            paymentDate: '2026-08-06',
+            paymentMethod: 'Pix',
+            quantity: 1,
+            status: 'Pago',
+            totalValue: 78,
+          }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.updateHistoryWorkflow('uid-test', delivery.id, {
+      delivered: true,
+      expected: {
+        dataPagamento: '2026-08-06',
+        entregue: true,
+        metodoPagamento: 'Pix',
+        status: 'Pago',
+      },
+      paymentReversalConfirmed: false,
+      paymentSelection: 'Dinheiro',
+      paymentSelectionChanged: true,
+    });
+
+    expect(transactionUpdate).toHaveBeenCalledTimes(1);
+    expect(transactionUpdate.mock.calls[0]?.[1]).toMatchObject({ paymentMethod: 'Dinheiro' });
+    expect(transactionUpdate.mock.calls[0]?.[1]).not.toHaveProperty('paymentDate');
+    expect(transactionUpdate.mock.calls[0]?.[1]).not.toHaveProperty('totalValue');
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')).toMatchObject([
+      {
+        data: delivery.data,
+        dataPagamento: '2026-08-06',
+        metodoPagamento: 'Dinheiro',
+        status: 'Pago',
+        valor: 78,
+      },
+    ]);
+  });
+
+  it('does not assign a method or payment date to a legacy paid record when only delivery changes', async () => {
+    const delivery: Delivery = {
+      cliente: 'Ana',
+      data: '2026-08-02',
+      entregue: false,
+      id: 'history-workflow-legacy-unknown-method',
+      quantidade: 1,
+      status: 'Pago',
+      valor: 78,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({
+            clientNameSnapshot: 'Ana',
+            date: delivery.data,
+            delivered: false,
+            quantity: 1,
+            status: 'Pago',
+            totalValue: 78,
+          }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.updateHistoryWorkflow('uid-test', delivery.id, {
+      delivered: true,
+      expected: {
+        dataPagamento: undefined,
+        entregue: false,
+        metodoPagamento: undefined,
+        status: 'Pago',
+      },
+      paymentReversalConfirmed: false,
+      paymentSelection: 'Pix',
+      paymentSelectionChanged: false,
+    });
+
+    expect(transactionUpdate).toHaveBeenCalledTimes(1);
+    expect(transactionUpdate.mock.calls[0]?.[1]).toEqual({
+      delivered: true,
+      updatedAt: { type: 'serverTimestamp' },
+    });
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')).toMatchObject([
+      { entregue: true, status: 'Pago', valor: 78 },
+    ]);
+    const cachedUnknown = source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')?.[0];
+    expect(cachedUnknown?.metodoPagamento).toBeUndefined();
+    expect(cachedUnknown?.dataPagamento).toBeUndefined();
+  });
+
+  it('requires explicit confirmation before a combined payment reversal', async () => {
+    const delivery: Delivery = {
+      cliente: 'Ana',
+      data: '2026-10-10',
+      dataPagamento: '2026-11-07',
+      entregue: true,
+      id: 'history-workflow-reverse',
+      metodoPagamento: 'Pix',
+      quantidade: 2,
+      status: 'Pago',
+      valor: 125.5,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({
+            clientNameSnapshot: 'Ana',
+            date: delivery.data,
+            delivered: true,
+            paymentDate: delivery.dataPagamento,
+            paymentMethod: delivery.metodoPagamento,
+            quantity: delivery.quantidade,
+            status: 'Pago',
+            totalValue: delivery.valor,
+          }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await expect(
+      source.updateHistoryWorkflow('uid-test', delivery.id, {
+        delivered: false,
+        expected: {
+          dataPagamento: delivery.dataPagamento,
+          entregue: true,
+          metodoPagamento: delivery.metodoPagamento,
+          status: 'Pago',
+        },
+        paymentReversalConfirmed: false,
+        paymentSelection: 'Não Pago',
+        paymentSelectionChanged: true,
+      }),
+    ).rejects.toThrow('Confirme explicitamente para desfazer o pagamento.');
+
+    expect(transactionUpdate).not.toHaveBeenCalled();
+    expect(source.getCached({ mode: 'all', status: 'Pago' }, 'uid-test')).toMatchObject([
+      { entregue: true, status: 'Pago', valor: delivery.valor },
+    ]);
+  });
+
+  it('reverses payment and changes delivery atomically after explicit confirmation', async () => {
+    const delivery: Delivery = {
+      cliente: 'Ana',
+      data: '2026-10-10',
+      dataPagamento: '2026-11-07',
+      entregue: true,
+      id: 'history-workflow-confirmed-reverse',
+      metodoPagamento: 'Dinheiro',
+      quantidade: 2,
+      status: 'Pago',
+      valor: 125.5,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({
+            clientNameSnapshot: 'Ana',
+            date: delivery.data,
+            delivered: true,
+            paymentDate: delivery.dataPagamento,
+            paymentMethod: delivery.metodoPagamento,
+            quantity: delivery.quantidade,
+            status: 'Pago',
+            totalValue: delivery.valor,
+          }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await source.updateHistoryWorkflow('uid-test', delivery.id, {
+      delivered: false,
+      expected: {
+        dataPagamento: delivery.dataPagamento,
+        entregue: true,
+        metodoPagamento: delivery.metodoPagamento,
+        status: 'Pago',
+      },
+      paymentReversalConfirmed: true,
+      paymentSelection: 'Não Pago',
+      paymentSelectionChanged: true,
+    });
+
+    expect(transactionUpdate).toHaveBeenCalledTimes(1);
+    expect(transactionUpdate.mock.calls[0]?.[1]).toEqual({
+      delivered: false,
+      paymentDate: { type: 'deleteField' },
+      paymentMethod: { type: 'deleteField' },
+      status: 'Não Pago',
+      updatedAt: { type: 'serverTimestamp' },
+    });
+    expect(source.getCached({ mode: 'all', status: 'Não Pago' }, 'uid-test')).toMatchObject([
+      { entregue: false, status: 'Não Pago', valor: delivery.valor },
+    ]);
+  });
+
+  it('rejects a stale sheet state before any Firestore write', async () => {
+    const delivery: Delivery = {
+      cliente: 'Ana',
+      data: '2026-10-10',
+      entregue: false,
+      id: 'history-workflow-stale',
+      quantidade: 2,
+      status: 'Não Pago',
+      valor: 125.5,
+    };
+    const transactionUpdate = jest.fn();
+    mockedRunTransaction.mockImplementationOnce(async (_database, updateFunction) =>
+      updateFunction({
+        get: async () => ({
+          exists: () => true,
+          data: () => ({
+            clientNameSnapshot: 'Ana',
+            date: delivery.data,
+            delivered: true,
+            quantity: delivery.quantidade,
+            status: 'Não Pago',
+            totalValue: delivery.valor,
+          }),
+        }),
+        update: transactionUpdate,
+      } as never),
+    );
+    const source = new FirestoreDeliveryDataSource();
+    await firestoreHistoricalDeliveryCache.write('uid-test', [delivery]);
+    await source.hydrateFromCache('uid-test', delivery.data);
+
+    await expect(
+      source.updateHistoryWorkflow('uid-test', delivery.id, {
+        delivered: true,
+        expected: {
+          dataPagamento: undefined,
+          entregue: false,
+          metodoPagamento: undefined,
+          status: 'Não Pago',
+        },
+        paymentReversalConfirmed: false,
+        paymentSelection: 'Não Pago',
+        paymentSelectionChanged: false,
+      }),
+    ).rejects.toThrow('A entrega ou o pagamento mudou. Atualize e tente novamente.');
+
+    expect(transactionUpdate).not.toHaveBeenCalled();
+    expect(source.getCached({ mode: 'all' }, 'uid-test')).toMatchObject([
+      { entregue: false, status: 'Não Pago' },
+    ]);
   });
 });

@@ -252,7 +252,7 @@ describe('useCostSettings local-first session flow', () => {
     await act(async () => renderer?.unmount());
   });
 
-  it('keeps every field of a local-only record when the remote snapshot arrives', async () => {
+  it('keeps only explicitly edited fields when a cached record is absent remotely', async () => {
     const remote = deferred<CostSettings>();
     const local = settings({
       '2026-09-02': { kilometers: '10', fuel: 'local-fuel', light: 'local-light' },
@@ -275,14 +275,14 @@ describe('useCostSettings local-first session flow', () => {
 
     expect(current?.getValues('day', '2026-09-02')).toMatchObject({
       kilometers: '30',
-      fuel: 'local-fuel',
-      light: 'local-light',
+      fuel: '',
+      light: '',
     });
 
     await act(async () => renderer?.unmount());
   });
 
-  it('does not discard a complete local-only record when remote has no record', async () => {
+  it('drops a stale local-only record when the complete remote snapshot confirms absence', async () => {
     const local = settings({
       '2026-09-02': { kilometers: '10', fuel: 'local-fuel', light: 'local-light' },
     });
@@ -299,11 +299,16 @@ describe('useCostSettings local-first session flow', () => {
       await settle();
     });
 
-    expect(current?.getValues('day', '2026-09-02')).toMatchObject({
-      kilometers: '10',
-      fuel: 'local-fuel',
-      light: 'local-light',
+    expect(current?.getValues('day', '2026-09-02')).toEqual({
+      estar: '',
+      fuel: '',
+      fuelPrice: '',
+      fuelType: '',
+      kilometers: '',
+      light: '',
+      other: '',
     });
+    expect(remoteWrites).toEqual([]);
     await act(async () => renderer?.unmount());
   });
 
@@ -623,7 +628,7 @@ describe('useCostSettings local-first session flow', () => {
       await settle();
     });
 
-    expect(current?.getValues('day', '2026-09-02').kilometers).toBe('2');
+    expect(current?.getValues('day', '2026-09-02').kilometers).toBe('');
     expect(mockGetCached).toHaveBeenCalledWith('user-b');
     await act(async () => renderer?.unmount());
   });
@@ -639,7 +644,9 @@ describe('useCostSettings local-first session flow', () => {
       .mockReset()
       .mockReturnValueOnce(firstLocal.promise)
       .mockResolvedValueOnce(settings({ '2026-09-02': { kilometers: '2' } }));
-    mockRemoteLoad.mockReset().mockResolvedValue(settings({}));
+    mockRemoteLoad
+      .mockReset()
+      .mockResolvedValue(settings({ '2026-09-02': { kilometers: '2' } }));
 
     let current: ReturnType<typeof useCostSettings> | undefined;
     let renderer: ReactTestRenderer | undefined;

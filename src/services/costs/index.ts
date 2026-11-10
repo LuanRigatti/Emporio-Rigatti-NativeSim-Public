@@ -28,6 +28,7 @@ export { LocalDailyDataDataSource, localDailyDataDataSource } from './LocalDaily
 export { DailyDataQueryService, dailyDataQueryService } from './DailyDataQueryService';
 export {
   FirestoreDailyMonthlyDataSource,
+  FirestoreDailyMonthlyRecordMissingError,
   firestoreDailyMonthlyDataSource,
   dailyDocumentToExpense,
   monthlyDocumentToExpense,

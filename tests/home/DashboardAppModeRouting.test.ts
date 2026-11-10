@@ -5,12 +5,31 @@ import { resolve } from 'node:path';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ReactNode } from 'react';
 import { Text } from 'react-native';
+import { StackRouter } from '@react-navigation/routers';
 
 const mockAppMode = {
   isReady: true,
   mode: 'retail' as 'wholesale' | 'retail',
 };
 const mockRouterPush = jest.fn();
+const mockRouterNavigate = jest.fn((href: string) => undefined);
+const mockHomeIsFocused = { value: true };
+const mockRootNavigationState: { value: { index: number; routes: { name: string }[] } } = {
+  value: { index: 0, routes: [{ name: '(tabs)' }] },
+};
+const mockHomeNavigation = {
+  addListener: jest.fn(() => jest.fn()),
+  getState: () => mockRootNavigationState.value,
+  isFocused: () =>
+    mockHomeIsFocused.value &&
+    mockRootNavigationState.value.routes[mockRootNavigationState.value.index]?.name === '(tabs)',
+};
+const mockRootNavigation = {
+  addListener: jest.fn(() => jest.fn()),
+  getState: () => mockRootNavigationState.value,
+  isFocused: () =>
+    mockRootNavigationState.value.routes[mockRootNavigationState.value.index]?.name === '(tabs)',
+};
 const mockUseDeliveries = jest.fn(() => ({
   deliveries: [],
   remove: jest.fn(),
@@ -20,7 +39,15 @@ const mockUseClients = jest.fn(() => ({ clients: [] }));
 const mockUseFactoryPurchases = jest.fn(() => ({ dataUnavailable: false, purchases: [] }));
 const mockUseOpenPaymentClients = jest.fn(() => ({ clientCards: [], totalOpenAmount: 0 }));
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }));
+jest.mock('expo-router', () => {
+  const React = require('react') as typeof import('react');
+  return {
+    useFocusEffect: (effect: () => void | (() => void)) => React.useEffect(effect, [effect]),
+    useNavigation: (parent?: string) =>
+      parent === '/' ? mockRootNavigation : mockHomeNavigation,
+    useRouter: () => ({ navigate: mockRouterNavigate, push: mockRouterPush }),
+  };
+});
 jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/layout', () => ({ NativeGlassHeader: () => null }));
 jest.mock('@/components/navigation/HomeToolbar', () => ({
@@ -131,6 +158,9 @@ describe('Dashboard AppMode routing', () => {
     mockAppMode.isReady = true;
     mockAppMode.mode = 'retail';
     mockRouterPush.mockClear();
+    mockRouterNavigate.mockClear();
+    mockHomeIsFocused.value = true;
+    mockRootNavigationState.value = { index: 0, routes: [{ name: '(tabs)' }] };
     mockUseDeliveries.mockClear();
     mockUseClients.mockClear();
     mockUseFactoryPurchases.mockClear();
@@ -199,7 +229,78 @@ describe('Dashboard AppMode routing', () => {
 
     act(() => registrarDeliveryCard.props.onPress());
 
-    expect(mockRouterPush).toHaveBeenCalledWith('/registrar-entrega');
+    expect(mockRouterNavigate).toHaveBeenCalledWith('/registrar-entrega');
+    act(() => renderer.unmount());
+  });
+
+  it('keeps one Registrar landing route for five queued cold-start taps and accepts the first tap after return', () => {
+    mockAppMode.mode = 'wholesale';
+    const renderer = renderDashboard();
+    const registrarDeliveryCard = renderer.root.find(
+      (node) =>
+        String(node.type) === 'premium-card' &&
+        node.props.accessibilityLabel === 'Abrir Registrar Entrega',
+    );
+
+    act(() => {
+      registrarDeliveryCard.props.onPress();
+      registrarDeliveryCard.props.onPress();
+      registrarDeliveryCard.props.onPress();
+      registrarDeliveryCard.props.onPress();
+      registrarDeliveryCard.props.onPress();
+    });
+
+    expect(mockRouterNavigate).toHaveBeenCalledTimes(5);
+
+    const routeNames = ['(tabs)', 'registrar-entrega'];
+    const routeConfig = {
+      routeNames,
+      routeParamList: {},
+      routeGetIdList: {},
+    };
+    const stackRouter = StackRouter({ initialRouteName: '(tabs)' });
+    let rootState = stackRouter.getInitialState(routeConfig);
+    for (const [href] of mockRouterNavigate.mock.calls) {
+      const nextState = stackRouter.getStateForAction(
+        rootState,
+        {
+          type: 'NAVIGATE',
+          payload: { name: 'registrar-entrega', path: href },
+        },
+        routeConfig,
+      );
+      if (!nextState) throw new Error('Synthetic root stack rejected the Registrar route');
+      rootState = nextState as typeof rootState;
+    }
+
+    expect(rootState.index).toBe(1);
+    expect(rootState.routes.filter((route) => route.name === 'registrar-entrega')).toHaveLength(1);
+    mockRootNavigationState.value = rootState;
+    act(() => registrarDeliveryCard.props.onPress());
+    expect(mockRouterNavigate).toHaveBeenCalledTimes(5);
+
+    const poppedState = stackRouter.getStateForAction(
+      rootState,
+      { type: 'POP', payload: { count: 1 } },
+      routeConfig,
+    );
+    if (!poppedState) throw new Error('Synthetic root stack rejected the return action');
+    mockRootNavigationState.value = poppedState as typeof rootState;
+
+    act(() => registrarDeliveryCard.props.onPress());
+    expect(mockRouterNavigate).toHaveBeenCalledTimes(6);
+    const returnedState = stackRouter.getStateForAction(
+      mockRootNavigationState.value as typeof rootState,
+      {
+        type: 'NAVIGATE',
+        payload: { name: 'registrar-entrega', path: '/registrar-entrega' },
+      },
+      routeConfig,
+    );
+    expect(returnedState?.routes.filter((route) => route.name === 'registrar-entrega')).toHaveLength(
+      1,
+    );
+
     act(() => renderer.unmount());
   });
 

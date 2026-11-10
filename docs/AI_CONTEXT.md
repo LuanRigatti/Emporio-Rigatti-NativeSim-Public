@@ -14,11 +14,18 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 
 # Stack
 
-- Versões conferidas em 2026-10-21 neste checkout `Codex`, conforme
-  `package.json`: Expo SDK 58 (`expo ~58.0.12`), React `19.3.0`, React Native
-  `0.88.0`, Expo Router `~58.0.21`, `@expo/ui ~58.0.19` e
-  `expo-widgets ~58.0.19`. Confirme o HEAD no Git e as versões no manifest;
-  este contexto não fixa o SHA atual.
+- Versões conferidas em 2026-11-09 neste checkout `Codex`, no manifesto e na
+  instalação: Expo SDK 58 (`expo ~58.0.23`), React `19.3.0`, React Native
+  `0.88.1`, Expo Router `~58.0.30`, `@expo/ui ~58.0.27`,
+  `expo-widgets ~58.0.27`, `jest-expo ~58.0.14`,
+  `@react-native/jest-preset 0.88.1` e TypeScript `~6.0.3`. Na data da
+  conferência, o SDK 58 era a versão estável mais recente da documentação
+  oficial; versões canary/beta não são consideradas a versão estável do app.
+  Confirme o HEAD no Git e as versões no manifest; este contexto não fixa o SHA.
+- A verificação de 2026-11-09 passou em `npm ls --depth=0`,
+  `npx expo install --check` e `npx expo-doctor` (20/20). Isso confirma a
+  instalação e a compatibilidade declarada pelo Expo, não que toda dependência
+  de terceiros esteja na versão mais recente publicada.
 - A validação parcial no NativeSim reportada pelo usuário refere-se somente ao
   checkpoint histórico `5dfc143`; não valida o HEAD atual nem comprova
   comportamento em iPhone físico. Não assumir que outras branches foram
@@ -27,8 +34,8 @@ O objetivo atual é manter um aplicativo funcional, rápido e com experiência d
 - TypeScript
 - Expo Router
 - expo-router/unstable-native-tabs
-- @expo/ui ~58.0.19
-- expo-widgets ~58.0.19
+- @expo/ui
+- expo-widgets
 - Development Build para iOS
 
 ## Documentação do Expo

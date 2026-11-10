@@ -169,6 +169,7 @@ const deliveryKeys = new Set([
   'boletoStatus',
   'endereco',
   'metodoPagamento',
+  'dataPagamento',
   'observacao',
 ]);
 

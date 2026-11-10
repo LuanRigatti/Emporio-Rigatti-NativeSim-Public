@@ -137,6 +137,7 @@ function createFirestore(seed = {}) {
       admin: { firestore: adminFirestore },
       HttpsError: TestHttpsError,
       FieldValue: adminFirestore.FieldValue,
+      now: () => new Date('2026-11-07T15:00:00.000Z'),
     }),
     getCommittedWriteCount: () => committedWrites,
   };
@@ -217,6 +218,7 @@ test('previews and atomically marks every eligible delivery for one canonical cl
     'Dinheiro',
   );
   assert.deepEqual(env.documents.get('users/uid-a/deliveries/delivery-1').totalValue, 50.25);
+  assert.equal(env.documents.get('users/uid-a/deliveries/delivery-1').paymentDate, '2026-11-07');
   assert.deepEqual(env.documents.get('users/uid-a/deliveries/delivery-1').updatedAt, {
     serverTimestamp: true,
   });
@@ -487,6 +489,19 @@ test('allows exactly 499 delivery updates plus the persistent receipt in one tra
 
   assert.equal(committed.status, 'committed');
   assert.equal(committed.updatedDeliveries.length, 499);
+  assert.deepEqual(committed.updatedDeliveries[0], {
+    id: 'delivery-0',
+    date: '2026-10-10',
+    paymentDate: '2026-11-07',
+  });
+  assert.equal(
+    env.documents.get('users/uid-a/deliveries/delivery-0').paymentDate,
+    '2026-11-07',
+  );
+  assert.equal(
+    Object.hasOwn(env.documents.get('users/uid-a/deliveries/delivery-0'), 'paymentMethod'),
+    false,
+  );
   assert.equal(env.getCommittedWriteCount(), 500);
   assert.ok(ids.every((id) => env.documents.get(`users/uid-a/deliveries/${id}`).status === 'Pago'));
 });

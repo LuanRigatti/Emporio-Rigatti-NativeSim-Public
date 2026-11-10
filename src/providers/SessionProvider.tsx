@@ -10,10 +10,12 @@ import {
 } from 'react';
 
 import { authDataSource } from '@/services/auth/AuthDataSource';
+import { setActiveAuthSession } from '@/services/auth/ActiveAuthSession';
 import { AuthUserFacingError, mapAuthError } from '@/services/auth/AuthErrorMapper';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
 import { setRouteTrackingSession } from '@/services/routes/RouteTrackingSessionBridge';
 import { deliveryWidgetAuthorizationService } from '@/services/deliveries/DeliveryWidgetAuthorizationService';
+import { financialPresentationCache } from '@/services/finance/FinancialPresentationCache';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
 
@@ -45,7 +47,11 @@ type SessionProviderProps = {
 };
 
 export function SessionProvider({ children, dataSource = authDataSource }: SessionProviderProps) {
-  const [user, setUser] = useState<AuthUser | null>(() => dataSource.getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    const initialUser = dataSource.getCurrentUser();
+    setActiveAuthSession(initialUser?.id ?? null, 0);
+    return initialUser;
+  });
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [operationLoading, setOperationLoading] = useState(false);
@@ -56,13 +62,18 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   const commitSession = useCallback((nextUser: AuthUser | null, nextStatus: SessionStatus) => {
     const nextUid = nextUser?.id ?? null;
     if (sessionUidRef.current !== nextUid) {
+      const previousUid = sessionUidRef.current;
       sessionUidRef.current = nextUid;
       sessionVersionRef.current += 1;
       setSessionVersion(sessionVersionRef.current);
+      if (previousUid) {
+        void financialPresentationCache.clearForUser(previousUid).catch(() => undefined);
+      }
       void deliveryWidgetAuthorizationService
         .activateSession(nextUid, sessionVersionRef.current)
         .catch(() => undefined);
     }
+    setActiveAuthSession(nextUid, sessionVersionRef.current);
     setRouteTrackingSession(nextUid, sessionVersionRef.current);
     setUser(nextUser);
     setStatus(nextStatus);
@@ -235,12 +246,14 @@ export function SessionProvider({ children, dataSource = authDataSource }: Sessi
   );
 
   const signOut = useCallback(async () => {
+    const uid = sessionUidRef.current;
     setOperationLoading(true);
     setError(null);
     try {
       await deliveryWidgetAuthorizationService.revokeBeforeLogout().catch(() => undefined);
       await dataSource.signOut();
       commitSession(null, 'unauthenticated');
+      if (uid) await financialPresentationCache.clearForUser(uid).catch(() => undefined);
     } catch (authError) {
       setError(mapAuthError(authError, 'logout').message);
       setStatus(user ? 'authenticated' : 'error');

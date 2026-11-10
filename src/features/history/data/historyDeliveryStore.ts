@@ -88,6 +88,7 @@ export function addHistoryDeliveryRecord(input: HistoryDeliveryRegistrationInput
     cliente: input.clientName,
     data: localDate(input.date),
     status: 'pendente',
+    paymentStatus: 'Não Pago',
     quantidadeBaldes: input.quantity,
     precoUnitarioHistorico: input.bucketPrice,
     valor: formatCurrency(input.bucketPrice * input.quantity),

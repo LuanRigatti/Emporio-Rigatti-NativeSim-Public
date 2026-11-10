@@ -1,14 +1,17 @@
-import { Divider, Gauge, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Gauge, HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
 import {
   controlSize,
   font,
   frame,
+  fixedSize,
   gaugeStyle,
+  lineLimit,
   monospacedDigit,
-  opacity,
   padding,
   resizable,
+  aspectRatio,
   foregroundStyle,
+  scaleEffect,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
@@ -23,22 +26,8 @@ function WholesaleDeliveryLiveActivity(
 
   const [year, month, day] = props.date.split('-');
   const dateLabel = `${day}/${month}/${year}`;
-  const monthLabels = [
-    'jan.',
-    'fev.',
-    'mar.',
-    'abr.',
-    'mai.',
-    'jun.',
-    'jul.',
-    'ago.',
-    'set.',
-    'out.',
-    'nov.',
-    'dez.',
-  ];
-  const monthIndex = Number(month) - 1;
-  const expandedDateLabel = `${Number(day)} ${monthLabels[monthIndex] ?? month}`;
+  const isStale = props.isObsolete || environment.isStale;
+  const freshnessLabel = `Dados desatualizados · ${dateLabel}`;
   const completedCount = Number.isFinite(props.completedDeliveryCount)
     ? Math.max(0, Math.floor(props.completedDeliveryCount))
     : 0;
@@ -47,52 +36,91 @@ function WholesaleDeliveryLiveActivity(
     : 0;
   const displayedCompletedCount = totalCount > 0 ? Math.min(completedCount, totalCount) : 0;
   const progress = totalCount > 0 ? displayedCompletedCount / totalCount : 0;
-  const freshnessLabel =
-    props.isObsolete || environment.isStale
-      ? `Dados desatualizados · ${dateLabel}`
-      : `Atacado · ${dateLabel}`;
+  const progressCountLabel = `${displayedCompletedCount}/${totalCount}`;
   const sharedImageDirectory = (
     environment as LiveActivityEnvironment & { widgetsDirectory?: string | null }
   ).widgetsDirectory;
-  const compactBrandMarkURI =
+  const liveActivityBrandMarkURI =
     typeof sharedImageDirectory === 'string' && sharedImageDirectory.startsWith('file://')
-      ? `${sharedImageDirectory.endsWith('/') ? sharedImageDirectory : `${sharedImageDirectory}/`}resumo-financeiro-mark-dark.png`
+      ? `${sharedImageDirectory.endsWith('/') ? sharedImageDirectory : `${sharedImageDirectory}/`}wholesale-live-activity-mark.png`
       : undefined;
 
   return {
     banner: (
-      <VStack modifiers={[padding({ all: 14 })]}>
-        <HStack spacing={10}>
-          <Image systemName="shippingbox.fill" />
-          <Divider modifiers={[opacity(0.45)]} />
-          <VStack spacing={0}>
-            <Text modifiers={[font({ weight: 'semibold' })]}>Atacado</Text>
-            <Text modifiers={[font({ textStyle: 'caption' })]}>{dateLabel}</Text>
+      <VStack
+        alignment="leading"
+        spacing={8}
+        modifiers={[
+          padding({ horizontal: 14, vertical: 20 }),
+          frame({ maxWidth: Infinity, alignment: 'leading' }),
+        ]}
+      >
+        <HStack
+          alignment="center"
+          spacing={14}
+          modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
+        >
+          <Image
+            uiImage={liveActivityBrandMarkURI}
+            modifiers={[
+              resizable(),
+              aspectRatio({ contentMode: 'fit' }),
+              frame({ width: 42, height: 42 }),
+            ]}
+          />
+          <VStack
+            alignment="leading"
+            spacing={4}
+            modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}
+          >
+            <Text
+              modifiers={[
+                font({ weight: 'medium', design: 'rounded', size: 11 }),
+                lineLimit(1),
+                fixedSize({ horizontal: true, vertical: false }),
+                foregroundStyle('#FFFFFF'),
+              ]}
+            >
+              Entregas
+            </Text>
+            <HStack
+              alignment="center"
+              spacing={8}
+              modifiers={[frame({ maxWidth: Infinity })]}
+            >
+              <Gauge
+                value={progress}
+                modifiers={[
+                  gaugeStyle('linearCapacity'),
+                  controlSize('extraLarge'),
+                  tint('#CFEDE3'),
+                  frame({ maxWidth: Infinity }),
+                  scaleEffect({ x: 1, y: 2 }),
+                  frame({ height: 9 }),
+                ]}
+              />
+              <Text
+                modifiers={[
+                  font({ weight: 'semibold', design: 'rounded', size: 12 }),
+                  lineLimit(1),
+                  fixedSize({ horizontal: true, vertical: false }),
+                  foregroundStyle('#CFEDE3'),
+                  monospacedDigit(),
+                ]}
+              >
+                {progressCountLabel}
+              </Text>
+            </HStack>
           </VStack>
-          <Divider modifiers={[opacity(0.45)]} />
-          <HStack spacing={10}>
-            <VStack spacing={0}>
-              <Text modifiers={[font({ textStyle: 'caption' })]}>Baldes</Text>
-              <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
-                {props.bucketCount}
-              </Text>
-            </VStack>
-            <VStack spacing={0}>
-              <Text modifiers={[font({ textStyle: 'caption' })]}>Entregas</Text>
-              <Text modifiers={[font({ weight: 'semibold', size: 22 }), monospacedDigit()]}>
-                {props.deliveryCount}
-              </Text>
-            </VStack>
-          </HStack>
         </HStack>
-        {props.isObsolete || environment.isStale ? (
+        {isStale ? (
           <Text modifiers={[font({ textStyle: 'caption' })]}>{freshnessLabel}</Text>
         ) : null}
       </VStack>
     ),
     compactLeading: (
       <Image
-        uiImage={compactBrandMarkURI}
+        uiImage={liveActivityBrandMarkURI}
         modifiers={[resizable(), frame({ width: 25, height: 25 })]}
       />
     ),
@@ -101,13 +129,18 @@ function WholesaleDeliveryLiveActivity(
         {props.deliveryCount}
       </Text>
     ),
-    minimal: <Image systemName="shippingbox.fill" />,
+    minimal: (
+      <Image
+        uiImage={liveActivityBrandMarkURI}
+        modifiers={[resizable(), frame({ width: 24, height: 24 })]}
+      />
+    ),
     expandedCenter: (
       <HStack spacing={0} modifiers={[frame({ maxWidth: Infinity })]}>
         <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
           <Text
             modifiers={[
-              font({ weight: 'bold', size: 34 }),
+              font({ weight: 'bold', design: 'rounded', size: 34 }),
               foregroundStyle('#FFFFFF'),
               monospacedDigit(),
             ]}
@@ -119,7 +152,7 @@ function WholesaleDeliveryLiveActivity(
         <VStack spacing={0} modifiers={[frame({ maxWidth: Infinity, alignment: 'center' })]}>
           <Text
             modifiers={[
-              font({ weight: 'bold', size: 34 }),
+              font({ weight: 'bold', design: 'rounded', size: 34 }),
               foregroundStyle('#FFFFFF'),
               monospacedDigit(),
             ]}
@@ -132,21 +165,14 @@ function WholesaleDeliveryLiveActivity(
     ),
     expandedLeading: (
       <Image
-        uiImage={compactBrandMarkURI}
+        uiImage={liveActivityBrandMarkURI}
         modifiers={[
           resizable(),
-          frame({ width: 42, height: 42 }),
+          aspectRatio({ contentMode: 'fit' }),
+          frame({ width: 48, height: 48 }),
           frame({ maxWidth: Infinity, alignment: 'trailing' }),
         ]}
       />
-    ),
-    expandedTrailing: (
-      <HStack>
-        <Spacer minLength={0} />
-        <Text modifiers={[font({ textStyle: 'caption' }), foregroundStyle('#8E8E93')]}>
-          {expandedDateLabel}
-        </Text>
-      </HStack>
     ),
     expandedBottom: (
       <VStack spacing={4} modifiers={[frame({ maxWidth: Infinity })]}>
@@ -155,9 +181,11 @@ function WholesaleDeliveryLiveActivity(
           modifiers={[
             gaugeStyle('linearCapacity'),
             controlSize('extraLarge'),
-            tint('#0A84FF'),
+            tint('#CFEDE3'),
             padding({ horizontal: 'default' }),
             frame({ maxWidth: Infinity }),
+            scaleEffect({ x: 1, y: 2 }),
+            frame({ height: 9 }),
           ]}
         />
         <Text

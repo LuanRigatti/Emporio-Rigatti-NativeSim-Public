@@ -5,6 +5,7 @@ export type HistoryDelivery = {
   cliente: string;
   data: string;
   status: DeliveryStatus;
+  paymentStatus: 'Pago' | 'Não Pago';
   quantidadeBaldes: number;
   valor: string;
   precoUnitarioHistorico?: number;

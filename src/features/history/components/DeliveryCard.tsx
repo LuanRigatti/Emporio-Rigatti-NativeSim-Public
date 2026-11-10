@@ -14,7 +14,7 @@ const HISTORY_DELIVERY_CARD_HEIGHT = 86;
 
 export type DeliveryCardProps = {
   delivery: HistoryDelivery;
-  onToggleStatus: () => void;
+  onOpenStatusSheet: () => void;
   onMarkDelivered?: () => void;
   onDelete?: () => void;
   contained?: boolean;
@@ -29,7 +29,7 @@ export function DeliveryCard({
   delivery,
   onDelete,
   onMarkDelivered,
-  onToggleStatus,
+  onOpenStatusSheet,
 }: DeliveryCardProps) {
   const [previewSize, setPreviewSize] = useState<{ height: number; width: number } | null>(null);
   const { resolvedMode, theme } = useAppTheme();
@@ -51,31 +51,44 @@ export function DeliveryCard({
   const measuredPreviewSize: ViewStyle | undefined = previewSize
     ? { height: previewSize.height, width: previewSize.width }
     : undefined;
-  const measuredTriggerWidth: ViewStyle | undefined = previewSize
-    ? { width: previewSize.width }
-    : undefined;
+  const cardLayoutStyle: ViewStyle = {
+    minHeight: HISTORY_DELIVERY_CARD_HEIGHT,
+    paddingVertical: theme.spacing.xs,
+  };
   const content = (
     <View style={styles.cardRow}>
       <OpenPaymentClientIcon backgroundColor={theme.colors.background} iconName="person" />
       <View style={styles.cardContent}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={[theme.typography.headline, { color: theme.colors.textPrimary }]}>
+        <View style={styles.clientDetails}>
+          <Text
+            accessibilityLabel={delivery.cliente}
+            ellipsizeMode="tail"
+            numberOfLines={1}
+            style={[theme.typography.headline, { color: theme.colors.textPrimary }]}
+          >
             {delivery.cliente}
           </Text>
-          <View style={styles.statusInset}>
-            <DeliveryStatusBadge
-              disabled={testModeEnabled}
-              onPress={onToggleStatus}
-              status={delivery.status}
-            />
-          </View>
-        </View>
-
-        <View style={[styles.primaryInfo, { gap: theme.spacing.sm }]}>
           <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
             {maskQuantity(delivery.quantidadeBaldes)}
           </Text>
-          <Text style={[theme.typography.callout, { color: theme.colors.textPrimary }]}>
+        </View>
+        <View style={styles.financialColumn}>
+          <View style={styles.statusRow}>
+            <View style={styles.deliveryBadgeTarget}>
+              <DeliveryStatusBadge
+                disabled={testModeEnabled}
+                onPress={onOpenStatusSheet}
+                status={delivery.status}
+              />
+            </View>
+          </View>
+          <Text
+            numberOfLines={1}
+            style={[
+              theme.typography.callout,
+              { color: theme.colors.textPrimary, textAlign: 'right' },
+            ]}
+          >
             {maskText(delivery.valor)}
           </Text>
         </View>
@@ -87,6 +100,7 @@ export function DeliveryCard({
     <View
       style={[
         styles.card,
+        cardLayoutStyle,
         {
           backgroundColor: cardSurface,
           borderRadius: theme.radius.xl + theme.spacing.sm,
@@ -101,6 +115,7 @@ export function DeliveryCard({
       accessibilityLabel={`Entrega para ${delivery.cliente}, ${statusLabel(delivery.status)}`}
       style={[
         styles.card,
+        cardLayoutStyle,
         {
           backgroundColor: cardSurface,
           borderWidth: 0,
@@ -115,7 +130,7 @@ export function DeliveryCard({
   const contextCardStyle: ViewStyle = {
     backgroundColor: cardSurface,
     borderRadius: cardRadius,
-    height: HISTORY_DELIVERY_CARD_HEIGHT,
+    minHeight: HISTORY_DELIVERY_CARD_HEIGHT,
     width: '100%',
   };
 
@@ -143,17 +158,24 @@ export function DeliveryCard({
             title: 'Excluir',
           },
         ]}
-        matchContents={{ horizontal: true, vertical: false }}
+        matchContents={{ vertical: true }}
         style={[styles.contextMenu, { borderRadius: cardRadius }]}
+        triggerMatchContents={{ vertical: true }}
         preview={
           <View
-            style={[styles.card, contextCardStyle, { overflow: 'hidden' }, measuredPreviewSize]}
+            style={[
+              styles.card,
+              cardLayoutStyle,
+              contextCardStyle,
+              { overflow: 'hidden' },
+              measuredPreviewSize,
+            ]}
           >
             {content}
           </View>
         }
       >
-        <View style={[styles.card, { backgroundColor: 'transparent' }, measuredTriggerWidth]}>
+        <View style={[styles.card, cardLayoutStyle, { backgroundColor: 'transparent' }]}>
           {content}
         </View>
       </NativeCardContextMenu>
@@ -164,12 +186,13 @@ export function DeliveryCard({
 }
 
 const styles = StyleSheet.create({
-  card: { paddingLeft: 20, paddingRight: 14, paddingVertical: 16, width: '100%' },
+  card: { paddingLeft: 20, paddingRight: 14, width: '100%' },
   cardRow: { alignItems: 'center', flexDirection: 'row', gap: 12, width: '100%' },
-  cardContent: { flex: 1, gap: 8 },
-  cardHeaderRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  cardContent: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8, minWidth: 0 },
+  clientDetails: { flex: 1, gap: 4, minWidth: 0 },
   contextContainer: { overflow: 'hidden' },
-  contextMenu: { height: '100%', width: '100%' },
-  primaryInfo: { flexDirection: 'row', justifyContent: 'space-between', paddingRight: 8 },
-  statusInset: { marginRight: 8 },
+  contextMenu: { width: '100%' },
+  deliveryBadgeTarget: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  financialColumn: { alignItems: 'flex-end', flexShrink: 0, gap: 4 },
+  statusRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end' },
 });

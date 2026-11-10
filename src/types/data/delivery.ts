@@ -24,9 +24,25 @@ export interface Delivery {
   boletoStatus?: BoletoStatus;
   endereco?: string;
   metodoPagamento?: PaymentMethod;
+  dataPagamento?: string;
   observacao?: string;
   legacyFields?: UnknownRecord;
 }
+
+export type DeliveryPaymentSelection = 'Não Pago' | PaymentMethod;
+
+export type DeliveryWorkflowExpectedState = Pick<
+  Delivery,
+  'dataPagamento' | 'entregue' | 'metodoPagamento' | 'status'
+>;
+
+export type DeliveryWorkflowMutation = {
+  delivered: boolean;
+  expected: DeliveryWorkflowExpectedState;
+  paymentReversalConfirmed: boolean;
+  paymentSelection: DeliveryPaymentSelection;
+  paymentSelectionChanged: boolean;
+};
 
 export interface DeliveryDraft {
   id?: string;

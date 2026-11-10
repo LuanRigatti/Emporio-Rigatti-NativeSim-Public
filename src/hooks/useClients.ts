@@ -69,14 +69,16 @@ export function useClients(
   }, [load, loadOnMount]);
 
   const { clientIdForName, includeHistorical, priceDate, search } = query;
+  const userId = user?.id;
   const clients = useMemo(() => {
-    if (clientDataSource.mode === 'firebase' && !snapshot) return [];
-    return clientDataSource.list(
-      { clientIdForName, includeHistorical, priceDate, search },
-      user?.id,
-      sessionVersion,
-    );
-  }, [clientIdForName, includeHistorical, priceDate, search, sessionVersion, snapshot, user?.id]);
+    return clientDataSource.mode === 'firebase' && !snapshot
+      ? []
+      : clientDataSource.list(
+          { clientIdForName, includeHistorical, priceDate, search },
+          userId,
+          sessionVersion,
+        );
+  }, [clientIdForName, includeHistorical, priceDate, search, sessionVersion, snapshot, userId]);
 
   const mutate = useCallback(
     async (operation: () => Promise<void>) => {

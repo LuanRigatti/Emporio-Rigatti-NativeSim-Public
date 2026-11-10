@@ -70,6 +70,7 @@ export function validateDeliveryRecord(value: unknown, path: string): void {
   ) {
     throw new DataValidationError(`${path}.metodoPagamento`, 'método de pagamento inválido');
   }
+  if (record.dataPagamento !== undefined) requireDate(record.dataPagamento, `${path}.dataPagamento`);
   if (record.endereco !== undefined && !isString(record.endereco)) {
     throw new DataValidationError(`${path}.endereco`, 'esperada uma string');
   }

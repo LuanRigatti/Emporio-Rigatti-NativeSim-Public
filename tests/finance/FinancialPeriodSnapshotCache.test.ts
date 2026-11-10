@@ -51,6 +51,51 @@ describe('FinancialPeriodSnapshotCache', () => {
     expect(await cache.read('uid-1', '2026-07')).toBeNull();
   });
 
+  it('reuses period memory only for its exact session and request scope', async () => {
+    const cache = new FinancialPeriodSnapshotCache();
+    const requestScopeKey = '["uid-1",4,{"month":"2026-08"}]';
+
+    await cache.write('uid-1', '2026-08', snapshot, snapshot, 4, requestScopeKey);
+
+    expect(cache.getMemoryForRequest('uid-1', '2026-08', 4, requestScopeKey)).toMatchObject({
+      cacheVersion: 1,
+      uid: 'uid-1',
+      displayMonth: '2026-08',
+    });
+    expect(cache.getMemoryForRequest('uid-1', '2026-08', 5, requestScopeKey)).toBeNull();
+    expect(cache.getMemoryForRequest('uid-1', '2026-08', 4, 'different-request')).toBeNull();
+    expect(cache.getMemoryForRequest('uid-1', '2026-07', 4, requestScopeKey)).toBeNull();
+    expect(cache.getMemoryForRequest('uid-2', '2026-08', 4, requestScopeKey)).toBeNull();
+
+    const serialized = jest.mocked(AsyncStorage.setItem).mock.calls[0]?.[1];
+    expect(serialized).toBeDefined();
+    expect(JSON.parse(serialized as string)).toEqual({
+      cacheVersion: 1,
+      uid: 'uid-1',
+      displayMonth: '2026-08',
+      snapshot,
+      comparisonSnapshot: snapshot,
+      cachedAt: expect.any(Number),
+    });
+  });
+
+  it('does not assign a session to a persisted v1 period entry after hydration', async () => {
+    const cache = new FinancialPeriodSnapshotCache();
+    const entry: FinancialPeriodSnapshotCacheEntry = {
+      cacheVersion: 1,
+      uid: 'uid-1',
+      displayMonth: '2026-08',
+      snapshot,
+      comparisonSnapshot: snapshot,
+      cachedAt: 1,
+    };
+
+    jest.mocked(AsyncStorage.getItem).mockResolvedValue(JSON.stringify(entry));
+
+    expect(await cache.read('uid-1', '2026-08')).toEqual(entry);
+    expect(cache.getMemoryForRequest('uid-1', '2026-08', 4, 'request-scope')).toBeNull();
+  });
+
   it('rejects malformed or mismatched entries instead of showing another period', async () => {
     const cache = new FinancialPeriodSnapshotCache();
     jest.mocked(AsyncStorage.getItem).mockResolvedValue(
@@ -70,6 +115,10 @@ describe('FinancialPeriodSnapshotCache', () => {
   it('invalidates the in-memory and persisted snapshot for one month', async () => {
     const cache = new FinancialPeriodSnapshotCache();
     await cache.write('uid-1', '2026-08', snapshot, snapshot);
+    const periodListener = jest.fn();
+    const otherUserListener = jest.fn();
+    cache.subscribeToPeriodInvalidation('uid-1', periodListener);
+    cache.subscribeToPeriodInvalidation('uid-2', otherUserListener);
 
     await cache.invalidate('uid-1', '2026-08');
 
@@ -77,6 +126,10 @@ describe('FinancialPeriodSnapshotCache', () => {
       '@pareact/financial-period-cache-v1:uid-1:2026-08',
     );
     expect(cache.getMemory('uid-1', '2026-08')).toBeNull();
+    expect(cache.getPeriodInvalidationVersion('uid-1', '2026-08')).toBe(1);
+    expect(cache.getPeriodInvalidationVersion('uid-1', '2026-07')).toBe(0);
+    expect(periodListener).toHaveBeenCalledWith('2026-08');
+    expect(otherUserListener).not.toHaveBeenCalled();
   });
 
   it('notifies only the authenticated user scope when committed data changes externally', () => {

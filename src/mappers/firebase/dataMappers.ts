@@ -12,6 +12,7 @@ import {
   collectDeliveryLegacyFields,
   collectLegacyFields,
   formatClientName,
+  normalizeLegacyDate,
   normalizeFactoryReceipt,
   normalizeMoney,
 } from '@/utils/data';
@@ -78,6 +79,7 @@ export function mapDelivery(value: unknown, path = 'entregas[0]'): Delivery {
     invoiceStatus: optionalInvoiceStatus(record.invoiceStatus),
     endereco: typeof record.endereco === 'string' ? record.endereco : undefined,
     metodoPagamento: optionalPaymentMethod(record.metodoPagamento),
+    dataPagamento: normalizeLegacyDate(record.dataPagamento),
     observacao: typeof record.observacao === 'string' ? record.observacao : undefined,
     legacyFields: collectDeliveryLegacyFields(record),
   };

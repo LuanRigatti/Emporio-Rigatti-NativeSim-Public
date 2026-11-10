@@ -64,6 +64,40 @@ describe('firebase mappers', () => {
     });
   });
 
+  it('round-trips known payment method and effective date while leaving unknown history absent', () => {
+    const [known, unknown] = mapDeliveries([
+      {
+        id: 'delivery-paid-known',
+        cliente: 'Ana',
+        quantidade: 2,
+        valor: 100,
+        status: 'Pago',
+        entregue: true,
+        data: '2026-10-10',
+        metodoPagamento: 'Pix',
+        dataPagamento: '2026-11-07',
+      },
+      {
+        id: 'delivery-paid-legacy',
+        cliente: 'Bia',
+        quantidade: 1,
+        valor: 50,
+        status: 'Pago',
+        entregue: true,
+        data: '2026-08-02',
+      },
+    ]);
+
+    expect(toFirebaseDeliveries([known!, unknown!])).toMatchObject([
+      { metodoPagamento: 'Pix', dataPagamento: '2026-11-07', valor: 100 },
+      { status: 'Pago', data: '2026-08-02', valor: 50 },
+    ]);
+    expect(unknown?.metodoPagamento).toBeUndefined();
+    expect(unknown?.dataPagamento).toBeUndefined();
+    expect(toFirebaseDeliveries([unknown!])[0]).not.toHaveProperty('metodoPagamento');
+    expect(toFirebaseDeliveries([unknown!])[0]).not.toHaveProperty('dataPagamento');
+  });
+
   it('keeps numeric and object monthly expense formats', () => {
     const mapped = mapMonthlyExpenses({
       '2026-03': 100,

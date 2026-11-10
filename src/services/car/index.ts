@@ -1,10 +1,14 @@
 export {
   CAR_SETTINGS_STORAGE_KEY,
+  CAR_SETTINGS_STORAGE_KEY_PREFIX,
+  carSettingsStorageKey,
   CarSettingsStorage,
-  EMPTY_CAR_SETTINGS,
   carSettingsStorage,
-  type CarSettings,
+  type CarSettingsStorageOptions,
+  type CarSettingsConfirmedSnapshot,
+  type CarSettingsDraftWrite,
 } from './CarSettingsStorage';
+export { EMPTY_CAR_SETTINGS, type CarSettings } from './CarSettings';
 export {
   carSettingsDocumentPath,
   carSettingsFromFirestore,
@@ -12,4 +16,7 @@ export {
   FirestoreCarSettingsDataSource,
   firestoreCarSettingsDataSource,
   type FirestoreCarSettingsDocument,
+  type FirestoreCarSettingsLoadResult,
+  type FirestoreCarSettingsMutationOptions,
+  type FirestoreCarSettingsWriteResult,
 } from './FirestoreCarSettingsDataSource';

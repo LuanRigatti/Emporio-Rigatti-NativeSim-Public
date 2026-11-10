@@ -6,15 +6,24 @@ import type {
   DeliveryFilters,
   InvoiceStatus,
   PaymentMethod,
+  DeliveryWorkflowMutation,
 } from '@/types/data';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 import { todayIso } from '@/utils/data';
 
 import { deliveryQueryService } from './DeliveryQueryService';
-import { createDeliveryFromDraft } from './deliveryRecord';
+import {
+  applyDeliveryWorkflowMutation,
+  createDeliveryFromDraft,
+  transitionDeliveryPaymentStatus,
+} from './deliveryRecord';
 import { mockDeliveryDataSource } from './DeliveryDataSource';
 import { firestoreDeliveryCacheService } from './FirestoreDeliveryCacheService';
 import { firestoreHistoricalDeliveryCache } from './FirestoreHistoricalDeliveryCache';
+import {
+  createFirestoreQueryProvenance,
+  type FirestoreQueryProvenance,
+} from '@/services/data/FirestoreQueryProvenance';
 
 type FirestoreDeliveryDocument = {
   clientId?: string;
@@ -29,6 +38,7 @@ type FirestoreDeliveryDocument = {
   invoiceStatus?: InvoiceStatus;
   boletoStatus?: BoletoStatus;
   paymentMethod?: PaymentMethod;
+  paymentDate?: string;
   observation?: string;
   legacyFields?: Record<string, unknown>;
   dateAddedAt?: unknown;
@@ -37,6 +47,7 @@ type FirestoreDeliveryDocument = {
 };
 
 type Listener = () => void;
+
 export type CompleteDeliveryDateSnapshot = {
   uid: string;
   date: string;
@@ -58,12 +69,14 @@ type CompleteDateCoverage = {
 type FirestoreOps = typeof import('firebase/firestore');
 type HistoricalFetchResult = {
   deliveries: Delivery[];
-  fromCache: boolean;
+  fromCache: boolean | null;
+  hasPendingWrites: boolean | null;
 };
 
 export type CommittedPaidDelivery = {
   id: string;
   date: string;
+  paymentDate?: string;
 };
 
 export type HistoricalDataState = 'unknown' | 'partial' | 'cache' | 'remote';
@@ -76,10 +89,34 @@ type SessionRequest = {
 
 type DeliveryLoadOptions = {
   force?: boolean;
+  canRun?: () => boolean;
+};
+
+export type FirestoreDeliveryLoadResult = {
+  /** Compatibility view for existing consumers; this may include records already in the store. */
+  deliveries: Delivery[];
+  /** Rows mapped only from the response to this exact Firestore query. */
+  querySnapshot: Delivery[];
+  provenance: FirestoreQueryProvenance<DeliveryFilters>;
 };
 
 type HistoricalLoadOptions = {
   revalidate?: boolean;
+};
+
+export const HISTORICAL_DELIVERY_QUERY_SCOPE = {
+  direction: 'desc',
+  filters: { mode: 'all' },
+  orderBy: 'date',
+  pageSize: 250,
+} as const;
+
+export type FirestoreHistoricalDeliveryLoadResult = {
+  /** Compatibility view; local cache rows may be merged with the query response. */
+  deliveries: Delivery[];
+  /** Rows returned by this exact paginated query, before store/cache merging. */
+  querySnapshot: Delivery[];
+  provenance: FirestoreQueryProvenance<typeof HISTORICAL_DELIVERY_QUERY_SCOPE>;
 };
 
 type LoadState = {
@@ -132,8 +169,83 @@ function mapDocument(id: string, value: FirestoreDeliveryDocument): Delivery {
     boletoStatus: value.boletoStatus,
     endereco: value.addressSnapshot,
     metodoPagamento: value.paymentMethod,
+    dataPagamento: value.paymentDate,
     observacao: value.observation,
     legacyFields: value.legacyFields,
+  };
+}
+
+function mergeMetadataFlag(current: boolean | null, incoming: unknown): boolean | null {
+  if (current === true || incoming === true) return true;
+  if (current === null || typeof incoming !== 'boolean') return null;
+  return current || incoming;
+}
+
+function isExactDeliveryQueryScope(filters: DeliveryFilters): boolean {
+  const supportedKeys = new Set(['mode', 'date', 'startDate', 'endDate']);
+  return (
+    filters.mode === 'all' &&
+    Boolean(filters.date || filters.startDate || filters.endDate) &&
+    Object.keys(filters).every((key) => supportedKeys.has(key))
+  );
+}
+
+function selectExactQueryDeliveries(
+  deliveries: readonly Delivery[],
+  filters: DeliveryFilters,
+): Delivery[] {
+  return deliveries.filter((delivery) => {
+    if (filters.date && delivery.data !== filters.date) return false;
+    if (filters.startDate && delivery.data < filters.startDate) return false;
+    if (filters.endDate && delivery.data > filters.endDate) return false;
+    return true;
+  });
+}
+
+function emptyDeliveryLoadResult(
+  uid: string,
+  filters: DeliveryFilters,
+  sessionVersion?: number,
+  stale = false,
+  deliveries: Delivery[] = [],
+): FirestoreDeliveryLoadResult {
+  return {
+    deliveries,
+    querySnapshot: [],
+    provenance: createFirestoreQueryProvenance({
+      kind: 'deliveries',
+      uid,
+      sessionVersion,
+      scope: { ...filters },
+      fromCache: null,
+      hasPendingWrites: null,
+      scopeIsComplete: false,
+      stale,
+    }),
+  };
+}
+
+function emptyHistoricalDeliveryLoadResult(
+  uid: string,
+  sessionVersion: number | undefined,
+  stale: boolean,
+  deliveries: Delivery[] = [],
+  originOverride?: 'cache',
+): FirestoreHistoricalDeliveryLoadResult {
+  return {
+    deliveries,
+    querySnapshot: [],
+    provenance: createFirestoreQueryProvenance({
+      kind: 'historical-deliveries',
+      uid,
+      sessionVersion,
+      scope: HISTORICAL_DELIVERY_QUERY_SCOPE,
+      originOverride,
+      fromCache: null,
+      hasPendingWrites: null,
+      scopeIsComplete: false,
+      stale,
+    }),
   };
 }
 
@@ -180,6 +292,7 @@ function toDocument(delivery: Delivery): FirestoreDeliveryDocument {
     ...(delivery.invoiceStatus ? { invoiceStatus: delivery.invoiceStatus } : {}),
     ...(delivery.boletoStatus ? { boletoStatus: delivery.boletoStatus } : {}),
     ...(delivery.metodoPagamento ? { paymentMethod: delivery.metodoPagamento } : {}),
+    ...(delivery.dataPagamento ? { paymentDate: delivery.dataPagamento } : {}),
     ...(delivery.observacao ? { observation: delivery.observacao } : {}),
     ...(delivery.legacyFields ? { legacyFields: delivery.legacyFields } : {}),
   };
@@ -209,9 +322,12 @@ export class FirestoreDeliveryDataSource {
   private lastAppliedSource: 'cache' | 'remote' | null = null;
   private historicalDataState: HistoricalDataState = 'unknown';
   private readonly inFlightHydrations = new Map<string, Promise<boolean>>();
-  private readonly inFlightLoads = new Map<string, Promise<Delivery[]>>();
+  private readonly inFlightLoads = new Map<string, Promise<FirestoreDeliveryLoadResult>>();
   private readonly loadStates = new Map<string, LoadState>();
-  private readonly inFlightHistoricalLoads = new Map<string, Promise<Delivery[]>>();
+  private readonly inFlightHistoricalLoads = new Map<
+    string,
+    Promise<FirestoreHistoricalDeliveryLoadResult>
+  >();
   private readonly dateCacheWrites = new Map<string, Promise<void>>();
 
   public getRevision = (): number => this.revision;
@@ -453,14 +569,27 @@ export class FirestoreDeliveryDataSource {
     options: DeliveryLoadOptions = {},
     sessionVersion?: number,
   ): Promise<Delivery[]> {
+    const result = await this.loadWithMetadata(uid, filters, options, sessionVersion);
+    return result.deliveries;
+  }
+
+  public async loadWithMetadata(
+    uid: string,
+    filters: DeliveryFilters,
+    options: DeliveryLoadOptions = {},
+    sessionVersion?: number,
+  ): Promise<FirestoreDeliveryLoadResult> {
+    const canRun = () => !options.canRun || options.canRun();
     if (filters.clientIds && filters.clientIds.length === 0) {
-      return [];
+      return emptyDeliveryLoadResult(uid, filters, sessionVersion);
     }
     if (!this.hasBoundedQuery(filters)) {
-      return [];
+      return emptyDeliveryLoadResult(uid, filters, sessionVersion);
     }
     const sessionGeneration = this.beginSessionRequest(uid, sessionVersion);
-    if (sessionGeneration === null) return [];
+    if (sessionGeneration === null || !canRun()) {
+      return emptyDeliveryLoadResult(uid, filters, sessionVersion, true);
+    }
     const key = `${this.requestKey(uid, sessionGeneration)}:${JSON.stringify(filters)}`;
     const existing = this.inFlightLoads.get(key);
     if (existing && !options.force) return existing;
@@ -493,6 +622,7 @@ export class FirestoreDeliveryDataSource {
       historicalApplyVersion,
       key,
       loadVersion,
+      canRun,
     );
     this.inFlightLoads.set(key, load);
     void load.then(
@@ -517,7 +647,8 @@ export class FirestoreDeliveryDataSource {
     historicalApplyVersion: number,
     loadKey: string,
     loadVersion: number,
-  ): Promise<Delivery[]> {
+    canRun: () => boolean,
+  ): Promise<FirestoreDeliveryLoadResult> {
     const isCompleteLiveDateQuery =
       filters.mode === 'today' &&
       Boolean(filters.date) &&
@@ -526,33 +657,61 @@ export class FirestoreDeliveryDataSource {
     const hydration = this.inFlightHydrations.get(this.requestKey(uid, sessionGeneration));
     if (hydration) await hydration;
     if (
+      !canRun() ||
       !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) ||
       this.mutationEpoch !== mutationEpoch ||
       !this.isLatestLoad(loadKey, loadVersion)
     ) {
-      return this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion)
-        ? this.getCached(filters, uid)
-        : [];
+      const deliveries =
+        canRun() && this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion)
+          ? this.getCached(filters, uid)
+          : [];
+      return emptyDeliveryLoadResult(uid, filters, sessionVersion, true, deliveries);
     }
     try {
       const { doc, getDoc, getDocs, query, where } = await getFirestoreOps();
+      if (!canRun() || !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion)) {
+        return emptyDeliveryLoadResult(uid, filters, sessionVersion, true);
+      }
       const deliveryCollection = await collectionFor(uid);
+      if (!canRun() || !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion)) {
+        return emptyDeliveryLoadResult(uid, filters, sessionVersion, true);
+      }
       const constraints: Parameters<typeof query>[1][] = [];
       const loaded: Delivery[] = [];
-      let fromCache = false;
+      const firestoreMetadata: {
+        fromCache: boolean | null;
+        hasPendingWrites: boolean | null;
+      } = { fromCache: false, hasPendingWrites: false };
+      const readFirestore = async <
+        T extends { metadata?: { fromCache?: boolean; hasPendingWrites?: boolean } },
+      >(
+        read: () => Promise<T>,
+      ): Promise<T> => {
+        const result = await read();
+        firestoreMetadata.fromCache = mergeMetadataFlag(
+          firestoreMetadata.fromCache,
+          result.metadata?.fromCache,
+        );
+        firestoreMetadata.hasPendingWrites = mergeMetadataFlag(
+          firestoreMetadata.hasPendingWrites,
+          result.metadata?.hasPendingWrites,
+        );
+        return result;
+      };
       if (filters.deliveryId) {
-        const result = await getDoc(doc(deliveryCollection, filters.deliveryId));
-        fromCache ||= result.metadata?.fromCache === true;
+        const result = await readFirestore(() =>
+          getDoc(doc(deliveryCollection, filters.deliveryId!)),
+        );
         const mapped = result.exists()
           ? mapDocument(result.id, result.data() as FirestoreDeliveryDocument)
           : null;
         if (mapped) loaded.push(mapped);
       } else if (filters.deliveryIds?.length) {
         const results = await Promise.all(
-          filters.deliveryIds.map((id) => getDoc(doc(deliveryCollection, id))),
+          filters.deliveryIds.map((id) => readFirestore(() => getDoc(doc(deliveryCollection, id)))),
         );
         results.forEach((result) => {
-          fromCache ||= result.metadata?.fromCache === true;
           if (result.exists()) {
             const mapped = mapDocument(result.id, result.data() as FirestoreDeliveryDocument);
             loaded.push(mapped);
@@ -578,37 +737,47 @@ export class FirestoreDeliveryDataSource {
           : [undefined];
         const results = await Promise.all(
           clientIdChunks.map((clientIds) =>
-            getDocs(
-              query(
-                deliveryCollection,
-                ...constraints,
-                ...(clientIds ? [where('clientId', 'in', clientIds)] : []),
+            readFirestore(() =>
+              getDocs(
+                query(
+                  deliveryCollection,
+                  ...constraints,
+                  ...(clientIds ? [where('clientId', 'in', clientIds)] : []),
+                ),
               ),
             ),
           ),
         );
         results.forEach((result) => {
-          fromCache ||= result.metadata?.fromCache === true;
           result.docs.forEach((item) => {
             loaded.push(mapDocument(item.id, item.data() as FirestoreDeliveryDocument));
           });
         });
       }
       if (
+        !canRun() ||
         !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) ||
         this.mutationEpoch !== mutationEpoch ||
         !this.isLatestLoad(loadKey, loadVersion)
       ) {
-        return this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion)
-          ? this.getCached(filters, uid)
-          : [];
+        const deliveries =
+          canRun() && this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion)
+            ? this.getCached(filters, uid)
+            : [];
+        return emptyDeliveryLoadResult(uid, filters, sessionVersion, true, deliveries);
       }
       const hadRemoteState = this.lastAppliedSource === 'remote';
       const protectCompleteHistory =
         this.hasCompleteHistoricalState && this.historicalApplyVersion !== historicalApplyVersion;
-      this.applyLoadedRecords(filters, loaded, fromCache, protectCompleteHistory);
+      this.applyLoadedRecords(
+        filters,
+        loaded,
+        firestoreMetadata.fromCache !== false,
+        protectCompleteHistory,
+      );
       const completeLiveActivityDateQuery =
-        !fromCache &&
+        firestoreMetadata.fromCache === false &&
+        firestoreMetadata.hasPendingWrites === false &&
         !protectCompleteHistory &&
         this.isCompleteDateQuery(filters) &&
         filters.mode === 'today' &&
@@ -623,7 +792,11 @@ export class FirestoreDeliveryDataSource {
         });
       }
       this.isUsingLocalFallback = false;
-      this.lastAppliedSource = hadRemoteState || !fromCache ? 'remote' : 'cache';
+      this.lastAppliedSource =
+        hadRemoteState ||
+        (firestoreMetadata.fromCache === false && firestoreMetadata.hasPendingWrites === false)
+          ? 'remote'
+          : 'cache';
       if (this.historicalDataState === 'unknown') this.historicalDataState = 'partial';
       this.stateVersion += 1;
       this.publish();
@@ -634,18 +807,44 @@ export class FirestoreDeliveryDataSource {
         this.invalidateCompleteDateSnapshot(uid, filters.date, sessionVersion);
       }
       const result = this.getCached(filters, uid);
-      if (filters.date && !fromCache) {
+      if (
+        filters.date &&
+        firestoreMetadata.fromCache === false &&
+        firestoreMetadata.hasPendingWrites === false
+      ) {
         void this.persistDateCache({ uid, generation: sessionGeneration }, filters.date);
       }
-      return result;
+      const provenance = createFirestoreQueryProvenance({
+        kind: 'deliveries',
+        uid,
+        sessionVersion,
+        scope: { ...filters },
+        fromCache: firestoreMetadata.fromCache,
+        hasPendingWrites: firestoreMetadata.hasPendingWrites,
+        scopeIsComplete: isExactDeliveryQueryScope(filters),
+      });
+      return {
+        deliveries: result,
+        querySnapshot: selectExactQueryDeliveries(loaded, filters),
+        provenance,
+      };
     } catch (error) {
       if (
+        !canRun() ||
         !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) ||
         this.mutationEpoch !== mutationEpoch
       ) {
-        return [];
+        return emptyDeliveryLoadResult(uid, filters, sessionVersion, true);
       }
-      if (!this.isLatestLoad(loadKey, loadVersion)) return this.getCached(filters, uid);
+      if (!this.isLatestLoad(loadKey, loadVersion)) {
+        return emptyDeliveryLoadResult(
+          uid,
+          filters,
+          sessionVersion,
+          true,
+          this.getCached(filters, uid),
+        );
+      }
       if (isCompleteLiveDateQuery && filters.date) {
         this.invalidateCompleteDateSnapshot(uid, filters.date, sessionVersion);
       }
@@ -659,8 +858,19 @@ export class FirestoreDeliveryDataSource {
     sessionVersion?: number,
     options: HistoricalLoadOptions = {},
   ): Promise<Delivery[]> {
+    const result = await this.loadAllHistoricalWithMetadata(uid, sessionVersion, options);
+    return result.deliveries;
+  }
+
+  public async loadAllHistoricalWithMetadata(
+    uid: string,
+    sessionVersion?: number,
+    options: HistoricalLoadOptions = {},
+  ): Promise<FirestoreHistoricalDeliveryLoadResult> {
     const sessionGeneration = this.beginSessionRequest(uid, sessionVersion);
-    if (sessionGeneration === null) return [];
+    if (sessionGeneration === null) {
+      return emptyHistoricalDeliveryLoadResult(uid, sessionVersion, true);
+    }
     const key = `${this.requestKey(uid, sessionGeneration)}:${options.revalidate ? 'revalidate' : 'cache'}`;
     const existing = this.inFlightHistoricalLoads.get(key);
     if (existing) return existing;
@@ -687,7 +897,7 @@ export class FirestoreDeliveryDataSource {
     sessionGeneration: number,
     sessionVersion: number | undefined,
     options: HistoricalLoadOptions,
-  ): Promise<Delivery[]> {
+  ): Promise<FirestoreHistoricalDeliveryLoadResult> {
     const hydration = this.inFlightHydrations.get(this.requestKey(uid, sessionGeneration));
     if (hydration) await hydration;
     const mutationEpoch = this.mutationEpoch;
@@ -696,7 +906,7 @@ export class FirestoreDeliveryDataSource {
       !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) ||
       this.mutationEpoch !== mutationEpoch
     ) {
-      return [];
+      return emptyHistoricalDeliveryLoadResult(uid, sessionVersion, true);
     }
     if (cached !== null) {
       let changed = false;
@@ -713,20 +923,42 @@ export class FirestoreDeliveryDataSource {
         this.stateVersion += 1;
         this.publish();
       }
-      if (!options.revalidate) return this.getCached({ mode: 'all' }, uid);
+      if (!options.revalidate) {
+        const cachedDeliveries = this.getCached({ mode: 'all' }, uid);
+        return emptyHistoricalDeliveryLoadResult(
+          uid,
+          sessionVersion,
+          false,
+          cachedDeliveries,
+          'cache',
+        );
+      }
     }
 
     try {
-      const { deliveries: loaded, fromCache } = await this.fetchAllHistoricalFromFirestore(uid);
+      const {
+        deliveries: loaded,
+        fromCache,
+        hasPendingWrites,
+      } = await this.fetchAllHistoricalFromFirestore(uid);
       if (
         !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) ||
         this.mutationEpoch !== mutationEpoch
       ) {
-        return [];
+        return emptyHistoricalDeliveryLoadResult(uid, sessionVersion, true);
       }
+      const provenance = createFirestoreQueryProvenance({
+        kind: 'historical-deliveries',
+        uid,
+        sessionVersion,
+        scope: HISTORICAL_DELIVERY_QUERY_SCOPE,
+        fromCache,
+        hasPendingWrites,
+        scopeIsComplete: true,
+      });
       const hadRemoteState = this.lastAppliedSource === 'remote';
       this.isUsingLocalFallback = false;
-      if (fromCache) {
+      if (!provenance.remoteConfirmed) {
         loaded.forEach((delivery) => {
           if (!this.records.has(delivery.id)) this.records.set(delivery.id, delivery);
         });
@@ -738,23 +970,27 @@ export class FirestoreDeliveryDataSource {
         this.hasCompleteHistoricalState = true;
         this.historicalApplyVersion += 1;
       }
-      this.lastAppliedSource = hadRemoteState || !fromCache ? 'remote' : 'cache';
+      this.lastAppliedSource = hadRemoteState || provenance.remoteConfirmed ? 'remote' : 'cache';
       this.stateVersion += 1;
       this.publish();
       if (
-        !fromCache &&
+        provenance.remoteConfirmed &&
         this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) &&
         this.mutationEpoch === mutationEpoch
       ) {
         await firestoreHistoricalDeliveryCache.write(uid, loaded);
       }
-      return fromCache ? this.getCached({ mode: 'all' }, uid) : loaded;
+      return {
+        deliveries: provenance.remoteConfirmed ? loaded : this.getCached({ mode: 'all' }, uid),
+        querySnapshot: loaded,
+        provenance,
+      };
     } catch (error) {
       if (
         !this.isSessionRequestCurrent(uid, sessionGeneration, sessionVersion) ||
         this.mutationEpoch !== mutationEpoch
       ) {
-        return [];
+        return emptyHistoricalDeliveryLoadResult(uid, sessionVersion, true);
       }
       this.isUsingLocalFallback = false;
       throw error;
@@ -766,7 +1002,10 @@ export class FirestoreDeliveryDataSource {
     const deliveryCollection = await collectionFor(uid);
     const BATCH_SIZE = 250;
     const loaded: Delivery[] = [];
-    let fromCache = false;
+    const metadata = {
+      fromCache: false as boolean | null,
+      hasPendingWrites: false as boolean | null,
+    };
     let lastVisibleDoc: unknown = null;
     let hasMore = true;
 
@@ -780,7 +1019,11 @@ export class FirestoreDeliveryDataSource {
       }
 
       const snapshot = await getDocs(query(deliveryCollection, ...constraints));
-      fromCache ||= snapshot.metadata?.fromCache === true;
+      metadata.fromCache = mergeMetadataFlag(metadata.fromCache, snapshot.metadata?.fromCache);
+      metadata.hasPendingWrites = mergeMetadataFlag(
+        metadata.hasPendingWrites,
+        snapshot.metadata?.hasPendingWrites,
+      );
       if (snapshot.empty) break;
 
       snapshot.docs.forEach((docSnapshot) => {
@@ -798,7 +1041,11 @@ export class FirestoreDeliveryDataSource {
       }
     }
 
-    return { deliveries: loaded, fromCache };
+    return {
+      deliveries: loaded,
+      fromCache: metadata.fromCache,
+      hasPendingWrites: metadata.hasPendingWrites,
+    };
   }
 
   private applyLoadedRecords(
@@ -955,10 +1202,15 @@ export class FirestoreDeliveryDataSource {
       request.generation,
     );
     const nextDateWasComplete = this.isDateComplete(request.uid, delivery.data, request.generation);
-    const { doc, runTransaction, serverTimestamp, updateDoc } = await getFirestoreOps();
+    const { deleteField, doc, runTransaction, serverTimestamp, updateDoc } =
+      await getFirestoreOps();
     const reference = doc(await collectionFor(request.uid), deliveryId);
     const { delivered: draftDelivered, ...editableDocument } = toDocument(delivery);
     const changedDelivered = delivery.entregue !== current.entregue;
+    const clearPaymentMetadata =
+      current.status === 'Pago' && delivery.status !== 'Pago'
+        ? { paymentMethod: deleteField(), paymentDate: deleteField() }
+        : {};
     let persistedDelivered = current.entregue;
 
     if (changedDelivered && !draftDelivered) {
@@ -977,6 +1229,7 @@ export class FirestoreDeliveryDataSource {
         }
         transaction.update(reference, {
           ...editableDocument,
+          ...clearPaymentMetadata,
           ...(dateChanged ? { dateAddedAt: serverTimestamp() } : {}),
           delivered: draftDelivered,
           updatedAt: serverTimestamp(),
@@ -986,6 +1239,7 @@ export class FirestoreDeliveryDataSource {
     } else {
       await updateDoc(reference, {
         ...editableDocument,
+        ...clearPaymentMetadata,
         ...(dateChanged ? { dateAddedAt: serverTimestamp() } : {}),
         ...(changedDelivered ? { delivered: draftDelivered } : {}),
         updatedAt: serverTimestamp(),
@@ -1144,6 +1398,7 @@ export class FirestoreDeliveryDataSource {
     const request = this.captureSessionRequest(uid);
     const { doc, serverTimestamp, updateDoc } = await getFirestoreOps();
     const deliveryCollection = await collectionFor(request.uid);
+    const paymentDate = todayIso();
     await Promise.all(
       deliveryIds.map(async (id) => {
         const current = await this.ensure(uid, id);
@@ -1153,10 +1408,14 @@ export class FirestoreDeliveryDataSource {
         await updateDoc(doc(deliveryCollection, id), {
           status: 'Pago',
           paymentMethod: method,
+          paymentDate,
           updatedAt: serverTimestamp(),
         });
         this.assertSessionRequestCurrent(request);
-        this.records.set(id, { ...current, status: 'Pago', metodoPagamento: method });
+        this.records.set(id, {
+          ...transitionDeliveryPaymentStatus(current, 'Pago', paymentDate),
+          metodoPagamento: method,
+        });
         void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
       }),
     );
@@ -1165,6 +1424,128 @@ export class FirestoreDeliveryDataSource {
     [...new Set(deliveryIds.map((id) => this.records.get(id)?.data))]
       .filter((date): date is string => Boolean(date))
       .forEach((date) => void this.persistDateCache(request, date));
+    void firestoreHistoricalDeliveryCache.invalidate(request.uid);
+  }
+
+  public async updatePaymentMethod(
+    uid: string,
+    deliveryId: string,
+    method: PaymentMethod,
+  ): Promise<void> {
+    if (!['Dinheiro', 'Pix'].includes(method)) throw new Error('Escolha Dinheiro ou Pix.');
+    const request = this.captureSessionRequest(uid);
+    const current = await this.ensure(uid, deliveryId);
+    if (current.status !== 'Pago')
+      throw new Error('Somente entregas pagas permitem editar o método.');
+    const { doc, runTransaction, serverTimestamp } = await getFirestoreOps();
+    const reference = doc(await collectionFor(request.uid), deliveryId);
+    const database = firestoreDbOverride
+      ? (firestoreDbOverride as Parameters<typeof runTransaction>[0])
+      : (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+    await runTransaction(database, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('Entrega não encontrada.');
+      if (snapshot.data()?.status !== 'Pago') {
+        throw new Error('O pagamento foi alterado em outra operação. Atualize e tente novamente.');
+      }
+      transaction.update(reference, { paymentMethod: method, updatedAt: serverTimestamp() });
+    });
+    this.assertSessionRequestCurrent(request);
+    this.records.set(deliveryId, { ...current, metodoPagamento: method });
+    this.publish();
+    void this.persistDateCache(request, current.data);
+    void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
+    void firestoreHistoricalDeliveryCache.invalidate(request.uid);
+  }
+
+  public async reverseSettlement(uid: string, deliveryId: string): Promise<void> {
+    const request = this.captureSessionRequest(uid);
+    const current = await this.ensure(uid, deliveryId);
+    if (current.status !== 'Pago')
+      throw new Error('Somente pagamentos confirmados podem ser desfeitos.');
+    const { deleteField, doc, runTransaction, serverTimestamp } = await getFirestoreOps();
+    const reference = doc(await collectionFor(request.uid), deliveryId);
+    const database = firestoreDbOverride
+      ? (firestoreDbOverride as Parameters<typeof runTransaction>[0])
+      : (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+    await runTransaction(database, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('Entrega não encontrada.');
+      if (snapshot.data()?.status !== 'Pago') {
+        throw new Error('O pagamento foi alterado em outra operação. Atualize e tente novamente.');
+      }
+      transaction.update(reference, {
+        status: 'Não Pago',
+        paymentMethod: deleteField(),
+        paymentDate: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+    this.assertSessionRequestCurrent(request);
+    const restored = transitionDeliveryPaymentStatus(current, 'Não Pago');
+    this.records.set(deliveryId, restored);
+    this.publish();
+    this.publishMutatedCompleteDates(request.uid, [current.data], request.generation);
+    void this.persistDateCache(request, current.data);
+    void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
+    void firestoreHistoricalDeliveryCache.invalidate(request.uid);
+  }
+
+  public async updateHistoryWorkflow(
+    uid: string,
+    deliveryId: string,
+    mutation: DeliveryWorkflowMutation,
+  ): Promise<void> {
+    const request = this.captureSessionRequest(uid);
+    const current = await this.ensure(uid, deliveryId);
+    this.assertSessionRequestCurrent(request);
+    const paymentDate = todayIso();
+    const { deleteField, doc, runTransaction, serverTimestamp } = await getFirestoreOps();
+    const reference = doc(await collectionFor(request.uid), deliveryId);
+    const database = firestoreDbOverride
+      ? (firestoreDbOverride as Parameters<typeof runTransaction>[0])
+      : (await import('@/services/firebase/firestore')).getFirebaseFirestore();
+
+    const result = await runTransaction(database, async (transaction) => {
+      const snapshot = await transaction.get(reference);
+      if (!snapshot.exists()) throw new Error('Entrega não encontrada.');
+      const remoteDocument = snapshot.data();
+      if (
+        typeof remoteDocument?.delivered !== 'boolean' ||
+        typeof remoteDocument?.status !== 'string'
+      ) {
+        throw new Error(
+          'O estado da entrega ou do pagamento está indisponível. Atualize e tente novamente.',
+        );
+      }
+
+      const remote = mapDocument(deliveryId, remoteDocument as FirestoreDeliveryDocument);
+      const updated = applyDeliveryWorkflowMutation(remote, mutation, paymentDate);
+      const deleteValue = deleteField();
+      const updates = {
+        ...(remote.entregue !== updated.entregue ? { delivered: updated.entregue } : {}),
+        ...(remote.status !== updated.status ? { status: updated.status } : {}),
+        ...(remote.metodoPagamento !== updated.metodoPagamento
+          ? { paymentMethod: updated.metodoPagamento ?? deleteValue }
+          : {}),
+        ...(remote.dataPagamento !== updated.dataPagamento
+          ? { paymentDate: updated.dataPagamento ?? deleteValue }
+          : {}),
+      };
+      const changed = Object.keys(updates).length > 0;
+      if (changed) transaction.update(reference, { ...updates, updatedAt: serverTimestamp() });
+      return { changed, updated };
+    });
+
+    this.assertSessionRequestCurrent(request);
+    if (!result.changed) return;
+
+    this.mutationEpoch += 1;
+    this.records.set(deliveryId, result.updated);
+    this.publish();
+    this.publishMutatedCompleteDates(request.uid, [current.data], request.generation);
+    void this.persistDateCache(request, current.data);
+    void financialPeriodSnapshotCache.invalidate(request.uid, current.data.slice(0, 7));
     void firestoreHistoricalDeliveryCache.invalidate(request.uid);
   }
 
@@ -1186,11 +1567,18 @@ export class FirestoreDeliveryDataSource {
 
     const request = this.captureSessionRequest(uid);
     const dates = new Set(updates.map(({ date }) => date));
-    updates.forEach(({ id }) => {
+    updates.forEach(({ id, paymentDate }) => {
       const current = this.records.get(id);
       if (current) {
         dates.add(current.data);
-        this.records.set(id, { ...current, status: 'Pago' });
+        const paidDelivery = transitionDeliveryPaymentStatus(
+          current,
+          'Pago',
+          paymentDate ?? current.dataPagamento ?? '',
+        );
+        if (paymentDate) paidDelivery.dataPagamento = paymentDate;
+        else if (!current.dataPagamento) delete paidDelivery.dataPagamento;
+        this.records.set(id, paidDelivery);
       }
     });
     this.stateVersion += 1;
@@ -1222,15 +1610,28 @@ export class FirestoreDeliveryDataSource {
     patch: DeliveryBulkPatch,
   ): Promise<void> {
     const request = this.captureSessionRequest(uid);
-    const { doc, runTransaction, serverTimestamp, updateDoc } = await getFirestoreOps();
+    const { deleteField, doc, runTransaction, serverTimestamp, updateDoc } =
+      await getFirestoreOps();
     const deliveryCollection = await collectionFor(request.uid);
+    const paymentDate = todayIso();
     await Promise.all(
       ids.map(async (id) => {
         const current = await this.ensure(uid, id);
         this.assertSessionRequestCurrent(request);
         const reference = doc(deliveryCollection, id);
+        const paymentState = patch.status
+          ? transitionDeliveryPaymentStatus(current, patch.status, paymentDate)
+          : current;
+        const paymentFields = patch.status
+          ? patch.status === 'Pago' && current.status !== 'Pago'
+            ? { paymentMethod: deleteField(), paymentDate: paymentState.dataPagamento }
+            : patch.status !== 'Pago'
+              ? { paymentMethod: deleteField(), paymentDate: deleteField() }
+              : {}
+          : {};
         const patchFields = {
           ...(patch.status ? { status: patch.status } : {}),
+          ...paymentFields,
           ...(patch.entregue === undefined ? {} : { delivered: patch.entregue }),
           ...(patch.invoiceStatus ? { invoiceStatus: patch.invoiceStatus } : {}),
           ...(patch.boletoStatus ? { boletoStatus: patch.boletoStatus } : {}),
@@ -1258,7 +1659,7 @@ export class FirestoreDeliveryDataSource {
           });
         }
         this.assertSessionRequestCurrent(request);
-        this.records.set(id, { ...current, ...patch });
+        this.records.set(id, { ...paymentState, ...patch });
         if (patch.entregue !== undefined && current.entregue !== patch.entregue) {
           this.publishMutatedCompleteDates(request.uid, [current.data], request.generation);
         }

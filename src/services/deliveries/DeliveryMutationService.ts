@@ -5,14 +5,16 @@ import type {
   DeliveryDraft,
   InvoiceStatus,
   PaymentMethod,
+  DeliveryWorkflowMutation,
 } from '@/types/data';
 import type { UserDataSnapshot } from '@/services/data';
 import { asyncStorageCacheService } from '@/services/cache';
 import { userDataService } from '@/services/data';
-import { formatClientName } from '@/utils/data';
+import { formatClientName, todayIso } from '@/utils/data';
 import { DeliveryRepository } from '@/repositories/DeliveryRepository';
 
 import { deliveryNormalizationService } from './DeliveryNormalizationService';
+import { applyDeliveryWorkflowMutation, transitionDeliveryPaymentStatus } from './deliveryRecord';
 
 function createDeliveryId(): string {
   return `delivery-${Date.now().toString(36)}-${Math.floor(Math.random() * 1_000_000).toString(36)}`;
@@ -58,9 +60,12 @@ function draftToDelivery(draft: DeliveryDraft, previous?: Delivery): Delivery {
     ...(draft.boletoStatus !== undefined ? { boletoStatus: draft.boletoStatus } : {}),
     endereco: draft.address.trim(),
   };
-  if (draft.paymentMethod) known.metodoPagamento = draft.paymentMethod;
-  else if (draft.status !== 'Pago') delete known.metodoPagamento;
-  return known;
+  const paymentState = transitionDeliveryPaymentStatus(
+    { ...known, status: previous?.status ?? 'Não Pago' },
+    draft.status,
+  );
+  if (draft.paymentMethod) paymentState.metodoPagamento = draft.paymentMethod;
+  return paymentState;
 }
 
 export class DeliveryMutationService {
@@ -165,11 +170,15 @@ export class DeliveryMutationService {
     if (eligible.length !== selected.size) {
       throw new Error('Somente entregas não pagas e entregues podem ser quitadas.');
     }
+    const paymentDate = todayIso();
     await this.replace(
       snapshot,
       snapshot.entregas.map((delivery) =>
         selected.has(delivery.id)
-          ? { ...delivery, status: 'Pago', metodoPagamento: method }
+          ? {
+              ...transitionDeliveryPaymentStatus(delivery, 'Pago', paymentDate),
+              metodoPagamento: method,
+            }
           : delivery,
       ),
     );
@@ -178,10 +187,65 @@ export class DeliveryMutationService {
   public async editMany(deliveryIds: readonly string[], patch: DeliveryBulkPatch): Promise<void> {
     const snapshot = await this.readSnapshot();
     const selected = new Set(deliveryIds);
-    const deliveries = snapshot.entregas.map((delivery) =>
-      selected.has(delivery.id) ? { ...delivery, ...patch } : delivery,
-    );
+    const paymentDate = todayIso();
+    const deliveries = snapshot.entregas.map((delivery) => {
+      if (!selected.has(delivery.id)) return delivery;
+      const updated = patch.status
+        ? transitionDeliveryPaymentStatus(delivery, patch.status, paymentDate)
+        : delivery;
+      return { ...updated, ...patch };
+    });
     await this.replace(snapshot, deliveries);
+  }
+
+  public async updatePaymentMethod(deliveryId: string, method: PaymentMethod): Promise<void> {
+    if (!['Dinheiro', 'Pix'].includes(method)) throw new Error('Escolha Dinheiro ou Pix.');
+    const snapshot = await this.readSnapshot();
+    const current = snapshot.entregas.find((delivery) => delivery.id === deliveryId);
+    if (!current || current.status !== 'Pago') throw new Error('Entrega paga não encontrada.');
+    await this.replace(
+      snapshot,
+      snapshot.entregas.map((delivery) =>
+        delivery.id === deliveryId ? { ...delivery, metodoPagamento: method } : delivery,
+      ),
+    );
+  }
+
+  public async reverseSettlement(deliveryId: string): Promise<void> {
+    const snapshot = await this.readSnapshot();
+    const current = snapshot.entregas.find((delivery) => delivery.id === deliveryId);
+    if (!current || current.status !== 'Pago') throw new Error('Entrega paga não encontrada.');
+    await this.replace(
+      snapshot,
+      snapshot.entregas.map((delivery) =>
+        delivery.id === deliveryId
+          ? transitionDeliveryPaymentStatus(delivery, 'Não Pago')
+          : delivery,
+      ),
+    );
+  }
+
+  public async updateHistoryWorkflow(
+    deliveryId: string,
+    mutation: DeliveryWorkflowMutation,
+  ): Promise<void> {
+    const snapshot = await this.readSnapshot();
+    const current = snapshot.entregas.find((delivery) => delivery.id === deliveryId);
+    if (!current) throw new Error('Entrega não encontrada.');
+    const updated = applyDeliveryWorkflowMutation(current, mutation);
+    if (
+      current.entregue === updated.entregue &&
+      current.status === updated.status &&
+      current.metodoPagamento === updated.metodoPagamento &&
+      current.dataPagamento === updated.dataPagamento
+    ) {
+      return;
+    }
+
+    await this.replace(
+      snapshot,
+      snapshot.entregas.map((delivery) => (delivery.id === deliveryId ? updated : delivery)),
+    );
   }
 
   public async normalizePastDeliveries(today: string): Promise<void> {

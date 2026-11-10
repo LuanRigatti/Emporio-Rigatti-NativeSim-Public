@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useNavigation, useRouter, type NativeStackNavigationProp } from 'expo-router';
+import { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { getNativeLargeTitleStyle, NativeGlassHeader } from '@/components/layout';
@@ -9,17 +9,54 @@ import HomeShortcutCard from '@/features/home/components/HomeShortcutCard';
 import { useAppSafeAreaInsets } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerLightImpactHaptic } from '@/utils/haptics';
+import {
+  usePendingReturnNavigationIntent,
+  useReleaseNavigationGuardOnWebReturn,
+} from '@/utils/navigation/usePendingReturnNavigationIntent';
 
 export function RegistrarDeliveryLandingScreen() {
   const { theme } = useAppTheme();
   const insets = useAppSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  const isOpeningClientsRef = useRef(false);
+  const requestNavigationIntent = usePendingReturnNavigationIntent({
+    expectedOutgoingRouteNames: ['registrar-entrega/clientes'],
+    navigation,
+    sourceRouteName: 'registrar-entrega',
+  });
+  const releaseWebReturnGuard = useCallback(() => {
+    if (!isOpeningClientsRef.current) return;
+    isOpeningClientsRef.current = false;
+  }, []);
+  useReleaseNavigationGuardOnWebReturn(releaseWebReturnGuard);
   const contentTopInset = theme.spacing.xl + theme.spacing.xxl + theme.spacing.xxs * 2 + 2;
 
+  useEffect(
+    () =>
+      navigation.addListener('transitionEnd', ({ data }) => {
+        if (data.closing && isOpeningClientsRef.current) isOpeningClientsRef.current = false;
+      }),
+    [navigation],
+  );
+
   const handleOpenClients = useCallback(() => {
-    triggerLightImpactHaptic();
-    router.push('/registrar-entrega/clientes');
-  }, [router]);
+    if (isOpeningClientsRef.current) {
+      return;
+    }
+
+    const decision = requestNavigationIntent({
+      key: 'registrar_clients',
+      execute: (deferred) => {
+        if (isOpeningClientsRef.current) return;
+        isOpeningClientsRef.current = true;
+        if (!deferred) triggerLightImpactHaptic();
+        router.push('/registrar-entrega/clientes');
+      },
+    });
+
+    if (decision === 'pending') triggerLightImpactHaptic();
+  }, [requestNavigationIntent, router]);
 
   const largeTitle = (
     <NativeGlassHeader

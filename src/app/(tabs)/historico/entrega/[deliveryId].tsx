@@ -52,7 +52,6 @@ export default function WidgetDeliveryConfirmationRoute() {
   useEffect(() => {
     currentSession.current = { uid: user?.id ?? null, sessionVersion };
   }, [sessionVersion, user?.id]);
-
   const runCompletion = async () => {
     if (actionInFlight.current || !user?.id || !delivery || delivery.entregue || !requestedDate) {
       return;

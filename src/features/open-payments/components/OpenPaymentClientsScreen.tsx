@@ -54,6 +54,12 @@ export function OpenPaymentClientsScreen({
     testModeEnabled,
     totalOpenAmount,
   } = useOpenPaymentClients();
+  const handleMarkDeliveryPaid = useCallback(
+    (deliveryId: string) => {
+      markDeliveryPaid(deliveryId);
+    },
+    [markDeliveryPaid],
+  );
   const bulkActionPhase = useRef<'idle' | 'previewing' | 'confirming' | 'committing' | 'notice'>(
     'idle',
   );
@@ -145,7 +151,11 @@ export function OpenPaymentClientsScreen({
 
         Alert.alert(
           'Marcar todas como pagas?',
-          `${pending.clientName}\n\n${pending.eligibleCount} entregas pendentes\nTotal: ${formatCurrency(pending.totalCents / 100)}\n\nA confirmação marcará somente o status como Pago.`,
+          [
+            pending.clientName,
+            `${pending.eligibleCount} entregas pendentes\nTotal: ${formatCurrency(pending.totalCents / 100)}`,
+            'A confirmação marcará como Pago e registrará a data do recebimento. Este fluxo não coleta o método; você poderá completá-lo pelo Histórico.',
+          ].join('\n\n'),
           [
             {
               text: 'Cancelar',
@@ -365,7 +375,7 @@ export function OpenPaymentClientsScreen({
         clients={clientCards}
         paymentHistoryError={paymentHistoryError}
         paymentHistoryLoading={paymentHistoryLoading}
-        onMarkAsPaid={markDeliveryPaid}
+              onMarkAsPaid={handleMarkDeliveryPaid}
         onMarkAllAsPaid={bulkPaymentsEnabled ? markAllClientDeliveriesPaid : undefined}
         nativePreviewEnabled={nativeHeader}
         testModeEnabled={testModeEnabled}

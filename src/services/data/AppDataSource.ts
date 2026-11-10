@@ -38,6 +38,7 @@ export function toHistoryDelivery(delivery: Delivery): HistoryDelivery {
     formaPagamento: delivery.metodoPagamento ?? '',
     id: delivery.id,
     observacoes: delivery.observacao ?? '',
+    paymentStatus: delivery.status === 'Pago' ? 'Pago' : 'Não Pago',
     quantidadeBaldes: delivery.quantidade,
     status: delivery.entregue ? ('concluída' as const) : 'pendente',
     valor: formatCurrency(delivery.valor),

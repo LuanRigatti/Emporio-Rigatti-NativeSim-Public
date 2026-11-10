@@ -136,8 +136,8 @@ function RouteTrackingLiveActivity(
         </HStack>
       </VStack>
     ),
-    compactLeading: navigationIcon(18),
-    compactTrailing: brandMark(24),
+    compactLeading: brandMark(24),
+    compactTrailing: navigationIcon(18),
     minimal: navigationIcon(16),
     expandedLeading: brandMark(34),
     expandedTrailing: navigationIcon(18),

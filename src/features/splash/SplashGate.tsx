@@ -47,7 +47,6 @@ export function SplashGate() {
     }
 
     hideStartedRef.current = true;
-
     void SplashScreen.hideAsync()
       .catch(() => {
         SplashScreen.hide();

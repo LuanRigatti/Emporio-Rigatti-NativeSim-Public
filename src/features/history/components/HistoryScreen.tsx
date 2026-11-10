@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Stack, useFocusEffect } from 'expo-router';
 
 import { NativeGlassHeader } from '@/components/layout';
@@ -9,13 +9,15 @@ import {
   renderNativeDateToolbarItems,
 } from '@/components/native';
 import { GlassCard, ProgressiveCollapsibleScreen } from '@/components/premium';
-import { useAppSafeAreaInsets } from '@/providers';
+import { useAppSafeAreaInsets, useAuth } from '@/providers';
 import { useAppTheme } from '@/theme';
 import { triggerSelectionHaptic } from '@/utils/haptics';
-import { toHistoryDelivery } from '@/services/data';
 import { useDeliveries } from '@/hooks/useDeliveries';
-import { todayIso } from '@/utils/data';
+import type { Delivery, DeliveryPaymentSelection } from '@/types/data';
+import { formatCurrency, todayIso } from '@/utils/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import { toHistoryDelivery } from '@/services/data';
+import HistoryPaymentSheet from './HistoryPaymentSheet';
 
 import { DeliveryCard } from './DeliveryCard';
 import { EmptyState } from './EmptyState';
@@ -23,11 +25,13 @@ import { HistoryCompactDeliveryCard } from './HistoryCompactDeliveryCard';
 import type { HistoryFilter } from './FilterChips';
 import {
   createWholesaleHistoryWeekGroups,
+  createStableListReferenceResolver,
   formatHistoryDayHeading,
   getHistoryMonthRange,
   getWholesaleHistoryWeekRange,
   groupHistoryDeliveriesByDate,
 } from '../utils/historyPeriodUtils';
+import { createHistoryDeliveryProjector } from '../utils/historyDeliveryProjection';
 
 type HistoryViewMode = 'day' | 'week' | 'month';
 
@@ -52,10 +56,26 @@ function filterDayDeliveries<T extends { status: string }>(
   return deliveries.filter((delivery) => delivery.status !== 'pendente');
 }
 
+function getPaymentSelection(delivery: Delivery): DeliveryPaymentSelection {
+  if (delivery.status !== 'Pago') return 'Não Pago';
+  return delivery.metodoPagamento === 'Pix' || delivery.metodoPagamento === 'Dinheiro'
+    ? delivery.metodoPagamento
+    : 'Pix';
+}
+
+function hasKnownPaymentMethod(delivery: Delivery | undefined): boolean {
+  return delivery?.metodoPagamento === 'Pix' || delivery?.metodoPagamento === 'Dinheiro';
+}
+
 export function HistoryScreen() {
+  const { sessionVersion, user } = useAuth();
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, theme } = useAppTheme();
-  const { enabled: testModeEnabled, quantity: maskQuantity } = useTestModePresentation();
+  const {
+    enabled: testModeEnabled,
+    quantity: maskQuantity,
+    text: maskText,
+  } = useTestModePresentation();
   const [selectedDate, setSelectedDate] = useState(() => todayIso());
   const [viewMode, setViewMode] = useState<HistoryViewMode>('day');
   const {
@@ -63,9 +83,33 @@ export function HistoryScreen() {
     remove: removeDelivery,
     deliveries,
     setDelivered,
-    toggleDelivered: toggleDelivery,
+    updateHistoryWorkflow,
   } = useDeliveries({ mode: 'all' }, { scope: 'historical' });
-  const allDeliveries = useMemo(() => deliveries.map(toHistoryDelivery), [deliveries]);
+  const [settlementDeliveryId, setSettlementDeliveryId] = useState<string | null>(null);
+  const [settlementDelivered, setSettlementDelivered] = useState(false);
+  const [settlementPaymentSelection, setSettlementPaymentSelection] =
+    useState<DeliveryPaymentSelection>('Não Pago');
+  const [settlementPaymentSelectionChanged, setSettlementPaymentSelectionChanged] = useState(false);
+  const [settlementError, setSettlementError] = useState<string | undefined>();
+  const [settlementSaving, setSettlementSaving] = useState(false);
+  const settlementSavingRef = useRef(false);
+  const settlementDelivery = deliveries.find(({ id }) => id === settlementDeliveryId);
+  const resolveStableDeliveryItems = useMemo(
+    () => createStableListReferenceResolver<Delivery>(),
+    [],
+  );
+  const stableDeliveryItems = useMemo(
+    () => resolveStableDeliveryItems(deliveries),
+    [deliveries, resolveStableDeliveryItems],
+  );
+  const historySessionScopeKey = `${user?.id ?? 'signed-out'}:${sessionVersion}`;
+  const projectHistoryDeliveries = useMemo(
+    () => createHistoryDeliveryProjector(toHistoryDelivery, historySessionScopeKey),
+    [historySessionScopeKey],
+  );
+  const allDeliveries = useMemo(() => {
+    return projectHistoryDeliveries(stableDeliveryItems, historySessionScopeKey).items;
+  }, [historySessionScopeKey, projectHistoryDeliveries, stableDeliveryItems]);
   const selectedWeek = useMemo(() => getWholesaleHistoryWeekRange(selectedDate), [selectedDate]);
   const weekGroups = useMemo(
     () => createWholesaleHistoryWeekGroups(selectedWeek.weekYear),
@@ -104,13 +148,19 @@ export function HistoryScreen() {
     setSelectedFilter('Todos');
   }, []);
 
-  const handleToggleStatus = useCallback(
+  const handleOpenStatusSheet = useCallback(
     (deliveryId: string) => {
       if (testModeEnabled) return;
       triggerSelectionHaptic();
-      void toggleDelivery(deliveryId);
+      const delivery = deliveries.find((item) => item.id === deliveryId);
+      if (!delivery) return;
+      setSettlementDeliveryId(deliveryId);
+      setSettlementDelivered(delivery.entregue);
+      setSettlementPaymentSelection(getPaymentSelection(delivery));
+      setSettlementPaymentSelectionChanged(false);
+      setSettlementError(undefined);
     },
-    [testModeEnabled, toggleDelivery],
+    [deliveries, testModeEnabled],
   );
 
   const handleMarkDelivered = useCallback(
@@ -120,6 +170,63 @@ export function HistoryScreen() {
       void setDelivered(deliveryId, true);
     },
     [setDelivered, testModeEnabled],
+  );
+
+  const handleCloseSettlement = useCallback(() => {
+    if (settlementSavingRef.current) return;
+    setSettlementDeliveryId(null);
+    setSettlementPaymentSelection('Não Pago');
+    setSettlementPaymentSelectionChanged(false);
+    setSettlementError(undefined);
+  }, []);
+
+  const handlePaymentSelectionChange = useCallback((selection: DeliveryPaymentSelection) => {
+    setSettlementPaymentSelection(selection);
+    setSettlementPaymentSelectionChanged(true);
+  }, []);
+
+  const handleConfirmSettlement = useCallback(
+    async (paymentReversalConfirmed: boolean) => {
+      if (!settlementDelivery || settlementSavingRef.current) return;
+      settlementSavingRef.current = true;
+      setSettlementSaving(true);
+      setSettlementError(undefined);
+      try {
+        await updateHistoryWorkflow(settlementDelivery.id, {
+          delivered: settlementDelivered,
+          expected: {
+            dataPagamento: settlementDelivery.dataPagamento,
+            entregue: settlementDelivery.entregue,
+            metodoPagamento: settlementDelivery.metodoPagamento,
+            status: settlementDelivery.status,
+          },
+          paymentReversalConfirmed,
+          paymentSelection: settlementPaymentSelection,
+          paymentSelectionChanged:
+            settlementPaymentSelectionChanged ||
+            (settlementDelivery.status === 'Pago' &&
+              !hasKnownPaymentMethod(settlementDelivery) &&
+              settlementDelivered === settlementDelivery.entregue),
+        });
+        setSettlementDeliveryId(null);
+        setSettlementPaymentSelection('Não Pago');
+        setSettlementPaymentSelectionChanged(false);
+      } catch (error) {
+        setSettlementError(
+          error instanceof Error ? error.message : 'Não foi possível salvar os estados da entrega.',
+        );
+      } finally {
+        settlementSavingRef.current = false;
+        setSettlementSaving(false);
+      }
+    },
+    [
+      settlementDelivery,
+      settlementDelivered,
+      settlementPaymentSelection,
+      settlementPaymentSelectionChanged,
+      updateHistoryWorkflow,
+    ],
   );
 
   const handleDeleteDelivery = useCallback(
@@ -135,7 +242,8 @@ export function HistoryScreen() {
     return (
       <>
         <Animated.View
-          entering={FadeIn.duration(reduceMotionEnabled ? 0 : theme.animations.duration.standard)}
+          key={selectedDate}
+          entering={FadeIn.duration(reduceMotionEnabled ? 0 : 150)}
           style={[
             styles.list,
             {
@@ -148,38 +256,24 @@ export function HistoryScreen() {
         >
           {visibleDeliveries.length > 0 ? (
             visibleDeliveries.map((delivery) => (
-              <Animated.View
-                entering={FadeIn.duration(
-                  reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-                )}
-                key={delivery.id}
-                layout={LinearTransition.duration(
-                  reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-                )}
-                style={styles.fullWidth}
-              >
+              <View key={delivery.id} style={styles.fullWidth}>
                 <DeliveryCard
                   contained
                   delivery={delivery}
                   onDelete={() => handleDeleteDelivery(delivery.id)}
                   onMarkDelivered={() => handleMarkDelivered(delivery.id)}
-                  onToggleStatus={() => handleToggleStatus(delivery.id)}
+                  onOpenStatusSheet={() => handleOpenStatusSheet(delivery.id)}
                 />
-              </Animated.View>
+              </View>
             ))
           ) : (
-            <Animated.View
-              entering={FadeInDown.duration(
-                reduceMotionEnabled ? 0 : theme.animations.duration.standard,
-              )}
-              style={styles.emptyState}
-            >
+            <View style={styles.emptyState}>
               <GlassCard
                 style={[styles.emptyCard, { borderRadius: theme.radius.xl + theme.spacing.md }]}
               >
                 <EmptyState />
               </GlassCard>
-            </Animated.View>
+            </View>
           )}
         </Animated.View>
       </>
@@ -187,8 +281,9 @@ export function HistoryScreen() {
   }, [
     handleDeleteDelivery,
     handleMarkDelivered,
-    handleToggleStatus,
+    handleOpenStatusSheet,
     reduceMotionEnabled,
+    selectedDate,
     selectedPeriodDeliveries,
     theme,
   ]);
@@ -395,6 +490,22 @@ export function HistoryScreen() {
       >
         {dayContent}
       </ProgressiveCollapsibleScreen>
+      <HistoryPaymentSheet
+        amount={settlementDelivery ? maskText(formatCurrency(settlementDelivery.valor)) : ''}
+        clientName={settlementDelivery?.cliente ?? ''}
+        delivered={settlementDelivered}
+        error={settlementError}
+        isPaid={settlementDelivery?.status === 'Pago'}
+        paymentSelection={settlementPaymentSelection}
+        saving={settlementSaving}
+        visible={settlementDeliveryId !== null}
+        onCancel={handleCloseSettlement}
+        onConfirm={(paymentReversalConfirmed) =>
+          void handleConfirmSettlement(paymentReversalConfirmed)
+        }
+        onDeliveredChange={setSettlementDelivered}
+        onPaymentSelectionChange={handlePaymentSelectionChange}
+      />
     </Animated.View>
   );
 }

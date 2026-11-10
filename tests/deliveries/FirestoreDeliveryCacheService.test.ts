@@ -68,4 +68,20 @@ describe('FirestoreDeliveryCacheService', () => {
 
     await expect(cache.read('uid-1', '2026-08-12')).resolves.toEqual([legacyDelivery]);
   });
+
+  it('keeps payment method and effective date available after a cache reload', async () => {
+    const cache = new FirestoreDeliveryCacheService();
+    const paidDelivery = {
+      ...delivery,
+      dataPagamento: '2026-11-07',
+      metodoPagamento: 'Dinheiro' as const,
+      status: 'Pago' as const,
+    };
+
+    await cache.write('uid-1', '2026-08-12', [paidDelivery]);
+    const serialized = jest.mocked(AsyncStorage.setItem).mock.calls[0]?.[1];
+    jest.mocked(AsyncStorage.getItem).mockResolvedValue(serialized as string);
+
+    await expect(cache.read('uid-1', '2026-08-12')).resolves.toEqual([paidDelivery]);
+  });
 });

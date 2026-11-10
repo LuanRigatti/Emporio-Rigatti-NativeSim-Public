@@ -9,6 +9,7 @@ export default function NativeAnimatedNumberNative({
   alignment = 'leading',
   color,
   animationEnabled = true,
+  animateFirstValue,
   fontSize = 32,
   fontWeight = 'bold',
   horizontalSizing = 'intrinsic',
@@ -28,6 +29,7 @@ export default function NativeAnimatedNumberNative({
     return (
       <NativeImplementation
         alignment={alignment}
+        animateFirstValue={animateFirstValue}
         color={color}
         animationEnabled={animationEnabled}
         fontSize={fontSize}

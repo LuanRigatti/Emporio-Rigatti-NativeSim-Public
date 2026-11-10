@@ -1,5 +1,86 @@
-import type { Delivery, DeliveryDraft } from '@/types/data';
-import { formatClientName } from '@/utils/data';
+import type {
+  Delivery,
+  DeliveryDraft,
+  DeliveryWorkflowMutation,
+  DeliveryWorkflowExpectedState,
+} from '@/types/data';
+import { formatClientName, todayIso } from '@/utils/data';
+
+export function transitionDeliveryPaymentStatus(
+  delivery: Delivery,
+  status: 'Pago' | 'Não Pago',
+  paymentDate = todayIso(),
+): Delivery {
+  const next = { ...delivery, status };
+  if (status === 'Pago') {
+    if (delivery.status !== 'Pago') {
+      delete next.metodoPagamento;
+      next.dataPagamento = paymentDate;
+    }
+  } else {
+    delete next.metodoPagamento;
+    delete next.dataPagamento;
+  }
+  return next;
+}
+
+export function applyDeliveryWorkflowMutation(
+  delivery: Delivery,
+  mutation: DeliveryWorkflowMutation,
+  paymentDate = todayIso(),
+): Delivery {
+  const expected: DeliveryWorkflowExpectedState = mutation.expected;
+  if (
+    delivery.entregue !== expected.entregue ||
+    delivery.status !== expected.status ||
+    delivery.metodoPagamento !== expected.metodoPagamento ||
+    delivery.dataPagamento !== expected.dataPagamento
+  ) {
+    throw new Error('A entrega ou o pagamento mudou. Atualize e tente novamente.');
+  }
+
+  const reversesConfirmedPayment =
+    mutation.paymentSelectionChanged &&
+    delivery.status === 'Pago' &&
+    mutation.paymentSelection === 'Não Pago';
+  if (reversesConfirmedPayment && !mutation.paymentReversalConfirmed) {
+    throw new Error('Confirme explicitamente para desfazer o pagamento.');
+  }
+
+  if (
+    mutation.paymentSelectionChanged &&
+    mutation.paymentSelection !== 'Não Pago' &&
+    delivery.status !== 'Pago' &&
+    !mutation.delivered
+  ) {
+    throw new Error('Marque a entrega como Entregue antes de registrar o pagamento.');
+  }
+
+  if (!mutation.paymentSelectionChanged) {
+    return { ...delivery, entregue: mutation.delivered };
+  }
+
+  if (mutation.paymentSelection === 'Não Pago') {
+    return {
+      ...transitionDeliveryPaymentStatus(delivery, 'Não Pago'),
+      entregue: mutation.delivered,
+    };
+  }
+
+  if (delivery.status === 'Pago') {
+    return {
+      ...delivery,
+      entregue: mutation.delivered,
+      metodoPagamento: mutation.paymentSelection,
+    };
+  }
+
+  return {
+    ...transitionDeliveryPaymentStatus(delivery, 'Pago', paymentDate),
+    entregue: mutation.delivered,
+    metodoPagamento: mutation.paymentSelection,
+  };
+}
 
 function createDeliveryId(): string {
   return `delivery-${Date.now().toString(36)}-${Math.floor(Math.random() * 1_000_000).toString(36)}`;
@@ -46,7 +127,10 @@ export function createDeliveryFromDraft(draft: DeliveryDraft, previous?: Deliver
     ...(draft.boletoStatus !== undefined ? { boletoStatus: draft.boletoStatus } : {}),
     endereco: draft.address.trim(),
   };
-  if (draft.paymentMethod) known.metodoPagamento = draft.paymentMethod;
-  else if (draft.status !== 'Pago') delete known.metodoPagamento;
-  return known;
+  const paymentState = transitionDeliveryPaymentStatus(
+    { ...known, status: previous?.status ?? 'Não Pago' },
+    draft.status,
+  );
+  if (draft.paymentMethod) paymentState.metodoPagamento = draft.paymentMethod;
+  return paymentState;
 }

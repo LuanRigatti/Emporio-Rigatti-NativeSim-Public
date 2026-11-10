@@ -1,5 +1,12 @@
 # Arquitetura de componentes nativos
 
+> **Nota de versão:** esta página contém decisões gerais da arquitetura e
+> registros específicos do SDK 54. As limitações do SDK 54 abaixo são
+> históricas e não descrevem automaticamente o SDK 58 instalado neste checkout.
+> Para disponibilidade atual, confira a implementação em `src/components/native`,
+> `docs/current-state.md` e a documentação oficial versionada do SDK 58:
+> https://docs.expo.dev/versions/v58.0.0/.
+
 ## Objetivo
 
 O aplicativo possui uma camada única de componentes nativos com três apresentações:
@@ -47,7 +54,7 @@ No Expo Go, o módulo `ExpoUI` não está disponível e a implementação SwiftU
 | ------------------------ | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------- |
 | `NativeMenu`             | SwiftUI `ContextMenu`, SF Symbols e transição nativa                                                  | `Link.Menu` quando há `href`; caso contrário `ActionSheetIOS`/alerta | Menu acessível para teclado e mouse |
 | `NativeSheet`            | SwiftUI `BottomSheet`                                                                                 | fallback `BottomSheet` existente                                     | painel com `Modal` acessível        |
-| `NativeDialog`           | `Alert`/`ConfirmationDialog` não estão expostos na versão beta instalada do SDK 54; usa `Alert.alert` | `Alert.alert`                                                        | diálogo acessível                   |
+| `NativeDialog`           | `Alert.alert` via `NativeDialogExpo` (a implementação nativa delega a esse fallback)               | `Alert.alert`                                                        | diálogo acessível                   |
 | `NativePicker`           | SwiftUI `Picker` com variante `menu`                                                                  | `ActionSheetIOS` ou alerta                                           | controle acessível de fallback      |
 | `NativeSegmentedControl` | SwiftUI `Picker` com variante `segmented`                                                             | controle do Design System                                            | fallback acessível                  |
 | `NativeList`             | SwiftUI `List` para listas pequenas                                                                   | `FlatList`                                                           | `FlatList`                          |
@@ -77,7 +84,11 @@ A rota temporária é:
 
 Ela é acessível pelo link temporário `Native Components Showcase` na Home durante o desenvolvimento e não foi adicionada à Native Tab Bar.
 
-## Limitações do SDK 54
+## Histórico: limitações do SDK 54
+
+Os itens abaixo registram o estado observado na versão beta do SDK 54. Não os
+use para concluir disponibilidade ou limitação de APIs no SDK 58; consulte a
+implementação ativa e a documentação versionada atual.
 
 - `@expo/ui/swift-ui` exige Development Build no SDK 54.
 - `@expo/ui@0.2.0-beta.9` nao exporta `Menu`; exporta `ContextMenu`. Por isso `NativeGlassMenu` usa `ContextMenu activationMethod="singlePress"` no iOS Development Build.

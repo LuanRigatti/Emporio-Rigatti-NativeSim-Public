@@ -18,5 +18,6 @@ export type NativeAnimatedNumberProps = {
   horizontalSizing?: NativeAnimatedNumberHorizontalSizing;
   ignoreSafeArea?: 'all';
   animationEnabled?: boolean;
+  animateFirstValue?: boolean;
   style?: StyleProp<TextStyle>;
 };

@@ -17,12 +17,1336 @@ O projeto possui cinco branches oficiais, cada uma com seu checkout local:
 - `main` — `C:\Projetos\emporiorigatti-main`
 
 `Codex` foi criada a partir do commit `8c5092e`; a tag `sdk57-pre-sdk58`
-preserva o baseline anterior à migração. Este snapshot operacional foi revisado
-em 2026-10-21 na branch `Codex`. As versões verificadas em `package.json` são:
-Expo SDK 58 (`expo ~58.0.12`), React `19.3.0`, React Native `0.88.0`, Expo
-Router `~58.0.21`, `@expo/ui ~58.0.19` e `expo-widgets ~58.0.19`. Confirme o
-HEAD e o estado do working tree diretamente no Git; este documento não fixa o
-SHA atual.
+preserva o baseline anterior à migração. As versões atuais verificadas em
+`package.json` são Expo SDK 58 (`expo ~58.0.23`), React `19.3.0`, React Native
+`0.88.1`, Expo Router `~58.0.30`, `@expo/ui ~58.0.27` e `expo-widgets
+~58.0.27`. Confirme o HEAD e o estado do working tree diretamente no Git; este
+documento não fixa o SHA atual.
+
+## Estado operacional atual (consolidado em 2026-11-09)
+
+- O usuário informou que o cache de apresentação v2 foi validado no iPhone e
+  publicado. Ele restaura em conjunto os seis cards e comparações, enquanto as
+  consultas remotas existentes continuam revalidando os dados. AsyncStorage não
+  é criptografado; o registro contém somente agregados e comparações exibidos.
+- A Etapa 2.2.13 remove os eventos `[STAGE2_BASELINE]`, spans e contadores
+  temporários de telas, hooks e datasources. As seções históricas abaixo mantêm
+  os resultados e evidências coletados antes da remoção, não a instrumentação
+  ativa do checkout atual.
+- Permanecem os listeners de transição, foco, estado e gesto usados pelo ciclo
+  funcional das intenções pendentes de navegação. Eles continuam protegendo a
+  navegação e não emitem logs de baseline.
+- A atualização do Expo SDK 58 foi consolidada na Etapa 2.3.3. Em 2026-11-09,
+  `package.json` e a instalação foram conferidos: Expo `~58.0.23`, React
+  `19.3.0`, React Native `0.88.1`, Expo Router `~58.0.30`, `@expo/ui ~58.0.27`
+  e `expo-widgets ~58.0.27`. `npm ls --depth=0`, `npx expo install --check` e
+  `npx expo-doctor` (20/20) passaram. A documentação oficial consultada
+  apresentava o SDK 58 como a versão estável atual; a compatibilidade do SDK
+  não significa que cada dependência de terceiros seja a versão mais recente.
+  Nenhuma atualização de dependências foi feita nesta revisão documental.
+- A auditoria npm registrada nas Etapas 2.3.2–2.3.3 é de 2026-11-07 e aponta
+  40 avisos (1 crítico); não foi reexecutada em 2026-11-09. A validação física
+  nativa continua pendente até haver Mac e assinatura Apple Developer. O fluxo
+  financeiro, o cache v2, cálculos, consultas, animações, navegação e layout
+  permanecem conforme as seções operacionais abaixo.
+
+## Etapa 2.3.1 — atualização de dependências Expo SDK 58 (2026-11-07)
+
+- Atualizada a matriz aprovada de 30 dependências Expo/React Native para o SDK
+  58.0.23, incluindo React Native `0.88.1`, Expo Router `~58.0.30`,
+  `@expo/ui ~58.0.27` e `expo-widgets ~58.0.27`. `jest-expo` foi alinhado a
+  `~58.0.14`; o peer `@react-native/jest-preset` foi atualizado adicionalmente
+  de `0.88.0` para `0.88.1`, pois a versão nova do `jest-expo` exige `^0.88.1`.
+- Cinco módulos que já estavam resolvendo para a versão recomendada passaram a
+  declarar esses mínimos no manifesto: `@expo/metro-runtime ~58.0.17`,
+  `expo-constants ~58.0.15`, `expo-file-system ~58.0.13`, `expo-font ~58.0.11`
+  e `expo-widgets ~58.0.27`.
+- O `postinstall` havia falhado porque `@expo/ui` 58.0.27 renomeou o conteúdo da
+  closure de sheet para `presentedContent`. O localizador de
+  `scripts/patch-expo-ui-bottom-sheet.js` agora aceita os nomes anterior e
+  atual, preservando o mesmo `.ignoresSafeArea(.container, edges: .bottom)`.
+  Os plugins CNG continuam aplicando as mesmas transformações; seus guardas de
+  versão e o teste de template foram alinhados a `expo-widgets 58.0.27` após
+  verificar que os templates Swift e a ordem das transformações continuam
+  compatíveis.
+- `npx expo install --check`, `npx expo-doctor` (20/20), `npm ls --depth=0`,
+  TypeScript, ESLint direcionado e `git diff --check` passaram. Os testes
+  direcionados de widgets e Live Activities passaram: 12 suítes e 90 testes.
+  A seleção ampliada passou 27 de 30 suítes (261 de 272 testes); dez falhas
+  correspondem às duas dívidas de mocks já documentadas na validação anterior.
+  Uma falha adicional em `RegistrarDailyDataSheetPresentation.test.ts` compara
+  texto LF com dois arquivos CRLF que estão byte-equivalentes ao HEAD; não houve
+  alteração neles nesta atualização.
+- A instalação reportou 40 entradas de pacotes vulneráveis no npm audit (1
+  crítica) e avisou que quatro scripts de instalação transitivos não estavam
+  na allow-list local. A triagem da Etapa 2.3.2 confirmou que o aviso crítico
+  `shell-quote` está no grafo do React Native/DevTools, mas o consumidor
+  instalado não referencia a API vulnerável; os demais alertas concentram-se
+  em ferramentas, CNG e caminhos Node que não fazem parte do bundle Firestore
+  React Native. Nenhuma correção automática ou aprovação de scripts foi feita;
+  os advisories continuam registrados para uma correção de dependências
+  avaliada separadamente.
+- Uma nova iOS Development Build será necessária antes da validação física:
+  houve atualização de React Native, Expo Modules, `@expo/ui`, widgets e
+  dependências Swift/Hermes. Nenhum build ou prebuild foi executado nesta etapa.
+  A revisão automatizada não substitui a verificação no iPhone de Bottom Sheets,
+  NativeTabs, widgets, Live Activities, Login Google e animações SwiftUI.
+
+## Etapa 2.3.2 — triagem de segurança e preparação iOS (2026-11-07)
+
+- `npm audit` reportou 40 entradas de pacotes vulneráveis: 1 crítica, 8 altas,
+  30 moderadas e 1 baixa. `npm audit --omit=dev` reportou 13 entradas no grafo
+  sem dependências de desenvolvimento: 1 crítica, 7 altas e 5 moderadas. São
+  entradas afetadas do grafo npm, não 40 CVEs distintos nem prova de que todos
+  os pacotes sejam incluídos no IPA.
+- `shell-quote@1.10.0` chega por `react-devtools-core@6.1.5` →
+  `react-native@0.88.1`. O advisory GHSA-pqg4-j6r4-53mv afeta `quote()` quando
+  um token de comentário é seguido por uma string controlada por atacante com
+  quebra de linha e o resultado é enviado a um shell. A busca no pacote
+  instalado encontrou só a declaração no `package.json`, sem chamada à API
+  vulnerável. O alerta crítico permanece no grafo; não foi corrigido nesta
+  etapa.
+- Os alertas de `@grpc/grpc-js` descrevem configuração de servidor mTLS; a
+  entrada React Native do Firestore não referencia gRPC, e o app importa
+  `firebase/firestore` modular, sem uso de `firebase/compat`. Os alertas de
+  `@xmldom/xmldom`, `glob`, `minimatch`, `brace-expansion` e `js-yaml` estão
+  ligados a parsing/XML ou padrões de ferramentas e configuração, não a
+  operações financeiras do app. Os alertas adicionais exclusivamente de
+  desenvolvimento incluem Jest, ESLint/typescript-eslint, `zod` e `deepmerge`.
+- Os quatro scripts transitivos foram inspecionados e não foram aprovados nem
+  executados: `@firebase/util` gera configuração Firebase opcional a partir de
+  `FIREBASE_WEBAPP_CONFIG` e pode consultar a API de configuração Web se essa
+  variável contiver um projeto não demo; `@parcel/watcher` só compila de source
+  com `npm_config_build_from_source=true`; `protobufjs` verifica compatibilidade
+  de versão do consumidor; `unrs-resolver` prepara o binding N-API opcional da
+  plataforma. O lockfile contém bindings Darwin opcionais para o build Mac; os
+  outros scripts não são necessários para o CNG do app nas condições
+  observadas. O `.npmrc` do projeto não existe e nenhuma allow-list foi
+  alterada.
+- `npx expo install --check` passou. A validação anterior da Etapa 2.3.1
+  registra Expo Doctor 20/20; nesta etapa, TypeScript e duas suítes sintéticas
+  de plugins CNG passaram (12 testes). ESLint direcionado sinalizou apenas
+  `__dirname` como `no-undef` no script CommonJS de patch; essa referência já
+  existia no HEAD. O audit npm continua com advisories não corrigidos.
+- O perfil `development` em `eas.json` usa `developmentClient: true` e
+  `distribution: internal`, adequado à Development Build física. O checkout
+  usa CNG e não contém `ios/`; o EAS Build gerará o projeto nativo a partir de
+  `app.config.js` e dos plugins. `expo-widgets@58.0.27` coincide com a versão
+  recomendada na documentação do SDK 58; os plugins próprios verificam essa
+  versão e o patch de `@expo/ui@58.0.27` tem testes sintéticos aprovados.
+  Nenhum prebuild ou build foi iniciado nesta etapa.
+- O SDK 58 requer iOS 16.4+ e Xcode 26.4+; o perfil não fixa imagem iOS, então
+  o EAS escolhe automaticamente uma imagem compatível com SDK/RN. A próxima
+  validação física deve usar o perfil `development`, confirmar dispositivo e
+  credenciais Apple no EAS e verificar o destino Firebase antes de testar
+  operações que gravem dados. A configuração padrão aponta para
+  `GoogleService-Info.plist`; seu conteúdo não foi aberto nesta triagem.
+
+## Etapa 2.3.3 — consolidação Expo SDK 58 (2026-11-07)
+
+- O manifesto e o lockfile contêm as 30 atualizações aprovadas para Expo SDK
+  58.0.23; `@react-native/jest-preset` foi adicionalmente alinhado a `0.88.1`
+  por exigência do `jest-expo`. React `19.3.0`, Firebase `12.16.0`, navegação,
+  código funcional e cache financeiro v2 não foram alterados nesta atualização.
+- `npx expo install --check`, `npx expo-doctor` (20/20), `npm ls --depth=0`,
+  TypeScript e `git diff --check` passaram. As 12 suítes direcionadas de CNG,
+  widgets e Live Activities passaram: 94 testes. A suíte
+  `FirestoreDeliveryLiveActivitySnapshots.test.ts` permanece com 7 de 8 casos
+  falhando: os mocks omitem `metadata.hasPendingWrites`, necessário para o
+  datasource classificar a consulta como completa; esse problema já está
+  documentado e não foi alterado nesta etapa. ESLint direto ainda relata
+  `__dirname` como `no-undef` no script CommonJS, embora a linha já existisse
+  no HEAD; a verificação dirigida passou ao declarar o global Node `__dirname`.
+- Permanecem os 40 alertas npm (1 crítico), conforme triagem da Etapa 2.3.2.
+  Não foram executados `npm audit fix`, overrides ou atualizações adicionais.
+- O desenvolvimento continua no Windows para alterações JS/TS e validações
+  locais. Nenhum build, prebuild ou deploy iOS foi executado. O usuário ainda
+  não possui Mac nem assinatura Apple Developer; a Development Build será
+  iniciada quando houver acesso ao Mac e aos requisitos de assinatura. Ela
+  será necessária antes da validação nativa completa no iPhone. Até lá, o
+  projeto está pronto para continuar o desenvolvimento normal no Windows.
+
+## Etapa 2.3.4 — pagamento nos cards do Histórico Atacado (2026-11-07)
+
+- O documento canônico continua sendo `users/{uid}/deliveries/{deliveryId}`.
+  `totalValue` continua sendo o valor da entrega, `date` continua sendo a data
+  original da entrega e `paymentMethod` mantém o método real (`Pix` ou
+  `Dinheiro`) quando conhecido. O novo campo opcional `paymentDate` guarda a
+  data efetiva do recebimento em `YYYY-MM-DD`; no domínio ele é exposto como
+  `dataPagamento` e trafega também pelos caches existentes de Delivery. Uma
+  futura Finanças poderá ler esses campos no mesmo documento e agrupar por
+  `paymentDate` e `paymentMethod`, usando `totalValue` como valor recebido.
+- Os registros antigos sem método/data permanecem sem esses campos. O Histórico
+  os identifica como “Não informado”; corrigir o método não inventa a data. A
+  implementação em lote registra a data, mas não infere método; essa alteração
+  de Cloud Function ainda precisa ser implantada para valer no ambiente remoto.
+  Sua confirmação informa que o método pode ser completado pelo Histórico. Não
+  há coleção de pagamentos redundante nem alteração em cálculos, lucro, Retail
+  ou relatórios.
+- O Histórico usa `@expo/ui/swift-ui` BottomSheet com `fitToContents`, Picker
+  segmentado e ConfirmationDialog. O material de apresentação permanece o
+  material nativo do sistema (Liquid Glass no iOS 26), sem fundo RN simulado.
+- `npm run typecheck`, ESLint direcionado, 62 testes em quatro suítes de Jest,
+  o teste direcionado de `DeliveryServices`, os 13 testes da Cloud Function e
+  `git diff --check` passaram. A suíte completa de `DeliveryServices` ainda tem
+  uma falha preexistente de expectativa de ordenação de boleto: espera
+  `legacy-open` antes de `custom-boleto-open`, enquanto o sort atual ordena pelo
+  nome do cliente. O teste e o serviço de ordenação não foram alterados nesta
+  etapa. ESLint foi executado com a regra Prettier desabilitada devido às
+  terminações CRLF presentes em arquivos rastreados; os arquivos LF revisados
+  também passaram no Prettier.
+- A verificação visual em iPhone permanece pendente. A Development Build já é
+  necessária por causa da atualização SDK 58 descrita acima; esta mudança não
+  adiciona módulos nativos nem altera plugins. A mudança local da Cloud
+  Function ainda não foi implantada. Nenhum build, prebuild ou deploy foi
+  iniciado.
+
+## Etapa 2.2.8 — validação do pacote local (2026-11-06)
+
+- A revisão comparou os 11 arquivos locais das Etapas 2.2.4–2.2.7 com o
+  HEAD `5a8205c44645aaa6f7fd10d261abe4b0c68e3078` da branch `Codex`.
+  A Etapa 2.2.8 acrescentou este registro e dois ajustes somente na
+  instrumentação existente de Finanças. As revisões sobre a abertura fria e a
+  carga paginada do Histórico continuam documentadas nas etapas abaixo.
+- Os mesmos dez casos falharam com as mesmas mensagens no checkout atual e em
+  uma exportação isolada do HEAD, usando as mesmas dependências. Os três casos
+  de `HistoryBucketTotal.test.ts` falham porque o mock de providers omite
+  `useAuth`. Sete casos de `FirestoreDeliveryLiveActivitySnapshots.test.ts`
+  dependem de uma data completa, mas o mock de query omite `hasPendingWrites` e
+  o datasource exige o valor explícito `false`. Um caso dessa suíte passou em
+  ambos os ambientes. As falhas já existiam no HEAD e os mocks foram preservados.
+- Em Finanças Atacado, somente o recorte mensal recebe a prévia confirmada.
+  Ela exige entregas com proveniência exata, cobertura completa, origem remota
+  e ausência de escritas pendentes. O hook também valida usuário, sessão,
+  requisição e gerações de carga e invalidação. Sem resumo visível, a tela pode
+  mostrar o Faturamento com a fórmula existente enquanto as demais leituras
+  prosseguem. Um mês confirmado sem entregas pode mostrar zero. Quando existe
+  resumo visível, seu Faturamento tem precedência. O Lucro Líquido atual exige
+  snapshot estável, cobertura remota, rotas e combustível. O preview por si só
+  não habilita gráficos nem publica o widget.
+- Os eventos `[STAGE2_BASELINE]` são emitidos somente em `__DEV__` e registram
+  identificadores de diagnóstico, estados, contagens e dimensões. Os callbacks
+  de `View.onLayout` e `ScrollView.onContentSizeChange` agora também só são
+  passados à tela em desenvolvimento; o listener do ScrollView deixa de ser
+  instalado em release. A assinatura da geração diagnóstica usa o período
+  selecionado e a chave da requisição, que já inclui UID, sessão, consulta e
+  filtros. Ela não inclui mais `snapshotSessionScopeKey`, que era inicialmente
+  indefinida e mudava quando chegava o primeiro snapshot, reiniciando a medição
+  da prévia confirmada. Isso corrigia a métrica, sem alterar o estado ou os
+  cálculos financeiros. A confirmação visual continua exigindo vídeo e eventos
+  de prontidão; callbacks de layout não confirmam o primeiro frame físico.
+- TypeScript, `git diff --check` e três suítes financeiras/performance
+  direcionadas passaram após os ajustes diagnósticos (48 testes). Dez outras
+  suítes direcionadas passaram, com 331 testes sintéticos. O ESLint dos dez
+  arquivos alterados passou com a regra Prettier desativada; na execução estrita,
+  oito passaram e os dois restantes (`HomeSearchDataSource.ts` e
+  `ResumoFinanceiroSnapshotCoordinator.ts`) apresentaram somente diferenças de
+  CRLF. As duas ocorrências `import/namespace` em `NotificationService.ts` foram
+  reproduzidas também no HEAD isolado.
+- A coleta física ainda está pendente. O pacote local usa somente TS, TSX e
+  Markdown e pode ser testado com a Development Build instalada via Fast
+  Refresh. Esta revisão usou dados sintéticos e não acessou Firebase de
+  produção ou Emulator.
+
+## Etapa 2.2.9A — auditoria de cache financeiro persistente (2026-11-06)
+
+- Auditoria e proposta somente; nenhum código funcional, cache, Firebase,
+  teste, build ou publicação foi alterado/executado nesta etapa.
+- O cache mensal v1 persiste snapshots amplos e `cachedAt`, mas não persiste a
+  prova remota por consulta. `sessionVersion` e `requestScopeKey` ficam apenas
+  em memória; ao hidratar uma entrada do AsyncStorage, essa associação é
+  removida. `useFinancialData` usa `exact_session_memory_only` para a entrada
+  inicial, então uma entrada mensal persistida não é elegível após reiniciar o
+  processo. Cache de Home, widgets, histórico, custos ou ledger não substitui
+  essa prova nem pode ser promovido a confirmação financeira.
+- A cobertura remota mensal atual confirma somente as consultas de entregas e
+  custos. O Lucro Líquido também depende do ledger de rotas, combustível,
+  Cost Settings e Car Settings. O loader do ledger retorna resumos sem contrato
+  de cobertura/proveniência e pode reconciliar pendências com escrita remota;
+  a prontidão hidratada das configurações pode incluir cache local. Portanto,
+  o estado atual não prova que um painel completo possa ser persistido como
+  confirmado. A confirmação atual é por consulta; não é um snapshot atômico
+  entre coleções.
+- Proposta para a Etapa 2.2.9B: criar namespace e envelope independentes do v1,
+  inicialmente em modo sombra ou limitado ao Faturamento se a cobertura exata
+  dos seus dados for suficiente. O envelope deve vincular ambiente/projeto,
+  UID, seleção, período civil, filtros/limites, versões de schema e regras,
+  métricas derivadas, cobertura e proveniência por dependência, ausência de
+  dados vindos do cache (`fromCache === false`), ausência de escritas pendentes
+  (`hasPendingWrites === false`) e horários de confirmação por consulta.
+  Não hidratar esse registro em `remoteComplete`, snapshots autoritativos,
+  gráficos ou widgets; apresentá-lo somente como último valor confirmado
+  anteriormente enquanto ocorre revalidação. Expandir ao painel completo
+  somente depois de contratos verificáveis para ledger e combustível.
+- Persistência futura deve usar um único envelope versionado, validação estrita
+  e serialização de leitura/escrita/invalidação por identidade e geração; dado
+  inválido ou incompatível vira cache miss. Invalidações precisam cobrir os
+  intervalos comparativos e mudanças de configurações globais. AsyncStorage é
+  armazenamento local não criptografado; a política de retenção/logout e a
+  proteção em repouso precisam ser decididas antes de expor valores financeiros
+  persistidos. As operações de escrita e invalidação v1 não têm serialização
+  persistente por chave, então a nova camada deve impedir que uma resposta antiga
+  restaure um envelope após uma invalidação. Firebase continua sendo a fonte
+  remota de verdade.
+
+## Etapa 2.2.9B — cache dos indicadores bloqueado por proveniência (2026-11-06)
+
+- Não foi implementado cache, flag, teste funcional ou alteração de UI nesta
+  etapa. O Faturamento poderia ser derivado de entregas confirmadas, mas o
+  requisito é restaurar Faturamento e Lucro Líquido juntos, sem misturar fontes;
+  a fatia parcial de Faturamento foi deliberadamente descartada.
+- `isNetProfitReady` usa `routesLoaded` e `fuelCostsReady` além da cobertura
+  remota de entregas/custos. `routesLoaded` também pode vir de memória/cache;
+  `fuelCostsReady` representa hidratação, não confirmação remota. O hook de
+  combustível aceita configurações iniciais em cache e não expõe proveniência
+  dos valores efetivamente calculados. Cost Settings pode mesclar alterações
+  locais ao resultado remoto; Car Settings pode expor campos editados/drafts.
+- O loader do ledger retorna somente resumos, não cobertura/proveniência
+  estruturada. Ele pode ignorar documentos remotos inválidos, engolir falha de
+  reconciliação de pendências e então produzir a lista sem esses pendentes.
+  Essa saída não pode ser usada como prova de Lucro Líquido completo.
+- Não há armazenamento genérico criptografado reutilizável no app: o manifesto
+  declara AsyncStorage 2.2.0, que não criptografa os dados. O Keychain encontrado
+  no plugin nativo serve a fluxos específicos de widget e não expõe contrato
+  reutilizável para Finanças. Assim, qualquer protótipo que persista valores
+  reais fica restrito a testes isolados com armazenamento falso até aprovação de
+  política de proteção local ou adoção de um mecanismo seguro apropriado.
+- Menor pré-requisito para retomar: os loaders de rotas, Cost Settings e Car
+  Settings devem expor confirmação do servidor, cobertura/escopo exatos e estado
+  de escritas/drafts para os valores realmente usados; pendências ou documentos
+  inválidos devem impedir a classificação como completo. Depois, uma única
+  geração de cálculo poderá persistir um envelope pareado de Faturamento, Lucro
+  Líquido e comparações, separado de `remoteComplete`, sob identidade de
+  ambiente/UID/período/filtros/regras. A política de armazenamento, logout e
+  retenção precisa ser aprovada antes de habilitar dados reais.
+- Sem mudanças funcionais para testar: TypeScript, ESLint e testes não foram
+  executados nesta decisão de bloqueio. `git diff --check` foi executado e
+  passou; não houve acesso ao Firebase, Emulator, build, commit ou push.
+
+## Situação atual — Etapa 2.2.4B (2026-11-06)
+
+- Os loaders mensais de custos e entregas expõem a resposta exata da consulta e
+  sua proveniência (`uid`, `sessionVersion`, escopo/filtros, `fromCache`,
+  `hasPendingWrites`, origem, cobertura e confirmação remota). Os métodos
+  legados continuam disponíveis para os consumidores atuais.
+- Finanças só classifica custos e entregas como completos quando ambas as
+  consultas correspondem ao usuário, sessão e filtros pedidos, cobrem o escopo
+  completo, vieram sem cache e não têm escritas pendentes. Respostas fora de
+  ordem ou com identidade divergente não são publicadas como resultado atual.
+- Resultados locais/em cache são provisórios e não renovam o cache financeiro.
+  Uma consulta vazia só pode produzir indicadores zerados quando sua cobertura
+  exata foi confirmada. O cache persistido v1 continua sem proveniência,
+  cobertura, sessão ou filtros. `useFinancialData` só reutiliza entradas de
+  memória associadas à sessão e consulta exatas da execução atual; entradas v1
+  hidratadas do AsyncStorage não são tratadas como dados da sessão atual. O
+  formato persistido permanece inalterado; cache v2 depende de contrato de
+  identidade, validade e cobertura. Consumidores legados do cache v1 fora desse
+  hook ainda exigem auditoria específica antes de uma migração de cache.
+- Fórmulas, schema Firestore, ledger de rotas, combustível, operações de escrita
+  e formato persistido atual não foram alterados. A confirmação é específica às
+  consultas observadas e não representa uma barreira global contra escritas
+  pendentes fora do escopo consultado. Custos e entregas são consultas
+  independentes: `remoteComplete` confirma cada resposta exata, mas não prova
+  que ambas observaram uma única transação/snapshot global.
+- Validação sintética local: TypeScript, ESLint direcionado e
+  `git diff --check` passaram; 6 suítes direcionadas passaram (130 testes),
+  usando apenas mocks/dados sintéticos. Nenhum Firebase de produção ou Emulator
+  foi acessado. Não houve medição física de desempenho no iPhone. Alterações
+  somente TS/TSX/Markdown; Fast Refresh basta, sem nova Development Build.
+
+## Etapa 2.2.7 — avaliação do adiamento da carga paginada do Histórico Atacado (2026-11-06)
+
+- A rota `historico/index` renderiza `HistoryScreen` no modo Atacado.
+  `useDeliveries` agenda uma carga com `setTimeout(..., 0)` na montagem. O
+  escopo `historical` chama `loadAllHistorical` com `revalidate: true`.
+  O foco chama `reload` e pode se juntar à mesma requisição em andamento.
+  O datasource usa `getDocs` em páginas de 250 e publica os resultados no
+  estado compartilhado de entregas.
+- **Experimento bloqueado pelo acoplamento do estado compartilhado.** O
+  carregamento pode mesclar registros do cache. Uma resposta remota completa
+  substitui `records` e publica uma revisão. Os hooks da Home assinam essa
+  revisão e leem o mesmo mapa para entregas do dia, documentos e pagamentos
+  em aberto. A Busca da Home pode consultar o histórico por conta própria e
+  também recorrer ao mapa em caso de falha. Adiar a publicação pode mudar os
+  dados visíveis ou a ordem de atualização antes da primeira visita ao Histórico.
+- Finanças Atacado no recorte mensal confirma a resposta exata de
+  `loadWithMetadata` e pode iniciar a própria leitura sem esperar pelo
+  Histórico. No recorte `Tudo`, `useFinancialData` chama
+  `loadAllHistoricalWithMetadata` com `revalidate: true`. O datasource usa a
+  mesma chave de deduplicação do Histórico para a mesma sessão e o mesmo modo
+  de revalidação. Adiar uma das chamadas muda a possibilidade de reutilizar a
+  requisição em andamento e o momento de sua conclusão.
+- Uma consulta filtrada registra `historicalApplyVersion` quando começa. Se
+  o histórico completo foi aplicado enquanto ela estava em andamento, a
+  consulta preserva os registros do histórico. Essa precedência também afeta
+  a publicação ou invalidação do snapshot diário confirmado que o widget de
+  entregas e a Live Activity consomem. O widget financeiro tem hidratação
+  própria de resumos persistidos e as notificações usam o serviço Expo e o
+  repositório de tokens. Nenhum desses dois fluxos chama diretamente a carga
+  paginada auditada.
+- O isolamento exigido não pode ser demonstrado com um gate no consumidor.
+  Nenhuma flag, mudança de execução ou evento foi adicionado. A instrumentação
+  existente `[STAGE2_BASELINE]` permite correlacionar `screen_mount`,
+  `screen_focus`, `delivery_hook_load`, `firestore_delivery_history_page_read`
+  e os marcos de consulta, prontidão e layout de Finanças. Ela não atribui cada
+  página a um único consumidor quando há compartilhamento e não mede leituras
+  faturadas nem ganho no iPhone.
+- Um A/B do adiamento fica condicionado ao isolamento dessa carga. Em um
+  ambiente isolado com dados sintéticos, usar a mesma Development Build,
+  dispositivo, rede, recorte, estado inicial de cache e ordem de navegação.
+  Alternar pelo menos três cold starts por variante. Abrir Finanças pela Home
+  sem visitar Histórico, depois abrir Histórico e incluir uma verificação de
+  abertura direta. Comparar páginas efetivamente iniciadas antes de Finanças,
+  seleção JS até consultas e prontidão por indicador, callback de layout,
+  primeiro frame visível e tempo da primeira abertura do Histórico. Reportar
+  mediana e intervalo mínimo–máximo por variante. Com o código atual, a
+  coleta é somente de controle. A atualização documental dispensa Fast
+  Refresh e nova Development Build.
+- TypeScript e `git diff --check` passaram. Em dez suítes direcionadas com
+  mocks, 291 testes passaram e 10 falharam em dois arquivos sem alteração.
+  `HistoryBucketTotal` não fornece `useAuth` no mock. Os snapshots simulados
+  em `FirestoreDeliveryLiveActivitySnapshots` omitem `hasPendingWrites`,
+  necessário para confirmar uma data. O ESLint estrito passou no datasource,
+  na Home, no hook financeiro e na instrumentação. A rota e a tela do
+  Histórico, o hook de entregas e o coordenador do widget passaram sem a
+  regra Prettier, que apontou CRLF e formatação preexistente. O lint do
+  serviço de notificações também apontou duas referências `import/namespace`
+  preexistentes. A validação local usou dados sintéticos e não envolveu
+  Firebase de produção, Emulator, build ou teste no iPhone.
+
+## Etapa 2.2.6 — comparação de abertura fria de Finanças Atacado (2026-11-06)
+
+Medições fornecidas pelo usuário no iPhone. A abriu Finanças assim que a
+Home apareceu no cold start. B também partiu de um cold start e aguardou
+8 s na Home antes de selecionar Finanças.
+
+| Marco | A — entrada imediata | B — após 8 s na Home |
+| --- | ---: | ---: |
+| Seleção recebida no JS → callback de layout | 4,70 s | 0,51 s |
+| Duração da leitura de custos diários | 3,40 s | 276 ms |
+| Duração da leitura de custos mensais | 4,36 s | 275 ms |
+| Duração da leitura de entregas | 4,32 s | 249 ms |
+| Seleção recebida no JS → início da leitura do ledger | ~2,67 s | ~129 ms |
+| Duração da leitura do ledger | 1,85 s | 320 ms |
+| Espera percebida ao abrir Finanças | ~8 s | ~1 s |
+
+- As leituras reportaram `fromCache: false` em A e B. Os spans registram
+  a espera entre a chamada do SDK e a resposta ao JavaScript. Eles não
+  separam fila do SDK, token, conexão, processamento remoto e despacho da
+  resposta. O callback de layout também não mede o primeiro frame físico.
+- A sessão do app é resolvida antes da Home. O SplashGate aguarda o estado
+  da sessão e a hidratação local do bootstrap, que inclui o cache de rotas.
+  O Firestore usa uma instância compartilhada, inicializada sob demanda.
+  Sessão autenticada na UI e disponibilidade do transporte Firestore são
+  marcos distintos. As amostras não medem a duração do token ou da conexão.
+- Ao receber foco, Finanças dispara base local, entregas e custos do período
+  em paralelo. O `useFocusEffect` inicia o fluxo de rotas separadamente. O
+  ledger aguarda primeiro os registros em memória ou AsyncStorage e depois
+  os resumos pendentes em AsyncStorage, com validação de sessão entre as
+  duas etapas. Só então chama `getDocsFromServer`. A fila nativa iOS do
+  AsyncStorage é serial. A medição de seleção até o início da consulta
+  agrega foco, execução JS e essas esperas locais. Ela não distribui os
+  ~2,67 s entre essas etapas. Após a leitura, o ledger ainda pode persistir
+  o cache e reconciliar pendências por transação. O blur impede atualizar o
+  estado da tela, mas o fluxo do serviço pode continuar na mesma sessão.
+- Home inicia suas consultas de entregas, clientes, notas, pagamentos e
+  compras de fábrica ao montar. A NativeTabs instalada permite montar abas
+  fora de foco. O Histórico Atacado pode ler o cache e revalidar todas as
+  entregas em páginas de 250 desde o mount. O refresh de foco se junta à
+  mesma operação se ela estiver em andamento. A publicação de uma resposta
+  completa revisa o estado compartilhado e pode refiltrar entregas na Home.
+  Adiar a primeira leitura para o foco mudaria a disponibilidade dos dados ao
+  abrir Histórico e poderia exibir o estado vazio até a resposta.
+- As configurações de custos e carro da aba Finanças também podem revalidar
+  ao montar sem esperar o foco. O histórico de custos usado para combustível
+  tem escopo diferente do recorte de Finanças. O widget financeiro e o
+  bootstrap hidratam resumos locais do ledger. A autorização do widget de
+  entregas pode usar token e uma chamada própria. A sobreposição é possível,
+  mas sua contribuição para a latência A/B não foi medida.
+- O Lucro Líquido depende de snapshot confirmado, rotas prontas e combustível.
+  Se os resumos de rota já estiverem em memória, o gate de rotas pode estar
+  pronto antes da revalidação remota. Os tempos agregados não demonstram se
+  o ledger foi a última dependência antes do layout nas duas amostras.
+- A etapa registra o diagnóstico sem alteração de execução. Uma próxima
+  coleta em ambiente isolado com conta sintética deve repetir A e B nas
+  mesmas condições, alternar a ordem e correlacionar `js_monotonic_ms`, `trace_id`,
+  `open_intent_id`, `finance_visit_id` e `finance_scope_generation`. Comparar
+  a seleção JS, `finance_route_summaries_total`, `firestore_route_ledger_read`,
+  as leituras de custos/entregas, as páginas do Histórico, os commits de
+  prontidão e o callback de layout com o vídeo do toque e do frame. Os spans
+  existentes delimitam o fluxo total de rotas, mas não as duas leituras
+  locais individualmente nem as fases internas do SDK. As leituras de custos
+  do período e do histórico para combustível usam o mesmo nome de span.
+- TypeScript, `git diff --check` e 9 suítes com mocks ou dados sintéticos
+  passaram (138 testes). ESLint estrito passou em 8 arquivos do recorte.
+  A regra Prettier apontou CRLF no coordenador do widget, na busca da Home
+  e no ledger, além da formatação de um import do ledger. Os três passaram
+  com essa regra desativada. A validação não acessou Firebase de produção
+  nem Emulator e não incluiu nova medição física. A alteração documental
+  dispensa Fast Refresh e nova Development Build.
+
+## Etapa 2.2.5 — revisão do caminho crítico de Finanças Atacado (2026-11-06)
+
+- Os dois cold starts documentados registraram cerca de 1,15 s da seleção
+  recebida pelo JavaScript até custos e entregas remotos, 1,35–1,77 s até o
+  lucro confirmado e 1,42–1,84 s até o callback de layout. Os 3,90–4,07 s
+  anteriores à seleção recebida pelo JavaScript são outro intervalo. Essas
+  amostras não medem o toque nem o primeiro frame físico e não registram os
+  marcos por visita, escopo e indicador adicionados na Etapa 2.2.4B.
+- O caminho do período já inicia entregas, custos e base local em paralelo.
+  O leitor de entregas já junta consultas idênticas em andamento por sessão e
+  filtros. As consultas diária e mensal de custos são de coleções diferentes e
+  já rodam em paralelo. A leitura do histórico de custos para combustível tem
+  escopo diferente da leitura financeira do período. Não há evidência de
+  leitura remota duplicada na abertura da aba nessas amostras.
+- O Faturamento mensal com entregas exatas e confirmadas já pode aparecer
+  antes do resumo. O Lucro Líquido depende do snapshot estável, da cobertura
+  remota e da prontidão de rotas e combustível. O ledger lê dados locais e
+  reconcilia rotas pendentes dentro do fluxo de foco. Os tempos disponíveis
+  não isolam o custo dessas etapas nem justificam mudar sua ordem.
+- A etapa registrou a auditoria no documento, sem mudança de execução. Não
+  houve redução aplicada nas leituras nem medição de ganho no iPhone. A
+  hipótese de competição com tarefas do bootstrap continua em aberto.
+- Para comparar no iPhone, registrar vídeo do toque e da tela, o estado do
+  Metro e os eventos `[STAGE2_BASELINE]` de uma abertura fria e de um retorno
+  à aba já aquecida. Correlacionar `trace_id`, `finance_visit_id` e
+  `finance_scope_generation` e separar seleção JS, consultas, prontidão dos
+  cards, callback de layout e frame visível. Se houver alerta, registrar
+  mensagem e momento conforme a Etapa 2.2.4C. A Development Build instalada
+  é suficiente para o código da instrumentação já existente. A alteração
+  documental não requer Fast Refresh nem nova build.
+- Validação local: TypeScript e `git diff --check` passaram. Oito suítes
+  direcionadas passaram (150 testes com mocks/dados sintéticos). ESLint
+  passou no recorte principal. O ledger, que já tinha divergências de CRLF e
+  formatação, passou com a regra Prettier desativada. Nenhum Firebase de
+  produção, Emulator ou iPhone foi usado na validação desta etapa.
+
+## Etapa 2.2.4B — instrumentação da demora visual (2026-11-06)
+
+- Os dois cold starts enviados pelo usuário registraram 3,90–4,07 s entre início
+  JS e `native_tab_press_js`, ~1,15 s até custos/entregas remotos, 1,35–1,77 s
+  até lucro confirmado e 1,42–1,84 s até callback de layout. Esses intervalos
+  descrevem os eventos registrados; não localizam o primeiro toque físico nem o
+  primeiro frame visto na gravação.
+- `native_tab_press_js` é mantido para compatibilidade, mas agora declara no log
+  `input_boundary=native_tab_selection_js_receipt` e
+  `physical_touch_start_measured=false`. No código instalado, o controlador
+  nativo já trata a seleção do UIKit antes de o Expo Router emitir `tabPress` e
+  navegar no JavaScript. `startup_app_root_module_evaluated` identifica quando
+  o módulo raiz do app começa a executar; `js_monotonic_ms` dá uma referência
+  monotônica comum aos eventos `[STAGE2_BASELINE]` da mesma execução. Esse marco
+  ocorre após o bundle começar a executar módulos do app e não mede compilação,
+  transferência do Metro nem o início físico do runtime. Fast Refresh pode
+  reavaliar o módulo raiz; não trate esse evento isolado como um novo cold start.
+- A linha `Carregando Finanças Atacado...` é renderizada enquanto
+  `showHeroCards` é falso e o hook ainda informa carregamento. Quando a consulta
+  mensal exata de entregas libera o preview confirmado, os cards entram e a
+  mensagem muda para `Carregando demais indicadores...` abaixo deles. Quando
+  `summary` está disponível, as quatro seções também são montadas; lucro líquido
+  continua em gate separado que exige snapshot estável, cobertura remota, rotas
+  e combustível. O `memory_miss` inicial é da consulta síncrona exata em memória
+  de `useFinancialData`; a mensalidade não hidrata AsyncStorage nesse caminho.
+  Leituras persistentes v1 são feitas pela busca da Home e pelo coordenador do
+  widget, não liberam os indicadores confirmados de Finanças e agora levam
+  `consumer=home_search` ou `consumer=finance_widget` no span. O cache mensal v1
+  guarda UID/mês/snapshots/horário, sem `sessionVersion`, escopo exato da query
+  nem proveniência remota; portanto, um `cache_hit` persistente não equivale a
+  snapshot confirmado. Cache persistente v1 segue inelegível como confirmação.
+- Nova instrumentação, somente em `__DEV__`: `finance_visit_focus/blur` e
+  `finance_scope_diagnostic_generation_change` identificam visita e geração
+  opacas; início da visita e prontidão usam efeitos passivos, após o trace da
+  tela registrar seu contexto; `finance_loading_presentation_commit` registra
+  o ramo do carregamento;
+  `finance_region_branch_commit` registra commits de montagem/remoção dos ramos;
+  `finance_target_ready_commit` separa Faturamento, Lucro Líquido, resumo e
+  árvore completa; `finance_all_indicators_ready_commit` indica quando todos
+  os indicadores financeiros principais passaram seus gates; os cards usam
+  `View.onLayout` e o conteúdo rolável usa `ScrollView.onContentSizeChange`, com
+  dimensões em unidades lógicas do React Native. Se Faturamento usou preview
+  remoto confirmado, `finance_revenue_advance_basis=ready_commit` compara sua
+  prontidão com a prontidão de todos os indicadores; `layout_callback` compara
+  o `View.onLayout` de Faturamento com `ScrollView.onContentSizeChange` do
+  conteúdo completo. Ambos exigem a mesma visita/escopo e não representam um
+  frame visível.
+- O callback de layout continua sendo evidência de cálculo/relato de layout do
+  React Native, não de que um frame SwiftUI foi fisicamente apresentado. Os
+  cards permanecem com `NativeAnimatedNumber` e sua identidade/layout atuais;
+  não foi adicionada instrumentação ao interior do Host SwiftUI. Medir o frame e
+  o toque percebidos requer vídeo sincronizado do dedo e da tela. A renderização
+  progressiva de Faturamento da Etapa 2.2.4 não pode ser quantificada pelos dois
+  logs antigos: não havia marcos por alvo e visita. Seu ganho continua
+  indeterminado até nova coleta.
+- Metro, JavaScript, callbacks de navegação, dados e layout agora ficam
+  separáveis: o módulo raiz e os eventos app usam o relógio monotônico JS; os
+  eventos de tela preservam os próprios campos de visita/escopo; `iOS Bundled`
+  continua sendo saída do servidor Metro em outro relógio. Registre o estado do
+  Metro por execução e use vídeo para anotar toque físico e mudança visual. Não
+  subtraia timestamps de relógios diferentes sem sincronização comprovada.
+- Home mantém consultas próprias de clientes, entregas, compras e pagamentos;
+  app root também inicia hidratação, restauração de rotas e atualizações de
+  widgets/Live Activities. Expo Router pré-carrega placeholders das tabs nesta
+  configuração instalada. Isso torna possível competição por rede ou thread JS,
+  mas não comprova que ela causou a demora. A política de montagem e os
+  carregamentos não foram alterados.
+- Validação desta instrumentação: TypeScript passou; 7 suítes sintéticas
+  direcionadas passaram (272 testes), incluindo `stage2Baseline`,
+  `useFinancialData`, `FinanceHeroNumberSafeArea`, cálculos financeiros, cache,
+  widget e busca da Home. ESLint passou nos demais arquivos; os dois arquivos
+  chamadores com CRLF preexistente passam sem regra de formatação e também no
+  Prettier configurado para preservar CRLF. O ESLint com configuração padrão
+  aponta somente essas terminações de linha (`Delete ␍`); o script global
+  `npm run lint` já havia falhado pelo mesmo conflito CRLF/LF no checkout, e
+  nenhum arquivo foi normalizado em massa. `git diff --check` passou. Nenhum
+  Firebase/Emulator, build ou teste físico foi usado.
+  A atualização é somente JS/TSX/Markdown: Fast Refresh basta na Development
+  Build já instalada; validar toque/frame e os novos logs no iPhone continua
+  pendente.
+
+## Etapa 2.2.4C — diagnóstico de valores provisórios (2026-11-06)
+
+- A sequência relatada no iPhone (indicadores em zero/indisponíveis durante um
+  alerta e valores corretos depois de fechá-lo) não prova que o alerta causou a
+  recuperação. Não havia gravação de Metro ou eventos `[STAGE2_BASELINE]`
+  sincronizados com esse alerta. O `firestore-debug.log` local disponível é
+  anterior ao teste e não contém um código de erro Firebase comum pesquisável;
+  a mensagem completa permanece desconhecida.
+- A tela Financeira não chama `Alert.alert` para erros Firebase. O único alerta
+  de inicialização encontrado é o de Face ID em `SplashGate`. Falhas das
+  consultas de custos/entregas são capturadas por `useFinancialData`, que mantém
+  fallback/proveniência e, em desenvolvimento, emite `console.warn` com o erro;
+  esse aviso pode aparecer no LogBox/Metro, mas não foi possível provar que seja
+  o alerta visto no aparelho.
+- Um snapshot local com registros pode alimentar `summary` antes de cobertura
+  remota completa; seus indicadores, inclusive Faturamento `0`, são provisórios
+  e a tela possui aviso explícito de falta de confirmação. O Lucro Líquido segue
+  bloqueado até haver cobertura remota completa, rotas e combustível prontos.
+  Portanto, o zero observado não está comprovado como resultado financeiro
+  confirmado nem como erro de cálculo. Também pode corresponder a uma consulta
+  remota vazia que ainda não havia sido atualizada; só a sequência de eventos
+  pode distinguir os casos.
+- `finance_scope_generation` é somente um contador diagnóstico: sua assinatura
+  combina seleção, chave da consulta e escopo da sessão/snapshot. Mudanças limpam
+  conjuntos de eventos medidos e emitem `finance_scope_diagnostic_generation_change`;
+  não alteram a geração de carregamento, não iniciam consulta e não modificam
+  valores financeiros. Na primeira abertura, chaves inicialmente ausentes podem
+  ser preenchidas em renders posteriores; os logs atuais não identificam qual
+  campo mudou na ocorrência relatada.
+- O hook não possui retry explícito imediato após uma consulta de custos ou
+  entregas rejeitada. Nova leitura pode ocorrer em foco/entrada na aba, após
+  transição offline→online enquanto focado, por mudança externa de cache ou por
+  recarga manual. Fechar um alerta não é um gatilho de recuperação identificado
+  no código.
+- Próxima coleta: vídeo com tempo do alerta, título/texto/código completos e
+  eventos `[STAGE2_BASELINE]` antes e depois de fechá-lo, correlacionados pelo
+  `trace_id`, `finance_visit_id` e `finance_scope_generation`; incluir o aviso
+  Metro `[useFinancialData] Firestore ... fallback local` e seu `FirebaseError`
+  (removendo UID, caminhos de documentos e outros dados pessoais). Até essa
+  evidência, nenhuma alteração funcional é recomendada e a causa dos valores
+  tardios permanece indeterminada.
+
+## Etapa 2.2.4 — apresentação progressiva segura de Finanças (2026-11-06)
+
+- A mensagem `Carregando Finanças Atacado...` substituía os cards quando ainda
+  não existia `summary` nem Lucro Líquido confirmado reutilizável. Para formar o
+  primeiro snapshot mensal, `useFinancialData` aguardava em um `Promise.all` a
+  base local, a consulta de entregas e a consulta de custos diários/mensais.
+  Com `ENABLE_FIREBASE_APP_DATA=false`, essa base vem do modo mock/local,
+  não da leitura de app-data no Firestore. Entregas e custos já eram iniciados
+  em paralelo; o ramo mais lento determina a barreira, sem somar suas durações.
+  A prontidão de rotas/ledger e combustível
+  tem um gate separado para Lucro Líquido e métricas derivadas e não bloqueia o
+  primeiro `summary` depois que um snapshot é publicado.
+- O card Faturamento pode aparecer antes das outras leituras somente quando a
+  consulta mensal exata de entregas já foi confirmada pelo servidor, está
+  completa, não veio do cache e não tem escritas pendentes. O hook também exige
+  UID, sessão, filtros, período e geração de invalidação atuais. O valor usa
+  `filterDeliveries` e `calculateFaturamento` existentes para o mês selecionado;
+  nenhuma fórmula foi alterada. Uma consulta confirmada vazia pode apresentar
+  zero. Cache, escritas pendentes, resposta incompleta ou obsoleta não liberam
+  o preview.
+- Nesse estágio, Faturamento é mostrado com o mesmo card nativo. Lucro Líquido
+  permanece em “Aguardando confirmação”; comparações e os demais resumos só
+  aparecem com o snapshot requerido. A indicação de carregamento fica depois
+  dos cards para informar que as demais leituras continuam. Gráficos e widget
+  continuam bloqueados até os gates anteriores de snapshot estável.
+- O ganho é somente visual e condicional: se entregas terminarem antes de custos
+  ou da base local, o Faturamento aparece antes. Isso não acelera a leitura que
+  estiver mais lenta nem garante redução dos 3–4 segundos vistos nos vídeos. As
+  capturas fornecidas não compartilham relógio com os logs instrumentais; no
+  segundo vídeo não há compilação do Metro visível, mas isso não comprova uma
+  comparação controlada com Metro aquecido. A causa do tempo completo observado
+  no iPhone permanece pendente de gravação e logs correlacionados.
+- `cache_hit` persistente e `memory_miss` financeiro não são o mesmo teste. A
+  leitura v1 por AsyncStorage é usada por consumidores como o fluxo do widget;
+  o hook mensal exige memória associada à sessão e consulta exatas. A leitura v1
+  não contém essa prova e não se qualifica como snapshot mensal da tela. Nenhuma
+  regra foi relaxada nem novo cache foi introduzido.
+- Home, Histórico, widgets e Live Activities iniciam alguns trabalhos próprios
+  em paralelo durante a inicialização. Eles não são aguardados pelo render de
+  Finanças; eventual competição por rede ou thread JS não foi comprovada nas
+  gravações e exige medir sob o mesmo `trace_id`/`open_intent_id`. O evento
+  `[STAGE2_BASELINE] finance_confirmed_revenue_preview_layout_ready` mede o
+  callback de layout do Faturamento antecipado em desenvolvimento, não um frame
+  físico do iPhone.
+- Validação local desta etapa: testes direcionados usam somente mocks e dados
+  sintéticos; 3 suítes financeiras direcionadas passaram (67 testes). Nenhum
+  Firebase de produção ou Emulator foi acessado. TypeScript, ESLint direcionado
+  e `git diff --check` passaram. A suíte completa não foi executada nesta etapa;
+  as 10 suítes/17 falhas preexistentes permanecem sem reclassificação. Não houve
+  build nem medição física. As alterações são TS/TSX/Markdown, portanto Fast
+  Refresh basta para testar a apresentação; a Development Build existente basta
+  no aparelho.
+
+## Correção prioritária — estabilidade do Lucro Líquido (2026-11-06)
+
+- A confirmação exata do período podia virar provisória durante uma leitura de
+  foco: o hook recuperava a entrada de memória da mesma consulta, marcava a
+  cobertura atual como provisória enquanto revalidava, e a tela escondia Lucro
+  Líquido até `remoteComplete` voltar a `true`. O card ainda recebia texto vazio
+  nesse intervalo. Agora um valor só é mantido quando há prova anterior para o
+  mesmo UID, sessão, período e consulta; os dados continuam provisórios até uma
+  nova confirmação remota.
+- A composição original do card foi restaurada: cabeçalho e um único
+  `NativeAnimatedNumber`, sem linha fixa de status. A revalidação online normal
+  não mostra mensagem. Avisos necessários de offline ou resposta não confirmada
+  aparecem no aviso já existente após os cards, sem aumentar nem deslocar o card.
+  Quando não há lucro confiável, o mesmo componente mostra “Aguardando
+  confirmação” ou “Lucro líquido indisponível”, nunca um valor inventado.
+- A comparação mensal confirmada é conservada junto ao lucro, identificada por
+  UID, sessão, período e consulta. Durante revalidação, a porcentagem anterior
+  continua visível; só é substituída por uma nova comparação quando o lucro e a
+  nova consulta estão confirmados. A troca de sessão/período/consulta impede
+  reutilizar lucro e porcentagem anteriores.
+- Quando uma gravação invalida o snapshot do período e a nova leitura ainda não
+  foi confirmada, o card mantém em memória o último lucro e comparação que já
+  exibiu para a mesma consulta. O aviso externo identifica esse valor como o
+  último confirmado. A revalidação comum permanece silenciosa. Somente a nova
+  confirmação remota atualiza o número e a comparação no card.
+- A identidade do texto SwiftUI de Lucro Líquido segue o UID, sessão, período e
+  consulta solicitados. A troca de estado entre indisponível, aguardando e
+  confirmado não recria o texto no mesmo card. A mudança de disponibilidade
+  solicita a transição de entrada SwiftUI no texto já montado. O texto passa do
+  status para o primeiro valor real, inclusive quando esse valor é zero. Um novo
+  valor confirmado no mesmo escopo atualiza o texto existente pela transição
+  numérica. Validação física informada pelo usuário em 2026-11-06 confirmou que
+  o valor e a porcentagem ficam estáveis durante revalidações, a geometria
+  original foi restaurada e a animação numérica nativa funciona após alterar
+  Dados Diários.
+- A invalidação do período agora avança uma geração síncrona e notifica o hook;
+  respostas de leitura iniciadas antes da invalidação não podem republicar o
+  snapshot invalidado. A lógica não grava dados financeiros nem altera cálculos,
+  schema, ledger, combustível ou o formato persistido.
+- Eventos `[STAGE2_BASELINE]` de prontidão financeira e estado do card são
+  exclusivos de desenvolvimento e registram apenas estados/flags agregados, sem
+  valores, UID ou dados pessoais. O evento de prontidão agora inclui se a
+  comparação mensal está pronta ou foi reutilizada; a origem do cache inicial
+  informa que somente memória da sessão/consulta exata é elegível.
+- O motivo dos ~10 segundos até a primeira apresentação ainda não está
+  comprovado. A validação anterior do iPhone mediu leituras financeiras na
+  ordem de ~1 segundo, mas não separou com o mesmo relógio abertura do app,
+  SplashGate, preparação, intenção de abrir Finanças e frame visível. O cache
+  persistido v1 não foi promovido porque não prova sessão, consulta e cobertura.
+  A comparação com `da43eb5` não encontrou uma nova leitura serializada: snapshot
+  local, custos e entregas continuam aguardados em `Promise.all`, e o ledger
+  segue em sua leitura independente. A Etapa 2.2.3A tornou a confirmação mais
+  estrita e deixou de apresentar o cache persistido v1 como resultado atual;
+  isso pode estender a espera por um lucro comprovado, mas não explica por si só
+  os 10 segundos. Os eventos existentes de splash/hidratação, navegação,
+  intenção de aba, consultas, ledger e layout permitem separar a sequência na
+  próxima coleta. Não há alegação de redução de tempo sem nova medição física.
+- Validação sintética anterior desta correção: 7 suítes direcionadas passaram
+  (149 testes), com mocks/dados sintéticos. Nesta revisão do card, TypeScript,
+  ESLint direcionado, `git diff --check` e 6 suítes financeiras direcionadas
+  passaram (101 testes). Nenhum teste acessou Firebase de produção ou Emulator. As
+  alterações são somente TS/TSX/Markdown; Fast Refresh basta e não exige nova
+  Development Build.
+
+## Navegação dos gráficos de Finanças Atacado (2026-11-06)
+
+- Os cards de Faturamento e Lucro Líquido abriam seus gráficos no Root Stack
+  com `router.push` a cada toque. Agora usam `router.navigate`, uma reserva
+  local até a saída de Finanças e o mecanismo de intenção pendente das etapas
+  2.1–2.1.3. Um toque durante o retorno nativo aguarda foco e fim da transição.
+  O `gestureCancel` de cada gráfico cancela a intenção de retorno associada.
+  Um toque atrasado de Finanças é ignorado se outra aba já estiver selecionada.
+- `[STAGE2_BASELINE]` distingue as duas rotas e registra a intenção, a pilha JS
+  e a decisão, sem registrar o período nem valores. TypeScript, ESLint
+  direcionado e seis suítes com 109 testes passaram. Validação física informada
+  pelo usuário em 2026-11-06: navegação rápida dos gráficos melhorou e não houve
+  novas duplicações observadas.
+- A causa dos ~10 s na abertura inicial segue em aberto. Compare, em uma mesma
+  captura com timestamps, `splash_gate_ready`, `startup_local_hydration_complete`,
+  `startup_navigation_replace_*` e o primeiro `screen_commit` da Home. Em uma
+  ação separada, acompanhe o mesmo `open_intent_id` até
+  `finance_first_indicators_layout_ready`. As medidas partem de relógios de
+  fluxo diferentes, e o callback de layout não confirma um frame físico.
+
+## Etapa 2.2 — baseline e responsividade de Finanças Atacado (2026-11-06)
+
+- Baseline físico informado pelo usuário: `screen_focus` 3.267 ms, primeiro
+  faturamento disponível 4.391 ms e lucro líquido disponível 4.393 ms. São
+  aproximadamente 1.124 ms entre foco e faturamento e 1.126 ms entre foco e
+  lucro. As leituras de custos (~917 ms), entregas (~900 ms) e ledger de rotas
+  (~979 ms) ocorreram parcialmente em paralelo; não somar as durações. O
+  snapshot local derivado (~16 ms) e o cálculo principal (~1,4 ms) não explicam
+  sozinhos a espera. Nenhuma medição posterior no iPhone foi feita nesta etapa.
+- `[STAGE2_BASELINE]` agora registra a seleção da aba Financeiro entregue ao
+  JavaScript, correlaciona `tabPress` → foco → commit JS → disponibilidade dos
+  dados → callback de layout dos cards. Os tempos começam no evento JS da aba,
+  não no toque físico. `native_layout_callback` comprova callback de layout com
+  a tela focada e indicadores válidos; `physical_frame_confirmed=false` deixa
+  explícito que isso não mede o frame físico apresentado pelo iPhone.
+- Os eventos de primeiro faturamento/lucro agora exigem tela focada, snapshot
+  do período pedido e chave de sessão ativa. O diagnóstico identifica a
+  cobertura `remoteComplete` como valor reportado pelo hook, sem tratá-la como
+  confirmação independente da origem Firestore.
+- Otimização segura aplicada no Histórico: revisões globais que criam um novo
+  array, mas preservam os mesmos objetos e ordem das 651 entregas, mantêm a
+  referência estável e não repetem a conversão dessas entregas para o modelo de
+  apresentação. A suíte sintética valida a identidade; o ganho físico ainda
+  precisa de comparação no iPhone.
+- O caminho de Finanças, cálculos, persistência, queries e ledger não foi
+  alterado. No cache miss, o hook aguarda a barreira do snapshot base e das
+  leituras de entregas/custos do período; a leitura remota do ledger continua
+  no foco. As métricas resumidas não identificam qual ramo termina por último.
+- Ponto de atenção para qualquer otimização futura de cache: no caminho mensal,
+  `useFinancialData` usa os métodos `load` para custos e entregas. O método de
+  custos descarta o `remoteComplete`/`source` retornado por
+  `loadWithMetadata`, e a leitura de entregas não expõe sua origem ao hook.
+  Portanto, a resolução dessas Promises não basta para provar cobertura remota
+  canônica. Não foi adicionado caminho cache-first nem alterado o estado atual;
+  a origem/cobertura precisa ser corrigida e testada antes de reutilizar dados
+  provisórios como definitivos.
+- `StaleCostSettingsOperationError` é produzido quando `canRun` detecta que a
+  operação local ficou obsoleta após cleanup/troca de sessão. Os logs fornecidos
+  não identificam o chamador, então esta execução não classifica o aviso
+  específico do iPhone como cancelamento esperado ou falha funcional e não
+  alterou Cost Settings.
+- Validação desta etapa: TypeScript, ESLint direcionado, `git diff --check` e 3
+  suítes sintéticas direcionadas (41 testes) passaram. Não foram acessados
+  Firebase, Emulator, builds ou dispositivo. Sem alterações nativas; Metro /
+  Fast Refresh basta para testar a nova instrumentação na Development Build
+  existente. A comparação final de tempos e o frame visual continuam pendentes
+  no iPhone.
+
+## Etapa 2.2.1 — otimização segura e caminho crítico (2026-11-06)
+
+- Baseline físico fornecido pelo usuário: seleção da aba → foco 37 ms; custos e
+  entregas prontos 934 ms; ledger de rotas pronto 1.053 ms; lucro líquido
+  1.138 ms; callback de layout dos indicadores 1.197 ms. Custos e entregas
+  ocorreram em paralelo: não somar. O ledger terminou 119 ms depois dos dados
+  de período e o lucro 85 ms depois do ledger. App aquecido: lucro 186 ms e
+  callback de layout 188 ms, com origem reportada como cache. Esses números
+  foram fornecidos pelo usuário; não houve nova medição física nesta execução.
+- O baseline de 1.197 ms começa na seleção recebida pelo JavaScript, não no
+  toque físico nem na abertura do app. Ele não explica sozinho a espera
+  subjetiva aproximada de 3 s; o intervalo app aberto → toque e a apresentação
+  efetiva do frame ainda não foram medidos com o mesmo relógio.
+- `finance_initial_snapshot_source` distingue agora `memory_hit` de
+  `memory_miss`. O span `financial_cache_hydration` informa separadamente se a
+  hidratação consultou memória ou AsyncStorage. O evento inicial anterior
+  refletia apenas o mapa em memória e não provava ausência de cache persistente.
+- Não foi promovido cache financeiro ao caminho confirmado. A entrada mensal
+  persiste UID e mês de exibição, mas não sessão, cobertura confirmada,
+  proveniência ou validade temporal; a leitura não rejeita entradas antigas por
+  idade. O hook mensal começa `remoteDataComplete=true` e usa `load` para custos
+  e entregas: custos descartam `source`/`remoteComplete`, e entregas não expõem
+  `fromCache` nem `hasPendingWrites` ao hook. Uma Promise resolvida pode, assim,
+  marcar a fotografia mesclada como completa e persistir dados de origem
+  provisória. Também é preciso incluir invalidação do mês de comparação e
+  revisar consumidores do cache (widget e busca). O cache atual recebe
+  `remoteComplete=false` na cobertura da UI, mas pode ser exibido enquanto
+  revalida; precisa de tratamento explícito antes de ser apresentado como atual.
+- A leitura de `loadForFinance` permanece no foco. Ela reconcilia resumos locais
+  pendentes com operações remotas; deslocá-la para o bootstrap anteciparia esses
+  efeitos. A janela seleção → foco medida foi 37 ms, sem evidência para justificar
+  iniciar consultas no cold start antes da intenção de abrir Finanças.
+- O Histórico agora compara, por ID, os campos consumidos por
+  `toHistoryDelivery`. Itens sem mudança de conteúdo reutilizam a linha
+  convertida; inclusão, remoção, alteração e ordem são preservadas. O cache do
+  projetor é recriado por UID/sessionVersion. `formatCurrency` reutiliza uma
+  única instância lazy de `Intl.NumberFormat` com as mesmas opções BRL. Em
+  microbenchmark sintético Node v26.4.0, 651 valores e 15 repetições, mediana da
+  formatação caiu de 9,3703 ms (formatador por valor) para 0,1854 ms (instância
+  compartilhada); todas as strings foram equivalentes. O teste do projetor
+  sintético confirma zero conversões em nova lista com os mesmos valores e
+  reconversão quando qualquer campo mapeado muda. Isso mede processamento JS,
+  não o tempo total do Histórico nem o carregamento de Finanças no iPhone.
+- `StaleCostSettingsOperationError` pode chegar por persistência local ou sync
+  remoto em `useCostSettings`; ambos descartam operações obsoletas. Sem prefixo
+  ou stack do aviso recorrente do iPhone, o chamador daquela ocorrência não foi
+  determinado. Nenhum comportamento de Cost Settings foi alterado.
+- Aceleradores de cache para o lucro líquido continuam pendentes de contrato
+  seguro que inclua snapshots exatos de entregas/custos, confirmação sem cache
+  nem escritas pendentes, sessão, período e compatibilidade com o ledger e os
+  parâmetros de combustível. Não houve alteração em Firebase, regras, schema,
+  persistência, cálculo financeiro ou ledger.
+- Validação sintética desta etapa: TypeScript passou; 9 suítes direcionadas
+  passaram (99 testes), incluindo `useFinancialData`, cache financeiro,
+  cálculo, ledger, projeção do Histórico e equivalência do formatador. Os testes
+  existentes cobrem cache ausente/presente, falha de revalidação, sessão e
+  respostas fora de ordem. Não há teste financeiro que injete
+  `hasPendingWrites=true`: os loaders mensais atuais não expõem essa metadata ao
+  hook, então essa condição permanece sem validação e impede promover o cache.
+  ESLint direcionado passou com a regra Prettier desativada para preservar CRLF;
+  Prettier passou nos arquivos de código/teste com `endOfLine=auto` e
+  `git diff --check` passou. Não foram acessados Firebase ou Emulator. O usuário
+  informa que validou no iPhone as otimizações apresentadas, mas não incluiu
+  novos logs ou tempos nesta finalização.
+  Como as mudanças são TS/TSX/Markdown, Fast Refresh basta; nova Development
+  Build não é necessária. Não houve redução comprovada do carregamento inicial
+  de Finanças. A próxima investigação depende de um contrato seguro de cobertura
+  e proveniência das leituras de custos e entregas.
+
+## Etapa 2.2.3A — proveniência e cobertura financeira (2026-11-06)
+
+- A lacuna descrita acima foi corrigida sem criar cache v2 nem mudar o formato
+  persistido. `FirestoreDailyMonthlyDataSource.loadWithMetadata` e
+  `FirestoreDeliveryDataSource.loadWithMetadata` agora devolvem a fotografia
+  exata da consulta separada do estado acumulado/compatível dos stores, junto a
+  UID, `sessionVersion`, filtros/intervalo, `scopeKey`, `fromCache`,
+  `hasPendingWrites`, origem, cobertura e `remoteConfirmed`. O método legado
+  `load()` continua disponível e mantém seu retorno para os consumidores
+  existentes. A leitura paginada de histórico também agrega metadata de todas as
+  páginas antes de confirmar a cobertura.
+- `useFinancialData` só marca um período como remoto completo se custos e
+  entregas corresponderem ao UID, sessão, consulta e filtros solicitados, e se
+  ambos os snapshots reportarem `fromCache=false` e `hasPendingWrites=false`.
+  Resultados unidos ao store não servem como confirmação. Respostas de sessão,
+  usuário ou consulta diferentes são rejeitadas antes de serem publicadas.
+- Cache Firestore local e snapshots com escritas pendentes são classificados
+  como provisórios; ausência de metadata vira `unknown`. Um resultado vazio só
+  produz valores financeiros zerados quando a consulta exata é confirmada. Se
+  não houver confirmação e não existir snapshot anterior ou dado local útil, o
+  hook mantém os indicadores indisponíveis em vez de publicar uma fotografia
+  vazia. O cache mensal v1 do AsyncStorage não tem identidade de sessão nem
+  filtros: `useFinancialData` não o reutiliza como dado da sessão atual. Só pode
+  reutilizar uma entrada de memória criada por confirmação remota na mesma
+  sessão e consulta; essa entrada continua provisória até nova confirmação.
+  Lucro líquido fica indisponível até custos, entregas, ledger e combustível
+  estarem prontos conforme os contratos atuais.
+- A confirmação de `hasPendingWrites=false` descreve os snapshots/consultas
+  exatos considerados. Ela não é uma barreira global contra escritas pendentes
+  fora desse escopo; custos e entregas também não formam uma leitura atômica
+  conjunta. O cache financeiro v1 não contém proveniência, cobertura,
+  sessão ou filtros e permanece no formato atual; consumidores legados fora de
+  `useFinancialData` ainda precisam de análise própria. Essa etapa não ativa
+  cache-first nem grava novo formato persistente.
+- Fórmulas, ledger de rotas, combustível, schemas, regras financeiras e
+  operações de escrita do ledger permaneceram inalterados. A cobertura do
+  histórico total agora pode ser confirmada com metadata agregada; custo ou
+  entrega com metadata ausente/cache/pending continua provisório e não renova o
+  cache financeiro de período.
+- Validação sintética local: TypeScript passou e 6 suítes direcionadas passaram
+  (130 testes), incluindo proveniência, custos, entregas, cache de período,
+  `useFinancialData` e `FinancialCalculationService`. Os mocks cobrem confirmação de servidor,
+  cache, escritas pendentes, ausência de metadata, consulta vazia confirmada,
+  falha de rede, UID/sessão, respostas fora de ordem e compatibilidade dos
+  métodos legados. Nenhum teste acessa Firebase de produção. ESLint direcionado,
+  `git diff --check` e TypeScript passaram. Nenhuma medição física no iPhone foi
+  feita; não há ganho de desempenho declarado. Como as mudanças são TS/TSX e
+  Markdown, Fast Refresh basta; não há alteração nativa nem nova Development
+  Build necessária.
+
+## Estabilização pré-commit — estado para publicação (2026-11-05)
+
+- Cost Settings: mutações não usam mais `setDoc(..., { merge: true })` para
+  atualizar registros conhecidos. Updates de registros que já existiam falham
+  claramente se o documento desaparecer; criações são feitas por transação
+  somente quando a operação representa criação. A exclusão seguida de uma nova
+  edição aguarda o ACK da exclusão, não recria se ela falhar e serializa as
+  operações concorrentes para o mesmo registro. Dados antigos não são enviados
+  como substituição completa do documento.
+- Car Settings: snapshots `cache` ou com `hasPendingWrites` não são tratados
+  como confirmação remota. Updates de documentos existentes mantêm o `updateDoc`
+  parcial do SDK (incluindo a fila offline); seu ACK é tratado apenas como patch
+  e aplicado sobre a base em cache mais recente, nunca como fotografia completa
+  fabricada a partir de uma leitura antiga. A criação após ausência confirmada
+  continua transacional e exige edição explícita. Edições locais são mantidas
+  como patches da sessão e sobrepostas a novas confirmações. Se uma edição
+  chegar antes da hidratação, sua gravação local aguarda a leitura da base para
+  não substituir o campo não editado por default. Gravações de cache local são
+  serializadas por UID; transações de criação também são serializadas por UID.
+  Updates parciais existentes continuam sem esperar o ACK de outros updates,
+  mas aguardam transações de criação anteriores para preservar a ordem da última
+  edição. Uma nova hidratação aguarda a fila local; confirmações antigas são
+  rejeitadas antes de atualizar UI/cache. Revisões exatas de drafts são
+  resolvidas após ACK mesmo quando a releitura de concorrência falha ou retorna
+  dados provisórios. Após desmontagem do editor, uma confirmação ainda pode
+  atualizar o cache somente se o UID/sessionVersion ativo corresponder; logout
+  ou troca de sessão bloqueia o resultado antigo. A invalidação local por
+  ausência remota confirmada também termina após a desmontagem da tela enquanto
+  a sessão permanece ativa. Ausência confirmada não cria documento remotamente.
+  A chave legada sem UID continua ignorada e não é migrada automaticamente.
+- Navegação: `gestureCancel` agora restaura o ciclo da tela revelada e cancela
+  intenção pendente mesmo quando o listener do destino não tinha intenção
+  própria. A Web libera as rotas após um ciclo real de blur/focus, pois não
+  recebe o mesmo `transitionEnd` do Native Stack. O caminho de eventos e as
+  animações nativas do iOS foram preservados; nenhum timer foi introduzido.
+- Instrumentação `[STAGE2_BASELINE]`: contagens, snapshots e fornecedores de
+  detalhes usados exclusivamente nos diagnósticos só são calculados em
+  `__DEV__`; as medições não incluem UID, nomes ou valores financeiros.
+- Validação local: `npm run typecheck` passou. As 3 suítes focadas em Finanças,
+  navegação de Clientes e Live Activity passaram (37 testes). ESLint direcionado
+  passou; ESLint nos TS/TSX alterados passou com `prettier/prettier` desligado
+  para preservar finais CRLF existentes. `git diff --check` passou.
+- Revisão final de Car Settings e sessão: 4 suítes sintéticas passaram (61 testes),
+  cobrindo ACK de patch e criação, snapshots pendentes e confirmação posterior,
+  rejeição, UID/sessionVersion obsoletos, ausência remota, fallback offline,
+  edição antes da hidratação, updates concorrentes enquanto uma criação aguarda,
+  drafts reconhecidos após releitura provisória/falha e após desmontagem, e
+  prevenção de persistência depois de logout. A execução ampliada, incluindo
+  regressões de Finanças e Route Tracking, passou 6 suítes e 86 testes. TypeScript passou; ESLint
+  direcionado passou com `prettier/prettier` configurado para `endOfLine: auto`;
+  `git diff --check` passou. Foram usados mocks; nenhum Firebase ou Emulator foi
+  acessado.
+- Última execução completa sem Firebase registrada: `npm test -- --silent
+--testPathIgnorePatterns=tests/integrity/Stage1Persistence.emulator.test.ts`
+  executou 237 suítes: 227 passaram e 10 falharam; 1.823 testes passaram e 17
+  falharam. As 10 suítes/17 falhas foram reproduzidas no HEAD original
+  `9cd0be9`; a suíte completa não foi repetida após as alterações finais de
+  Car Settings. Os dois erros em arquivos cobertos por uma rodada anterior foram corrigidos
+  sem mudar lógica de produto: o mock de Finanças agora fornece `coverage`, e
+  o teste de Clientes simula o retorno nativo antes de iniciar a navegação
+  seguinte. As 10 suítes restantes são de áreas sem mudança funcional nesta
+  etapa: `DailyDataDataSource`, `RetailOrderPaymentSheet`,
+  `NativeContextMenuPreviewIntegration`, `FinanceSelectorAnimation`,
+  `FirebaseActivationGate`, `RegistrarDailyDataSheetPresentation`,
+  `DeliveryServices`, `RegistrarWholesaleIconPresentation`,
+  `MockAuthDataSource` e `FirebaseReadinessGate`. Permanecem como falhas do
+  baseline pendente; seus testes não foram alterados para fazê-los passar.
+  Nenhum Emulator, Firebase de produção, build ou dispositivo foi acessado.
+- A suíte manual `tests/integrity/Stage1Persistence.emulator.test.ts` foi
+  inspecionada, mas não executada nesta etapa. Ela fixa o projeto
+  `demo-emporio-integrity-stage1`, exige Auth/Firestore em `127.0.0.1` nas
+  portas do `firebase.emulator.json`, faz preflight TCP/HTTP e restringe o
+  `fetch` aos endpoints locais permitidos; os SDKs são conectados aos
+  Emulators antes de criar usuários sintéticos. Isso permite uma execução
+  isolada quando os Emulators forem iniciados localmente, mas não substitui a
+  validação ainda pendente desta etapa.
+- Live Activity: a nova apresentação da barra da tela bloqueada mantém marca,
+  progresso real de entregas concluídas/total e o contador; não apresenta mais
+  categoria, data sempre visível, baldes nem total de entregas pendentes. Na
+  Dynamic Island, o layout expandido remove a data trailing, arredonda os
+  números, amplia a marca de 42 para 48 pt e troca o Gauge azul por verde
+  claro. A barra agora volta a mostrar `Dados desatualizados · DD/MM/AAAA`
+  somente quando `isObsolete` ou `environment.isStale` sinalizar conteúdo
+  antigo. Isso preserva o desenho novo e mantém a distinção entre snapshot
+  atual e obsoleto. A descrição histórica de 2026-10-21 foi mantida identificada
+  como tal e a implementação vigente foi documentada abaixo.
+- A alteração TSX da apresentação pode receber Fast Refresh no app, mas a
+  extensão da Live Activity usa o bundle independente `ExpoWidgets.bundle`.
+  Para validar a barra da Tela Bloqueada e a Dynamic Island no iPhone com o
+  código atual, é necessária uma nova iOS Development Build; Metro/Fast Refresh
+  sozinho não atualiza esse bundle. Essa validação ainda não foi executada.
+- Quatro PNGs novos em `assets/branding/` (`novologin.png`, `novologin2.png`,
+  `splashnovo.png`, `splashnovo1.png`) não têm referências funcionais no
+  código ou testes consultados e contêm metadados XMP. Foram copiados para
+  `C:\Projetos\emporiorigatti-assets-review\`; os quatro SHA256 das cópias
+  foram comparados com os originais antes de retirar os arquivos do projeto.
+  As cópias externas não devem ser publicadas com os metadados identificáveis;
+  futuras referências no app devem usar cópias sanitizadas.
+- `firestore-debug.log` existe localmente e foi preservado. A regra específica
+  `/firestore-debug.log` em `.gitignore` o mantém fora do status/commit.
+- O escopo desta estabilização preserva as alterações das Etapas 2.0–2.1.3,
+  seus testes e a instrumentação `[STAGE2_BASELINE]`. Os quatro PNGs continuam
+  preservados fora do repositório, e `firestore-debug.log` permanece apenas
+  local e ignorado.
+
+## Etapa 2.1.3 — intenção de navegação durante retorno nativo (2026-11-05)
+
+- A causa do toque perdido está na diferença entre o ciclo nativo e o estado
+  JavaScript: `react-native-screens` notifica o início visual em
+  `viewWillAppear`; o Native Stack emite `transitionStart(closing=false)`.
+  `transitionEnd` vem de `viewDidAppear`, enquanto foco depende da mudança do
+  estado JS da rota e de seus pais. Nesse intervalo, o `onPress` pode chegar
+  com a tela visível e `navigation.isFocused()`/topo ainda desatualizados. Os
+  guards anteriores retornavam sem preservar a intenção.
+- As telas Landing e Clientes agora guardam uma intenção única somente durante
+  uma transição nativa de entrada reconhecida. Toques repetidos ao mesmo destino
+  são consolidados; execução espera fim da transição, foco da origem e rota JS
+  ativa. Clientes reconhece retorno tanto do formulário de entrega quanto do
+  cadastro de cliente. Mudança de destino, nova transição, saída, rota
+  inesperada, blur, unmount ou `gestureCancel` cancela a intenção. Quando o gesto é revertido, o
+  evento real restaura a fase local ao estado estável; isso cobre o caminho em
+  que o Native Stack não emite o `transitionEnd` esperado. A rota que recebe
+  `gestureCancel` também cancela a intenção pendente da tela revelada e limpa o
+  ciclo compartilhado da Home, sem depender de timer.
+- A Home está dentro de Native Tabs e não recebe os eventos do Root Stack
+  direcionados à rota `(tabs)`. O layout `(tabs)` observa esses eventos e
+  compartilha um ciclo pequeno com Home; a Home usa o mesmo critério de
+  conclusão antes de navegar. A navegação estática continua usando
+  `router.navigate`, preservando a prevenção de rota duplicada. Landing e
+  Clientes continuam usando os pushes originais e os guards de saída da etapa
+  2.1.2 permanecem ativos.
+- Os logs `[STAGE2_BASELINE]` agora mostram intenção `pending`, `consolidated`,
+  `executed` ou `cancelled` e motivo, além de `navigation_gesture_cancel`,
+  inclusive quando o contexto da tela já perdeu foco. Eventos de intenção da
+  Home usam snapshot do Root Stack, não do navegador de abas. Os campos
+  continuam limitados a IDs de interação e rótulos permitidos; nenhum UID,
+  cliente, valor ou parâmetro de rota é registrado.
+- Handler e guard fazem leituras pequenas de foco/estado e navegação; Home não
+  executa consulta ou cálculo no handler. Clientes ainda processa/faz filtro e
+  ordenação no render, sob as medições existentes. Isso é oportunidade para a
+  próxima etapa de perfil, mas não explica o toque desta evidência, pois o
+  handler JavaScript já havia recebido o toque e então o descartava. Nenhuma
+  medição adicional de custo JS em iPhone foi possível nesta etapa.
+- Testes com mocks e dados sintéticos cobrem cinco toques, retorno com foco
+  antes/depois do fim nativo, Home aninhada, Landing → Clientes, Clientes →
+  formulário, toque após gesto cancelado, troca de destino, cancelamento de
+  gesto/rota, transição sobreposta e unmount. TypeScript passou; 4 suites
+  direcionadas passaram (45/45). ESLint padrão passou nos arquivos novos. Nos
+  arquivos preexistentes com CRLF, ESLint passou com somente a regra Prettier
+  desativada; a execução padrão apontou diferenças de finais de linha, sem erro
+  das outras regras.
+  `git diff --check` passou. Nenhum acesso ou mutação foi feito em Firebase,
+  produção ou dados locais.
+- Limitação fora do fluxo iOS validado: os guards de saída preservados da etapa
+  2.1.2 liberam via `transitionEnd`; o Native Stack Web instalado não emite esse
+  evento. A reabertura repetida dessas rotas na Web requer correção e teste
+  específicos de foco, fora desta correção de retorno nativo.
+- A validação de timing e animação ainda requer iPhone físico com Development
+  Build. Mudanças apenas TypeScript/TSX: Fast Refresh basta para a validação
+  inicial e não exige nova compilação nativa. Nenhuma build ou teste físico foi
+  iniciado pelo Codex.
+
+## Etapa 2.1.2 — duplicações de navegação do Root Stack (2026-11-05)
+
+- As capturas do iPhone confirmaram cinco instâncias de `registrar-entrega`
+  após toques rápidos na Home e duas instâncias de `registrar-entrega/clientes`
+  quando o handler da landing foi aceito com Clientes já no topo. A entrada da
+  Home usava `router.push` sem verificar foco ou estado raiz; cada `PUSH`
+  enfileirado cria nova rota. O guard da landing era liberado no
+  `transitionEnd(closing=true)` ao sair, mas não verificava se a instância
+  ainda estava focada.
+- A Home agora verifica o foco da tela e `(tabs)` no topo do Root Stack e usa
+  `router.navigate` para o destino estático. A semântica `NAVIGATE` do Stack
+  reutiliza a rota ativa quando ações rápidas são processadas em sequência.
+  Landing e seleção de cliente também consultam `navigation.isFocused()` no
+  próprio handler; isso bloqueia callbacks de rotas cobertas após a liberação
+  do guard sem esperar um novo evento `focus`. O mesmo padrão comprovado na
+  seleção Clientes → formulário recebeu a verificação de foco.
+- Os guards existentes e os eventos de transição do Native Stack foram
+  preservados. Não houve mudança em Firebase, dados, regras de negócio,
+  persistência, animações ou componentes nativos.
+- Validação sintética: 3 suítes direcionadas, 29 testes aprovados; TypeScript
+  passou. As regras ESLint passaram nos arquivos alterados; a regra Prettier
+  precisou ser excluída nos arquivos preexistentes em CRLF para não normalizar
+  seus finais de linha. `git diff --check` passou; a suíte encerrou normalmente
+  sem `--forceExit`.
+- Ainda falta repetir cold start, toque imediato após voltar por botão/gesto e
+  contagem da pilha no iPhone físico. As mudanças são somente TypeScript/TSX:
+  Fast Refresh na Development Build existente basta para a validação inicial;
+  não é necessária nova compilação nativa.
+
+## Finanças, navegação de entregas e operação offline — auditoria (2026-11-04)
+
+- O carregamento de Finanças Atacado é local à tela focada; o estado `loading`
+  de `useFinancialData` não é usado como gate global nem pela exclusão no
+  Histórico. Ao carregar um período sem snapshot persistido, a UI ainda depende
+  das leituras remotas específicas para confirmar os dados; as consultas de
+  entregas e custos, e as leituras diária e mensal, agora começam em paralelo.
+- Snapshots de período financeiros existentes são exibidos antes da
+  revalidação. A paralelização reduz esperas em série, mas ainda não foi medida
+  em iPhone físico e não elimina a dependência de rede quando não há snapshot.
+- A navegação para seleção de cliente e detalhe de entrega continua usando
+  Native Stack/`router.push`, com proteção síncrona contra toques repetidos;
+  a proteção é liberada ao recuperar foco. A criação bloqueia uma segunda
+  submissão enquanto o primeiro pedido aguarda confirmação.
+- A inicialização local do Firestore não configura cache persistente nativo;
+  o SDK usa sua configuração padrão em memória. O app tem caches AsyncStorage
+  próprios em fluxos específicos, mas não existe fila durável geral de mutações
+  de entregas. Criação, edição e exclusão só são confirmadas após resposta do
+  Firestore; suporte a gravações offline com reconciliação exige projeto
+  separado, sem migração automática.
+- Não foi possível medir cold start, latência de rede, renderização ou
+  comportamento offline em iPhone neste ambiente. Os testes locais comprovam
+  início concorrente das leituras e proteção contra duplicatas, não os tempos
+  percebidos em aparelho.
+
+## Integridade de Cost Settings e Car Settings — Etapa 1 (2026-11-04)
+
+- `Cost Settings` agora considera somente mudanças locais explicitamente
+  pendentes e válidas para gravação. Dados locais antigos não recriam registros
+  diários ou mensais ausentes no Firestore; alterações em registros existentes
+  usam atualização parcial sem recriar um documento removido em concorrência.
+  Um snapshot Firestore vindo do cache local ou com gravações pendentes não é
+  tratado como autoridade completa para sincronização.
+- `Car Settings` usa chave local versionada e vinculada ao UID, além de estado
+  em memória por UID e `sessionVersion`. A chave legada sem proprietário fica
+  intacta e é ignorada; não há migração automática. A confirmação remota de
+  ausência não transforma cache antigo em criação remota.
+- Testes unitários focados passaram para cache antigo, ausência/exclusão remota,
+  escopo entre contas, callbacks tardios, gravações concorrentes, transação de
+  criação, falha remota e falha de persistência. A integração sintética no
+  Firebase Emulator foi preparada, mas não executou porque o processo Java do
+  emulador falhou ao criar loopback neste ambiente. Nenhuma chamada ou mutação
+  foi feita no Firebase de produção; equivalência no Emulator e validação em
+  iPhone permanecem pendentes.
+
+### Encerramento da validação local (2026-11-04)
+
+- Atualização posterior à tentativa inicial acima: o usuário executou
+  `Stage1Persistence.emulator.test.ts` no Windows, contra os Emulators locais de
+  Auth e Firestore, com 5 testes aprovados, 0 falhas e exit code 0. Os cenários
+  cobriram exclusões remotas, cache antigo, isolamento por UID, logout/login e
+  operações concorrentes. O resultado encerra a validação da Etapa 1 nos
+  cenários sintéticos cobertos pela suíte; não equivale a validar dados reais,
+  regras em produção, todos os estados de recuperação ou comportamento em iPhone.
+- Risco residual conhecido: `FirestoreDailyMonthlyDataSource` dispara a
+  invalidação de snapshots financeiros com `void financialPeriodSnapshotCache.invalidate`.
+  Se `AsyncStorage.removeItem` rejeitar no app real, a rejeição pode ficar sem
+  tratamento e a chave persistida pode permanecer desatualizada. A falha
+  `removeItem is not a function` da primeira execução vinha do mock incompleto;
+  a suíte passou após completar o mock. Nenhuma alteração funcional foi feita
+  para este risco residual.
+
+### Etapa 2 — desempenho e responsividade (auditoria estática, 2026-11-04)
+
+- Esta etapa foi somente leitura do código atual. Não foram executados testes,
+  Firebase/Emulator, build, NativeSim ou perfil em iPhone; tempos percebidos,
+  jank e causa exata dos toques relatados ainda exigem medição no aparelho.
+- Em Registrar Entrega → Clientes, os dois pontos de entrada encontrados
+  protegem o `router.push` com um ref local: depois do primeiro toque, os
+  próximos handlers retornam até a tela recuperar foco
+  (`RegistrarDeliveryLandingScreen.tsx:17-30`,
+  `(tabs)/registrar/index.tsx:127-140`). Isso comprova que toques repetidos
+  podem ser descartados durante a transição; não comprova que o primeiro
+  `onPress` esteja sendo recebido nem que o guard explique todos os casos.
+- A rota Clientes reutiliza a tela de Registrar, que ainda consulta entregas do
+  dia, converte, ordena e soma dados mesmo com a seção Hoje oculta; também monta
+  as opções de todos os clientes de uma vez
+  (`registrar-entrega/clientes.tsx:1-4`,
+  `(tabs)/registrar/index.tsx:528-614,1051-1064`). O detalhe abre outro hook
+  de catálogo e entregas de hoje embora a operação principal seja criar uma
+  entrega (`registrar-entrega/[clientId].tsx:28-40,62-91`).
+- Home → Em aberto não possui lock no handler; chama `router.push` diretamente
+  (`(tabs)/dashboard/index.tsx:84-87`). Porém, Home usa o hook que também
+  consulta entregas pagas, calcula rankings e monta prévias, apesar de exibir
+  somente o total aberto (`useOpenPaymentClients.ts:19-67`). A tela Em aberto
+  repete o hook; as prévias filtram e ordenam o histórico pago para cada cliente
+  (`openPaymentClientPreview.ts:22-33`). Todos os cards, ações e menus são
+  construídos por `map`, sem virtualização da lista
+  (`OpenPaymentClientCards.tsx:198-260`).
+- Os hooks de entregas observam uma revisão global do datasource e refazem a
+  leitura do cache em memória e o filtro ao mudar a revisão
+  (`useDeliveries.ts:54-58,123-138`; publicação em
+  `FirestoreDeliveryDataSource.ts:1349`). O datasource compartilha uma consulta
+  idêntica enquanto ela está em andamento, mas não mantém essa deduplicação
+  depois que a Promise termina (`FirestoreDeliveryDataSource.ts:450-508`).
+  Trabalho de filtro, formatação, ranking e cálculo ocorre sincronamente no
+  JavaScript; seu custo real depende do volume de dados e requer perfil.
+- Finanças Atacado inicia a carga no foco. Se não há snapshot persistido válido,
+  lê a base local, entregas do período e custos do período em paralelo e espera
+  as três Promises antes de publicar o snapshot; não há waterfall serial entre
+  essas leituras (`useFinancialData.ts:521-605`). Com snapshot, exibe-o antes
+  da revalidação. O cálculo do resumo e do comparativo é síncrono no JavaScript
+  (`financeiro/index.tsx:196-254`); o comparativo mensal calcula os dois
+  períodos. A carga de configurações de combustível e de rotas também pode
+  causar recálculos; lucro líquido espera disponibilidade de snapshot, rotas,
+  hidratação de combustível e completude remota conforme cobertura
+  (`useFinancialFuelCosts.ts:14-50`,
+  `financeiro/index.tsx:203-254`). Esses caminhos são candidatos a custo,
+  mas o relato de aproximadamente três segundos não pode ser atribuído a uma
+  Promise ou cálculo específico sem perfil por etapa no iPhone.
+- Criação, edição, exclusão e alterações de status pelo datasource aguardam a
+  operação remota antes de resolver; a tela de criação só volta após sucesso
+  (`useDeliveries.ts:153-216`,
+  `FirestoreDeliveryDataSource.ts:901-1034`,
+  `registrar-entrega/[clientId].tsx:62-90`). O Histórico dispara exclusão sem
+  estado local pendente ou tratamento de erro visível junto ao toque
+  (`HistoryScreen.tsx:107-130`). O código confirma o caminho de espera e a
+  lacuna de feedback, mas a latência e o comportamento do SDK offline não foram
+  medidos nesta auditoria.
+- A inspeção não encontrou um bloqueio global comum aos dois atalhos: Home usa
+  handler sem lock, os guards são locais às telas de Registrar, e os overlays
+  globais só aparecem nos estados próprios. A hipótese de bloqueio compartilhado
+  deve ser testada com marcações de `onPressIn`, handler, decisão do guard,
+  `router.push`, foco, primeiro commit e primeiro controle acionável, junto com
+  duração do frame/event-loop no mesmo iPhone.
+- Próxima ordem de investigação/execução proposta: (1) medir os caminhos e
+  registrar baseline; (2) reduzir o trabalho comprovadamente excedente da Home
+  e da seleção de clientes, preservando Native Stack e regras de negócio;
+  (3) adicionar feedback por item enquanto mutações aguardam confirmação remota;
+  (4) agrupar leituras e cálculos financeiros apenas onde o perfil mostrar
+  duplicação/custo, mantendo comparação e cobertura histórica; (5) avaliar
+  virtualização com contagens e perfil, preservando ContextMenu e previews
+  nativos. Nenhuma otimização foi implementada nesta etapa.
+- Mudanças exclusivamente TypeScript/TSX podem ser verificadas via Fast Refresh
+  em Development Build compatível. Ajustes em controles SwiftUI/`@expo/ui`,
+  módulos nativos, configuração/plugin ou opções nativas que alterem o Native
+  Stack exigem nova Development Build. A medição final de transições e jank
+  deve ocorrer no iPhone físico com o build de referência.
+
+### Etapa 2.1 — guard de navegação de Registrar Entrega (2026-11-05)
+
+- O log do iPhone confirmou `handler_start` → `navigation_guard_blocked` na
+  rota `/registrar-entrega`, antes do `screen_focus` de retorno. A causa era o
+  ref síncrono da trava continuar `true` até o `useFocusEffect` da tela voltar;
+  o handler válido que chegava durante essa janela era descartado.
+- Nas rotas irmãs do Native Stack raiz `/registrar-entrega` e
+  `/registrar-entrega/clientes`, a trava agora é liberada no `transitionEnd`
+  com `closing === true` da própria tela que iniciou o push. Isso mantém a
+  proteção síncrona durante a transição de saída e libera a próxima tentativa
+  antes do retorno/foco; o reset posterior por foco foi removido nesses dois
+  caminhos para não abrir uma segunda janela de duplicação.
+- A guarda da seleção na aba Registrar permanece sem alteração: a evidência
+  fornecida confirma a falha na landing do Stack raiz, não na rota aninhada da
+  aba. Nenhuma animação, regra de negócio, persistência, Firebase ou componente
+  nativo foi alterado.
+- Testes sintéticos simulam toque repetido antes da conclusão da transição,
+  `transitionEnd` não conclusivo (`closing === false`) e o primeiro toque após
+  a saída antes de novo evento de foco; o push segue único por tentativa.
+  TypeScript e ESLint direcionado passaram; testes direcionados: 3 suites,
+  28 testes aprovados. A sequência real de transições, gesto de voltar e toque
+  imediato ainda precisa ser confirmada no iPhone. Fast Refresh com a
+  Development Build existente basta; não houve mudança nativa.
+
+### Etapa 2.1.1 — diagnóstico residual de cold start (2026-11-05)
+
+- A captura mais recente fornecida contém 5 `handler_start`, 4 decisões
+  `navigation_guard_allowed`, 1 `navigation_guard_blocked`, 4 chamadas
+  `router.push` e 4 montagens de Clientes. Isso é compatível com um push por
+  handler aceito; não comprova telas duplicadas porque a captura não contém
+  transições Native Stack nem o estado/quantidade de rotas no momento de cada
+  evento. Houve ainda foco, blur e unmount sem identidade estável por instância.
+- Causa confirmada da ambiguidade de diagnóstico: o baseline guardava um único
+  contexto de trace por tipo de fluxo. `startStage2Flow` podia substituí-lo e o
+  cleanup de outra instância consultava o contexto mais recente pelo fluxo,
+  atribuindo foco/blur/unmount ao trace errado. A instrumentação agora mantém
+  identidade e contexto por instância; isso corrige a correlação, não o guard.
+- Instrumentação temporária, somente em desenvolvimento, registra handler,
+  origem/destino com rótulos permitidos, decisão do guard, ID de interação,
+  `transitionStart/End`, foco, blur, mount, unmount, contagem de listeners
+  instrumentados e um retrato sanitizado do estado de navegação JS. O retrato
+  não inclui params, chaves ou estado nativo interno e não deve ser tratado como
+  prova isolada da profundidade real do Native Stack. Também registra cada
+  tarefa de hidratação do cold start e a liberação/saída do SplashGate, sem UID,
+  nome, valor financeiro ou payload.
+- A hidratação inicial observada em `AppShell` chama caches próprios de clientes,
+  entregas e rotas, AsyncStorage de Cost/Car Settings e carregamento de fonte;
+  essas tarefas não consultam servidor Firestore. Leituras remotas de dados da
+  tela podem ocorrer em paralelo depois do foco. Não há evidência de que essas
+  leituras causem as duplicações; a relação com atrasos de toque ainda requer
+  duração dos eventos e perfil do iPhone na mesma execução.
+- `StaleCostSettingsOperationError` permanece classificado como cancelamento
+  local esperado quando uma operação perde validade (sessão/operação obsoleta),
+  capturado pelo hook sem rejeição não tratada. A condição também pode se tornar
+  falsa no cleanup do efeito; o hook converte a rejeição em `false`, e o gate
+  `beforeWrite` então pula a mutação remota. O aviso de desenvolvimento usa uma
+  mensagem genérica de falha de gravação local; a captura não distingue
+  invalidação por sessão de cleanup do efeito nem prova se a edição local foi
+  gravada/reapresentada. Nenhuma persistência ou mensagem de erro foi alterada
+  nesta etapa.
+- Nenhuma causa funcional nova foi comprovada, então guards, navegação e
+  transições da Etapa 2.1 foram preservados sem alterações de comportamento.
+  Testes sintéticos direcionados: 3 suites, 24 testes aprovados; TypeScript
+  passou; ESLint direcionado passou com `endOfLine: auto`, preservando as
+  terminações CRLF existentes. Nenhum Firebase, Emulator, build ou iPhone foi
+  executado. A validação real exige repetir o cold start e o retorno por gesto
+  e botão na Development Build do iPhone, enviando somente logs
+  `[STAGE2_BASELINE]`. Fast Refresh basta; nenhuma mudança nativa foi feita.
+
 A validação parcial no NativeSim informada pelo usuário refere-se somente ao
 checkpoint histórico `5dfc143`; não valida o HEAD auditado nem comprova
 comportamento em iPhone físico. Este registro vale para o checkout `Codex`; as
@@ -91,7 +1415,7 @@ histórico das entregas e devem ser preservadas como histórico.
   Build. A publicação deste snapshot não inclui deploy, prebuild, compilação ou
   validação em dispositivo.
 
-## Live Activity iOS Atacado e Dynamic Island — implementação revisada em 2026-10-21
+## Live Activity iOS Atacado e Dynamic Island — ciclo automático (2026-10-21) e apresentação vigente (2026-11-05)
 
 Este bloco registra o comportamento presente no código da branch `Codex`,
 incluindo as alterações de ciclo automático e encerramento pelo widget. Ele
@@ -116,10 +1440,11 @@ descreve implementação e testes automatizados; não afirma validação física
   conta todas as entregas do dia. Baldes seguem
   `financialCalculationService.calculateQuantidade`. A mesma projeção alimenta
   os dados do widget Entregas do Dia.
-- Visual atual da Dynamic Island: no modo compacto, `leading` usa o monograma
-  ER do splash dark em 25 pt e `trailing` exibe somente o número reativo de
-  entregas pendentes. Na expansão, `leading` mostra o monograma em 42 pt,
-  alinhado à direita de sua região nativa; `trailing` mostra a data discreta
+- Visual histórico de 2026-10-21: no modo compacto, `leading` usa a marca branca
+  do Splash atual em 25 pt, compartilhada com a extensão pelo App Group, e
+  `trailing` exibe somente o número reativo de entregas pendentes. O modo minimal
+  usa a mesma marca em 24 pt. Na expansão, `leading` usa a marca em 42 pt,
+  alinhada à direita de sua região nativa; `trailing` mostra a data discreta
   curta, sem ano; `center` apresenta números em negrito para entregas e baldes
   pendentes lado a lado com os labels `Entregas` e `Baldes`; e `bottom` usa um
   Gauge linear azul com `concluídas / total`. O Gauge usa o estilo nativo
@@ -128,8 +1453,20 @@ descreve implementação e testes automatizados; não afirma validação física
   atualizada pela projeção; com total zero, a barra vale zero e o texto é
   `0 / 0`. A composição usa as regiões nativas `expandedLeading`,
   `expandedTrailing`, `expandedCenter` e `expandedBottom`, sob o fundo preto
-  nativo. O banner da Tela Bloqueada e as outras regiões não foram redesenhados
-  por esse ajuste.
+  nativo. O banner da Tela Bloqueada mantém o ícone, Atacado, data, Baldes e
+  Entregas; agora ocupa a largura disponível e alinha esses itens pela borda
+  leading, sem mudar ordem ou espaçamento interno.
+- Apresentação vigente, atualizada em 2026-11-05: a barra da Tela Bloqueada usa
+  a marca do app à esquerda e, à direita, o título `Entregas`, Gauge de
+  progresso concluídas/total e fração `concluídas/total`. Ela não mostra mais
+  o rótulo Atacado, a data em estado atual, baldes nem o total pendente. Quando
+  `props.isObsolete` ou `environment.isStale` for verdadeiro, uma legenda
+  discreta aparece abaixo do progresso: `Dados desatualizados · DD/MM/AAAA`,
+  usando a data do snapshot. Em estado atual, essa legenda não ocupa espaço.
+  No Dynamic Island compacto e minimal, a marca e o contador pendente são
+  mantidos. Na expansão, a data trailing foi removida, os números passaram à
+  fonte rounded, a marca foi ampliada de 42 para 48 pt, e o Gauge inferior
+  passou de azul para verde claro; contagens e cálculo de progresso não mudaram.
 - Snapshots completos e mutações do app confirmadas remotamente — adicionar,
   editar, excluir e marcar/desmarcar como entregue — atualizam a atividade sem
   reiniciá-la. As alterações nos contadores pendentes, concluídas ou total
@@ -161,6 +1498,9 @@ descreve implementação e testes automatizados; não afirma validação física
 - `staleDate` aponta para a próxima meia-noite local. Isso marca os dados como
   stale, mas não encerra a ActivityKit automaticamente; a reconciliação ao
   voltar ao primeiro plano pode marcá-la obsoleta e publicar dados atuais.
+  No banner da Tela Bloqueada, ambas as condições agora têm indicação visível
+  de dados desatualizados; a barra de progresso ainda representa o último
+  snapshot disponível e não deve ser interpretada como dado atualizado.
   Logout/troca de UID encerra as instâncias, e a recuperação remove atividades
   sem ownership válido e duplicatas. A autorização de Live Activities do iOS
   pode rejeitar o início automático.
@@ -224,8 +1564,8 @@ descreve implementação e testes automatizados; não afirma validação física
   ativa é limitada a oito horas, em alinhamento com o limite documentado de
   atividade ativa pelo ActivityKit; a plataforma pode encerrar a atividade e
   controlar sua permanência na Tela Bloqueada.
-- Compacta: seta de navegação branca à esquerda e o asset original ER do splash
-  dark à direita; a apresentação minimal usa somente a seta. Expandida: ER em
+- Compacta: asset original ER do splash dark à esquerda e seta de navegação
+  branca à direita; a apresentação minimal usa somente a seta. Expandida: ER em
   `expandedLeading`, seta em `expandedTrailing`, status discreto em
   `expandedCenter` e quilômetros/tempo em duas colunas em `expandedBottom`.
   A Tela Bloqueada usa os mesmos dados e timer. O fundo da Dynamic Island é
@@ -1186,7 +2526,7 @@ somente por causa do antigo keyboard accessory.
   Sistema e demais fluxos; Modo Teste permanece local e não ativa por Quick
   Action.
 - Sistema: os laboratórios visuais `Teste Liquid Glass` e `Teste Bottom Sheet
-  Glass` foram removidos; Modo Teste e Backup permanecem disponíveis.
+Glass` foram removidos; Modo Teste e Backup permanecem disponíveis.
 - Localização/GPS: tracking, histórico e mapa preservados; montagem pesada do
   mapa ocorre após `transitionEnd`.
 
@@ -1457,7 +2797,7 @@ sem criar uma segunda fonte de verdade:
   uma polyline independente por sessão, câmera agregada e annotations de
   início/fim. Não há união artificial entre trajetos.
 - A ponte RN/SwiftUI é `VStack -> RNHostView -> container React Native ->
-  NativeTrackedRoutesMap`; o container possui altura finita e clipping com o
+NativeTrackedRoutesMap`; o container possui altura finita e clipping com o
   mesmo radius visual do mapa de Localização.
 - A altura da prévia é fixa em 180 pt nos estados do resultado. O mapa não é
   recriado para redimensionamento do sheet; no estado não interativo o gesto
@@ -1725,9 +3065,9 @@ uma operação confirmada.
 
 1. **Padronização de Haptic Feedback:**
    - Reutilização exclusiva do helper `triggerLightImpactHaptic()` de `src/utils/haptics.ts` (`Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)`) em todos os pontos de entrada de toque das abas e telas principais:
-     - **Finanças:** Cards de *Faturamento Mensal* e *Lucro Líquido Mensal*.
-     - **Home / Dashboard:** Widgets de *Recebimentos em aberto* e *Documentos*, além do foco na barra de busca (*Search Bar*).
-     - **Registrar:** Cards de *Registrar Entrega* e *Registrar Dados Diários*, e botão *Adicionar* da tela de Dados Diários.
+     - **Finanças:** Cards de _Faturamento Mensal_ e _Lucro Líquido Mensal_.
+     - **Home / Dashboard:** Widgets de _Recebimentos em aberto_ e _Documentos_, além do foco na barra de busca (_Search Bar_).
+     - **Registrar:** Cards de _Registrar Entrega_ e _Registrar Dados Diários_, e botão _Adicionar_ da tela de Dados Diários.
      - **Configurações e Subtelas:** Centralização no componente `SettingItem` (cobrindo todas as 18+ linhas da raiz, Dados, Fábrica, Backup e lista de Clientes), botões de ação e rotas de histórico de localização.
 2. **Lifecycle e Refinamento Visual do Shimmer no Placeholder da Home Search:**
    - Eliminação da trava estática `startedEntryKey` que congelava a animação após o campo perder o foco (blur).
@@ -1974,7 +3314,7 @@ uma operação confirmada.
 
 ### Funcionalidade implementada
 
-- **Simplificação e padronização de cabeçalhos:** Em resultados financeiros (`financialMetric` sem cliente explícito), resumos gerais de período (`periodSummary`) e resumos da fábrica com período (`factorySummary`), foi removido o texto redundante cinza (*eyebrow context*) e o ícone anterior à data/período. O cabeçalho passa a exibir diretamente o período/data em tipografia `headline bold rounded`, seguido pelo valor principal e pelo card *"Base do cálculo"*.
+- **Simplificação e padronização de cabeçalhos:** Em resultados financeiros (`financialMetric` sem cliente explícito), resumos gerais de período (`periodSummary`) e resumos da fábrica com período (`factorySummary`), foi removido o texto redundante cinza (_eyebrow context_) e o ícone anterior à data/período. O cabeçalho passa a exibir diretamente o período/data em tipografia `headline bold rounded`, seguido pelo valor principal e pelo card _"Base do cálculo"_.
 - **Elevação do bloco no Bottom Sheet compacto:** Introduzido `COMPACT_FINANCIAL_EXTRA_TOP_INSET = 4` em [HomeSearchResultsNative.ios.tsx](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/components/HomeSearchResultsNative.ios.tsx), elevando o bloco completo (período + valor + card) em 16 pt no Bottom Sheet compacto (`topPadding = 36 pt` vs `52 pt` padrão), preservando rigorosamente o layout expandido em `32 pt` (`spacing.xxl`).
 - **Preservação de outros tipos de resultado:** Resultados de cliente (`Luciano`, `André`), rotas com mapa/GPS, entregas individuais, compras da fábrica, configurações do carro e métricas com cliente explícito (`Faturamento Luciano agosto`) mantiveram suas estruturas e cabeçalhos intactos.
 
@@ -2077,7 +3417,7 @@ uma operação confirmada.
 - **Consultas diretas de km (`routeMetric`):** Consultas como `km 14/08`, `quilometragem agosto`, `km semana passada` e `km 01/08 a 15/08` utilizam exatamente a mesma consolidação unificada.
 - **Carregamento otimizado de dados:** Em `AppHomeSearchDataSource.load`, consultas de `routeMetric` carregam em paralelo as rotas locais e os dados financeiros/gastos diários com cache em memória/disco (`financialPeriodSnapshotCache`) e consulta Firestore delimitada sem N+1.
 - **Preservação estrita da contagem de rotas:** A linha `Rotas` (`routeCount`) preserva estritamente a quantidade de sessões GPS gravadas (`sessions.length`). Lançamentos manuais de km em Dados do Dia não inflam a quantidade de rotas.
-- **Padronização do rótulo da métrica:** No card *Operação* dos resumos, o rótulo foi atualizado de `Distância das rotas` para **`Quilometragem total`** em [HomeSearchResultsVisualModel.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/components/HomeSearchResultsVisualModel.ts).
+- **Padronização do rótulo da métrica:** No card _Operação_ dos resumos, o rótulo foi atualizado de `Distância das rotas` para **`Quilometragem total`** em [HomeSearchResultsVisualModel.ts](file:///c:/Projetos/PAReact%20Antigravity/pwa-ios-2026/src/features/home/components/HomeSearchResultsVisualModel.ts).
 
 ### Arquivos principais
 
@@ -2526,7 +3866,6 @@ Resolução definitiva do problema de ghosting/rastro visual no Bottom Sheet da 
 - Nenhum commit ou push adicional realizado.
 
 ## Flags atuais
-
 
 Valores presentes em `src/config/featureFlags.ts`:
 
@@ -3573,7 +4912,7 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 
 - Branch: `ajustes-codex`.
 - Commit: `12ee841edc6af1c76f366e2c6cc033f0b8f84ef4` (`fix: correct Apple
-  Intelligence search routing and bridge`).
+Intelligence search routing and bridge`).
 - Publicado em `origin/ajustes-codex`.
 
 ## Registrar — Entregas em cards individuais
@@ -3689,3 +5028,190 @@ cabeçalho e dos cards em relação à Home e às demais abas principais.
 - Commit publicado: `b7c22af4717b671adb88b68d1b208119cf9eb117`
   (`feat: refine native sheets and search interactions`) na branch
   `ajustes-codex`, sincronizada com `origin/ajustes-codex`.
+
+## Etapa 2.2.9C — últimos números apresentados em Finanças Atacado
+
+- Esta etapa substitui, para apresentação dos cards de Faturamento e Lucro
+  Líquido, o bloqueio conceitual da 2.2.9B. O registro não comprova a
+  atualidade nem a completude contábil dos dados: é somente o último par de
+  números finais que a interface já apresentou após o caminho normal de dados.
+- Um envelope pequeno e separado guarda Faturamento, Lucro Líquido e as
+  comparações efetivamente disponíveis para ambos. O contrato inclui versão do
+  cache, versão das regras, ambiente de build, projeto Firebase, UID e uma chave
+  canônica da seleção/período e filtros. Não guarda entregas, custos, rotas,
+  clientes, snapshots v1, horários, nem estados de loading/erro.
+- A restauração acontece somente na tela Atacado focada, com sessão autenticada
+  e Test Mode pronto e desativado. O par inteiro é aplicado apenas aos props dos
+  dois cards e indicadores de tendência. Não alimenta `useFinancialData`,
+  `remoteComplete`, cálculos, gráficos, widgets ou consultas; o caminho remoto
+  existente segue sem alterações.
+- O primeiro par vivo só substitui o registro quando as condições já usadas
+  pela tela permitem apresentar o resumo e o Lucro Líquido. Valores e
+  comparações são trocados juntos. Se os números não mudarem, os valores e a
+  referência de comparação são preservados para não reiniciar
+  `NativeAnimatedNumber`/SwiftUI `numericText` desnecessariamente.
+- Leituras e gravações são vinculadas ao UID, `sessionVersion`, seleção e
+  filtros em memória. Respostas assíncronas antigas são descartadas. O logout
+  e a troca de UID invalidam a geração de gravação e tentam remover o registro;
+  uma gravação serializada não pode recriar o registro depois dessa limpeza.
+  Escopo ou versão incompatível é cache miss.
+- O registro usa AsyncStorage, que não criptografa os dados. O conteúdo limita-se
+  a totais agregados e comparações, mas esses números ainda podem ser vistos por
+  quem tiver acesso aos dados locais do aplicativo. Isso é uma limitação aceita
+  explicitamente para este cache de apresentação. O Firebase segue como fonte
+  de verdade; os valores persistidos podem estar temporariamente desatualizados
+  e não recebem aviso visual conforme solicitado.
+- A validação desta etapa usa somente storage falso e dados sintéticos; não
+  acessa produção nem Emulator. Fast Refresh basta para carregar as mudanças
+  JS/TS na Development Build existente. Para conferir restauração persistente,
+  encerre o processo do app sem limpar os dados locais e abra novamente; nenhuma
+  nova compilação nativa é necessária.
+- TypeScript, ESLint direcionado e `git diff --check` passaram. Quatro suítes
+  direcionadas passaram com 61 testes sintéticos, cobrindo restauração após
+  nova instância do cache, miss por UID/projeto/ambiente/escopo/versão, valores
+  finitos e negativos, gravação sem alteração, falha de storage, leitura tardia,
+  gravação concorrente e limpeza no logout. Não foi executada a suíte completa
+  nem validação visual física nesta etapa.
+- A limpeza tenta remover o registro e, se `removeItem` falhar, gravar um valor
+  inválido para impedir restauração em outro processo. Se ambas as operações de
+  AsyncStorage falharem, a sessão atual continua bloqueando o cache em memória,
+  mas a remoção persistente não pode ser garantida; isso permanece como risco
+  residual da API local.
+
+## Etapa 2.2.9D — painel visual completo em cache (2026-11-06)
+
+- Causa comprovada da exibição tardia dos cards inferiores: a 2.2.9C só
+  persistia Faturamento, Lucro Líquido e suas comparações; os quatro `SummaryCard`
+  continuavam ligados exclusivamente ao `summary` ao vivo. A tela inteira não
+  tinha dados salvos para esses quatro cards. A leitura do cache também esperava
+  a tela Atacado receber foco, em vez de começar assim que a rota autenticada
+  estivesse montada.
+- Os logs anteriores não identificavam motivo de cache miss nem resultado da
+  gravação. Portanto, a causa exata de um miss dos dois cards superiores nos
+  testes anteriores continua indeterminada. A instrumentação nova registra
+  `presentation_cache_write`, `presentation_cache_hit`/`miss`,
+  `presentation_cache_hydrated`, `presentation_cache_rendered` e
+  `presentation_cache_replaced_by_live`, somente em `__DEV__`, sem valores,
+  UID, período, filtros ou erros brutos. `rendered` indica commit JS/layout do
+  painel; não comprova que um frame físico já foi exibido.
+- O envelope agora é versão 2 e guarda os dois valores superiores, comparações
+  exibidas e somente os 14 campos numéricos usados pelos quatro cards inferiores.
+  Não guarda documentos brutos, nomes, entregas, custos individuais, rotas,
+  widgets ou resultados dos hooks. A allowlist deixa de fora campos agregados
+  que não aparecem nesses seis cards. O envelope v1 é recusado como
+  `cache_version_mismatch` e será substituído quando uma apresentação completa
+  for salva; não há conversão automática de dados incompletos.
+- A consulta local começa assim que UID autenticado, período/filtros e Test Mode
+  pronto permitem definir a chave, sem aguardar foco. A tela escolhe um painel
+  completo de apresentação: cache elegível enquanto a informação ao vivo não
+  estiver completa, ou o painel atual quando estiver pronto. Os seis cards
+  trocam juntos. A leitura remota segue normal; o registro não alimenta
+  `useFinancialData`, `remoteComplete`, fórmulas, gráficos, widgets ou Firestore.
+  Valores iguais mantêm o número nativo e sua chave estável durante a mesma
+  conta/sessão/seleção; valores diferentes chegam pelo fluxo existente e podem
+  usar `numericText`.
+- Escopo continua isolado por projeto/ambiente, UID, período/filtros, versões,
+  `sessionVersion`, geração da leitura e sessão do snapshot ao vivo. Fallbacks
+  em memória de Faturamento e Lucro Líquido também foram vinculados a UID e
+  sessão; uma sessão de snapshot diferente invalida o fallback ao vivo. Logout
+  continua chamando `clearForUser`; a chave física do registro foi mantida para
+  que o envelope v2 sobrescreva o antigo e a limpeza existente alcance ambos.
+- Testes sintéticos cobrem reinício (instância nova do cache), painel com seis
+  cards restaurado antes da conclusão remota, revalidação offline, valores
+  iguais e alterados, identidade do `NativeAnimatedNumber`, mudança de período
+  e UID, envelope v1, resumo incompleto, falha de storage, sessão e concorrência.
+  TypeScript, ESLint direcionado, `git diff --check` e as duas suítes
+  direcionadas passaram, com 41 testes sintéticos. Nenhum teste acessou
+  Firebase/Emulator. O diff-check emitiu somente avisos de normalização
+  LF/CRLF já associados ao working tree do Windows.
+- AsyncStorage permanece sem criptografia. O envelope limita-se a agregados e
+  comparações, mas esses valores podem ser vistos por alguém com acesso aos
+  dados locais do aplicativo. Essa limitação de privacidade segue explícita.
+  Fast Refresh basta para testar TS/JS; não houve build, commit, push nem acesso
+  ao Firebase de produção. No iPhone ainda é necessário verificar: uma abertura
+  completa após esta versão gera `presentation_cache_write`; após encerrar o
+  processo e reabrir com o mesmo usuário/período/filtros, aparece cache hit e os
+  seis cards são montados antes de `remoteComplete`; depois, `replaced_by_live`
+  ocorre uma vez quando a resposta atual completa chega.
+
+## Etapa 2.2.10 — consolidação e preparação local (2026-11-06)
+
+- A revisão manteve 17 entradas locais: 15 arquivos rastreados e os dois novos
+  `FinancialPresentationCache.ts` e `FinancialPresentationCache.test.ts`. Todos
+  pertencem à implementação financeira, seus testes, instrumentação ou este
+  histórico. Não foram encontrados arquivos temporários, credenciais ou dados
+  brutos de clientes; `package.json` e lockfile não mudaram.
+- Foi confirmado um risco de sessão na tela Atacado: os resumos de rotas e a
+  flag `routesLoaded` ficam em estado React da tela, enquanto a pilha autenticada
+  pode permanecer montada durante uma troca direta de UID. Isso poderia
+  combinar rotas da conta anterior com o resumo da conta nova e gravar esse
+  resultado no cache visual sob o UID novo. A tela Atacado agora recebe uma
+  chave React derivada de UID e `sessionVersion`, descartando esse estado na
+  fronteira de sessão. O teste de regressão confirma que a conta nova não grava
+  até concluir a própria leitura de rotas e só então grava sob seu UID. Os hooks
+  de custos e veículo já validam UID/sessão e são remontados junto com a tela.
+- Os logs de cache agora distinguem restauração persistente de valor anterior
+  mantido apenas em memória. `presentation_cache_hydrated`,
+  `presentation_cache_rendered` e `presentation_cache_replaced_by_live` são
+  emitidos somente para a origem persistente; `rendered` continua significando
+  commit/layout JS, não confirmação de frame físico. A mudança não altera a UI.
+- O cache visual segue como um único envelope de seis cards e comparações,
+  limitado a agregados permitidos e isolado por ambiente/projeto Firebase, UID,
+  período/filtros e versões. Leituras e gravações em execução também validam
+  sessão e geração. Ele não alimenta hooks, cálculos, `remoteComplete`, gráficos,
+  widgets nem Firestore. AsyncStorage não é criptografado; valores salvos podem
+  estar desatualizados até a atualização silenciosa, e a remoção persistente
+  após logout não pode ser garantida se as operações locais de remoção e
+  fallback falharem.
+- TypeScript passou. ESLint direcionado aos arquivos TypeScript/TSX alterados
+  passou com `prettier/prettier` desativado. `npm ls --depth=0` não encontrou
+  dependências ausentes e os manifests não foram alterados. `git diff --check`
+  passou, com avisos de normalização LF/CRLF do checkout Windows. O lint global
+  não passou: 96.683 erros, quase todos `prettier/prettier` por CRLF em arquivos
+  do checkout, além de duas falhas `import/namespace` em
+  `NotificationService.ts`; também houve um aviso de variável não usada fora
+  dos arquivos modificados. Não foi feita formatação em massa.
+- As seis suítes direcionadas de cache, tela financeira, hook, snapshot, sessão
+  e instrumentação passaram: 97 testes. A suíte completa foi executada: 11
+  suítes falharam, uma foi ignorada e 230 passaram; 26 testes falharam, cinco
+  foram ignorados e 1.932 passaram. As falhas abrangem: três casos cujo mock de
+  providers não exporta `useAuth`; sete snapshots de Firestore cujo mock omite
+  `metadata.hasPendingWrites=false`; oito casos cujo mock de tema não exporta
+  `getInsetSurfaceColor`; expectativas de flags Firebase desativadas apesar da
+  configuração atual habilitada (três casos); um fixture que usa a chave antiga
+  do ledger de rotas; uma expectativa de ordenação de entregas; e três
+  assertions textuais/estruturais frágeis. Os arquivos desses testes e dos
+  módulos associados não fazem parte deste diff; não foram alterados para
+  mascarar falhas. As categorias históricas de `useAuth` e `hasPendingWrites`
+  permanecem identificadas separadamente das demais incompatibilidades de
+  mocks/expectativas no HEAD atual.
+- O usuário informou que a restauração dos seis cards e a atualização silenciosa
+  foram consideradas satisfatórias no iPhone. Não houve nova medição física
+  nesta consolidação. Não foi acessado Firebase de produção ou Emulator; não
+  houve build, commit, push ou deploy. `AI_CONTEXT.md` e `design-system.md` não
+  precisaram de alteração: os contratos de cálculo, navegação, armazenamento e
+  apresentação não foram redesenhados nesta consolidação.
+- Na Etapa 2.2.11, as 11 suítes que falharam foram executadas também em uma
+  worktree temporária, detached no HEAD original
+  `5a8205c44645aaa6f7fd10d261abe4b0c68e3078`. A cópia usou o mesmo blob do
+  `package-lock.json`, o mesmo diretório de dependências instalado e as mesmas
+  flags Jest (`--runInBand --silent`); Jest não carrega `.env.local` pela
+  configuração ou setup do projeto. A worktree estava limpa antes da remoção e
+  foi removida após a comparação. HEAD e arquivos do checkout principal não
+  foram alterados por essa operação.
+- A seleção de 11 suítes no HEAD e no checkout atual produziu exatamente os
+  mesmos 26 casos falhos e 35 aprovados. Portanto, as 11 falhas são baseline do
+  HEAD, não regressões do cache v2; as duas categorias já registradas (`useAuth`
+  ausente no mock e `hasPendingWrites` ausente no mock) foram reproduzidas junto
+  com os outros desalinhamentos de mock, configuração e assertions estáticas.
+- O lint global falha nos dois estados. HEAD registrou 110.045 erros e um aviso;
+  o checkout atual registrou 96.683 erros e um aviso. A diferença de volume é
+  de diagnósticos `prettier/prettier` associados à representação CRLF dos
+  checkouts Windows, não de novas regras de lint: os dois erros
+  `import/namespace` em `NotificationService.ts` e o aviso de `resolvedMode`
+  não usado em `RetailOrderStepScreen.tsx:452` existem também no HEAD. Nos dois
+  arquivos alterados que mantêm CRLF, o coordenador de widget tem 304 avisos de
+  formatação tanto no HEAD quanto agora; `HomeSearchDataSource.ts` tem quatro
+  ocorrências adicionais, correspondentes às linhas novas no mesmo arquivo
+  CRLF. O lint direcionado com `prettier/prettier` desativado passa sem erros ou
+  avisos. Nenhuma conversão em massa foi feita.

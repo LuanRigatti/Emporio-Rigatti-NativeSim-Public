@@ -3,6 +3,7 @@ import { createElement } from 'react';
 
 import { useFinancialData } from '@/hooks/useFinancialData';
 import type { UserDataSnapshot } from '@/services/data';
+import { createFirestoreQueryProvenance as mockCreateFirestoreQueryProvenance } from '@/services/data/FirestoreQueryProvenance';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -15,13 +16,20 @@ const mockLoadAppData = jest.fn();
 const mockLoadCosts = jest.fn();
 const mockLoadCostsWithMetadata = jest.fn();
 const mockLoadDeliveries = jest.fn();
+const mockLoadDeliveriesWithMetadata = jest.fn();
 const mockLoadAllHistorical = jest.fn();
+const mockLoadAllHistoricalWithMetadata = jest.fn();
 const mockGetHistoricalDataState = jest.fn();
 let mockUserId = 'firebase-user';
 let mockSessionVersion = 1;
 
 jest.mock('@/providers', () => ({
   useAuth: () => ({ user: { id: mockUserId }, sessionVersion: mockSessionVersion }),
+}));
+
+jest.mock('@/services/auth/ActiveAuthSession', () => ({
+  isActiveAuthSession: (uid: string, sessionVersion: number) =>
+    uid === mockUserId && sessionVersion === mockSessionVersion,
 }));
 
 jest.mock('@/services/data', () => ({
@@ -31,7 +39,38 @@ jest.mock('@/services/data', () => ({
 jest.mock('@/services/costs', () => ({
   firestoreDailyMonthlyDataSource: {
     load: (...args: unknown[]) => mockLoadCosts(...args),
-    loadWithMetadata: (...args: unknown[]) => mockLoadCostsWithMetadata(...args),
+    loadWithMetadata: async (...args: unknown[]) => {
+      const result = await mockLoadCostsWithMetadata(...args);
+      if (result?.provenance) return result;
+      const [uid, query, options] = args as [
+        string,
+        Record<string, unknown>,
+        { sessionVersion?: number } | undefined,
+      ];
+      const source = result?.source;
+      const fromCache =
+        result?.remoteComplete === true && source === 'network'
+          ? false
+          : source === 'cache'
+            ? true
+            : null;
+      const provenance = mockCreateFirestoreQueryProvenance({
+        kind: 'daily-monthly-costs',
+        uid,
+        sessionVersion: options?.sessionVersion ?? mockSessionVersion,
+        scope: query,
+        fromCache,
+        hasPendingWrites: fromCache === null ? null : false,
+        scopeIsComplete: Boolean(
+          query.loadAll || query.month || query.date || query.startDate || query.endDate,
+        ),
+      });
+      return {
+        ...result,
+        querySnapshot: result?.querySnapshot ?? result?.snapshot,
+        provenance,
+      };
+    },
   },
 }));
 
@@ -39,7 +78,16 @@ jest.mock('@/services/deliveries', () => ({
   firestoreDeliveryDataSource: {
     getHistoricalDataState: (...args: unknown[]) => mockGetHistoricalDataState(...args),
     load: (...args: unknown[]) => mockLoadDeliveries(...args),
+    loadWithMetadata: (...args: unknown[]) => mockLoadDeliveriesWithMetadata(...args),
+    loadAllHistoricalWithMetadata: (...args: unknown[]) =>
+      mockLoadAllHistoricalWithMetadata(...args),
     loadAllHistorical: (...args: unknown[]) => mockLoadAllHistorical(...args),
+  },
+  HISTORICAL_DELIVERY_QUERY_SCOPE: {
+    direction: 'desc',
+    filters: { mode: 'all' },
+    orderBy: 'date',
+    pageSize: 250,
   },
   deliveryQueryService: {
     filter: (
@@ -65,6 +113,55 @@ const snapshot: UserDataSnapshot = {
   recebimentoBaldes: [],
 };
 
+function makeCostLoadResult(
+  uid: string,
+  query: Record<string, unknown>,
+  costs: Pick<UserDataSnapshot, 'gastosDiarios' | 'gastosMensais'>,
+  sessionVersion: number,
+  fromCache: boolean | null,
+  hasPendingWrites: boolean | null,
+) {
+  const provenance = mockCreateFirestoreQueryProvenance({
+    kind: 'daily-monthly-costs',
+    uid,
+    sessionVersion,
+    scope: query,
+    fromCache,
+    hasPendingWrites,
+    scopeIsComplete: Boolean(
+      query.loadAll || query.month || query.date || query.startDate || query.endDate,
+    ),
+  });
+  return {
+    querySnapshot: costs,
+    provenance,
+    remoteComplete: provenance.remoteConfirmed,
+    snapshot: costs,
+    source: provenance.origin === 'server' ? 'network' : 'cache',
+  };
+}
+
+function makeDeliveryLoadResult(
+  uid: string,
+  filters: Record<string, unknown>,
+  deliveries: UserDataSnapshot['entregas'],
+  sessionVersion: number,
+  fromCache: boolean | null,
+  hasPendingWrites: boolean | null,
+) {
+  const provenance = mockCreateFirestoreQueryProvenance({
+    kind: 'deliveries',
+    uid,
+    sessionVersion,
+    scope: filters,
+    fromCache,
+    hasPendingWrites,
+    scopeIsComplete:
+      filters.mode === 'all' && Boolean(filters.date || filters.startDate || filters.endDate),
+  });
+  return { deliveries, querySnapshot: deliveries, provenance };
+}
+
 describe('useFinancialData hydration', () => {
   beforeEach(() => {
     mockUserId = 'firebase-user';
@@ -72,21 +169,89 @@ describe('useFinancialData hydration', () => {
     mockLoadAppData.mockResolvedValue(snapshot);
     mockLoadCosts.mockResolvedValue({ gastosDiarios: snapshot.gastosDiarios, gastosMensais: {} });
     mockLoadCostsWithMetadata.mockReset();
-    mockLoadCostsWithMetadata.mockResolvedValue({
-      remoteComplete: true,
-      snapshot: { gastosDiarios: snapshot.gastosDiarios, gastosMensais: {} },
-      source: 'network',
+    mockLoadCostsWithMetadata.mockImplementation(async (uid, query, options) => {
+      const costs = await mockLoadCosts(uid, query);
+      const sessionVersion = options?.sessionVersion ?? mockSessionVersion;
+      const provenance = mockCreateFirestoreQueryProvenance({
+        kind: 'daily-monthly-costs',
+        uid,
+        sessionVersion,
+        scope: query,
+        fromCache: false,
+        hasPendingWrites: false,
+        scopeIsComplete: Boolean(
+          query.loadAll || query.month || query.date || query.startDate || query.endDate,
+        ),
+      });
+      return {
+        querySnapshot: costs,
+        provenance,
+        remoteComplete: true,
+        snapshot: costs,
+        source: 'network',
+      };
     });
     mockLoadDeliveries.mockResolvedValue([]);
+    mockLoadDeliveriesWithMetadata.mockReset();
+    mockLoadDeliveriesWithMetadata.mockImplementation(
+      async (uid, filters, options, requestedSessionVersion) => {
+        const loadedDeliveries = await mockLoadDeliveries(uid, filters);
+        const deliveries = loadedDeliveries.filter(
+          (delivery: { data: string }) =>
+            (!filters.date || delivery.data === filters.date) &&
+            (!filters.startDate || delivery.data >= filters.startDate) &&
+            (!filters.endDate || delivery.data <= filters.endDate),
+        );
+        const provenance = mockCreateFirestoreQueryProvenance({
+          kind: 'deliveries',
+          uid,
+          sessionVersion: requestedSessionVersion ?? mockSessionVersion,
+          scope: filters,
+          fromCache: false,
+          hasPendingWrites: false,
+          scopeIsComplete:
+            filters.mode === 'all' && Boolean(filters.date || filters.startDate || filters.endDate),
+        });
+        return { deliveries, querySnapshot: deliveries, provenance };
+      },
+    );
     mockLoadAllHistorical.mockReset();
     mockLoadAllHistorical.mockResolvedValue([]);
     mockGetHistoricalDataState.mockReset();
     mockGetHistoricalDataState.mockReturnValue('remote');
+    mockLoadAllHistoricalWithMetadata.mockReset();
+    mockLoadAllHistoricalWithMetadata.mockImplementation(
+      async (uid, requestedSessionVersion, options) => {
+        const deliveries = await mockLoadAllHistorical(uid, requestedSessionVersion, options);
+        const confirmed = mockGetHistoricalDataState() === 'remote';
+        const provenance = mockCreateFirestoreQueryProvenance({
+          kind: 'historical-deliveries',
+          uid,
+          sessionVersion: requestedSessionVersion ?? mockSessionVersion,
+          scope: {
+            direction: 'desc',
+            filters: { mode: 'all' },
+            orderBy: 'date',
+            pageSize: 250,
+          },
+          fromCache: confirmed ? false : true,
+          hasPendingWrites: false,
+          scopeIsComplete: true,
+        });
+        return {
+          deliveries,
+          querySnapshot: confirmed ? deliveries : [],
+          provenance,
+        };
+      },
+    );
     mockLoadAppData.mockClear();
     mockLoadCosts.mockClear();
     mockLoadCostsWithMetadata.mockClear();
     mockLoadDeliveries.mockClear();
+    mockLoadDeliveriesWithMetadata.mockClear();
     mockLoadAllHistorical.mockClear();
+    mockLoadAllHistoricalWithMetadata.mockClear();
     mockGetHistoricalDataState.mockClear();
   });
 
@@ -122,6 +287,257 @@ describe('useFinancialData hydration', () => {
     await act(async () => {
       renderer?.unmount();
     });
+  });
+
+  it('starts delivery and cost reads together on a cold period load', async () => {
+    let resolveDeliveries: ((value: UserDataSnapshot['entregas']) => void) | undefined;
+    let resolveCosts:
+      | ((value: {
+          gastosDiarios: UserDataSnapshot['gastosDiarios'];
+          gastosMensais: UserDataSnapshot['gastosMensais'];
+        }) => void)
+      | undefined;
+    mockLoadDeliveries.mockImplementation(
+      () => new Promise((resolve) => (resolveDeliveries = resolve)),
+    );
+    mockLoadCosts.mockImplementation(() => new Promise((resolve) => (resolveCosts = resolve)));
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(
+        createElement(() => {
+          useFinancialData({ date: '2026-08-06' });
+          return null;
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(mockLoadDeliveries).toHaveBeenCalledTimes(1);
+    expect(mockLoadCosts).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveDeliveries?.([]);
+      resolveCosts?.({ gastosDiarios: snapshot.gastosDiarios, gastosMensais: {} });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => renderer?.unmount());
+  });
+
+  it('exposes only server-confirmed monthly deliveries before the remaining finance reads finish', async () => {
+    const confirmedDelivery = {
+      cliente: 'Ana Costa',
+      data: '2026-08-20',
+      entregue: true,
+      id: 'delivery-august-confirmed',
+      quantidade: 2,
+      status: 'Pago',
+      valor: 120,
+    };
+    let resolveDeliveries:
+      ((result: ReturnType<typeof makeDeliveryLoadResult>) => void) | undefined;
+    let resolveBase: ((value: UserDataSnapshot) => void) | undefined;
+    let rejectCosts: ((reason: Error) => void) | undefined;
+    mockLoadAppData.mockImplementation(() => new Promise((resolve) => (resolveBase = resolve)));
+    mockLoadCostsWithMetadata.mockImplementation(
+      () => new Promise((_, reject) => (rejectCosts = reject)),
+    );
+    mockLoadDeliveriesWithMetadata.mockImplementation(
+      () => new Promise((resolve) => (resolveDeliveries = resolve)),
+    );
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(
+        { endDate: '2026-08-31', startDate: '2026-08-01' },
+        { displayMonth: '2026-08' },
+      );
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    await act(async () => {
+      resolveDeliveries?.(
+        makeDeliveryLoadResult(
+          'firebase-user',
+          { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+          [confirmedDelivery],
+          mockSessionVersion,
+          false,
+          false,
+        ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.confirmedDeliveryPreview).toEqual([confirmedDelivery]);
+    expect(current?.snapshot).toBeNull();
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.loading).toBe(true);
+
+    await act(async () => {
+      resolveBase?.(snapshot);
+      rejectCosts?.(new Error('synthetic cost read failure'));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.confirmedDeliveryPreview).toEqual([confirmedDelivery]);
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.error).toBeDefined();
+
+    await act(async () => renderer?.unmount());
+  });
+
+  it.each([
+    ['cache-only response', true, false, true],
+    ['pending writes', false, true, true],
+    ['incomplete query coverage', false, false, false],
+  ])(
+    'does not expose a %s as a confirmed delivery preview',
+    async (_, fromCache, hasPendingWrites, complete) => {
+      let resolveBase: ((value: UserDataSnapshot) => void) | undefined;
+      mockLoadAppData.mockImplementation(() => new Promise((resolve) => (resolveBase = resolve)));
+      mockLoadCostsWithMetadata.mockImplementation(() => new Promise(() => {}));
+      mockLoadDeliveriesWithMetadata.mockImplementation(async () => {
+        const filters = { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' };
+        const result = makeDeliveryLoadResult(
+          'firebase-user',
+          filters,
+          [],
+          mockSessionVersion,
+          fromCache,
+          hasPendingWrites,
+        );
+        if (complete) return result;
+        return {
+          ...result,
+          provenance: mockCreateFirestoreQueryProvenance({
+            kind: 'deliveries',
+            uid: 'firebase-user',
+            sessionVersion: mockSessionVersion,
+            scope: filters,
+            fromCache,
+            hasPendingWrites,
+            scopeIsComplete: false,
+          }),
+        };
+      });
+
+      let current: ReturnType<typeof useFinancialData> | undefined;
+      function Harness() {
+        current = useFinancialData(
+          { endDate: '2026-08-31', startDate: '2026-08-01' },
+          { displayMonth: '2026-08' },
+        );
+        return null;
+      }
+
+      let renderer: ReactTestRenderer | undefined;
+      await act(async () => {
+        renderer = create(createElement(Harness));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+
+      expect(current?.confirmedDeliveryPreview).toBeNull();
+      resolveBase?.(snapshot);
+      await act(async () => renderer?.unmount());
+    },
+  );
+
+  it('does not expose a late delivery preview from a previous user session', async () => {
+    const firstUserId = mockUserId;
+    const firstSessionVersion = mockSessionVersion;
+    let resolveFirstUserDeliveries:
+      ((result: ReturnType<typeof makeDeliveryLoadResult>) => void) | undefined;
+    let resolveSecondUserDeliveries:
+      ((result: ReturnType<typeof makeDeliveryLoadResult>) => void) | undefined;
+    mockLoadCostsWithMetadata.mockImplementation(() => new Promise(() => {}));
+    mockLoadDeliveriesWithMetadata.mockImplementation(
+      (uid: string) =>
+        new Promise((resolve) => {
+          if (uid === firstUserId) resolveFirstUserDeliveries = resolve;
+          else resolveSecondUserDeliveries = resolve;
+        }),
+    );
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(
+        { endDate: '2026-08-31', startDate: '2026-08-01' },
+        { displayMonth: '2026-08' },
+      );
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    mockUserId = 'firebase-user-b';
+    mockSessionVersion += 1;
+    await act(async () => {
+      renderer?.update(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    await act(async () => {
+      resolveFirstUserDeliveries?.(
+        makeDeliveryLoadResult(
+          firstUserId,
+          { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+          [
+            {
+              cliente: 'First user',
+              data: '2026-08-15',
+              entregue: true,
+              id: 'first-user-delivery',
+              quantidade: 1,
+              status: 'Pago',
+              valor: 10,
+            },
+          ],
+          firstSessionVersion,
+          false,
+          false,
+        ),
+      );
+      await Promise.resolve();
+    });
+    expect(current?.confirmedDeliveryPreview).toBeNull();
+
+    const secondUserDelivery = {
+      cliente: 'Second user',
+      data: '2026-08-16',
+      entregue: true,
+      id: 'second-user-delivery',
+      quantidade: 1,
+      status: 'Pago',
+      valor: 20,
+    };
+    await act(async () => {
+      resolveSecondUserDeliveries?.(
+        makeDeliveryLoadResult(
+          mockUserId,
+          { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+          [secondUserDelivery],
+          mockSessionVersion,
+          false,
+          false,
+        ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(current?.confirmedDeliveryPreview).toEqual([secondUserDelivery]);
+
+    await act(async () => renderer?.unmount());
   });
 
   it('does not hydrate when the owning tab is not focused', async () => {
@@ -822,29 +1238,34 @@ describe('useFinancialData hydration', () => {
     );
 
     let query = { startDate: '2026-07-01', endDate: '2026-07-31' };
+    let displayMonth = '2026-07';
     let current: ReturnType<typeof useFinancialData> | undefined;
     function Harness() {
-      current = useFinancialData(query);
+      current = useFinancialData(query, { displayMonth });
       return null;
     }
 
     let renderer: ReactTestRenderer | undefined;
     await act(async () => {
       renderer = create(createElement(Harness));
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 20));
     });
+    expect(current?.confirmedDeliveryPreview).toEqual([julyDelivery]);
 
     query = { startDate: '2026-08-01', endDate: '2026-08-31' };
+    displayMonth = '2026-08';
     await act(async () => {
       renderer?.update(createElement(Harness));
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 20));
     });
+    expect(current?.confirmedDeliveryPreview).toEqual([]);
     resolveAugust?.(snapshot);
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(current?.snapshot?.entregas).toEqual([]);
+    expect(current?.confirmedDeliveryPreview).toEqual([]);
 
     await act(async () => {
       resolveJuly?.({ ...snapshot, entregas: [julyDelivery] });
@@ -928,7 +1349,11 @@ describe('useFinancialData hydration', () => {
     expect(mockLoadAllHistorical).toHaveBeenCalledWith('firebase-user', mockSessionVersion, {
       revalidate: true,
     });
-    expect(mockLoadCostsWithMetadata).toHaveBeenCalledWith('firebase-user', { loadAll: true });
+    expect(mockLoadCostsWithMetadata).toHaveBeenCalledWith(
+      'firebase-user',
+      { loadAll: true },
+      { sessionVersion: mockSessionVersion },
+    );
 
     await act(async () => {
       renderer?.unmount();
@@ -962,16 +1387,27 @@ describe('useFinancialData hydration', () => {
     });
   });
 
-  it('skips the initial refresh when the selected month is already cached in memory', async () => {
+  it('skips the initial refresh only for an exact same-session request cache', async () => {
     await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
-    await financialPeriodSnapshotCache.write(mockUserId, '2026-08', snapshot, snapshot);
+    const query = { month: '2026-08' };
+    const requestScopeKey = JSON.stringify([
+      mockUserId,
+      mockSessionVersion,
+      query,
+      { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+    ]);
+    await financialPeriodSnapshotCache.write(
+      mockUserId,
+      '2026-08',
+      snapshot,
+      snapshot,
+      mockSessionVersion,
+      requestScopeKey,
+    );
 
     let current: ReturnType<typeof useFinancialData> | undefined;
     function Harness() {
-      current = useFinancialData(
-        { month: '2026-08' },
-        { displayMonth: '2026-08', skipRefreshWhenCached: true },
-      );
+      current = useFinancialData(query, { displayMonth: '2026-08', skipRefreshWhenCached: true });
       return null;
     }
 
@@ -986,6 +1422,183 @@ describe('useFinancialData hydration', () => {
     expect(mockLoadAppData).not.toHaveBeenCalled();
     expect(mockLoadCosts).not.toHaveBeenCalled();
     expect(mockLoadDeliveries).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+  });
+
+  it('retains the exact prior confirmation during an offline revalidation', async () => {
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+    const query = { month: '2026-08' };
+    const requestScopeKey = JSON.stringify([
+      mockUserId,
+      mockSessionVersion,
+      query,
+      { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+    ]);
+    await financialPeriodSnapshotCache.write(
+      mockUserId,
+      '2026-08',
+      snapshot,
+      snapshot,
+      mockSessionVersion,
+      requestScopeKey,
+    );
+    mockLoadCostsWithMetadata.mockRejectedValue(new Error('offline'));
+    mockLoadDeliveriesWithMetadata.mockRejectedValue(new Error('offline'));
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(query, {
+        displayMonth: '2026-08',
+        skipRefreshWhenCached: true,
+      });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    await act(async () => {
+      void current?.reload();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.snapshot).toEqual(snapshot);
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.coverage.source).toBe('cache');
+    expect(current?.hasPreviouslyConfirmedSnapshot).toBe(true);
+    expect(current?.error).toContain('provisórios');
+
+    await act(async () => renderer?.unmount());
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+  });
+
+  it('revokes a confirmed period when invalidated and ignores an older pending response', async () => {
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+    const query = { month: '2026-08' };
+    const requestScopeKey = JSON.stringify([
+      mockUserId,
+      mockSessionVersion,
+      query,
+      { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+    ]);
+    await financialPeriodSnapshotCache.write(
+      mockUserId,
+      '2026-08',
+      snapshot,
+      snapshot,
+      mockSessionVersion,
+      requestScopeKey,
+    );
+    let resolveCosts: ((value: ReturnType<typeof makeCostLoadResult>) => void) | undefined;
+    let resolveDeliveries: ((value: ReturnType<typeof makeDeliveryLoadResult>) => void) | undefined;
+    mockLoadCostsWithMetadata.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCosts = resolve)),
+    );
+    mockLoadDeliveriesWithMetadata.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveDeliveries = resolve)),
+    );
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(query, {
+        displayMonth: '2026-08',
+        skipRefreshWhenCached: true,
+      });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      void current?.reload();
+      await Promise.resolve();
+    });
+    expect(current?.hasPreviouslyConfirmedSnapshot).toBe(true);
+
+    await act(async () => {
+      await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+    });
+    expect(current?.hasPreviouslyConfirmedSnapshot).toBe(false);
+    expect(current?.error).toContain('invalidados');
+
+    const staleCosts = {
+      gastosDiarios: { '2026-08-06': { data: '2026-08-06', estar: 999 } },
+      gastosMensais: {},
+    };
+    await act(async () => {
+      resolveCosts?.(
+        makeCostLoadResult(mockUserId, query, staleCosts, mockSessionVersion, false, false),
+      );
+      resolveDeliveries?.(
+        makeDeliveryLoadResult(
+          mockUserId,
+          { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+          [],
+          mockSessionVersion,
+          false,
+          false,
+        ),
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.hasPreviouslyConfirmedSnapshot).toBe(false);
+    expect(current?.snapshot?.gastosDiarios['2026-08-06']?.estar).not.toBe(999);
+
+    await act(async () => renderer?.unmount());
+  });
+
+  it('does not expose a period snapshot cached by a previous session', async () => {
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+    const query = { month: '2026-08' };
+    const currentRequestScopeKey = JSON.stringify([
+      mockUserId,
+      mockSessionVersion,
+      query,
+      { mode: 'all', startDate: '2026-08-01', endDate: '2026-08-31' },
+    ]);
+    await financialPeriodSnapshotCache.write(
+      mockUserId,
+      '2026-08',
+      snapshot,
+      snapshot,
+      mockSessionVersion - 1,
+      currentRequestScopeKey,
+    );
+    mockLoadAppData.mockImplementation(() => new Promise(() => {}));
+    mockLoadCostsWithMetadata.mockImplementation(() => new Promise(() => {}));
+    mockLoadDeliveriesWithMetadata.mockImplementation(() => new Promise(() => {}));
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData(query, {
+        displayMonth: '2026-08',
+        skipRefreshWhenCached: true,
+      });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await Promise.resolve();
+    });
+
+    expect(current?.snapshot).toBeNull();
+    expect(current?.coverage.source).toBe('none');
+    expect(current?.loading).toBe(true);
+    expect(mockLoadAppData).toHaveBeenCalledWith(mockUserId);
 
     await act(async () => {
       renderer?.unmount();
@@ -1183,5 +1796,169 @@ describe('useFinancialData hydration', () => {
     await act(async () => {
       renderer?.unmount();
     });
+  });
+
+  it('marks a period complete only when cost and delivery provenance match the requested session and filters', async () => {
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData({ date: '2026-08-06' });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.coverage).toMatchObject({
+      source: 'remote',
+      remoteComplete: true,
+      costs: {
+        coverage: 'complete',
+        fromCache: false,
+        hasPendingWrites: false,
+        origin: 'server',
+        remoteConfirmed: true,
+      },
+      deliveries: {
+        coverage: 'complete',
+        fromCache: false,
+        hasPendingWrites: false,
+        origin: 'server',
+        remoteConfirmed: true,
+      },
+    });
+    expect(current?.coverage.costs?.scopeKey).toContain('2026-08-06');
+    expect(current?.coverage.deliveries?.scopeKey).toContain('firebase-user');
+    expect(current?.coverage.requestScopeKey).toContain('2026-08-06');
+
+    await act(async () => renderer?.unmount());
+  });
+
+  it('keeps pending-write results provisional and does not persist them as a confirmed month', async () => {
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+    const costs = {
+      gastosDiarios: { '2026-08-06': { data: '2026-08-06', estar: 12 } },
+      gastosMensais: {},
+    };
+    mockLoadCostsWithMetadata.mockResolvedValue(
+      makeCostLoadResult(mockUserId, { month: '2026-08' }, costs, mockSessionVersion, false, true),
+    );
+    mockLoadDeliveriesWithMetadata.mockImplementation(
+      async (uid, filters, _options, requestedSessionVersion) =>
+        makeDeliveryLoadResult(
+          uid,
+          filters,
+          [],
+          requestedSessionVersion ?? mockSessionVersion,
+          false,
+          false,
+        ),
+    );
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData({ month: '2026-08' }, { displayMonth: '2026-08' });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.coverage.costs).toMatchObject({
+      origin: 'local-pending',
+      hasPendingWrites: true,
+      remoteConfirmed: false,
+    });
+    expect(current?.snapshot?.gastosDiarios).toEqual(costs.gastosDiarios);
+    expect(current?.error).toContain('provisórios');
+    expect(financialPeriodSnapshotCache.getMemory(mockUserId, '2026-08')).toBeNull();
+
+    await act(async () => renderer?.unmount());
+    await financialPeriodSnapshotCache.invalidate(mockUserId, '2026-08');
+  });
+
+  it('does not publish an unconfirmed empty period as zero-valued financial data', async () => {
+    mockLoadAppData.mockResolvedValue({
+      ...snapshot,
+      entregas: [],
+      gastosDiarios: {},
+      gastosMensais: {},
+    });
+    mockLoadCostsWithMetadata.mockResolvedValue({
+      remoteComplete: false,
+      snapshot: { gastosDiarios: {}, gastosMensais: {} },
+      source: 'cache',
+    });
+    mockLoadDeliveriesWithMetadata.mockImplementation(
+      async (uid, filters, _options, requestedSessionVersion) =>
+        makeDeliveryLoadResult(
+          uid,
+          filters,
+          [],
+          requestedSessionVersion ?? mockSessionVersion,
+          true,
+          false,
+        ),
+    );
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData({ date: '2026-09-01' });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.snapshot).toBeNull();
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.loading).toBe(false);
+    expect(current?.error).toContain('não foi confirmada');
+
+    await act(async () => renderer?.unmount());
+  });
+
+  it('rejects provenance from a different UID even when the read returned rows', async () => {
+    const foreignCosts = {
+      gastosDiarios: { '2026-08-06': { data: '2026-08-06', estar: 999 } },
+      gastosMensais: {},
+    };
+    mockLoadCostsWithMetadata.mockResolvedValue(
+      makeCostLoadResult(
+        'another-user',
+        { date: '2026-08-06' },
+        foreignCosts,
+        mockSessionVersion,
+        false,
+        false,
+      ),
+    );
+
+    let current: ReturnType<typeof useFinancialData> | undefined;
+    function Harness() {
+      current = useFinancialData({ date: '2026-08-06' });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(createElement(Harness));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(current?.remoteComplete).toBe(false);
+    expect(current?.coverage.costs).toMatchObject({ origin: 'unknown', remoteConfirmed: false });
+    expect(current?.snapshot?.gastosDiarios['2026-08-06']?.estar).not.toBe(999);
+
+    await act(async () => renderer?.unmount());
   });
 });

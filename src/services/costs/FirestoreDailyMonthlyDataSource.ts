@@ -3,6 +3,10 @@ import { normalizeLegacyDate, normalizeMoney } from '@/utils/data';
 import { financialPeriodSnapshotCache } from '@/services/finance/FinancialPeriodSnapshotCache';
 
 import type { CostField, CostPeriod, CostSettings, CostValues } from './CostSettingsStorage';
+import {
+  createFirestoreQueryProvenance,
+  type FirestoreQueryProvenance,
+} from '@/services/data/FirestoreQueryProvenance';
 
 export type DailyMonthlyQuery = {
   date?: string;
@@ -37,7 +41,11 @@ export type FirestoreDailyMonthlySnapshot = {
 };
 
 export type FirestoreDailyMonthlyLoadResult = {
+  /** Compatibility view for existing consumers; bounded reads may include prior in-memory rows. */
   snapshot: FirestoreDailyMonthlySnapshot;
+  /** Rows returned by this exact Firestore request, without merging a previously loaded map. */
+  querySnapshot: FirestoreDailyMonthlySnapshot;
+  provenance: FirestoreQueryProvenance<DailyMonthlyQuery>;
   source: 'cache' | 'network';
   remoteComplete: boolean;
 };
@@ -47,6 +55,7 @@ export type FirestoreCostChange = {
   key: string;
   field?: CostField;
   deleted?: boolean;
+  revision?: number;
 };
 
 export type FirestoreMutationOptions = {
@@ -54,10 +63,25 @@ export type FirestoreMutationOptions = {
   canRun?: () => boolean;
   changes?: readonly FirestoreCostChange[];
   changedFields?: readonly CostField[];
+  createIfMissing?: boolean;
 };
+
+export class FirestoreDailyMonthlyRecordMissingError extends Error {
+  public constructor() {
+    super('O registro de custos foi excluído do servidor antes de ser salvo.');
+    this.name = 'FirestoreDailyMonthlyRecordMissingError';
+  }
+}
+
+function isFirestoreNotFound(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && (code === 'not-found' || code.endsWith('/not-found'));
+}
 
 export type FirestoreReadOptions = {
   canRun?: () => boolean;
+  sessionVersion?: number;
 };
 
 function numberOrUndefined(value: unknown): number | undefined {
@@ -308,83 +332,119 @@ export class FirestoreDailyMonthlyDataSource {
     options?: FirestoreReadOptions,
   ): Promise<FirestoreDailyMonthlyLoadResult> {
     const canRun = () => !options?.canRun || options.canRun();
-    if (!canRun()) return emptyLoadResult();
+    if (!canRun()) return emptyLoadResult(uid, query, options?.sessionVersion, true);
 
     const { doc, getDoc, getDocs, query: buildQuery, where } = firestoreModule();
-    if (!canRun()) return emptyLoadResult();
+    if (!canRun()) return emptyLoadResult(uid, query, options?.sessionVersion, true);
     const dailyCollection = dailyCollectionFor(uid);
     const monthlyCollection = monthlyCollectionFor(uid);
-    if (!canRun()) return emptyLoadResult();
+    if (!canRun()) return emptyLoadResult(uid, query, options?.sessionVersion, true);
     const dailyForUser = query.loadAll ? new Map<string, DailyExpense>() : this.dailyFor(uid);
     const monthlyForUser = query.loadAll ? new Map<string, MonthlyExpense>() : this.monthlyFor(uid);
-    let fromCache = false;
-    const markRead = <T extends { metadata?: { fromCache?: boolean } }>(result: T): T => {
-      fromCache = fromCache || result.metadata?.fromCache === true;
+    const exactDaily = new Map<string, DailyExpense>();
+    const exactMonthly = new Map<string, MonthlyExpense>();
+    let fromCache: boolean | null = false;
+    let hasPendingWrites: boolean | null = false;
+    const markRead = <T extends { metadata?: { fromCache?: boolean; hasPendingWrites?: boolean } }>(
+      result: T,
+    ): T => {
+      fromCache = mergeMetadataFlag(fromCache, result.metadata?.fromCache);
+      hasPendingWrites = mergeMetadataFlag(hasPendingWrites, result.metadata?.hasPendingWrites);
       return result;
     };
+    const readFirestore = async <
+      T extends { metadata?: { fromCache?: boolean; hasPendingWrites?: boolean } },
+    >(
+      read: () => Promise<T>,
+    ): Promise<T> => markRead(await read());
     const dailyRange = normalizedDailyRange(query);
-    const dailyDocuments = query.loadAll
-      ? markRead(await getDocs(dailyCollection)).docs
-      : query.date
-        ? [markRead(await getDoc(doc(dailyCollection, normalizeDate(query.date))))]
-        : query.month
-          ? (
-              await markRead(
-                await getDocs(
-                  buildQuery(
-                    dailyCollection,
-                    where('data', '>=', `${normalizeMonth(query.month)}-01`),
-                    where('data', '<=', `${normalizeMonth(query.month)}-31`),
-                  ),
-                ),
-              )
-            ).docs
-          : (
-              await markRead(
-                await getDocs(
-                  buildQuery(
-                    dailyCollection,
-                    ...(dailyRange[0] ? [where('data', '>=', dailyRange[0])] : []),
-                    ...(dailyRange[1] ? [where('data', '<=', dailyRange[1])] : []),
-                  ),
-                ),
-              )
-            ).docs;
+    const dailyDocumentsPromise = (async () => {
+      if (query.loadAll) {
+        return (await readFirestore(() => getDocs(dailyCollection))).docs;
+      }
+      if (query.date) {
+        const date = normalizeDate(query.date);
+        return [await readFirestore(() => getDoc(doc(dailyCollection, date)))];
+      }
+      if (query.month) {
+        const month = normalizeMonth(query.month);
+        return (
+          await readFirestore(() =>
+            getDocs(
+              buildQuery(
+                dailyCollection,
+                where('data', '>=', `${month}-01`),
+                where('data', '<=', `${month}-31`),
+              ),
+            ),
+          )
+        ).docs;
+      }
+      return (
+        await readFirestore(() =>
+          getDocs(
+            buildQuery(
+              dailyCollection,
+              ...(dailyRange[0] ? [where('data', '>=', dailyRange[0])] : []),
+              ...(dailyRange[1] ? [where('data', '<=', dailyRange[1])] : []),
+            ),
+          ),
+        )
+      ).docs;
+    })();
 
-    if (!canRun()) return emptyLoadResult();
+    const months = requestedMonths(query);
+    const monthlyDocumentsPromise = (async () => {
+      if (query.loadAll) {
+        return (await readFirestore(() => getDocs(monthlyCollection))).docs;
+      }
+      if (months.length === 1) {
+        return [await readFirestore(() => getDoc(doc(monthlyCollection, months[0])))];
+      }
+      return (
+        await readFirestore(() =>
+          getDocs(
+            buildQuery(
+              monthlyCollection,
+              ...(months.length > 0 ? [where('month', '>=', months[0])] : []),
+              ...(months.length > 0 ? [where('month', '<=', months[months.length - 1])] : []),
+            ),
+          ),
+        )
+      ).docs;
+    })();
+
+    const [dailyDocuments, monthlyDocuments] = await Promise.all([
+      dailyDocumentsPromise,
+      monthlyDocumentsPromise,
+    ]);
+
+    if (!canRun()) return emptyLoadResult(uid, query, options?.sessionVersion, true);
     dailyDocuments.forEach((item) => {
       if (!item.exists()) return;
       const mapped = dailyDocumentToExpense(item.id, item.data() as FirestoreDailyDocument);
       dailyForUser.set(mapped.data, mapped);
+      exactDaily.set(mapped.data, mapped);
     });
 
-    const months = requestedMonths(query);
-    const monthlyDocuments = query.loadAll
-      ? markRead(await getDocs(monthlyCollection)).docs
-      : months.length === 1
-        ? [markRead(await getDoc(doc(monthlyCollection, months[0])))]
-        : (
-            await markRead(
-              await getDocs(
-                buildQuery(
-                  monthlyCollection,
-                  ...(months.length > 0 ? [where('month', '>=', months[0])] : []),
-                  ...(months.length > 0 ? [where('month', '<=', months[months.length - 1])] : []),
-                ),
-              ),
-            )
-          ).docs;
-
-    if (!canRun()) return emptyLoadResult();
     monthlyDocuments.forEach((item) => {
       if (!item.exists()) return;
-      monthlyForUser.set(
-        item.id,
-        monthlyDocumentToExpense(item.data() as FirestoreMonthlyDocument),
-      );
+      const mapped = monthlyDocumentToExpense(item.data() as FirestoreMonthlyDocument);
+      monthlyForUser.set(item.id, mapped);
+      exactMonthly.set(item.id, mapped);
     });
 
-    if (query.loadAll) {
+    const provenance = createFirestoreQueryProvenance({
+      kind: 'daily-monthly-costs',
+      uid,
+      sessionVersion: options?.sessionVersion,
+      scope: { ...query },
+      fromCache,
+      hasPendingWrites,
+      scopeIsComplete: isExactDailyMonthlyQueryScope(query),
+    });
+
+    if (query.loadAll && provenance.remoteConfirmed) {
       this.daily.set(uid, dailyForUser);
       this.monthly.set(uid, monthlyForUser);
     }
@@ -393,10 +453,16 @@ export class FirestoreDailyMonthlyDataSource {
       gastosDiarios: selectDaily(dailyForUser, query),
       gastosMensais: selectMonthly(monthlyForUser, query),
     };
+    const querySnapshot = {
+      gastosDiarios: selectDaily(exactDaily, query),
+      gastosMensais: selectMonthly(exactMonthly, query),
+    };
     return {
-      remoteComplete: !fromCache,
+      remoteComplete: provenance.remoteConfirmed,
       snapshot,
-      source: fromCache ? 'cache' : 'network',
+      querySnapshot,
+      provenance,
+      source: provenance.origin === 'server' ? 'network' : 'cache',
     };
   }
 
@@ -410,7 +476,15 @@ export class FirestoreDailyMonthlyDataSource {
     return this.enqueueMutation(
       uid,
       `day:${normalizedDate}`,
-      () => this.writeDaily(uid, normalizedDate, values, options?.canRun, options?.changedFields),
+      () =>
+        this.writeDaily(
+          uid,
+          normalizedDate,
+          values,
+          options?.canRun,
+          options?.changedFields,
+          options?.createIfMissing ?? true,
+        ),
       options,
     );
   }
@@ -421,19 +495,31 @@ export class FirestoreDailyMonthlyDataSource {
     values: CostValues,
     canRun?: () => boolean,
     changedFields?: readonly CostField[],
+    createIfMissing = true,
   ) {
-    const { deleteField, doc, serverTimestamp, setDoc } = firestoreModule();
+    const { deleteField, doc, runTransaction, serverTimestamp, updateDoc } = firestoreModule();
+    const reference = doc(dailyCollectionFor(uid), normalizedDate);
     const writeDocument = changedFields
       ? costValuesToDailyPatchDocument(normalizedDate, values, changedFields, deleteField)
       : costValuesToDailyWriteDocument(normalizedDate, values, deleteField);
-    await setDoc(
-      doc(dailyCollectionFor(uid), normalizedDate),
-      {
-        ...writeDocument,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    const payload = { ...writeDocument, updatedAt: serverTimestamp() };
+    if (!createIfMissing) {
+      try {
+        await updateDoc(reference, payload);
+      } catch (error) {
+        if (isFirestoreNotFound(error)) throw new FirestoreDailyMonthlyRecordMissingError();
+        throw error;
+      }
+    } else {
+      const { getFirebaseFirestore } = firebaseFirestoreModule();
+      await runTransaction(getFirebaseFirestore(), async (transaction) => {
+        if (canRun && !canRun()) return;
+        const snapshot = await transaction.get(reference);
+        if (canRun && !canRun()) return;
+        if (snapshot.exists()) transaction.update(reference, payload);
+        else transaction.set(reference, payload);
+      });
+    }
     const expense = mergeDailyExpense(
       this.dailyFor(uid).get(normalizedDate),
       dailyDocumentToExpense(normalizedDate, costValuesToDailyDocument(normalizedDate, values)),
@@ -458,7 +544,14 @@ export class FirestoreDailyMonthlyDataSource {
       uid,
       `month:${normalizedMonth}`,
       () =>
-        this.writeMonthly(uid, normalizedMonth, values, options?.canRun, options?.changedFields),
+        this.writeMonthly(
+          uid,
+          normalizedMonth,
+          values,
+          options?.canRun,
+          options?.changedFields,
+          options?.createIfMissing ?? true,
+        ),
       options,
     );
   }
@@ -469,16 +562,31 @@ export class FirestoreDailyMonthlyDataSource {
     values: CostValues,
     canRun?: () => boolean,
     changedFields?: readonly CostField[],
+    createIfMissing = true,
   ) {
-    const { deleteField, doc, serverTimestamp, setDoc } = firestoreModule();
+    const { deleteField, doc, runTransaction, serverTimestamp, updateDoc } = firestoreModule();
+    const reference = doc(monthlyCollectionFor(uid), normalizedMonth);
     const writeDocument = changedFields
       ? costValuesToMonthlyPatchDocument(normalizedMonth, values, changedFields, deleteField)
       : costValuesToMonthlyDocument(normalizedMonth, values);
-    await setDoc(
-      doc(monthlyCollectionFor(uid), normalizedMonth),
-      { ...writeDocument, updatedAt: serverTimestamp() },
-      { merge: true },
-    );
+    const payload = { ...writeDocument, updatedAt: serverTimestamp() };
+    if (!createIfMissing) {
+      try {
+        await updateDoc(reference, payload);
+      } catch (error) {
+        if (isFirestoreNotFound(error)) throw new FirestoreDailyMonthlyRecordMissingError();
+        throw error;
+      }
+    } else {
+      const { getFirebaseFirestore } = firebaseFirestoreModule();
+      await runTransaction(getFirebaseFirestore(), async (transaction) => {
+        if (canRun && !canRun()) return;
+        const snapshot = await transaction.get(reference);
+        if (canRun && !canRun()) return;
+        if (snapshot.exists()) transaction.update(reference, payload);
+        else transaction.set(reference, payload);
+      });
+    }
     const previous = this.monthlyFor(uid).get(normalizedMonth);
     const mapped = monthlyDocumentToExpense(costValuesToMonthlyDocument(normalizedMonth, values));
     const expense = mergeMonthlyExpense(previous, mapped, changedFields);
@@ -516,7 +624,11 @@ export class FirestoreDailyMonthlyDataSource {
     uid: string,
     options?: FirestoreReadOptions,
   ): Promise<CostSettings> {
-    return snapshotToCostSettings(await this.load(uid, { loadAll: true }, options));
+    const result = await this.loadWithMetadata(uid, { loadAll: true }, options);
+    if (!result.remoteComplete || result.source !== 'network') {
+      throw new Error('Snapshot remoto de custos incompleto; sincronização bloqueada.');
+    }
+    return snapshotToCostSettings(result.snapshot);
   }
 
   public async saveSettingsDiff(
@@ -525,48 +637,223 @@ export class FirestoreDailyMonthlyDataSource {
     next: CostSettings,
     options?: FirestoreMutationOptions,
   ): Promise<void> {
+    const changes = options?.changes;
+    if (!changes?.length) return;
+
     const operations: Promise<unknown>[] = [];
-    const dayKeys = new Set([
-      ...Object.keys(previous.periods.day),
-      ...Object.keys(next.periods.day),
-    ]);
-    for (const date of dayKeys) {
+    const dailyIntents = explicitIntents(changes, 'day');
+    for (const [date, intent] of dailyIntents) {
       const before = previous.periods.day[date];
       const after = next.periods.day[date];
-      if (before && !after) {
+      if (intent.deleted) {
         operations.push(this.deleteDaily(uid, date, options));
-      } else if (JSON.stringify(before) !== JSON.stringify(after) && after) {
+        continue;
+      }
+
+      if (!after || intent.fields.size === 0) continue;
+      const fields = [...intent.fields];
+      const creating = !before || intent.recreatedAfterDelete;
+      const createFields = creating ? validCreateFields('day', after, fields) : fields;
+      if (intent.recreatedAfterDelete) {
         operations.push(
-          this.saveDaily(
+          this.replaceDailyAfterDelete(
             uid,
             date,
-            after,
-            before ? mutationOptionsFor(options, 'day', date, before, after) : options,
+            valuesForFields(after, createFields),
+            createFields,
+            options,
           ),
         );
+        continue;
       }
+      if (creating && createFields.length === 0) continue;
+      operations.push(
+        this.writeDailyFields(
+          uid,
+          date,
+          creating ? valuesForFields(after, createFields) : after,
+          createFields,
+          creating,
+          options,
+        ),
+      );
     }
 
-    const monthKeys = new Set([
-      ...Object.keys(previous.periods.month),
-      ...Object.keys(next.periods.month),
-    ]);
-    for (const month of monthKeys) {
+    const monthlyIntents = explicitIntents(changes, 'month');
+    for (const [month, intent] of monthlyIntents) {
       const before = previous.periods.month[month];
       const after = next.periods.month[month];
-      if (JSON.stringify(before) !== JSON.stringify(after) && after) {
-        operations.push(
-          this.saveMonthly(
-            uid,
-            month,
-            after,
-            before ? mutationOptionsFor(options, 'month', month, before, after) : options,
-          ),
-        );
-      }
+      if (!after || intent.deleted || intent.fields.size === 0) continue;
+      const fields = [...intent.fields];
+      const creating = !before || intent.recreatedAfterDelete;
+      const createFields = creating ? validCreateFields('month', after, fields) : fields;
+      if (creating && createFields.length === 0) continue;
+      operations.push(
+        this.writeMonthlyFields(
+          uid,
+          month,
+          creating ? valuesForFields(after, createFields) : after,
+          createFields,
+          creating,
+          options,
+        ),
+      );
     }
 
     await Promise.all(operations);
+  }
+
+  private writeDailyFields(
+    uid: string,
+    date: string,
+    values: CostValues,
+    fields: readonly CostField[],
+    createIfMissing: boolean,
+    options?: FirestoreMutationOptions,
+  ): Promise<DailyExpense> {
+    const normalizedDate = normalizeDate(date);
+    return this.enqueueMutation(
+      uid,
+      `day:${normalizedDate}`,
+      () =>
+        this.writeDailyFieldsNow(
+          uid,
+          normalizedDate,
+          values,
+          fields,
+          createIfMissing,
+          options?.canRun,
+        ),
+      options,
+    );
+  }
+
+  private replaceDailyAfterDelete(
+    uid: string,
+    date: string,
+    values: CostValues,
+    fields: readonly CostField[],
+    options?: FirestoreMutationOptions,
+  ): Promise<void> {
+    return this.enqueueMutation(
+      uid,
+      `day:${date}`,
+      async () => {
+        await this.writeDeleteDaily(uid, date, options?.canRun);
+        if (fields.length === 0) return;
+        await this.writeDailyFieldsNow(uid, date, values, fields, true, options?.canRun);
+      },
+      options,
+    );
+  }
+
+  private async writeDailyFieldsNow(
+    uid: string,
+    date: string,
+    values: CostValues,
+    fields: readonly CostField[],
+    createIfMissing: boolean,
+    canRun?: () => boolean,
+  ): Promise<DailyExpense> {
+    const { deleteField, doc, runTransaction, serverTimestamp, updateDoc } = firestoreModule();
+    const reference = doc(dailyCollectionFor(uid), date);
+    const payload = {
+      ...costValuesToDailyPatchDocument(date, values, fields, deleteField),
+      updatedAt: serverTimestamp(),
+    };
+    if (createIfMissing) {
+      const { getFirebaseFirestore } = firebaseFirestoreModule();
+      await runTransaction(getFirebaseFirestore(), async (transaction) => {
+        if (canRun && !canRun()) return;
+        const snapshot = await transaction.get(reference);
+        if (canRun && !canRun()) return;
+        if (snapshot.exists()) transaction.update(reference, payload);
+        else transaction.set(reference, payload);
+      });
+    } else {
+      try {
+        await updateDoc(reference, payload);
+      } catch (error) {
+        if (isFirestoreNotFound(error)) throw new FirestoreDailyMonthlyRecordMissingError();
+        throw error;
+      }
+    }
+
+    const mapped = dailyDocumentToExpense(date, costValuesToDailyDocument(date, values));
+    const expense = createIfMissing
+      ? mapped
+      : mergeDailyExpense(this.dailyFor(uid).get(date), mapped, fields);
+    if (canRun && !canRun()) return expense;
+    this.dailyFor(uid).set(date, expense);
+    if (!canRun || canRun()) void financialPeriodSnapshotCache.invalidate(uid, date.slice(0, 7));
+    return expense;
+  }
+
+  private writeMonthlyFields(
+    uid: string,
+    month: string,
+    values: CostValues,
+    fields: readonly CostField[],
+    createIfMissing: boolean,
+    options?: FirestoreMutationOptions,
+  ): Promise<MonthlyExpense> {
+    const normalizedMonth = normalizeMonth(month);
+    return this.enqueueMutation(
+      uid,
+      `month:${normalizedMonth}`,
+      () =>
+        this.writeMonthlyFieldsNow(
+          uid,
+          normalizedMonth,
+          values,
+          fields,
+          createIfMissing,
+          options?.canRun,
+        ),
+      options,
+    );
+  }
+
+  private async writeMonthlyFieldsNow(
+    uid: string,
+    month: string,
+    values: CostValues,
+    fields: readonly CostField[],
+    createIfMissing: boolean,
+    canRun?: () => boolean,
+  ): Promise<MonthlyExpense> {
+    const { deleteField, doc, runTransaction, serverTimestamp, updateDoc } = firestoreModule();
+    const reference = doc(monthlyCollectionFor(uid), month);
+    const payload = {
+      ...costValuesToMonthlyPatchDocument(month, values, fields, deleteField),
+      updatedAt: serverTimestamp(),
+    };
+    if (createIfMissing) {
+      const { getFirebaseFirestore } = firebaseFirestoreModule();
+      await runTransaction(getFirebaseFirestore(), async (transaction) => {
+        if (canRun && !canRun()) return;
+        const snapshot = await transaction.get(reference);
+        if (canRun && !canRun()) return;
+        if (snapshot.exists()) transaction.update(reference, payload);
+        else transaction.set(reference, payload);
+      });
+    } else {
+      try {
+        await updateDoc(reference, payload);
+      } catch (error) {
+        if (isFirestoreNotFound(error)) throw new FirestoreDailyMonthlyRecordMissingError();
+        throw error;
+      }
+    }
+
+    const mapped = monthlyDocumentToExpense(costValuesToMonthlyDocument(month, values));
+    const expense = createIfMissing
+      ? mapped
+      : mergeMonthlyExpense(this.monthlyFor(uid).get(month), mapped, fields);
+    if (canRun && !canRun()) return expense;
+    this.monthlyFor(uid).set(month, expense);
+    if (!canRun || canRun()) void financialPeriodSnapshotCache.invalidate(uid, month);
+    return expense;
   }
 
   private dailyFor(uid: string): Map<string, DailyExpense> {
@@ -615,27 +902,69 @@ export class FirestoreDailyMonthlyDataSource {
   }
 }
 
-function mutationOptionsFor(
-  options: FirestoreMutationOptions | undefined,
-  period: CostPeriod,
-  key: string,
-  before: CostValues,
-  after: CostValues,
-): FirestoreMutationOptions {
-  if (options?.changes) {
-    const changedFields = options.changes
-      .filter((change) => change.period === period && change.key === key && change.field)
-      .map((change) => change.field as CostField);
-    return { ...options, changedFields };
-  }
+type ExplicitCostIntent = {
+  deleted: boolean;
+  fields: Set<CostField>;
+  recreatedAfterDelete: boolean;
+};
 
-  return { ...(options ?? {}), changedFields: changedCostFields(before, after) };
+function explicitIntents(
+  changes: readonly FirestoreCostChange[],
+  period: CostPeriod,
+): Map<string, ExplicitCostIntent> {
+  const intents = new Map<string, ExplicitCostIntent>();
+  const orderedChanges = [...changes].sort(
+    (left, right) => (left.revision ?? 0) - (right.revision ?? 0),
+  );
+  for (const change of orderedChanges) {
+    if (change.period !== period) continue;
+    const intent = intents.get(change.key) ?? {
+      deleted: false,
+      fields: new Set<CostField>(),
+      recreatedAfterDelete: false,
+    };
+    if (change.deleted) {
+      intent.fields.clear();
+      intent.deleted = true;
+      intent.recreatedAfterDelete = false;
+    } else if (change.field) {
+      if (intent.deleted) {
+        intent.fields.clear();
+        intent.deleted = false;
+        intent.recreatedAfterDelete = true;
+      }
+      intent.fields.add(change.field);
+    }
+    intents.set(change.key, intent);
+  }
+  return intents;
 }
 
-function changedCostFields(before: CostValues, after: CostValues): CostField[] {
-  return (
-    ['light', 'estar', 'kilometers', 'fuel', 'fuelPrice', 'fuelType', 'other'] as const
-  ).filter((field) => before[field] !== after[field]);
+function validCreateFields(
+  period: CostPeriod,
+  values: CostValues,
+  fields: readonly CostField[],
+): CostField[] {
+  return fields.filter((field) => {
+    if (period === 'day' && field === 'light') return false;
+    if (period === 'month' && field !== 'light') return false;
+    if (field === 'fuelType') return values.fuelType === 'gasolina' || values.fuelType === 'etanol';
+    return normalizeMoney(values[field]) !== undefined;
+  });
+}
+
+function valuesForFields(values: CostValues, fields: readonly CostField[]): CostValues {
+  const result: CostValues = {
+    estar: '',
+    fuel: '',
+    fuelPrice: '',
+    fuelType: '',
+    kilometers: '',
+    light: '',
+    other: '',
+  };
+  for (const field of fields) result[field] = values[field];
+  return result;
 }
 
 function mergeDailyExpense(
@@ -728,8 +1057,45 @@ function emptySnapshot(): FirestoreDailyMonthlySnapshot {
   return { gastosDiarios: {}, gastosMensais: {} };
 }
 
-function emptyLoadResult(): FirestoreDailyMonthlyLoadResult {
-  return { remoteComplete: false, snapshot: emptySnapshot(), source: 'cache' };
+function emptyLoadResult(
+  uid: string,
+  query: DailyMonthlyQuery,
+  sessionVersion?: number,
+  stale = false,
+): FirestoreDailyMonthlyLoadResult {
+  const snapshot = emptySnapshot();
+  const provenance = createFirestoreQueryProvenance({
+    kind: 'daily-monthly-costs',
+    uid,
+    sessionVersion,
+    scope: { ...query },
+    fromCache: null,
+    hasPendingWrites: null,
+    scopeIsComplete: false,
+    stale,
+  });
+  return {
+    remoteComplete: false,
+    snapshot,
+    querySnapshot: snapshot,
+    provenance,
+    source: 'cache',
+  };
+}
+
+function mergeMetadataFlag(current: boolean | null, incoming: unknown): boolean | null {
+  if (current === true || incoming === true) return true;
+  if (current === null || typeof incoming !== 'boolean') return null;
+  return current || incoming;
+}
+
+function isExactDailyMonthlyQueryScope(query: DailyMonthlyQuery): boolean {
+  if (query.loadAll) {
+    return !query.date && !query.month && !query.startDate && !query.endDate;
+  }
+  if (query.date) return !query.month && !query.startDate && !query.endDate;
+  if (query.month) return !query.startDate && !query.endDate;
+  return Boolean(query.startDate || query.endDate);
 }
 
 function normalizedDailyRange(query: DailyMonthlyQuery): [string | undefined, string | undefined] {

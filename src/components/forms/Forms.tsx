@@ -418,6 +418,7 @@ export type SegmentedControlProps<T extends string> = {
   options: readonly SegmentOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  accessibilityLabel?: string;
   disabled?: boolean;
   style?: ViewComponentStyle;
 };
@@ -426,12 +427,14 @@ export function SegmentedControl<T extends string>({
   options,
   value,
   onChange,
+  accessibilityLabel,
   disabled = false,
   style,
 }: SegmentedControlProps<T>) {
   const { theme } = useAppTheme();
   return (
     <View
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="tablist"
       style={[
         styles.segmented,

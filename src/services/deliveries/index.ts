@@ -17,6 +17,11 @@ export { mockDeliveryDataSource } from './DeliveryDataSource';
 export {
   FirestoreDeliveryDataSource,
   firestoreDeliveryDataSource,
+  HISTORICAL_DELIVERY_QUERY_SCOPE,
+} from './FirestoreDeliveryDataSource';
+export type {
+  FirestoreDeliveryLoadResult,
+  FirestoreHistoricalDeliveryLoadResult,
 } from './FirestoreDeliveryDataSource';
 export {
   FirestoreHistoricalDeliveryCache,

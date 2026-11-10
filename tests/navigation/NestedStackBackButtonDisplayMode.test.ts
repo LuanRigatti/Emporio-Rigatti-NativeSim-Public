@@ -56,8 +56,12 @@ describe('nested Native Stack back button display modes', () => {
 
     expect(rootLayout).toMatch(/name="faturamento-mensal"[\s\S]{0,500}gestureEnabled: true/);
     expect(rootLayout).toMatch(/name="lucro-liquido-mensal"[\s\S]{0,500}gestureEnabled: true/);
-    expect(financeIndex).toContain("pathname: '/faturamento-mensal'");
-    expect(financeIndex).toContain("pathname: '/lucro-liquido-mensal'");
+    for (const routeName of ['faturamento-mensal', 'lucro-liquido-mensal']) {
+      expect(financeIndex).toContain(`openMonthlyChart('${routeName}')`);
+      expect(rootLayout).toContain(
+        `cancelPendingReturnIntentsForGestureCancelledRoute('${routeName}')`,
+      );
+    }
   });
 
   it('uses minimal arrows on first-level Settings destinations', () => {

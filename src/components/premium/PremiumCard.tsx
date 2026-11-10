@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
 import { darkModeCardSurface, useAppTheme } from '@/theme';
 
@@ -10,6 +10,7 @@ export type PremiumCardProps = {
   disablePressAnimation?: boolean;
   onPress?: AnimatedPressableProps['onPress'];
   preservePressableIdentity?: boolean;
+  onLayout?: ViewProps['onLayout'];
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 };
@@ -19,6 +20,7 @@ export function PremiumCard({
   disablePressAnimation,
   onPress,
   preservePressableIdentity = false,
+  onLayout,
   style,
   accessibilityLabel,
 }: PremiumCardProps) {
@@ -39,6 +41,7 @@ export function PremiumCard({
       <AnimatedPressable
         disablePressAnimation={disablePressAnimation || !onPress}
         disabled={!onPress}
+        onLayout={onLayout}
         onPress={onPress}
         style={cardStyle}
         accessibilityRole={onPress ? 'button' : undefined}
@@ -49,7 +52,11 @@ export function PremiumCard({
     );
   }
 
-  return <View style={cardStyle}>{children}</View>;
+  return (
+    <View onLayout={onLayout} style={cardStyle}>
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

@@ -52,6 +52,7 @@ export function useRegistrarDeliverySheet({
   const [selectedClient, setSelectedClient] = useState<NativeBottomSheetItem | null>(null);
   const [recentlyAddedDeliveryIds, setRecentlyAddedDeliveryIds] = useState<readonly string[]>([]);
   const sheetPhaseRef = useRef<RegistrarDeliverySheetPhase>('closed');
+  const confirmationInFlightRef = useRef(false);
 
   const clientItems = useMemo<NativeBottomSheetItem[]>(
     () => clients.map(toRegistrarDeliverySheetItem),
@@ -98,7 +99,8 @@ export function useRegistrarDeliverySheet({
 
   const handleConfirm = useCallback(
     (confirmation: NativeBottomSheetConfirmation) => {
-      if (testModeEnabled) return;
+      if (testModeEnabled || confirmationInFlightRef.current) return;
+      confirmationInFlightRef.current = true;
       void createRegistrarDeliveryFromConfirmation({
         clients,
         confirmation,
@@ -109,7 +111,10 @@ export function useRegistrarDeliverySheet({
           if (!created) return;
           markRecentlyAddedDeliveryIds([created.id]);
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          confirmationInFlightRef.current = false;
+        });
 
       dismissSheet();
     },

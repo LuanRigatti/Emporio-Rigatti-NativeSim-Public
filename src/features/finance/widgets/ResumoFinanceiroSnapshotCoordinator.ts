@@ -160,14 +160,17 @@ class ResumoFinanceiroSnapshotCoordinator {
     const currentSessionKey = sessionScopeKey(uid, sessionVersion);
     const canRun = () => this.isCurrentSession(uid, sessionVersion, generation);
     const costSettingsSessionKey = currentSessionKey;
-    const cachedCarSettings = carSettingsStorage.getCached();
+    const carSettingsSessionVersion = sessionVersion ?? 0;
+    const cachedCarSettings = carSettingsStorage.getCached(uid, carSettingsSessionVersion);
     const [periodEntry, costSettings, carSettings, routeSessions] = await Promise.all([
       financialPeriodSnapshotCache.read(uid, monthKey),
       costSettingsStorage.load(uid, {
         canRun,
         sessionKey: costSettingsSessionKey,
       }),
-      cachedCarSettings ? Promise.resolve(cachedCarSettings) : carSettingsStorage.load(),
+      cachedCarSettings
+        ? Promise.resolve(cachedCarSettings)
+        : carSettingsStorage.load(uid, carSettingsSessionVersion, { canRun }),
       locationTrackingService.hydrateFinancialRouteSummariesFromCache(),
     ]);
 

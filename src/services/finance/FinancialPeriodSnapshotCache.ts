@@ -73,7 +73,33 @@ export class FinancialPeriodSnapshotCache {
     string,
     FinancialPeriodSnapshotCacheEntry | FinancialAllTimeSnapshotCacheEntry
   >();
+  private readonly periodMemoryScopes = new Map<
+    string,
+    { sessionVersion: number; requestScopeKey: string }
+  >();
+  private readonly periodInvalidationVersions = new Map<string, number>();
+  private readonly periodInvalidationListeners = new Map<
+    string,
+    Set<(displayMonth: string) => void>
+  >();
   private readonly externalChangeListeners = new Map<string, Set<() => void>>();
+
+  public getPeriodInvalidationVersion(uid: string, displayMonth: string): number {
+    return this.periodInvalidationVersions.get(this.getKey(uid, displayMonth)) ?? 0;
+  }
+
+  public subscribeToPeriodInvalidation(
+    uid: string,
+    listener: (displayMonth: string) => void,
+  ): () => void {
+    const listeners = this.periodInvalidationListeners.get(uid) ?? new Set();
+    listeners.add(listener);
+    this.periodInvalidationListeners.set(uid, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.periodInvalidationListeners.delete(uid);
+    };
+  }
 
   public subscribeToExternalChange(uid: string, listener: () => void): () => void {
     const listeners = this.externalChangeListeners.get(uid) ?? new Set<() => void>();
@@ -102,13 +128,32 @@ export class FinancialPeriodSnapshotCache {
     return entry && isValidEntry(entry) ? entry : null;
   }
 
+  public getMemoryForRequest(
+    uid: string,
+    displayMonth: string,
+    sessionVersion: number,
+    requestScopeKey: string,
+  ): FinancialPeriodSnapshotCacheEntry | null {
+    const key = this.getKey(uid, displayMonth);
+    const entry = this.memory.get(key);
+    const scope = this.periodMemoryScopes.get(key);
+    return entry &&
+      isValidEntry(entry) &&
+      scope?.sessionVersion === sessionVersion &&
+      scope.requestScopeKey === requestScopeKey
+      ? entry
+      : null;
+  }
+
   public async read(
     uid: string,
     displayMonth: string,
   ): Promise<FinancialPeriodSnapshotCacheEntry | null> {
     const key = this.getKey(uid, displayMonth);
     const memoryEntry = this.memory.get(key);
-    if (memoryEntry && isValidEntry(memoryEntry)) return memoryEntry;
+    if (memoryEntry && isValidEntry(memoryEntry)) {
+      return memoryEntry;
+    }
 
     try {
       const serialized = await AsyncStorage.getItem(key);
@@ -118,6 +163,7 @@ export class FinancialPeriodSnapshotCache {
         return null;
       }
       this.memory.set(key, parsed);
+      this.periodMemoryScopes.delete(key);
       return parsed;
     } catch {
       return null;
@@ -138,7 +184,9 @@ export class FinancialPeriodSnapshotCache {
   ): Promise<FinancialAllTimeSnapshotCacheEntry | null> {
     const key = this.getAllTimeKey(uid, sessionVersion);
     const memoryEntry = this.memory.get(key);
-    if (memoryEntry && isValidAllTimeEntry(memoryEntry)) return memoryEntry;
+    if (memoryEntry && isValidAllTimeEntry(memoryEntry)) {
+      return memoryEntry;
+    }
 
     try {
       const serialized = await AsyncStorage.getItem(key);
@@ -163,6 +211,8 @@ export class FinancialPeriodSnapshotCache {
     displayMonth: string,
     snapshot: UserDataSnapshot,
     comparisonSnapshot: UserDataSnapshot,
+    sessionVersion?: number,
+    requestScopeKey?: string,
   ): Promise<void> {
     const entry: FinancialPeriodSnapshotCacheEntry = {
       cacheVersion: CACHE_VERSION,
@@ -174,12 +224,23 @@ export class FinancialPeriodSnapshotCache {
     };
     const key = this.getKey(uid, displayMonth);
     this.memory.set(key, entry);
+    if (sessionVersion !== undefined && requestScopeKey !== undefined) {
+      this.periodMemoryScopes.set(key, { sessionVersion, requestScopeKey });
+    } else {
+      this.periodMemoryScopes.delete(key);
+    }
     await AsyncStorage.setItem(key, JSON.stringify(entry));
   }
 
   public async invalidate(uid: string, displayMonth: string): Promise<void> {
     const key = this.getKey(uid, displayMonth);
+    this.periodInvalidationVersions.set(
+      key,
+      this.getPeriodInvalidationVersion(uid, displayMonth) + 1,
+    );
     this.memory.delete(key);
+    this.periodMemoryScopes.delete(key);
+    this.periodInvalidationListeners.get(uid)?.forEach((listener) => listener(displayMonth));
     await AsyncStorage.removeItem(key);
   }
 

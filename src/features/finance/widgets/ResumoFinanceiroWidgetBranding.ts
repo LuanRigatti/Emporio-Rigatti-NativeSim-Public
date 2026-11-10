@@ -16,6 +16,11 @@ const widgetBrandAssets = [
   },
 ] as const;
 
+const wholesaleLiveActivityBrandAsset = {
+  module: require('../../../../assets/branding/splash-live-activity-mark.png'),
+  filename: 'wholesale-live-activity-mark.png',
+} as const;
+
 let preparationPromise: Promise<void> | null = null;
 
 function assetDestination(directory: string, filename: string): string {
@@ -46,13 +51,20 @@ export function prepareResumoFinanceiroWidgetBranding(): Promise<void> {
   if (!widgetsDirectory) return Promise.resolve();
   if (preparationPromise) return preparationPromise;
 
-  preparationPromise = Promise.all(
-    widgetBrandAssets.map(({ module, filename }) =>
-      copyWidgetBrandAsset(widgetsDirectory, module, filename),
+  preparationPromise = Promise.all([
+    Promise.all(
+      widgetBrandAssets.map(({ module, filename }) =>
+        copyWidgetBrandAsset(widgetsDirectory, module, filename),
+      ),
     ),
-  )
-    .then((updatedAssets) => {
-      if (updatedAssets.some(Boolean)) {
+    copyWidgetBrandAsset(
+      widgetsDirectory,
+      wholesaleLiveActivityBrandAsset.module,
+      wholesaleLiveActivityBrandAsset.filename,
+    ),
+  ])
+    .then(([updatedWidgetAssets]) => {
+      if (updatedWidgetAssets.some(Boolean)) {
         // The extension can render an initial timeline before these shared files exist.
         // Re-evaluate both widget kinds only after their images are ready.
         resumoFinanceiroWidget.reload();

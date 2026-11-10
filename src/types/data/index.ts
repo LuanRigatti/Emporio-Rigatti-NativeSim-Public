@@ -77,6 +77,9 @@ export type {
   DeliveryDraft,
   DeliveryFilters,
   DeliveryStatus,
+  DeliveryPaymentSelection,
+  DeliveryWorkflowExpectedState,
+  DeliveryWorkflowMutation,
   InvoiceStatus,
   PaymentMethod,
 } from './delivery';

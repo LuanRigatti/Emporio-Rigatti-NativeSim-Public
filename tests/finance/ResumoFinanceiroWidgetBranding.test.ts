@@ -7,6 +7,7 @@ const optimizedWidgetMarks = [
   'resumo-financeiro-mark-light.png',
   'resumo-financeiro-mark-dark.png',
 ] as const;
+const liveActivityMark = 'splash-live-activity-mark.png';
 
 function readPngMetadata(fileName: string) {
   const assetPath = resolve(process.cwd(), 'assets/branding', fileName);
@@ -76,7 +77,7 @@ beforeEach(() => {
 });
 
 describe('ResumoFinanceiro widget branding assets', () => {
-  it('copies both optimized canonical splash marks into the shared widget directory', async () => {
+  it('copies optimized widget marks and the Splash-derived Live Activity mark to the shared directory', async () => {
     const fileSystem = jest.requireMock('expo-file-system/legacy') as {
       copyAsync: jest.Mock;
       moveAsync: jest.Mock;
@@ -90,6 +91,7 @@ describe('ResumoFinanceiro widget branding assets', () => {
     expect(copyDestinations).toEqual([
       'file:///shared/ExpoWidgets/resumo-financeiro-mark-dark.png.tmp',
       'file:///shared/ExpoWidgets/resumo-financeiro-mark-light.png.tmp',
+      'file:///shared/ExpoWidgets/wholesale-live-activity-mark.png.tmp',
     ]);
 
     const publishedDestinations = fileSystem.moveAsync.mock.calls
@@ -98,6 +100,7 @@ describe('ResumoFinanceiro widget branding assets', () => {
     expect(publishedDestinations).toEqual([
       'file:///shared/ExpoWidgets/resumo-financeiro-mark-dark.png',
       'file:///shared/ExpoWidgets/resumo-financeiro-mark-light.png',
+      'file:///shared/ExpoWidgets/wholesale-live-activity-mark.png',
     ]);
 
     expect(
@@ -129,7 +132,7 @@ describe('ResumoFinanceiro widget branding assets', () => {
     expect(deliveryReload.mock.invocationCallOrder[0]).toBeGreaterThan(lastAssetMove);
   });
 
-  it('does not reload widget timelines when both shared assets already match the bundle', async () => {
+  it('does not copy or reload when all shared branding assets already match the bundle', async () => {
     const assets = jest.requireMock('expo-asset') as {
       Asset: { fromModule: jest.Mock };
     };
@@ -182,6 +185,15 @@ describe('ResumoFinanceiro widget branding assets', () => {
     },
   );
 
+  it('keeps the Splash-derived Live Activity mark compact and transparent', () => {
+    const metadata = readPngMetadata(liveActivityMark);
+
+    expect(metadata.width).toBe(128);
+    expect(metadata.height).toBe(128);
+    expect(metadata.colorType).toBe(6);
+    expect(metadata.size).toBeLessThan(10_000);
+  });
+
   it('bundles the optimized marks and does not load the original splash canvases', () => {
     const brandingSource = readFileSync(
       resolve(process.cwd(), 'src/features/finance/widgets/ResumoFinanceiroWidgetBranding.ts'),
@@ -191,6 +203,7 @@ describe('ResumoFinanceiro widget branding assets', () => {
     for (const fileName of optimizedWidgetMarks) {
       expect(brandingSource).toContain(`assets/branding/${fileName}`);
     }
+    expect(brandingSource).toContain(`assets/branding/${liveActivityMark}`);
     expect(brandingSource).not.toContain('assets/branding/splash-light.png');
     expect(brandingSource).not.toContain('assets/branding/splash-dark.png');
   });

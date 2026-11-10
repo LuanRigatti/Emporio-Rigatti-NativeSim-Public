@@ -286,6 +286,22 @@ describe('Registrar app mode routing', () => {
     act(() => renderer.unmount());
   });
 
+  it('does not push duplicate client-selection pages for rapid taps', () => {
+    const renderer = renderRegistrar();
+    const deliveryCard = renderer.root
+      .findAll((node) => String(node.type) === 'premium-card')
+      .find((card) => card.props.accessibilityLabel === 'Abrir Registrar Entrega');
+
+    act(() => {
+      deliveryCard?.props.onPress();
+      deliveryCard?.props.onPress();
+    });
+
+    expect(mockRouterPush.mock.calls).toEqual([['/registrar-entrega/clientes']]);
+    expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
   it('switches only the Registrar content to the Retail launcher', () => {
     mockAppMode.mode = 'retail';
     const renderer = renderRegistrar();

@@ -13,6 +13,7 @@ $cipherFixture = Join-Path $fixtureRoot 'native-sim-oslog.age'
 $manifestFixture = Join-Path $fixtureRoot 'manifest.json'
 $sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 $repository = 'LuanRigatti/Emporio-Rigatti-NativeSim-Public'
+$saveAppRepository = 'LuanRigatti/SaveApp-NativeSim-Public'
 $runId = '12345'
 $testCount = 0
 
@@ -50,7 +51,25 @@ $global:LASTEXITCODE = 0
 $all = @($args | ForEach-Object { [string]$_ })
 $scenario = $env:NATIVE_SIM_MOCK_SCENARIO
 $root = $env:NATIVE_SIM_MOCK_ROOT
-$repo = 'LuanRigatti/Emporio-Rigatti-NativeSim-Public'
+$profile = $env:NATIVE_SIM_MOCK_PROFILE
+$mockAttempt = if ($scenario -eq 'saveapp-rerun-stop') { 2 } else { 1 }
+$stopPostedPath = Join-Path $root "stop-posted-$profile-$mockAttempt.txt"
+$stopObservedPath = Join-Path $root "stop-observed-$profile-$mockAttempt.txt"
+if ($profile -eq 'SaveApp') {
+  $repo = 'LuanRigatti/SaveApp-NativeSim-Public'
+  $jobName = 'Build and stream SaveApp'
+  $startName = 'Start SaveApp OSLog capture'
+  $finalizerName = 'Finalize SaveApp OSLog capture'
+  $uploaderName = 'Upload encrypted SaveApp OSLog capture'
+  $artifactPrefix = 'saveapp-native-sim-oslog-'
+} else {
+  $repo = 'LuanRigatti/Emporio-Rigatti-NativeSim-Public'
+  $jobName = 'stream'
+  $startName = 'Start PeekPop OSLog capture'
+  $finalizerName = 'Finalize PeekPop OSLog capture'
+  $uploaderName = 'Upload encrypted PeekPop logs'
+  $artifactPrefix = 'native-sim-oslog-'
+}
 $sha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 $ids = @('12345')
 if ($scenario -eq 'ambiguous') { $ids = @('12345', '12346') }
@@ -64,7 +83,7 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
   $endpoint = $all | Where-Object { $_ -match '^repos/' } | Select-Object -First 1
   if ($post -and $endpoint -match '/statuses/') {
     Add-Content -LiteralPath (Join-Path $root 'status-posts.txt') -Value ($all -join '|')
-    Set-Content -LiteralPath (Join-Path $root 'stop-posted.txt') -Value 'yes'
+    Set-Content -LiteralPath $stopPostedPath -Value 'yes'
     Emit-Json @{ state = 'success' }
     return
   }
@@ -86,44 +105,49 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
       return
     }
     $isTimeout = $scenario -in @('timeout', 'auto-active')
-    $isStopped = Test-Path -LiteralPath (Join-Path $root 'stop-posted.txt')
-    $stopObserved = Test-Path -LiteralPath (Join-Path $root 'stop-observed.txt')
+    $isStopped = Test-Path -LiteralPath $stopPostedPath
+    $stopObserved = Test-Path -LiteralPath $stopObservedPath
     if ($isTimeout -or
-        ($scenario -eq 'stop' -and -not $isStopped) -or
+        ($scenario -in @('stop', 'saveapp-rerun-stop') -and -not $isStopped) -or
         ($scenario -eq 'stop-repeated' -and -not $stopObserved) -or
         $scenario -eq 'stop-stale') {
       $steps = @(
-        @{ name = 'Start PeekPop OSLog capture'; status = 'completed'; conclusion = 'success' }
+        @{ name = $startName; status = 'completed'; conclusion = 'success' }
         @{ name = 'Hold the stream open'; status = 'in_progress'; conclusion = $null }
       )
     } elseif ($scenario -eq 'no-capture') {
       $steps = @(
-        @{ name = 'Start PeekPop OSLog capture'; status = 'completed'; conclusion = 'skipped' }
-        @{ name = 'Finalize PeekPop OSLog capture'; status = 'completed'; conclusion = 'skipped' }
-        @{ name = 'Upload encrypted PeekPop logs'; status = 'completed'; conclusion = 'skipped' }
+        @{ name = $startName; status = 'completed'; conclusion = 'skipped' }
+        @{ name = $finalizerName; status = 'completed'; conclusion = 'skipped' }
+        @{ name = $uploaderName; status = 'completed'; conclusion = 'skipped' }
       )
     } elseif ($scenario -eq 'finalizer-failed') {
       $steps = @(
-        @{ name = 'Start PeekPop OSLog capture'; status = 'completed'; conclusion = 'success' }
-        @{ name = 'Finalize PeekPop OSLog capture'; status = 'completed'; conclusion = 'failure' }
-        @{ name = 'Upload encrypted PeekPop logs'; status = 'completed'; conclusion = 'skipped' }
+        @{ name = $startName; status = 'completed'; conclusion = 'success' }
+        @{ name = $finalizerName; status = 'completed'; conclusion = 'failure' }
+        @{ name = $uploaderName; status = 'completed'; conclusion = 'skipped' }
       )
     } elseif ($scenario -eq 'current-step-names') {
-      $steps = @(
-        @{ name = 'Start OSLog capture'; status = 'completed'; conclusion = 'success' }
-        @{ name = 'Hold the stream open'; status = 'completed'; conclusion = 'success' }
-        @{ name = 'Finalize OSLog capture'; status = 'completed'; conclusion = 'success' }
-        @{ name = 'Upload encrypted OSLog capture'; status = 'completed'; conclusion = 'success' }
-      )
+      $steps = if ($profile -eq 'SaveApp') { @(
+          @{ name = $startName; status = 'completed'; conclusion = 'success' }
+          @{ name = 'Keep the stream available'; status = 'completed'; conclusion = 'success' }
+          @{ name = $finalizerName; status = 'completed'; conclusion = 'success' }
+          @{ name = $uploaderName; status = 'completed'; conclusion = 'success' }
+        ) } else { @(
+          @{ name = 'Start OSLog capture'; status = 'completed'; conclusion = 'success' }
+          @{ name = 'Hold the stream open'; status = 'completed'; conclusion = 'success' }
+          @{ name = 'Finalize OSLog capture'; status = 'completed'; conclusion = 'success' }
+          @{ name = 'Upload encrypted OSLog capture'; status = 'completed'; conclusion = 'success' }
+        ) }
     } else {
       $steps = @(
-        @{ name = 'Start PeekPop OSLog capture'; status = 'completed'; conclusion = 'success' }
+        @{ name = $startName; status = 'completed'; conclusion = 'success' }
         @{ name = 'Hold the stream open'; status = 'completed'; conclusion = 'success' }
-        @{ name = 'Finalize PeekPop OSLog capture'; status = 'completed'; conclusion = 'success' }
-        @{ name = 'Upload encrypted PeekPop logs'; status = 'completed'; conclusion = 'success' }
+        @{ name = $finalizerName; status = 'completed'; conclusion = 'success' }
+        @{ name = $uploaderName; status = 'completed'; conclusion = 'success' }
       )
     }
-    Emit-Json @{ jobs = @(@{ name = 'stream'; status = 'completed'; conclusion = 'success'; steps = $steps }) }
+    Emit-Json @{ jobs = @(@{ name = $jobName; status = 'completed'; conclusion = 'success'; steps = $steps }) }
     return
   }
   if ($endpoint -match '/actions/runs/(\d+)/artifacts') {
@@ -131,9 +155,9 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
     if ($scenario -eq 'artifact-missing') {
       Emit-Json @{ artifacts = @() }
     } else {
-      $artifactAttempt = if ($scenario -eq 'artifact-other-attempt') { 2 } else { 1 }
+      $artifactAttempt = if ($scenario -in @('artifact-other-attempt', 'saveapp-rerun-stop')) { 2 } else { 1 }
       $expired = $scenario -eq 'artifact-expired'
-      Emit-Json @{ artifacts = @(@{ name = "native-sim-oslog-$artifactRunId-$artifactAttempt"; expired = $expired; id = 9876 }) }
+      Emit-Json @{ artifacts = @(@{ name = "$artifactPrefix$artifactRunId-$artifactAttempt"; expired = $expired; id = 9876 }) }
     }
     return
   }
@@ -142,9 +166,10 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
     $attempt = [int]$Matches[2]
     $status = 'completed'
     $conclusion = 'success'
-    $stopObserved = Test-Path -LiteralPath (Join-Path $root 'stop-observed.txt')
+    $stopObserved = Test-Path -LiteralPath $stopObservedPath
     if ($scenario -in @('timeout', 'auto-active') -or
-        ($scenario -eq 'stop' -and -not (Test-Path -LiteralPath (Join-Path $root 'stop-posted.txt'))) -or
+        ($scenario -eq 'saveapp-rerun-stop' -and -not (Test-Path -LiteralPath $stopPostedPath)) -or
+        ($scenario -eq 'stop' -and -not (Test-Path -LiteralPath $stopPostedPath)) -or
         ($scenario -eq 'stop-repeated' -and -not $stopObserved) -or
         $scenario -eq 'stop-stale') {
       $status = 'in_progress'
@@ -159,6 +184,7 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
       run_attempt = $attempt
       run_started_at = '2026-10-10T11:00:00Z'
       head_sha = $sha
+      head_branch = 'main'
       repository = @{ full_name = $repo }
     }
     return
@@ -167,9 +193,10 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
     $id = [string]$Matches[1]
     $status = 'completed'
     $conclusion = 'success'
-    $stopObserved = Test-Path -LiteralPath (Join-Path $root 'stop-observed.txt')
+    $stopObserved = Test-Path -LiteralPath $stopObservedPath
     if ($scenario -in @('timeout', 'auto-active') -or
-        ($scenario -eq 'stop' -and -not (Test-Path -LiteralPath (Join-Path $root 'stop-posted.txt'))) -or
+        ($scenario -eq 'saveapp-rerun-stop' -and -not (Test-Path -LiteralPath $stopPostedPath)) -or
+        ($scenario -eq 'stop' -and -not (Test-Path -LiteralPath $stopPostedPath)) -or
         ($scenario -eq 'stop-repeated' -and -not $stopObserved) -or
         $scenario -eq 'stop-stale') {
       $status = 'in_progress'
@@ -183,21 +210,28 @@ if ($all.Count -gt 0 -and $all[0] -eq 'api') {
       event = 'workflow_dispatch'
       status = $status
       conclusion = $conclusion
-      run_attempt = $(if ($scenario -eq 'explicit-old-attempt') { 2 } else { 1 })
+      run_attempt = $(if ($scenario -in @('explicit-old-attempt', 'saveapp-rerun-stop')) { 2 } else { 1 })
       run_started_at = '2026-10-10T12:00:00Z'
       head_sha = $sha
+      head_branch = 'main'
       repository = @{ full_name = $repo }
     }
     return
   }
   if ($endpoint -match '/commits/.+/statuses') {
     if ($scenario -eq 'stop-repeated') {
-      Set-Content -LiteralPath (Join-Path $root 'stop-observed.txt') -Value 'yes'
-      Emit-Json @(@{ context = 'native-sim-stop/12345'; state = 'success'; description = 'stop requested'; created_at = '2026-10-10T12:00:30Z' })
+      Set-Content -LiteralPath $stopObservedPath -Value 'yes'
+      $context = if ($profile -eq 'SaveApp') { 'native-sim-stop/12345/1' } else { 'native-sim-stop/12345' }
+      Emit-Json @(@{ context = $context; state = 'success'; description = 'stop requested'; created_at = '2026-10-10T12:00:30Z' })
       return
     }
     if ($scenario -eq 'stop-stale') {
-      Emit-Json @(@{ context = 'native-sim-stop/12345'; state = 'success'; description = 'stop requested'; created_at = '2026-10-10T11:00:00Z' })
+      $context = if ($profile -eq 'SaveApp') { 'native-sim-stop/12345/1' } else { 'native-sim-stop/12345' }
+      Emit-Json @(@{ context = $context; state = 'success'; description = 'stop requested'; created_at = '2026-10-10T11:00:00Z' })
+      return
+    }
+    if ($scenario -eq 'saveapp-rerun-stop') {
+      Emit-Json @(@{ context = 'native-sim-stop/12345/1'; state = 'success'; description = 'stop requested'; created_at = '2026-10-10T12:00:30Z' })
       return
     }
     Emit-Json @()
@@ -243,17 +277,22 @@ function Assert-Test {
 function Invoke-Collector {
   param(
     [string]$Scenario,
+    [ValidateSet('Emporio', 'SaveApp')][string]$Profile = 'Emporio',
     [string[]]$ExtraArguments = @(),
+    [string]$RepositoryOverride,
     [string]$OutputName = $Scenario
   )
 
   $env:NATIVE_SIM_MOCK_SCENARIO = $Scenario
   $env:NATIVE_SIM_MOCK_ROOT = $testRoot
   $env:NATIVE_SIM_MOCK_PLAINTEXT = $plainFixture
+  $env:NATIVE_SIM_MOCK_PROFILE = $Profile
   $caseOutput = Join-Path $testRoot $OutputName
+  $selectedRepository = if ($RepositoryOverride) { $RepositoryOverride } elseif ($Profile -eq 'SaveApp') { $saveAppRepository } else { $repository }
   $arguments = @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath,
-    '-Repository', $repository,
+    '-Profile', $Profile,
+    '-Repository', $selectedRepository,
     '-GhPath', $mockGhPath,
     '-AgePath', $mockAgePath,
     '-IdentityPath', $identityPath,
@@ -261,12 +300,21 @@ function Invoke-Collector {
     '-TimeoutSeconds', '2',
     '-PollIntervalSeconds', '1'
   ) + $ExtraArguments
-  $previousErrorAction = $ErrorActionPreference
-  $ErrorActionPreference = 'Continue'
-  $output = & $powershellExe @arguments 2>&1 | Out-String
-  $ErrorActionPreference = $previousErrorAction
+  $processRoot = Join-Path $testRoot ($OutputName + '-process')
+  New-Item -ItemType Directory -Path $processRoot -Force | Out-Null
+  $stdoutPath = Join-Path $processRoot 'stdout.txt'
+  $stderrPath = Join-Path $processRoot 'stderr.txt'
+  $quotedArguments = (@($arguments | ForEach-Object {
+    $argument = [string]$_
+    if ($argument.Contains('"')) { throw 'Synthetic collector arguments cannot contain quote characters.' }
+    if ($argument -match '\s') { '"' + $argument + '"' } else { $argument }
+  }) -join ' ')
+  $process = Start-Process -FilePath $powershellExe -ArgumentList $quotedArguments -NoNewWindow -Wait -PassThru `
+    -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+  $output = (Get-Content -LiteralPath $stdoutPath -Raw -ErrorAction SilentlyContinue) + "`n" +
+    (Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue)
   $output = ($output -replace '\s+', ' ').Trim()
-  $exitCode = $LASTEXITCODE
+  $exitCode = $process.ExitCode
   return [pscustomobject]@{ ExitCode = $exitCode; Output = $output; OutputRoot = $caseOutput }
 }
 
@@ -290,7 +338,7 @@ try {
   $explicitAttemptReport = Get-ChildItem -LiteralPath $explicitAttempt.OutputRoot -Recurse -Filter analysis-report.md | Select-Object -First 1
   Assert-Test ((Get-Content -LiteralPath $explicitAttemptReport.FullName -Raw) -match "Run ID / attempt: $runId / 1") 'historical attempt report should retain the requested attempt identity'
   $explicitOldStop = Invoke-Collector -Scenario 'explicit-old-attempt' -ExtraArguments @('-RunId', $runId, '-Attempt', '1', '-Stop') -OutputName 'explicit-old-attempt-stop'
-  Assert-Test ($explicitOldStop.ExitCode -ne 0 -and $explicitOldStop.Output -match 'historical; -Stop is allowed only for the current attempt') 'an explicit historical attempt must never be stopped'
+  Assert-Test ($explicitOldStop.ExitCode -ne 0 -and $explicitOldStop.Output -match 'historical' -and $explicitOldStop.Output -match 'allowed only for the current attempt') 'an explicit historical attempt must never be stopped even when PowerShell wraps the diagnostic line'
   Assert-Test (-not (Test-Path -LiteralPath (Join-Path $testRoot 'status-posts.txt'))) 'historical attempt rejection must not publish a stop status'
 
   $multiLines = @(
@@ -416,7 +464,9 @@ try {
   $unsafeSubsystemManifest.predicate = 'subsystem BEGINSWITH "com.apple"'
   $unsafeSubsystemManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $testRoot 'fixture\manifest.json') -Encoding UTF8
   $unsafeSubsystemCapture = Invoke-Collector -Scenario 'success' -ExtraArguments @('-RunId', $runId) -OutputName 'unsafe-subsystem-filter'
-  Assert-Test ($unsafeSubsystemCapture.ExitCode -ne 0 -and $unsafeSubsystemCapture.Output -match 'outside the app-owned allowlist') 'collector must reject broad system subsystem filters before decryption'
+  Assert-Test ($unsafeSubsystemCapture.ExitCode -ne 0 -and
+    $unsafeSubsystemCapture.Output -match 'manifest.json contains a subsystem outside the' -and
+    $unsafeSubsystemCapture.Output -match 'app-owned allowlist') 'collector must reject broad system subsystem filters before decryption even when PowerShell interleaves its error context'
   Assert-Test (-not (Get-ChildItem -LiteralPath $unsafeSubsystemCapture.OutputRoot -Filter decrypted.log -Recurse -ErrorAction SilentlyContinue)) 'unsafe subsystem filter must fail before plaintext log creation'
 
   $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
@@ -525,11 +575,81 @@ try {
   $ambiguous = Invoke-Collector -Scenario 'ambiguous' -OutputName 'ambiguous'
   Assert-Test ($ambiguous.ExitCode -ne 0 -and $ambiguous.Output -match 'More than one') 'multiple completed capture candidates must not be selected arbitrarily'
 
-  Write-Host "Passed $testCount synthetic collection checks."
+  $saveAppLines = @(
+    '2026-10-27 12:00:00.000+0000 SaveApp[1:2] [com.luanrigatti.saveapp:quick-save.intent] event=intent.started correlation=PRIVATE_SENTINEL'
+    '2026-10-27 12:00:01.000+0000 SaveApp[1:2] [com.luanrigatti.saveapp:quick-save.sqlite] event=database.commit.confirmed correlation=PRIVATE_SENTINEL'
+  )
+  Set-Content -LiteralPath $plainFixture -Value $saveAppLines -Encoding UTF8
+  $saveAppManifest = [ordered]@{
+    schema_version = 3
+    repository = $saveAppRepository
+    run_id = $runId
+    run_attempt = 1
+    session = 'synthetic-saveapp-session'
+    commit = $sha
+    filter_mode = 'subsystem'
+    category = $null
+    categories = @()
+    subsystems = @(@{ match = 'prefix'; value = 'com.luanrigatti.saveapp' })
+    predicate = 'subsystem BEGINSWITH "com.luanrigatti.saveapp"'
+    stream_level = 'debug'
+    started_at_utc = '2026-10-27T12:00:00Z'
+    finished_at_utc = '2026-10-27T12:00:02Z'
+    event_count = 2
+    capture_outcome = 'graceful-stop'
+    ciphertext_sha256 = $cipherHash
+  }
+  $saveAppManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
+
+  $saveAppSuccess = Invoke-Collector -Scenario 'success' -Profile 'SaveApp' -ExtraArguments @('-RunId', $runId) -OutputName 'saveapp-success'
+  Assert-Test ($saveAppSuccess.ExitCode -eq 0) 'SaveApp profile accepts only its exact subsystem manifest and recovers the encrypted artifact'
+  Assert-Test ($saveAppSuccess.Output -notmatch 'PRIVATE_SENTINEL') 'SaveApp recovery never prints raw OSLog messages or correlation data'
+  $saveAppReport = Get-ChildItem -LiteralPath $saveAppSuccess.OutputRoot -Recurse -Filter analysis-report.md | Select-Object -First 1
+  $saveAppLog = Get-ChildItem -LiteralPath $saveAppSuccess.OutputRoot -Recurse -Filter decrypted.log | Select-Object -First 1
+  Assert-Test ($null -ne $saveAppReport -and $null -ne $saveAppLog) 'SaveApp profile writes the existing private report and decrypted log outputs'
+  $saveAppReportText = Get-Content -LiteralPath $saveAppReport.FullName -Raw
+  Assert-Test ($saveAppReportText -match 'Capture scope' -and $saveAppReportText -match 'intent.started' -and $saveAppReportText -notmatch 'PRIVATE_SENTINEL') 'SaveApp event labels are summarized without messages or private correlation values'
+  Assert-Test ($null -eq (Get-ChildItem -LiteralPath $saveAppSuccess.OutputRoot -Recurse -Filter analysis-widget.md -ErrorAction SilentlyContinue)) 'SaveApp profile does not generate Emporio-specific widget reports'
+
+  $saveAppStopCountBefore = if (Test-Path -LiteralPath (Join-Path $testRoot 'status-posts.txt')) { @(Get-Content -LiteralPath (Join-Path $testRoot 'status-posts.txt')).Count } else { 0 }
+  $saveAppStop = Invoke-Collector -Scenario 'stop' -Profile 'SaveApp' -ExtraArguments @('-RunId', $runId, '-Stop') -OutputName 'saveapp-stop'
+  $saveAppStopPosts = @(Get-Content -LiteralPath (Join-Path $testRoot 'status-posts.txt'))
+  Assert-Test ($saveAppStop.ExitCode -eq 0 -and $saveAppStopPosts.Count -eq ($saveAppStopCountBefore + 1) -and
+    $saveAppStopPosts[-1] -match 'native-sim-stop/12345/1') 'SaveApp profile sends an attempt-scoped graceful-stop status and recovers the resulting artifact'
+
+  $saveAppManifest.run_attempt = 2
+  $saveAppManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
+  $saveAppRerunStop = Invoke-Collector -Scenario 'saveapp-rerun-stop' -Profile 'SaveApp' -ExtraArguments @('-RunId', $runId, '-Stop') -OutputName 'saveapp-rerun-stop'
+  $saveAppStopPostsAfterRerun = @(Get-Content -LiteralPath (Join-Path $testRoot 'status-posts.txt'))
+  Assert-Test ($saveAppRerunStop.ExitCode -eq 0 -and $saveAppStopPostsAfterRerun.Count -eq ($saveAppStopCountBefore + 2) -and
+    $saveAppStopPostsAfterRerun[-1] -match 'native-sim-stop/12345/2') 'a prior SaveApp attempt stop cannot stop a rerun; the collector sends the exact current-attempt context'
+  $saveAppManifest.run_attempt = 1
+  $saveAppManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
+
+  $saveAppPostsBeforeNoCapture = @(Get-Content -LiteralPath (Join-Path $testRoot 'status-posts.txt')).Count
+  $saveAppNoCapture = Invoke-Collector -Scenario 'no-capture' -Profile 'SaveApp' -ExtraArguments @('-RunId', $runId, '-Stop') -OutputName 'saveapp-no-capture'
+  $saveAppPostsAfterNoCapture = @(Get-Content -LiteralPath (Join-Path $testRoot 'status-posts.txt')).Count
+  Assert-Test ($saveAppNoCapture.ExitCode -ne 0 -and
+    $saveAppNoCapture.Output -match 'capture start step was skipped|Finalize SaveApp OSLog capture.*step was skipped' -and
+    $saveAppPostsAfterNoCapture -eq $saveAppPostsBeforeNoCapture) 'SaveApp profile refuses to stop a session whose capture did not start'
+
+  $wrongSaveAppRepository = Invoke-Collector -Scenario 'success' -Profile 'SaveApp' `
+    -ExtraArguments @('-RunId', $runId) -RepositoryOverride 'LuanRigatti/another-public-repo' -OutputName 'saveapp-wrong-repository'
+  Assert-Test ($wrongSaveAppRepository.ExitCode -ne 0 -and $wrongSaveAppRepository.Output -match 'only permits its configured NativeSim repository') 'SaveApp profile rejects arbitrary repositories before any artifact operation'
+
+  $invalidSaveAppManifest = $saveAppManifest | ConvertTo-Json -Depth 10 | ConvertFrom-Json
+  $invalidSaveAppManifest.subsystems = @(@{ match = 'prefix'; value = 'com.example.other' })
+  $invalidSaveAppManifest.predicate = 'subsystem BEGINSWITH "com.example.other"'
+  $invalidSaveAppManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestFixture -Encoding UTF8
+  $saveAppWrongSelector = Invoke-Collector -Scenario 'success' -Profile 'SaveApp' -ExtraArguments @('-RunId', $runId) -OutputName 'saveapp-wrong-selector'
+  Assert-Test ($saveAppWrongSelector.ExitCode -ne 0 -and $saveAppWrongSelector.Output -match 'outside the app-owned allowlist') 'SaveApp profile rejects a manifest with an unapproved OSLog subsystem selector'
+
+  Write-Host "Passed $testCount synthetic collection checks across Emporio and SaveApp profiles."
 } finally {
   Remove-Item Env:NATIVE_SIM_MOCK_SCENARIO -ErrorAction SilentlyContinue
   Remove-Item Env:NATIVE_SIM_MOCK_ROOT -ErrorAction SilentlyContinue
   Remove-Item Env:NATIVE_SIM_MOCK_PLAINTEXT -ErrorAction SilentlyContinue
+  Remove-Item Env:NATIVE_SIM_MOCK_PROFILE -ErrorAction SilentlyContinue
   if (Test-Path -LiteralPath $testRoot) {
     Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
   }

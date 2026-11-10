@@ -13,10 +13,15 @@ const mockUseDeliveries = jest.fn();
 const mockCreate = jest.fn();
 const mockResolvedMode: { value: 'dark' | 'light' } = { value: 'light' };
 
-jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => mockUseLocalSearchParams(),
-  useRouter: () => ({ back: mockRouterBack }),
-}));
+jest.mock('expo-router', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  return {
+    useFocusEffect: (effect: () => void | (() => void)) => React.useEffect(effect, [effect]),
+    useLocalSearchParams: () => mockUseLocalSearchParams(),
+    useNavigation: () => ({ addListener: () => () => undefined }),
+    useRouter: () => ({ back: mockRouterBack }),
+  };
+});
 
 jest.mock('@/components/layout', () => ({
   getNativeLargeTitleStyle: jest.fn(() => ({})),
@@ -195,11 +200,15 @@ describe('Registrar Atacado client details route', () => {
     expect(action.props.disabled).toBe(false);
     await act(async () => {
       action.props.onPress();
+      action.props.onPress();
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(mockUseDeliveries).toHaveBeenCalledWith({ mode: 'today', date: '2026-09-29' });
+    expect(
+      renderer.root.find((node) => String(node.type) === 'retail-primary-button').props.label,
+    ).toBe('Salvando...');
     expect(mockCreate.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         address: 'Rua Central, 10',
@@ -216,6 +225,7 @@ describe('Registrar Atacado client details route', () => {
       }),
     );
     expect(mockCreate.mock.calls[0][0].value).toBeCloseTo(149.4);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(mockRouterBack).toHaveBeenCalledTimes(1);
     expect(consumeRecentlyAddedRegistrarDeliveryIds()).toEqual(['delivery-new']);
     expect(

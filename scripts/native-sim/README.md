@@ -1,6 +1,6 @@
 # Recuperar e analisar OSLog do NativeSim
 
-O script `collect-oslog.ps1` baixa, valida e descriptografa no Windows o artifact OSLog criptografado produzido pelo workflow do repositório auxiliar `LuanRigatti/Emporio-Rigatti-NativeSim-Public`. O mesmo fluxo atende qualquer categoria OSLog configurada para a sessão; não é específico do Peek & Pop.
+O script `collect-oslog.ps1` baixa, valida e descriptografa no Windows os artifacts OSLog criptografados dos perfis fixos Emporio e SaveApp. Cada perfil tem repositório, job, etapas, artifact e seletores próprios; não aceite outro repositório nem seletores fornecidos livremente.
 
 ## Requisitos locais
 
@@ -10,7 +10,7 @@ O script `collect-oslog.ps1` baixa, valida e descriptografa no Windows o artifac
 - Identidade privada age correspondente ao recipient configurado no GitHub Actions, em `%USERPROFILE%\.config\age\native-sim-identity.txt`.
 - A chave privada fica somente no computador. Nunca a copie para o repositório, GitHub, NativeSim, artifact, terminal ou conversa.
 
-O diretório padrão de saída é `%LOCALAPPDATA%\EmporioRigatti\NativeSim\OSLog`, fora do repositório. Ele guarda o artifact cifrado baixado, `manifest.json`, `decrypted.log`, o relatório geral `analysis-report.md` e, quando selecionadas no manifest, os relatórios `analysis-peek-pop.md` e `analysis-widget.md`. Cada execução usa uma nova pasta por run/attempt/horário; arquivos existentes nunca são sobrescritos. `-OutputRoot` pode escolher outro caminho local, mas o script recusa caminhos dentro deste checkout Git.
+O diretório padrão Emporio é `%LOCALAPPDATA%\EmporioRigatti\NativeSim\OSLog`; o diretório padrão SaveApp é `%LOCALAPPDATA%\SaveApp\NativeSim\OSLog`. Ambos ficam fora dos checkouts. A pasta de cada recuperação guarda o artifact cifrado, `manifest.json`, `decrypted.log` e `analysis-report.md`; o perfil Emporio também mantém relatórios Peek & Pop/widget quando o manifest os justificar. Cada execução usa uma nova pasta por run/attempt/horário; arquivos existentes nunca são sobrescritos. `-OutputRoot` pode escolher outro caminho local, mas o script recusa caminhos dentro dos checkouts Emporio e SaveApp.
 
 ## Recuperar uma sessão
 
@@ -18,6 +18,12 @@ Com um Run ID conhecido:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\native-sim\collect-oslog.ps1 -RunId 38060942687
+```
+
+Para recuperar um SaveApp, sempre selecione o perfil fechado `SaveApp`:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\native-sim\collect-oslog.ps1 -Profile SaveApp -RunId 40584021983
 ```
 
 Para recuperar uma attempt específica, inclusive uma attempt histórica ainda retida, informe os dois identificadores:
@@ -40,7 +46,15 @@ Quando a pessoa terminou de testar e autoriza encerrar a sessão, use `-Stop`:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\native-sim\collect-oslog.ps1 -RunId 38060942687 -Stop -TimeoutSeconds 2400
 ```
 
-O script confirma que a captura OSLog iniciou e que o workflow ainda está ativo. Em seguida publica no SHA real do workflow o commit status `native-sim-stop/{run_id}` com `success` / `stop requested`, aguarda a finalização e o upload criptografado. Um pedido repetido no mesmo attempt é idempotente. Um status antigo de outra attempt é tratado como ambíguo e bloqueia o novo pedido.
+Para finalizar uma sessão manual do SaveApp e coletar seus logs, use o mesmo protocolo controlado com `-Profile SaveApp -RunId <RunId> -Stop`. O perfil valida o job `Build and stream SaveApp`, as etapas `Start SaveApp OSLog capture`, `Finalize SaveApp OSLog capture` e `Upload encrypted SaveApp OSLog capture`, o artifact `saveapp-native-sim-oslog-<RunId>-<attempt>` e o seletor único `prefix|com.luanrigatti.saveapp`. O sinal SaveApp inclui Run ID e attempt no context do status, para um pedido antigo não encerrar um rerun; o perfil Emporio mantém seu context atual. Uma etapa de captura ignorada ou falha bloqueia o sinal de encerramento.
+
+### Opt-in de captura do SaveApp
+
+No repositório público `LuanRigatti/SaveApp-NativeSim-Public`, o dono configura as Actions Variables `SAVEAPP_OSLOG_CAPTURE_ENABLED=true` e `SAVEAPP_LOG_AGE_RECIPIENT=<recipient público age>`. O recipient deve corresponder à identidade privada age já existente no computador local; a identidade privada nunca vai ao GitHub. O recipient é validado no runner e não é impresso. Enquanto o opt-in estiver habilitado, o launcher oficial do SaveApp exige a opção `-CaptureOSLog`; desligue a variável após a janela de captura para manter futuras sessões sem coleta. Não configure essas variáveis durante esta etapa local.
+
+A captura SaveApp inicia depois de o app ser aberto e antes de o workflow sinalizar que a sessão está pronta. O encerramento `-Stop` publica apenas o status controlado `native-sim-stop/<RunId>/<attempt>`; o workflow termina `log stream`, grava o manifest e criptografa antes de enviar o artifact. O artifact contém somente `manifest.json` e `native-sim-oslog.age`, com retenção de um dia. A captura é limitada a OSLog do subsistema SaveApp e não inclui `console.log` de JavaScript ou logs de build.
+
+O script confirma que a captura OSLog iniciou e que o workflow ainda está ativo. Em seguida publica no SHA real do workflow o commit status controlado com `success` / `stop requested`; o context do Emporio é `native-sim-stop/{run_id}`, e o do SaveApp é `native-sim-stop/{run_id}/{attempt}`. Depois, aguarda a finalização e o upload criptografado. Um pedido repetido no mesmo attempt é idempotente. Um status antigo de outra attempt é tratado como ambíguo e bloqueia o novo pedido.
 
 Sem `-Stop`, a sessão nunca é encerrada pelo script. Se ainda estiver ativa, ele apenas aguarda até concluir ou até `-TimeoutSeconds`; timeout não envia stop, não cancela a execução e não chama `native-sim down`. O padrão é 1800 segundos; o intervalo de consulta pode ser alterado com `-PollIntervalSeconds`.
 

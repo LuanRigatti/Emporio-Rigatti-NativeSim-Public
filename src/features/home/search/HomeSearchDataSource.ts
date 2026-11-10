@@ -303,7 +303,7 @@ export class AppHomeSearchDataSource implements HomeSearchDataSource {
   }
 
   private async loadCarSettings(coverage: HomeSearchCoverage[], errors: HomeSearchSourceError[]) {
-    const local = await carSettingsStorage.load();
+    const local = await carSettingsStorage.load(this.userId, this.sessionVersion ?? 0);
     try {
       const remote = await firestoreCarSettingsDataSource.load(this.userId);
       coverage.push({ source: 'carSettings', mode: remote ? 'remote' : 'cache' });

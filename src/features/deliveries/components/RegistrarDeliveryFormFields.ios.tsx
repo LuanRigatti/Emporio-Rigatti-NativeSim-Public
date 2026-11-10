@@ -8,6 +8,7 @@ import {
   contentTransition,
   controlSize,
   disabled,
+  fixedSize,
   frame,
   foregroundStyle,
   glassEffect,
@@ -192,6 +193,7 @@ export default function RegistrarDeliveryFormFields({
           <Text
             modifiers={[
               roundedFont({ size: 17, weight: 'semibold' }),
+              fixedSize({ horizontal: true, vertical: false }),
               contentTransition('numericText', { countsDown: quantityDirection === 'down' }),
               animation(Animation.easeInOut({ duration: 0.18 }), quantity),
             ]}

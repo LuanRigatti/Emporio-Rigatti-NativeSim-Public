@@ -35,6 +35,22 @@ export type {
   FinancialPeriodSnapshotCacheEntry,
 } from './FinancialPeriodSnapshotCache';
 export {
+  createFinancialPresentationScopeKey,
+  FINANCIAL_PRESENTATION_CACHE_VERSION,
+  FINANCIAL_PRESENTATION_RULES_VERSION,
+  FINANCIAL_PRESENTATION_SUMMARY_FIELDS,
+  financialPresentationCache,
+  FinancialPresentationCache,
+} from './FinancialPresentationCache';
+export type {
+  FinancialPresentationCacheEntry,
+  FinancialPresentationCacheMissReason,
+  FinancialPresentationCacheReadResult,
+  FinancialPresentationCacheWriteResult,
+  FinancialPresentationSummary,
+  FinancialPresentationValues,
+} from './FinancialPresentationCache';
+export {
   financialDailyDetailService,
   FinancialDailyDetailService,
   financialMetricValue,

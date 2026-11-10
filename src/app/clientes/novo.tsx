@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter, type NativeStackNavigationProp } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 
@@ -13,6 +13,7 @@ import { useClients } from '@/hooks/useClients';
 import { useAppSafeAreaInsets } from '@/providers';
 import { getCardSurfaceColor, useAppTheme } from '@/theme';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
+import { useCancelPendingReturnIntentsOnGestureCancel } from '@/utils/navigation/usePendingReturnNavigationIntent';
 
 const EMPTY_FORM: NativeClientFormValues = {
   address: '',
@@ -24,6 +25,8 @@ const EMPTY_FORM: NativeClientFormValues = {
 
 export default function NewClientRoute() {
   const router = useRouter();
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  useCancelPendingReturnIntentsOnGestureCancel(navigation, 'clientes/novo');
   const { saveCustomClient } = useClients(undefined, { loadOnMount: false });
   const { enabled: testModeEnabled } = useTestModePresentation();
   const { resolvedMode, theme } = useAppTheme();

@@ -1,7 +1,13 @@
 import { DeliveryNormalizationService } from '@/services/deliveries/DeliveryNormalizationService';
 import { DeliveryPricingService } from '@/services/deliveries/DeliveryPricingService';
 import { DeliveryQueryService } from '@/services/deliveries/DeliveryQueryService';
+import {
+  applyDeliveryWorkflowMutation,
+  createDeliveryFromDraft,
+  transitionDeliveryPaymentStatus,
+} from '@/services/deliveries/deliveryRecord';
 import type { Delivery } from '@/types/data';
+import { todayIso } from '@/utils/data';
 
 const delivery = (overrides: Partial<Delivery> = {}): Delivery => ({
   id: 'delivery-1',
@@ -15,6 +21,179 @@ const delivery = (overrides: Partial<Delivery> = {}): Delivery => ({
 });
 
 describe('delivery services', () => {
+  it('applies delivery and first payment together while preserving delivery value and date', () => {
+    const current = delivery({ data: '2026-10-10', entregue: false, valor: 120 });
+    const updated = applyDeliveryWorkflowMutation(current, {
+      delivered: true,
+      expected: {
+        dataPagamento: undefined,
+        entregue: false,
+        metodoPagamento: undefined,
+        status: 'Não Pago',
+      },
+      paymentReversalConfirmed: false,
+      paymentSelection: 'Pix',
+      paymentSelectionChanged: true,
+    });
+
+    expect(updated).toMatchObject({
+      data: '2026-10-10',
+      dataPagamento: todayIso(),
+      entregue: true,
+      metodoPagamento: 'Pix',
+      status: 'Pago',
+      valor: 120,
+    });
+  });
+
+  it('changes only method when editing paid history and requires confirmation to reverse', () => {
+    const current = delivery({
+      data: '2026-08-02',
+      dataPagamento: '2026-08-06',
+      entregue: true,
+      metodoPagamento: 'Pix',
+      status: 'Pago',
+      valor: 78,
+    });
+    const corrected = applyDeliveryWorkflowMutation(current, {
+      delivered: false,
+      expected: {
+        dataPagamento: '2026-08-06',
+        entregue: true,
+        metodoPagamento: 'Pix',
+        status: 'Pago',
+      },
+      paymentReversalConfirmed: false,
+      paymentSelection: 'Dinheiro',
+      paymentSelectionChanged: true,
+    });
+
+    expect(corrected).toMatchObject({
+      data: '2026-08-02',
+      dataPagamento: '2026-08-06',
+      entregue: false,
+      metodoPagamento: 'Dinheiro',
+      status: 'Pago',
+      valor: 78,
+    });
+    expect(() =>
+      applyDeliveryWorkflowMutation(current, {
+        delivered: true,
+        expected: {
+          dataPagamento: current.dataPagamento,
+          entregue: current.entregue,
+          metodoPagamento: current.metodoPagamento,
+          status: current.status,
+        },
+        paymentReversalConfirmed: false,
+        paymentSelection: 'Não Pago',
+        paymentSelectionChanged: true,
+      }),
+    ).toThrow('Confirme explicitamente para desfazer o pagamento.');
+  });
+
+  it('preserves an unknown legacy payment method when only delivery changes', () => {
+    const current = delivery({
+      entregue: false,
+      status: 'Pago',
+    });
+    const updated = applyDeliveryWorkflowMutation(current, {
+      delivered: true,
+      expected: {
+        dataPagamento: undefined,
+        entregue: false,
+        metodoPagamento: undefined,
+        status: 'Pago',
+      },
+      paymentReversalConfirmed: false,
+      paymentSelection: 'Pix',
+      paymentSelectionChanged: false,
+    });
+
+    expect(updated).toMatchObject({ entregue: true, status: 'Pago' });
+    expect(updated).not.toHaveProperty('metodoPagamento');
+    expect(updated).not.toHaveProperty('dataPagamento');
+  });
+
+  it('does not allow a new payment unless the resulting delivery state is delivered', () => {
+    const current = delivery();
+
+    expect(() =>
+      applyDeliveryWorkflowMutation(current, {
+        delivered: false,
+        expected: {
+          dataPagamento: undefined,
+          entregue: false,
+          metodoPagamento: undefined,
+          status: 'Não Pago',
+        },
+        paymentReversalConfirmed: false,
+        paymentSelection: 'Dinheiro',
+        paymentSelectionChanged: true,
+      }),
+    ).toThrow('Marque a entrega como Entregue antes de registrar o pagamento.');
+  });
+
+  it('stores payment dates for new payments and preserves unknown or existing history on edits', () => {
+    const draft = {
+      address: 'Rua Central, 10',
+      addressConfirmed: true,
+      clientName: 'Ana',
+      date: '2026-10-10',
+      delivered: true,
+      invoiceStatus: 'a_emitir' as const,
+      paymentMethod: 'Pix' as const,
+      quantity: 2,
+      status: 'Pago' as const,
+      value: 100,
+      valueWasManuallyChanged: false,
+    };
+    const newlyPaid = createDeliveryFromDraft(draft);
+    const existingPaid = delivery({
+      cliente: 'Ana',
+      data: '2026-10-10',
+      dataPagamento: '2026-10-22',
+      entregue: true,
+      metodoPagamento: 'Pix',
+      status: 'Pago',
+      valor: 100,
+    });
+    const editedPaid = createDeliveryFromDraft(
+      { ...draft, paymentMethod: 'Dinheiro' },
+      existingPaid,
+    );
+    const legacyPaid = delivery({
+      cliente: 'Bia',
+      data: '2026-08-02',
+      entregue: true,
+      status: 'Pago',
+    });
+    const correctedLegacy = createDeliveryFromDraft(
+      { ...draft, clientName: 'Bia', date: '2026-08-02', paymentMethod: 'Dinheiro' },
+      legacyPaid,
+    );
+    const reversed = transitionDeliveryPaymentStatus(existingPaid, 'Não Pago');
+
+    expect(newlyPaid).toMatchObject({
+      data: '2026-10-10',
+      dataPagamento: todayIso(),
+      metodoPagamento: 'Pix',
+      status: 'Pago',
+      valor: 100,
+    });
+    expect(editedPaid).toMatchObject({ dataPagamento: '2026-10-22', metodoPagamento: 'Dinheiro' });
+    expect(correctedLegacy).toMatchObject({ metodoPagamento: 'Dinheiro', status: 'Pago' });
+    expect(correctedLegacy).not.toHaveProperty('dataPagamento');
+    expect(reversed).toMatchObject({
+      data: '2026-10-10',
+      entregue: true,
+      status: 'Não Pago',
+      valor: 100,
+    });
+    expect(reversed).not.toHaveProperty('metodoPagamento');
+    expect(reversed).not.toHaveProperty('dataPagamento');
+  });
+
   it('marks a past undelivered record as delivered and leaves current records unchanged', () => {
     const service = new DeliveryNormalizationService();
     const result = service.normalize(

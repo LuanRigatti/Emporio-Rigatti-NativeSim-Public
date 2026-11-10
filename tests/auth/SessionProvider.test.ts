@@ -2,8 +2,10 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, useEffect } from 'react';
 
 import { SessionProvider, useSession } from '@/providers/SessionProvider';
+import { isActiveAuthSession } from '@/services/auth/ActiveAuthSession';
 import type { AuthDataSource, AuthUser } from '@/services/auth/types';
 import { deliveryWidgetAuthorizationService } from '@/services/deliveries/DeliveryWidgetAuthorizationService';
+import { financialPresentationCache } from '@/services/finance/FinancialPresentationCache';
 
 jest.mock('@/services/auth/AuthDataSource', () => ({
   authDataSource: {
@@ -16,6 +18,12 @@ jest.mock('@/services/deliveries/DeliveryWidgetAuthorizationService', () => ({
   deliveryWidgetAuthorizationService: {
     activateSession: jest.fn().mockResolvedValue(undefined),
     revokeBeforeLogout: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+jest.mock('@/services/finance/FinancialPresentationCache', () => ({
+  financialPresentationCache: {
+    clearForUser: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -85,6 +93,26 @@ const restoredUser: AuthUser = {
 };
 
 describe('SessionProvider startup resolution', () => {
+  it('publishes the synchronously restored UID before child settings hooks hydrate', () => {
+    const source = new DeferredAuthDataSource();
+    source.emit(restoredUser);
+
+    function Harness() {
+      useSession();
+      return null;
+    }
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        createElement(SessionProvider, { dataSource: source }, createElement(Harness)),
+      );
+    });
+
+    expect(isActiveAuthSession(restoredUser.id, 0)).toBe(true);
+    act(() => renderer!.unmount());
+  });
+
   it('does not expose unauthenticated before Firebase emits its first auth state', async () => {
     const source = new DeferredAuthDataSource();
     let currentStatus: ReturnType<typeof useSession>['status'] | undefined;
@@ -174,12 +202,14 @@ describe('SessionProvider startup resolution', () => {
       await Promise.resolve();
     });
     const firstLoginVersion = sessionVersion;
+    expect(isActiveAuthSession(restoredUser.id, firstLoginVersion)).toBe(true);
 
     await act(async () => {
       source.emit(null);
       await Promise.resolve();
     });
     const logoutVersion = sessionVersion;
+    expect(isActiveAuthSession(null, logoutVersion)).toBe(true);
 
     await act(async () => {
       source.emit(restoredUser);
@@ -188,6 +218,8 @@ describe('SessionProvider startup resolution', () => {
 
     expect(logoutVersion).toBeGreaterThan(firstLoginVersion);
     expect(sessionVersion).toBeGreaterThan(logoutVersion);
+    expect(isActiveAuthSession(restoredUser.id, sessionVersion)).toBe(true);
+    expect(isActiveAuthSession(restoredUser.id, firstLoginVersion)).toBe(false);
     act(() => renderer!.unmount());
   });
 
@@ -251,6 +283,7 @@ describe('SessionProvider startup resolution', () => {
   });
 
   it('uses the fixed Firebase test UID as the ordinary session UID across logout and relogin', async () => {
+    jest.mocked(financialPresentationCache.clearForUser).mockClear();
     const source = new DeferredAuthDataSource();
     const fixedTestUser: AuthUser = {
       displayName: 'Conta de teste',
@@ -313,6 +346,7 @@ describe('SessionProvider startup resolution', () => {
     });
 
     expect(source.signOutCall).toHaveBeenCalledTimes(1);
+    expect(financialPresentationCache.clearForUser).toHaveBeenCalledWith(fixedTestUser.id);
     const revokeOrder = jest.mocked(deliveryWidgetAuthorizationService.revokeBeforeLogout).mock
       .invocationCallOrder[revokeCallCount];
     const signOutOrder = source.signOutCall.mock.invocationCallOrder[0];

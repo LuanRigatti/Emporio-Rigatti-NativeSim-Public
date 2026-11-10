@@ -161,7 +161,7 @@ export function useCostSettings(options: UseCostSettingsOptions = {}) {
         if (hasLocalEdits) {
           const localChanges = [...dirtyChanges.current.values()].filter(
             ({ revision }) => revision > hydrationRevision,
-          );
+          ).sort((left, right) => left.revision - right.revision);
           setSettings((current) => {
             const merged = mergeRemoteWithLocalChanges(
               remote,
@@ -225,7 +225,14 @@ export function useCostSettings(options: UseCostSettingsOptions = {}) {
     const next = cloneSettings(settings);
     const syncChanges: FirestoreCostChange[] = [...dirtyChanges.current.values()]
       .filter(({ revision }) => revision <= syncRevision)
-      .map(({ period, key, field, deleted }) => ({ period, key, field, deleted }));
+      .sort((left, right) => left.revision - right.revision)
+      .map(({ revision, period, key, field, deleted }) => ({
+        revision,
+        period,
+        key,
+        field,
+        deleted,
+      }));
 
     void firestoreDailyMonthlyDataSource
       .saveSettingsDiff(userId, previous, next, {
@@ -414,7 +421,7 @@ function mergeRemoteWithLocalChanges(
   changes: DirtyChange[],
 ): CostSettings {
   const merged = cloneSettings(remote);
-  preserveLocalOnlyRecords(merged, stored);
+  merged.periods.year = clonePeriod(stored.periods.year);
   const orderedChanges = [...changes].sort((left, right) => left.revision - right.revision);
 
   for (const change of orderedChanges) {
@@ -428,20 +435,12 @@ function mergeRemoteWithLocalChanges(
     const localValues = current.periods[change.period][change.key];
     if (!localValues) continue;
     period[change.key] = {
-      ...(period[change.key] ?? localValues),
+      ...(period[change.key] ?? EMPTY_COST_VALUES),
       [change.field]: localValues[change.field],
     };
   }
 
   return merged;
-}
-
-function preserveLocalOnlyRecords(target: CostSettings, stored: CostSettings): void {
-  for (const period of ['day', 'month', 'year'] as CostPeriod[]) {
-    for (const [key, values] of Object.entries(stored.periods[period])) {
-      if (!target.periods[period][key]) target.periods[period][key] = { ...values };
-    }
-  }
 }
 
 function cloneSettings(settings: CostSettings): CostSettings {

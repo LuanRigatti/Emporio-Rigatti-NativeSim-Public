@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter, type NativeStackNavigationProp } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -25,6 +25,8 @@ import { useFactoryPurchases } from '@/hooks/useFactoryPurchases';
 import { factoryPurchaseCalculationService } from '@/services/factory-purchases';
 import { todayIso } from '@/utils/data';
 import { RetailHome } from '@/features/home/components/RetailHome';
+import { getNavigationTopRoute } from '@/utils/navigation/navigationTopRoute';
+import { usePendingReturnNavigationIntent } from '@/utils/navigation/usePendingReturnNavigationIntent';
 
 function PreviewIcon({
   color,
@@ -42,6 +44,22 @@ function PreviewIcon({
 
 function WholesaleHome({ modeSelector }: { modeSelector: HomeModeSelectorController }) {
   const router = useRouter();
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  const rootNavigation =
+    useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>('/');
+  const requestNavigationIntent = usePendingReturnNavigationIntent({
+    expectedOutgoingRouteNames: [
+      'registrar-entrega',
+      'registrar-entrega/clientes',
+      'registrar-entrega/[clientId]',
+    ],
+    getCurrentRouteName: () => getNavigationTopRoute(rootNavigation),
+    isSourceActive: () =>
+      navigation.isFocused() && getNavigationTopRoute(rootNavigation) === '(tabs)',
+    navigation,
+    rootTabsTransition: true,
+    sourceRouteName: '(tabs)',
+  });
   const { theme } = useAppTheme();
   const { currency: maskCurrency, text: maskText } = useTestModePresentation();
   const insets = useAppSafeAreaInsets();
@@ -92,9 +110,16 @@ function WholesaleHome({ modeSelector }: { modeSelector: HomeModeSelectorControl
   }, [router]);
 
   const handleOpenRegistrarEntrega = useCallback(() => {
-    triggerLightImpactHaptic();
-    router.push('/registrar-entrega');
-  }, [router]);
+    const decision = requestNavigationIntent({
+      key: 'registrar_landing',
+      execute: (deferred) => {
+        if (!deferred) triggerLightImpactHaptic();
+        router.navigate('/registrar-entrega');
+      },
+    });
+
+    if (decision === 'pending') triggerLightImpactHaptic();
+  }, [requestNavigationIntent, router]);
 
   const handleOpenDocumentos = useCallback(() => {
     triggerLightImpactHaptic();

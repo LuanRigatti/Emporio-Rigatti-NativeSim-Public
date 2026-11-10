@@ -5,7 +5,7 @@ const QUERY_LIMIT = MAX_BULK_DELIVERIES + 1;
 const RECEIPTS_COLLECTION = 'openPaymentBulkPaymentReceipts';
 const DELIVERY_STATUS_OPEN = 'Não Pago';
 
-function createOpenPaymentBulkActionsHandler({ admin, HttpsError, FieldValue }) {
+function createOpenPaymentBulkActionsHandler({ admin, HttpsError, FieldValue, now = () => new Date() }) {
   function normalizeMoney(value) {
     if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
     if (typeof value !== 'string' || value.trim() === '') return undefined;
@@ -129,6 +129,17 @@ function createOpenPaymentBulkActionsHandler({ admin, HttpsError, FieldValue }) 
     };
   }
 
+  function paymentDateInSaoPaulo() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+    }).formatToParts(now());
+    const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+
   function sameIds(left, right) {
     return left.length === right.length && left.every((id, index) => id === right[index]);
   }
@@ -245,6 +256,7 @@ function createOpenPaymentBulkActionsHandler({ admin, HttpsError, FieldValue }) 
           fail('failed-precondition', 'preview_stale');
         }
 
+        const paymentDate = paymentDateInSaoPaulo();
         const result = {
           status: 'committed',
           operationId,
@@ -252,12 +264,16 @@ function createOpenPaymentBulkActionsHandler({ admin, HttpsError, FieldValue }) 
           clientName,
           eligibleCount: summary.eligibleCount,
           totalCents: summary.totalCents,
-          updatedDeliveries: summary.updatedDeliveries,
+          updatedDeliveries: summary.updatedDeliveries.map((delivery) => ({
+            ...delivery,
+            paymentDate,
+          })),
           replayed: false,
         };
         for (const document of deliverySnapshot.docs) {
           transaction.update(document.ref, {
             status: 'Pago',
+            paymentDate,
             updatedAt: serverTimestamp(),
           });
         }

@@ -1,6 +1,11 @@
 [CmdletBinding()]
 param(
   [Parameter()]
+  [Alias('Profile')]
+  [ValidateSet('Emporio', 'SaveApp')]
+  [string]$CaptureProfile = 'Emporio',
+
+  [Parameter()]
   [ValidatePattern('^\d{1,20}$')]
   [string]$RunId,
 
@@ -20,8 +25,7 @@ param(
   [int]$PollIntervalSeconds = 10,
 
   [Parameter()]
-  [ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')]
-  [string]$Repository = 'LuanRigatti/Emporio-Rigatti-NativeSim-Public',
+  [string]$Repository,
 
   [Parameter()]
   [string]$GhPath = 'gh',
@@ -33,25 +37,63 @@ param(
   [string]$IdentityPath = (Join-Path $env:USERPROFILE '.config\age\native-sim-identity.txt'),
 
   [Parameter()]
-  [string]$OutputRoot = $(
-    if ($env:LOCALAPPDATA) {
-      Join-Path $env:LOCALAPPDATA 'EmporioRigatti\NativeSim\OSLog'
-    } else {
-      Join-Path $env:USERPROFILE 'AppData\Local\EmporioRigatti\NativeSim\OSLog'
-    }
-  )
+  [string]$OutputRoot
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $script:WorkflowPath = '.github/workflows/native-sim.yml'
-$script:ArtifactPrefix = 'native-sim-oslog-'
-$script:FinalizerStepName = 'Finalize OSLog capture'
-$script:UploaderStepName = 'Upload encrypted OSLog capture'
-$script:CaptureStartStepName = 'Start OSLog capture'
+$script:ProfileDefinitions = @{
+  Emporio = [pscustomobject]@{
+    Name = 'Emporio'
+    Repository = 'LuanRigatti/Emporio-Rigatti-NativeSim-Public'
+    JobName = 'stream'
+    ArtifactPrefix = 'native-sim-oslog-'
+    CaptureStartStepName = 'Start OSLog capture'
+    FinalizerStepName = 'Finalize OSLog capture'
+    UploaderStepName = 'Upload encrypted OSLog capture'
+    RequiredSubsystems = @('prefix|com.pareact.mobile', 'exact|NativeAppleIntelligence')
+    AllowedSubsystems = @('prefix|com.pareact.mobile', 'exact|NativeAppleIntelligence')
+    AllowSystemDiagnostics = $true
+    OutputFolder = 'EmporioRigatti\NativeSim\OSLog'
+    StopContextIncludesAttempt = $false
+  }
+  SaveApp = [pscustomobject]@{
+    Name = 'SaveApp'
+    Repository = 'LuanRigatti/SaveApp-NativeSim-Public'
+    JobName = 'Build and stream SaveApp'
+    ArtifactPrefix = 'saveapp-native-sim-oslog-'
+    CaptureStartStepName = 'Start SaveApp OSLog capture'
+    FinalizerStepName = 'Finalize SaveApp OSLog capture'
+    UploaderStepName = 'Upload encrypted SaveApp OSLog capture'
+    RequiredSubsystems = @('prefix|com.luanrigatti.saveapp')
+    AllowedSubsystems = @('prefix|com.luanrigatti.saveapp')
+    AllowSystemDiagnostics = $false
+    OutputFolder = 'SaveApp\NativeSim\OSLog'
+    StopContextIncludesAttempt = $true
+  }
+}
+$script:Profile = $script:ProfileDefinitions[$CaptureProfile]
+if (-not $script:Profile) { throw 'The requested OSLog collector profile is not configured.' }
+if ($Repository) {
+  if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or
+      -not [string]::Equals($Repository, $script:Profile.Repository, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Profile '$($script:Profile.Name)' only permits its configured NativeSim repository."
+  }
+} else {
+  $Repository = $script:Profile.Repository
+}
+$script:ArtifactPrefix = $script:Profile.ArtifactPrefix
+$script:FinalizerStepName = $script:Profile.FinalizerStepName
+$script:UploaderStepName = $script:Profile.UploaderStepName
+$script:CaptureStartStepName = $script:Profile.CaptureStartStepName
 $script:ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $script:Deadline = $null
+if (-not $OutputRoot) {
+  $localRoot = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $env:USERPROFILE 'AppData\Local' }
+  $OutputRoot = Join-Path $localRoot $script:Profile.OutputFolder
+}
 
 function Resolve-ExecutablePath {
   param([Parameter(Mandatory = $true)][string]$PathOrCommand)
@@ -137,6 +179,11 @@ function Get-NativeSimRun {
     throw "Run $Id belongs to '$actualRepository', not '$Repository'."
   }
 
+  $branch = [string](Get-JsonValue $run 'head_branch')
+  if ($branch -cne 'main') {
+    throw "Run $Id belongs to branch '$branch', not the authorized NativeSim main branch."
+  }
+
   $sha = [string](Get-JsonValue $run 'head_sha')
   if ($sha -notmatch '^[0-9a-fA-F]{40}$') {
     throw "Run $Id has no valid workflow commit SHA; refusing status or artifact operations."
@@ -175,7 +222,7 @@ function Get-StreamJob {
   param([Parameter(Mandatory = $false)]$JobsResponse)
 
   foreach ($job in @(Get-JsonValue $JobsResponse 'jobs' @())) {
-    if ([string](Get-JsonValue $job 'name') -eq 'stream') { return $job }
+    if ([string](Get-JsonValue $job 'name') -ceq $script:Profile.JobName) { return $job }
   }
   return $null
 }
@@ -187,10 +234,12 @@ function Get-JobStep {
   )
 
   $acceptedNames = @($Name)
-  switch ($Name) {
-    'Start OSLog capture' { $acceptedNames += 'Start PeekPop OSLog capture' }
-    'Finalize OSLog capture' { $acceptedNames += 'Finalize PeekPop OSLog capture' }
-    'Upload encrypted OSLog capture' { $acceptedNames += 'Upload encrypted PeekPop logs' }
+  if ($script:Profile.Name -eq 'Emporio') {
+    switch ($Name) {
+      'Start OSLog capture' { $acceptedNames += 'Start PeekPop OSLog capture' }
+      'Finalize OSLog capture' { $acceptedNames += 'Finalize PeekPop OSLog capture' }
+      'Upload encrypted OSLog capture' { $acceptedNames += 'Upload encrypted PeekPop logs' }
+    }
   }
 
   foreach ($step in @(Get-JsonValue $Job 'steps' @())) {
@@ -371,7 +420,11 @@ function Request-GracefulStop {
   Wait-ForCaptureStart -Run $Run
 
   $runIdText = [string]$Run.id
-  $context = "native-sim-stop/$runIdText"
+  $context = if ($script:Profile.StopContextIncludesAttempt) {
+    "native-sim-stop/$runIdText/$([int](Get-JsonValue $Run 'run_attempt'))"
+  } else {
+    "native-sim-stop/$runIdText"
+  }
   $sha = [string]$Run.head_sha
   $statuses = @(Invoke-GhJson -Arguments @('api', "repos/$Repository/commits/$sha/statuses?per_page=100"))
   $matchingStatuses = @($statuses | Where-Object {
@@ -509,11 +562,15 @@ function Assert-OutputRootIsPrivateLocation {
   param([Parameter(Mandatory = $true)][string]$Path)
 
   $fullPath = [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-  $repoPath = [IO.Path]::GetFullPath($script:ProjectRoot).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-  $repoPrefix = $repoPath + [IO.Path]::DirectorySeparatorChar
-  if ([string]::Equals($fullPath, $repoPath, [StringComparison]::OrdinalIgnoreCase) -or
-      $fullPath.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Sensitive local paths must be outside the Git repository so private keys and plaintext logs cannot be versioned accidentally.'
+  $knownRepositories = @($script:ProjectRoot, 'C:\Projetos\SaveApp')
+  foreach ($repositoryRoot in $knownRepositories) {
+    if ([string]::IsNullOrWhiteSpace([string]$repositoryRoot)) { continue }
+    $repoPath = [IO.Path]::GetFullPath($repositoryRoot).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $repoPrefix = $repoPath + [IO.Path]::DirectorySeparatorChar
+    if ([string]::Equals($fullPath, $repoPath, [StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+      throw 'Sensitive local paths must be outside every authorized app Git repository so private keys and plaintext logs cannot be versioned accidentally.'
+    }
   }
   return $fullPath
 }
@@ -577,6 +634,9 @@ function Get-ValidatedManifest {
   $filterMode = if ($schemaVersion -eq 2) { 'category' } else { [string]$manifest.filter_mode }
   if ($filterMode -notin @('category', 'subsystem')) { throw 'manifest.json has an unsupported filter_mode.' }
 
+  if ($script:Profile.Name -eq 'SaveApp' -and $filterMode -ne 'subsystem') {
+    throw 'The SaveApp profile only accepts its fixed subsystem-filtered capture.'
+  }
   if ($filterMode -eq 'category' -and ($categories.Count -lt 1 -or $categories.Count -gt 8)) {
     throw 'Category-filtered manifest must contain 1 to 8 OSLog categories.'
   }
@@ -627,7 +687,7 @@ function Get-ValidatedManifest {
       }
       $selectorKey = "$match|$value"
       if (-not $selectorKeys.Add($selectorKey)) { throw 'manifest.json contains duplicate subsystem selectors.' }
-      if ($selectorKey -notin @('prefix|com.pareact.mobile', 'exact|NativeAppleIntelligence')) {
+      if ($selectorKey -notin $script:Profile.AllowedSubsystems) {
         throw 'manifest.json contains a subsystem outside the app-owned allowlist.'
       }
       if ($match -eq 'prefix') {
@@ -636,18 +696,19 @@ function Get-ValidatedManifest {
         $selectorParts.Add(('subsystem == "' + $value + '"'))
       }
     }
-    if (-not $selectorKeys.Contains('prefix|com.pareact.mobile') -or
-        -not $selectorKeys.Contains('exact|NativeAppleIntelligence')) {
-      throw 'manifest.json omits an expected app-owned subsystem selector.'
+    foreach ($requiredSelector in $script:Profile.RequiredSubsystems) {
+      if (-not $selectorKeys.Contains([string]$requiredSelector)) {
+        throw 'manifest.json omits an expected app-owned subsystem selector.'
+      }
     }
     $expectedPredicate = $selectorParts -join ' OR '
     $diagnosticPredicate = '(' + $expectedPredicate + ') OR (' + $widgetSystemPredicate + ')'
-    if ([string]$manifest.predicate -eq $diagnosticPredicate) {
+    if ($script:Profile.AllowSystemDiagnostics -and [string]$manifest.predicate -eq $diagnosticPredicate) {
       $widgetDiagnosticsSelected = $true
     } elseif ([string]$manifest.predicate -ne $expectedPredicate) {
       throw 'manifest.json predicate does not exactly match its subsystem selectors or the approved widget diagnostics extension.'
     }
-    $rigattiWidgetCategorySelected = $selectorKeys.Contains('prefix|com.pareact.mobile')
+    $rigattiWidgetCategorySelected = $script:Profile.Name -eq 'Emporio' -and $selectorKeys.Contains('prefix|com.pareact.mobile')
   }
 
   $manifest | Add-Member -NotePropertyName widget_renderer_diagnostics_selected -NotePropertyValue $widgetDiagnosticsSelected -Force
@@ -723,7 +784,11 @@ function Get-SanitizedLogAnalysis {
   $categoryPattern = @($categories | ForEach-Object { [Regex]::Escape($_) }) -join '|'
   if ($filterMode -eq 'subsystem') {
     $categoryRecordRegex = [Regex]::new('\[(?<subsystem>[A-Za-z0-9][A-Za-z0-9.-]{0,254}):(?<category>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]')
-    $eventRegex = [Regex]::new('\[(?<label>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]\s+(?:event=)?(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)')
+    if ($script:Profile.Name -eq 'SaveApp') {
+      $eventRegex = [Regex]::new('(?:\[(?<label>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]\s+)?event=(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)')
+    } else {
+      $eventRegex = [Regex]::new('\[(?<label>[A-Za-z0-9][A-Za-z0-9._-]{0,63})\]\s+(?:event=)?(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)')
+    }
   } else {
     $categoryRecordRegex = [Regex]::new("\[(?:[^\]\r\n]*:)?(?<category>$categoryPattern)\]")
     $eventRegex = [Regex]::new("\[(?<label>$categoryPattern|PeekPopReturn)\]\s+(?:event=)?(?<event>[A-Za-z][A-Za-z0-9._-]{0,63})(?=\s|$)")
@@ -822,6 +887,9 @@ function Get-SanitizedLogAnalysis {
       $safeEventLabel = $false
       if ($eventMatch.Success) {
         $eventName = $eventMatch.Groups['event'].Value
+      if ($script:Profile.Name -eq 'SaveApp') {
+        $safeEventLabel = $eventName -cmatch '^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$'
+      } else {
         $safeEventLabel = $eventName -cmatch '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$' -or
           $eventName -cin @(
             'publish_start', 'publish_result', 'publish_error_metadata',
@@ -832,6 +900,7 @@ function Get-SanitizedLogAnalysis {
             'image_load_result', 'image_load_failure'
           ) -or
           $eventName -cin @('willShow', 'didShow', 'viewDidLoad', 'viewWillAppear', 'viewDidDisappear')
+      }
       }
 
       foreach ($observed in $categoriesOnLine) {
@@ -846,7 +915,12 @@ function Get-SanitizedLogAnalysis {
             $categoryAnalysis.TimestampLast = $categoryTimestamp
           }
 
+          $saveAppEventBelongsToCategory = $script:Profile.Name -eq 'SaveApp' -and (
+            [string]::IsNullOrEmpty($eventMatch.Groups['label'].Value) -or
+            [string]::Equals($eventMatch.Groups['label'].Value, $observed, [StringComparison]::Ordinal)
+          )
           $eventBelongsToCategory = $eventMatch.Success -and (
+            $saveAppEventBelongsToCategory -or
             [string]::Equals($eventMatch.Groups['label'].Value, $observed, [StringComparison]::Ordinal) -or
             ($filterMode -eq 'category' -and [string]::Equals($observed, 'OpenPaymentPeekPopReturn', [StringComparison]::Ordinal) -and
               [string]::Equals($eventMatch.Groups['label'].Value, 'PeekPopReturn', [StringComparison]::Ordinal))
@@ -858,6 +932,15 @@ function Get-SanitizedLogAnalysis {
             if ($categoryAnalysis.EventNameCounts.ContainsKey($eventName)) {
               $categoryAnalysis.EventNameCounts[$eventName]++
               if ($categoryAnalysis.EventSequence.Count -lt 60) { $categoryAnalysis.EventSequence.Add($eventName) }
+            }
+            if ($script:Profile.Name -eq 'SaveApp') {
+              if (-not $eventNameCounts.ContainsKey($eventName) -and $eventNameCounts.Count -lt 100) {
+                $eventNameCounts[$eventName] = 0
+              }
+              if ($eventNameCounts.ContainsKey($eventName)) {
+                $eventNameCounts[$eventName]++
+                if ($eventSequence.Count -lt 60) { $eventSequence.Add($eventName) }
+              }
             }
           }
         }
@@ -968,6 +1051,26 @@ function Write-TechnicalReport {
   if ($null -ne $Manifest.PSObject.Properties['subsystems']) {
     $manifestSubsystems = @($Manifest.subsystems)
   }
+  $profileDiagnostics = if ($script:Profile.AllowSystemDiagnostics) {
+@"
+## Widget renderer system capture
+
+- System diagnostics predicate selected: $($Analysis.WidgetDiagnosticsSelected)
+- RigattiWidgetSync category included: $($Analysis.RigattiWidgetSyncSelected)
+- Supplemental artifact block present: $($Analysis.SupplementalDiagnosticsPresent)
+- Process snapshot / system-log / crash-report sections present: $($Analysis.ProcessSnapshotPresent) / $($Analysis.SystemLogsSectionPresent) / $($Analysis.CrashReportsSectionPresent)
+- Sanitized system-log record count / query-error indicators: $($Analysis.SystemLogRecordCount) / $($Analysis.SystemQueryFailureCount)
+- Matching crash/Jetsam report markers: $($Analysis.CrashReportCount)
+- Profile limitation: system capture selects errors/faults and matching crash/Jetsam reports; warning-level system messages are not comprehensively collected.
+"@
+  } else {
+@"
+## Capture scope
+
+- Only the SaveApp-owned subsystem selector in the manifest is captured.
+- Other iOS/system subsystems and JavaScript console output are outside this capture.
+"@
+  }
   $report = @"
 # NativeSim OSLog analysis
 
@@ -990,15 +1093,7 @@ function Write-TechnicalReport {
 - Time span: $(if ($Analysis.TimestampFirst) { "$($Analysis.TimestampFirst) through $($Analysis.TimestampLast)" } else { 'timestamps not recognized' })
 - Ciphertext SHA-256: $($Manifest.ciphertext_sha256)
 
-## Widget renderer system capture
-
-- System diagnostics predicate selected: $($Analysis.WidgetDiagnosticsSelected)
-- RigattiWidgetSync category included: $($Analysis.RigattiWidgetSyncSelected)
-- Supplemental artifact block present: $($Analysis.SupplementalDiagnosticsPresent)
-- Process snapshot / system-log / crash-report sections present: $($Analysis.ProcessSnapshotPresent) / $($Analysis.SystemLogsSectionPresent) / $($Analysis.CrashReportsSectionPresent)
-- Sanitized system-log record count / query-error indicators: $($Analysis.SystemLogRecordCount) / $($Analysis.SystemQueryFailureCount)
-- Matching crash/Jetsam report markers: $($Analysis.CrashReportCount)
-- Profile limitation: system capture selects errors/faults and matching crash/Jetsam reports; warning-level system messages are not comprehensively collected.
+$profileDiagnostics
 
 ## Category counts
 
@@ -1240,7 +1335,7 @@ function Invoke-Collection {
   Write-TechnicalReport -ReportPath $reportPath -Run $selectedRun -Manifest $manifest -Analysis $analysis -Finalization $finalization
 
   $categoryReports = New-Object 'System.Collections.Generic.List[string]'
-  $reportDefinitions = @(
+  $reportDefinitions = if ($script:Profile.Name -eq 'Emporio') { @(
     [pscustomobject]@{
       Category = 'OpenPaymentPeekPopReturn'
       FileName = 'analysis-peek-pop.md'
@@ -1262,7 +1357,7 @@ function Invoke-Collection {
         'Layout evaluation and update failures or missing events.'
       )
     }
-  )
+  ) } else { @() }
 
   foreach ($definition in $reportDefinitions) {
     if ($manifest.categories -ccontains $definition.Category -or $analysis.PerCategory.ContainsKey($definition.Category)) {

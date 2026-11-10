@@ -3,7 +3,7 @@ import { createElement } from 'react';
 
 import { useRegistrarDeliverySheet } from '@/features/deliveries/hooks/useRegistrarDeliverySheet';
 import { flushAfterNativeDismiss, runAfterNativeDismiss } from '@/utils/nativeDismissActionQueue';
-import type { ClientModel } from '@/types/data';
+import type { ClientModel, Delivery } from '@/types/data';
 
 jest.mock('@/utils/haptics', () => ({
   triggerLightImpactHaptic: jest.fn(),
@@ -119,6 +119,68 @@ describe('useRegistrarDeliverySheet', () => {
     act(() => {
       renderer?.unmount();
     });
+  });
+
+  it('does not create duplicate deliveries while a confirmation is pending', async () => {
+    const client: ClientModel = {
+      address: 'Rua das Flores, 10',
+      canonicalName: 'Mercado Central',
+      clientId: 'client:mercado-central',
+      currentPrice: 49.8,
+      hasIncompleteAddress: false,
+      normalizedName: 'mercado central',
+      sources: ['delivery'],
+      usesBoleto: false,
+      usesInvoice: false,
+    };
+    let resolveCreate: ((delivery: Delivery) => void) | undefined;
+    const createDelivery = jest.fn(
+      () =>
+        new Promise<Delivery>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    let current: ReturnType<typeof useRegistrarDeliverySheet> | undefined;
+
+    function Harness() {
+      current = useRegistrarDeliverySheet({ clients: [client], create: createDelivery });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(createElement(Harness));
+    });
+
+    const confirmation = {
+      bucketPrice: 49.8,
+      client: { bucketPrice: 49.8, id: client.clientId, title: client.canonicalName },
+      date: new Date(2026, 8, 30),
+      quantity: 1,
+    };
+    act(() => {
+      current?.handleConfirm(confirmation);
+      current?.handleConfirm(confirmation);
+    });
+
+    expect(createDelivery).toHaveBeenCalledTimes(1);
+    expect(current?.sheetVisible).toBe(false);
+
+    await act(async () => {
+      resolveCreate?.({
+        cliente: client.canonicalName,
+        data: '2026-09-30',
+        entregue: false,
+        id: 'created-delivery',
+        quantidade: 1,
+        status: 'Não Pago',
+        valor: 49.8,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => renderer?.unmount());
   });
 
   it('flushes a pending action directly from the final dismiss callback', () => {

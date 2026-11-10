@@ -37,7 +37,7 @@ export type OpenPaymentBulkCommitResult = {
   clientName: string;
   eligibleCount: number;
   totalCents: number;
-  updatedDeliveries: { id: string; date: string }[];
+  updatedDeliveries: { id: string; date: string; paymentDate?: string }[];
   replayed: boolean;
 };
 
@@ -167,7 +167,14 @@ function validateCommitResult(
     !Number.isSafeInteger(result.totalCents) ||
     typeof result.replayed !== 'boolean' ||
     returned.length !== expectedIds.length ||
-    returned.some((entry) => !entry || typeof entry.date !== 'string' || !entry.date) ||
+    returned.some(
+      (entry) =>
+        !entry ||
+        typeof entry.date !== 'string' ||
+        !entry.date ||
+        (entry.paymentDate !== undefined &&
+          (typeof entry.paymentDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.paymentDate))),
+    ) ||
     returnedIds.some((id, index) => id !== expectedIds[index])
   ) {
     throw new Error('bulk_commit_response_invalid');

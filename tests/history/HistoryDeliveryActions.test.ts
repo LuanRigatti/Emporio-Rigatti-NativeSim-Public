@@ -21,17 +21,24 @@ describe('Wholesale History completion context action', () => {
     expect(source).toContain('destructive: true');
   });
 
-  it('connects the screen action to set delivered true without changing the status badge toggle', () => {
+  it('keeps the context completion action and sends both day badges to the shared state sheet', () => {
     const source = readSource('src/features/history/components/HistoryScreen.tsx');
     const hookSource = readSource('src/hooks/useDeliveries.ts');
 
     expect(source).toContain('void setDelivered(deliveryId, true)');
-    expect(source).toContain('onToggleStatus={() => handleToggleStatus(delivery.id)}');
+    expect(source).toContain('onOpenStatusSheet={() => handleOpenStatusSheet(delivery.id)}');
     expect(source).toContain('onMarkDelivered={() => handleMarkDelivered(delivery.id)}');
+    expect(source).toContain('await updateHistoryWorkflow(settlementDelivery.id, {');
+    expect(source).toContain('paymentSelection: settlementPaymentSelection');
+    expect(source).toContain('paymentReversalConfirmed,');
     expect(hookSource).toContain(
       'firestoreDeliveryDataSource.setDelivered(user.id, deliveryId, delivered)',
     );
     expect(hookSource).toContain('service.setDelivered(deliveryId, delivered)');
+    expect(hookSource).toContain(
+      'firestoreDeliveryDataSource.updateHistoryWorkflow(user.id, deliveryId, mutation)',
+    );
+    expect(hookSource).toContain('service.updateHistoryWorkflow(deliveryId, mutation)');
   });
 
   it('opts into the same Wholesale calendar week for both toolbar label and filtered range', () => {

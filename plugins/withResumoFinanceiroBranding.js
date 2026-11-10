@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { withDangerousMod } = require('expo/config-plugins');
 
-const EXPO_WIDGETS_VERSION = '58.0.19';
+const EXPO_WIDGETS_VERSION = '58.0.27';
 const BRANDING_MARKER = '// ResumoFinanceiro shared branding image directory';
 const LIVE_ACTIVITY_BRANDING_MARKER = '// Rigatti Live Activity shared branding image directory';
 const WIDGET_PROVIDER_ERROR_MARKER = '// Rigatti WidgetKit operational error logging';

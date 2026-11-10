@@ -1,14 +1,62 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 import React from 'react';
-import { Text } from 'react-native';
+import { Platform, Text } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 
-const mockRouterPush = jest.fn();
 const mockLightImpactHaptic = jest.fn();
+const mockTransitionEndListeners = new Map<
+  string,
+  (event: { data: { closing: boolean } }) => void
+>();
+const mockTransitionCallbacks = new Map<
+  string,
+  Set<(event: { data: { closing: boolean } }) => void>
+>();
+const mockNavigationState: { value: { index: number; routes: { name: string }[] } } = {
+  value: { index: 0, routes: [{ name: 'registrar-entrega' }] },
+};
+const mockRouterPush = jest.fn();
+let mockFocusEffectCallback: (() => void | (() => void)) | null = null;
+let mockFocusCleanup: (() => void) | null = null;
+const mockNavigationAddListener = jest.fn(
+  (event: string, listener: (event: { data: { closing: boolean } }) => void) => {
+    const callbacks = mockTransitionCallbacks.get(event) ?? new Set();
+    callbacks.add(listener);
+    mockTransitionCallbacks.set(event, callbacks);
+    mockTransitionEndListeners.set(event, (value) => {
+      for (const callback of callbacks) callback(value);
+    });
+    return jest.fn(() => {
+      callbacks.delete(listener);
+      if (callbacks.size === 0) {
+        mockTransitionEndListeners.delete(event);
+        mockTransitionCallbacks.delete(event);
+      }
+    });
+  },
+);
 
 jest.mock('expo-router', () => {
+  const React = require('react') as typeof import('react');
   return {
+    useFocusEffect: (effect: () => void | (() => void)) =>
+      React.useEffect(() => {
+        mockFocusEffectCallback = effect;
+        mockFocusCleanup = effect() ?? null;
+        return () => {
+          mockFocusCleanup?.();
+          mockFocusCleanup = null;
+          mockFocusEffectCallback = null;
+        };
+      }, [effect]),
+    useNavigation: () => ({
+      addListener: mockNavigationAddListener,
+      getState: () => mockNavigationState.value,
+      isFocused: () =>
+        mockNavigationState.value.routes[mockNavigationState.value.index]?.name ===
+        'registrar-entrega',
+    }),
     useRouter: () => ({ push: mockRouterPush }),
   };
 });
@@ -88,8 +136,28 @@ function renderLanding(): ReactTestRenderer {
 describe('RegistrarDeliveryLandingScreen', () => {
   beforeEach(() => {
     mockRouterPush.mockClear();
+    mockRouterPush.mockImplementation((href: string) => {
+      if (href === '/registrar-entrega/clientes') {
+        const routes = [
+          ...mockNavigationState.value.routes,
+          { name: 'registrar-entrega/clientes' },
+        ];
+        mockNavigationState.value = {
+          index: routes.length - 1,
+          routes,
+        };
+      }
+    });
     mockLightImpactHaptic.mockClear();
+    mockFocusEffectCallback = null;
+    mockFocusCleanup = null;
+    mockNavigationAddListener.mockClear();
+    mockTransitionEndListeners.clear();
+    mockTransitionCallbacks.clear();
+    mockNavigationState.value = { index: 0, routes: [{ name: 'registrar-entrega' }] };
   });
+
+  afterEach(() => jest.restoreAllMocks());
 
   it('shows only the Clientes action under the Entrega title', () => {
     const renderer = renderLanding();
@@ -110,6 +178,134 @@ describe('RegistrarDeliveryLandingScreen', () => {
 
     expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).toHaveBeenCalledWith('/registrar-entrega/clientes');
+    act(() => renderer.unmount());
+  });
+
+  it('pushes the native client route only once for rapid repeated taps', () => {
+    const renderer = renderLanding();
+    const action = renderer.root.findAll((node) => String(node.type) === 'premium-card')[0];
+
+    act(() => {
+      action.props.onPress();
+      action.props.onPress();
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+    expect(mockLightImpactHaptic).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it('releases the navigation guard on Web after a focus return without transition events', () => {
+    const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(Platform, 'OS');
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+    const renderer = renderLanding();
+    const action = renderer.root.findAll((node) => String(node.type) === 'premium-card')[0];
+
+    act(() => action.props.onPress());
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+
+    act(() => mockFocusCleanup?.());
+    mockNavigationState.value = { index: 0, routes: [{ name: 'registrar-entrega' }] };
+    act(() => {
+      mockFocusCleanup = mockFocusEffectCallback?.() ?? null;
+    });
+    act(() => action.props.onPress());
+
+    expect(mockRouterPush).toHaveBeenCalledTimes(2);
+    act(() => renderer.unmount());
+    if (originalPlatformDescriptor) {
+      Object.defineProperty(Platform, 'OS', originalPlatformDescriptor);
+    } else {
+      Reflect.deleteProperty(Platform, 'OS');
+    }
+  });
+
+  it.each(['gesture return', 'back button return'])(
+    'accepts the first tap after a cold-start push returns through the %s state',
+    () => {
+      const renderer = renderLanding();
+      const action = renderer.root.findAll((node) => String(node.type) === 'premium-card')[0];
+      const transitionStart = mockTransitionEndListeners.get('transitionStart');
+      const transitionEnd = mockTransitionEndListeners.get('transitionEnd');
+
+      expect(transitionStart).toBeDefined();
+      expect(transitionEnd).toBeDefined();
+
+      act(() => {
+        action.props.onPress();
+        action.props.onPress();
+      });
+      expect(mockRouterPush).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        transitionStart?.({ data: { closing: true } });
+        transitionEnd?.({ data: { closing: false } });
+        action.props.onPress();
+      });
+      expect(mockRouterPush).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        transitionEnd?.({ data: { closing: true } });
+        action.props.onPress();
+      });
+      expect(mockRouterPush).toHaveBeenCalledTimes(1);
+
+      mockNavigationState.value = { index: 0, routes: [{ name: 'registrar-entrega' }] };
+      act(() => {
+        action.props.onPress();
+        action.props.onPress();
+      });
+
+      expect(mockRouterPush).toHaveBeenCalledTimes(2);
+      expect(mockLightImpactHaptic).toHaveBeenCalledTimes(2);
+      expect(
+        mockNavigationState.value.routes.filter(
+          (route) => route.name === 'registrar-entrega/clientes',
+        ),
+      ).toHaveLength(1);
+
+      act(() => renderer.unmount());
+      expect(mockTransitionEndListeners.size).toBe(0);
+    },
+  );
+
+  it('queues the first Clientes touch during return and consolidates five fast taps', () => {
+    const renderer = renderLanding();
+    const action = renderer.root.findAll((node) => String(node.type) === 'premium-card')[0];
+    const transitionStart = mockTransitionEndListeners.get('transitionStart');
+    const transitionEnd = mockTransitionEndListeners.get('transitionEnd');
+
+    act(() => action.props.onPress());
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+
+    act(() => transitionEnd?.({ data: { closing: true } }));
+    act(() => transitionStart?.({ data: { closing: false } }));
+    mockNavigationState.value = {
+      index: 1,
+      routes: [
+        { name: 'registrar-entrega' },
+        { name: 'registrar-entrega/clientes' },
+      ],
+    };
+    act(() => {
+      for (let count = 0; count < 5; count += 1) action.props.onPress();
+    });
+    expect(mockRouterPush).toHaveBeenCalledTimes(1);
+
+    act(() => transitionEnd?.({ data: { closing: false } }));
+    mockNavigationState.value = { index: 0, routes: [{ name: 'registrar-entrega' }] };
+    act(() => {
+      mockTransitionCallbacks.get('state')?.forEach((listener) => listener({ data: { closing: false } }));
+      mockTransitionCallbacks.get('focus')?.forEach((listener) => listener({ data: { closing: false } }));
+    });
+
+    expect(mockRouterPush).toHaveBeenCalledTimes(2);
+    expect(mockRouterPush).toHaveBeenLastCalledWith('/registrar-entrega/clientes');
+    expect(
+      mockNavigationState.value.routes.filter(
+        (route) => route.name === 'registrar-entrega/clientes',
+      ),
+    ).toHaveLength(1);
     act(() => renderer.unmount());
   });
 

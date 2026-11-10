@@ -26,7 +26,13 @@ jest.mock('react-native', () => {
   };
 });
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn() }) }));
+jest.mock('expo-router', () => {
+  const React = jest.requireActual('react') as typeof import('react');
+  return {
+    useFocusEffect: (effect: () => void | (() => void)) => React.useEffect(effect, [effect]),
+    useRouter: () => ({ back: jest.fn() }),
+  };
+});
 
 jest.mock('@/providers', () => ({
   useAppSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),

@@ -31,36 +31,38 @@ export type OpenPaymentClientCard = ClientFinancialRankingItem & {
 export function useOpenPaymentClients() {
   const { sessionVersion, user } = useAuth();
   const { enabled: testModeEnabled } = useTestModePresentation();
-  const { deliveries, editMany } = useDeliveries(OPEN_DELIVERY_FILTERS);
+  const {
+    deliveries,
+    editMany,
+    loading: openDeliveryLoading,
+  } = useDeliveries(OPEN_DELIVERY_FILTERS);
   const {
     deliveries: paidDeliveries,
     error: paymentHistoryError,
     loading: paymentHistoryLoading,
   } = useDeliveries(PAID_DELIVERY_FILTERS);
 
-  const clientCards = useMemo<OpenPaymentClientCard[]>(
-    () =>
-      financialCalculationService
-        .rankClients(deliveries, { periodo: 'todos' })
-        .filter((client) => client.valor > 0)
-        .map((client) => {
-          const clientDeliveries = deliveries.filter(
-            (delivery) =>
-              normalizeClientKey(formatClientName(delivery.cliente)) ===
-              normalizeClientKey(client.nome),
-          );
+  const clientCards = useMemo<OpenPaymentClientCard[]>(() => {
+    const rankedClients = financialCalculationService.rankClients(deliveries, { periodo: 'todos' });
+    return rankedClients
+      .filter((client) => client.valor > 0)
+      .map((client) => {
+        const clientDeliveries = deliveries.filter(
+          (delivery) =>
+            normalizeClientKey(formatClientName(delivery.cliente)) ===
+            normalizeClientKey(client.nome),
+        );
 
-          return {
-            ...client,
-            deliveries: clientDeliveries,
-            recentPayments: getRecentPaidDeliveriesForClient(
-              { deliveries: clientDeliveries, nome: client.nome },
-              paidDeliveries,
-            ),
-          };
-        }),
-    [deliveries, paidDeliveries],
-  );
+        return {
+          ...client,
+          deliveries: clientDeliveries,
+          recentPayments: getRecentPaidDeliveriesForClient(
+            { deliveries: clientDeliveries, nome: client.nome },
+            paidDeliveries,
+          ),
+        };
+      });
+  }, [deliveries, paidDeliveries]);
   const totalOpenAmount = useMemo(
     () => financialCalculationService.calculatePendente(deliveries),
     [deliveries],
@@ -117,6 +119,8 @@ export function useOpenPaymentClients() {
     previewAllClientPayments,
     paymentHistoryError,
     paymentHistoryLoading,
+    openDeliveryLoading,
+    openDeliveryCount: deliveries.length,
     testModeEnabled,
     totalOpenAmount,
   };

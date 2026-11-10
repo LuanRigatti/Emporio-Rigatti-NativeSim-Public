@@ -120,7 +120,7 @@ describe('EntregasDoDia App Intent CNG integration', () => {
     }
   });
 
-  it('transforms the installed expo-widgets@58.0.19 Swift templates idempotently', () => {
+  it('transforms the installed expo-widgets@58.0.27 Swift templates idempotently', () => {
     const buttons = transformButtonsSource(fs.readFileSync(buttonsPath, 'utf8'));
     const module = transformWidgetModuleSource(fs.readFileSync(modulePath, 'utf8'));
     const environment = transformWidgetEnvironmentSource(fs.readFileSync(environmentPath, 'utf8'));

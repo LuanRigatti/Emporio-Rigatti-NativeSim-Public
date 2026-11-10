@@ -33,8 +33,14 @@ jest.mock('firebase/firestore', () => ({
   __esModule: true,
   collection: jest.fn((...args: unknown[]) => ({ path: args.join('/') })),
   doc: jest.fn((...args: unknown[]) => ({ path: args.join('/') })),
-  getDoc: jest.fn(async () => ({ exists: () => false })),
-  getDocs: jest.fn(async () => ({ docs: [], metadata: { fromCache: false } })),
+  getDoc: jest.fn(async () => ({
+    exists: () => false,
+    metadata: { fromCache: false, hasPendingWrites: false },
+  })),
+  getDocs: jest.fn(async () => ({
+    docs: [],
+    metadata: { fromCache: false, hasPendingWrites: false },
+  })),
   query: jest.fn((...args: unknown[]) => ({ type: 'query', args })),
   where: jest.fn((field: string, op: string, value: unknown) => ({ field, op, value })),
   setDoc: jest.fn(async () => undefined),
@@ -43,6 +49,7 @@ jest.mock('firebase/firestore', () => ({
 }));
 
 const mockedGetDocs = jest.mocked(firestoreModule.getDocs);
+const mockedGetDoc = jest.mocked(firestoreModule.getDoc);
 
 const values = {
   estar: '10',
@@ -164,6 +171,224 @@ describe('Firestore daily/monthly cost documents', () => {
     expect(result.source).toBe('cache');
     expect(result.remoteComplete).toBe(false);
     expect(mockedGetDocs).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a cache-only full snapshot as the basis for a cost mutation', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce({ docs: [], metadata: { fromCache: true } } as never)
+      .mockResolvedValueOnce({ docs: [], metadata: { fromCache: false } } as never);
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    await expect(dataSource.loadAllAsCostSettings('uid-test')).rejects.toThrow('incompleto');
+  });
+
+  it('rejects a snapshot with unacknowledged Firestore writes as complete', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce({
+        docs: [],
+        metadata: { fromCache: false, hasPendingWrites: true },
+      } as never)
+      .mockResolvedValueOnce({
+        docs: [],
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never);
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    await expect(dataSource.loadAllAsCostSettings('uid-test')).rejects.toThrow('incompleto');
+  });
+
+  it('starts daily and monthly reads together for a selected month', async () => {
+    let resolveDaily: ((value: never) => void) | undefined;
+    let resolveMonthly: ((value: never) => void) | undefined;
+    mockedGetDocs.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveDaily = resolve)) as never,
+    );
+    mockedGetDoc.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMonthly = resolve)) as never,
+    );
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    const load = dataSource.loadWithMetadata('uid-test', { month: '2026-08' });
+
+    expect(mockedGetDocs).toHaveBeenCalledTimes(1);
+    expect(mockedGetDoc).toHaveBeenCalledTimes(1);
+
+    resolveDaily?.({
+      docs: [],
+      metadata: { fromCache: false, hasPendingWrites: false },
+    } as never);
+    resolveMonthly?.({
+      exists: () => false,
+      metadata: { fromCache: false, hasPendingWrites: false },
+    } as never);
+    await expect(load).resolves.toMatchObject({
+      remoteComplete: true,
+      snapshot: { gastosDiarios: {}, gastosMensais: {} },
+      source: 'network',
+    });
+  });
+
+  it('confirms an exact monthly cost query only with both metadata flags and session scope', async () => {
+    mockedGetDocs.mockResolvedValueOnce({
+      docs: [
+        {
+          id: '2026-08-06',
+          exists: () => true,
+          data: () => ({ data: '2026-08-06', estar: 10 }),
+        },
+      ],
+      metadata: { fromCache: false, hasPendingWrites: false },
+    } as never);
+    mockedGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      id: '2026-08',
+      data: () => ({ month: '2026-08', luz: 125 }),
+      metadata: { fromCache: false, hasPendingWrites: false },
+    } as never);
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    const result = await dataSource.loadWithMetadata(
+      'uid-test',
+      { month: '2026-08' },
+      { sessionVersion: 17 },
+    );
+
+    expect(result.provenance).toMatchObject({
+      uid: 'uid-test',
+      sessionVersion: 17,
+      scope: { month: '2026-08' },
+      origin: 'server',
+      fromCache: false,
+      hasPendingWrites: false,
+      coverage: 'complete',
+      remoteConfirmed: true,
+    });
+    expect(result.querySnapshot).toEqual({
+      gastosDiarios: { '2026-08-06': expect.objectContaining({ estar: 10 }) },
+      gastosMensais: { '2026-08': expect.objectContaining({ luz: 125 }) },
+    });
+  });
+
+  it('labels cache-only and pending-write month results without remote confirmation', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce({
+        docs: [],
+        metadata: { fromCache: true, hasPendingWrites: false },
+      } as never)
+      .mockResolvedValueOnce({
+        docs: [],
+        metadata: { fromCache: false, hasPendingWrites: true },
+      } as never);
+    mockedGetDoc
+      .mockResolvedValueOnce({
+        exists: () => false,
+        metadata: { fromCache: true, hasPendingWrites: false },
+      } as never)
+      .mockResolvedValueOnce({
+        exists: () => false,
+        metadata: { fromCache: false, hasPendingWrites: true },
+      } as never);
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    const cacheResult = await dataSource.loadWithMetadata('uid-test', { month: '2026-08' });
+    const pendingResult = await dataSource.loadWithMetadata('uid-test', { month: '2026-09' });
+
+    expect(cacheResult.provenance).toMatchObject({ origin: 'cache', remoteConfirmed: false });
+    expect(pendingResult.provenance).toMatchObject({
+      origin: 'local-pending',
+      hasPendingWrites: true,
+      remoteConfirmed: false,
+    });
+  });
+
+  it('does not classify an unknown query scope or missing metadata as complete', async () => {
+    mockedGetDocs.mockResolvedValueOnce({ docs: [] } as never);
+    mockedGetDoc.mockResolvedValueOnce({ exists: () => false } as never);
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    const result = await dataSource.loadWithMetadata('uid-test', {});
+
+    expect(result.provenance).toMatchObject({
+      origin: 'unknown',
+      coverage: 'unknown',
+      fromCache: null,
+      hasPendingWrites: null,
+      remoteConfirmed: false,
+    });
+  });
+
+  it('keeps a confirmed empty query separate from rows retained by the compatibility store', async () => {
+    mockedGetDocs
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            id: '2026-08-06',
+            exists: () => true,
+            data: () => ({ data: '2026-08-06', estar: 10 }),
+          },
+        ],
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never)
+      .mockResolvedValueOnce({
+        docs: [],
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never);
+    mockedGetDoc
+      .mockResolvedValueOnce({
+        exists: () => false,
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never)
+      .mockResolvedValueOnce({
+        exists: () => false,
+        metadata: { fromCache: false, hasPendingWrites: false },
+      } as never);
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    await dataSource.loadWithMetadata('uid-test', { month: '2026-08' });
+    const confirmedEmpty = await dataSource.loadWithMetadata('uid-test', { month: '2026-08' });
+
+    expect(confirmedEmpty.provenance.remoteConfirmed).toBe(true);
+    expect(confirmedEmpty.querySnapshot.gastosDiarios).toEqual({});
+    expect(confirmedEmpty.snapshot.gastosDiarios['2026-08-06']).toMatchObject({ estar: 10 });
+  });
+
+  it('returns a stale unknown result if the owning session ends during a read', async () => {
+    let resolveDaily: ((value: never) => void) | undefined;
+    let resolveMonthly: ((value: never) => void) | undefined;
+    let canRun = true;
+    mockedGetDocs.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveDaily = resolve)) as never,
+    );
+    mockedGetDoc.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveMonthly = resolve)) as never,
+    );
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    const load = dataSource.loadWithMetadata(
+      'uid-test',
+      { month: '2026-08' },
+      { sessionVersion: 21, canRun: () => canRun },
+    );
+    canRun = false;
+    resolveDaily?.({ docs: [], metadata: { fromCache: false, hasPendingWrites: false } } as never);
+    resolveMonthly?.({
+      exists: () => false,
+      metadata: { fromCache: false, hasPendingWrites: false },
+    } as never);
+
+    await expect(load).resolves.toMatchObject({
+      remoteComplete: false,
+      provenance: { origin: 'stale', remoteConfirmed: false, sessionVersion: 21 },
+    });
+  });
+
+  it('propagates an offline read failure without creating confirmed coverage', async () => {
+    mockedGetDocs.mockRejectedValueOnce(new Error('synthetic offline failure'));
+
+    const dataSource = new FirestoreDailyMonthlyDataSource();
+    await expect(
+      dataSource.loadWithMetadata('uid-test', { month: '2026-08' }, { sessionVersion: 22 }),
+    ).rejects.toThrow('synthetic offline failure');
   });
 
   it('builds period-bounded queries instead of requesting all cost documents', () => {

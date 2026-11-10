@@ -1,7 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import {
+  Stack,
+  useFocusEffect,
+  useNavigation,
+  useRouter,
+  type NativeStackNavigationProp,
+} from 'expo-router';
 import type { SFSymbol } from 'sf-symbols-typescript';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import Animated, {
   Easing,
@@ -56,6 +62,11 @@ import { formatCurrency, normalizeMoney, todayIso } from '@/utils/data';
 import { toHistoryDelivery } from '@/services/data';
 import { useTestModePresentation } from '@/utils/presentation/testModeValues';
 import type { Delivery } from '@/types/data';
+import { getNavigationTopRoute } from '@/utils/navigation/navigationTopRoute';
+import {
+  usePendingReturnNavigationIntent,
+  useReleaseNavigationGuardOnWebReturn,
+} from '@/utils/navigation/usePendingReturnNavigationIntent';
 
 const DELIVERY_CARD_GROWTH_DURATION = 200;
 
@@ -124,8 +135,17 @@ function RegistrarModeSelection() {
   const { theme } = useAppTheme();
   const insets = useAppSafeAreaInsets();
   const router = useRouter();
+  const isOpeningDeliveryRouteRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      isOpeningDeliveryRouteRef.current = false;
+    }, []),
+  );
 
   const handleOpenRegistrarEntrega = () => {
+    if (isOpeningDeliveryRouteRef.current) return;
+    isOpeningDeliveryRouteRef.current = true;
     triggerLightImpactHaptic();
     router.push('/registrar-entrega/clientes');
   };
@@ -498,10 +518,12 @@ export function RegistrarDailyDataScreen() {
 
 export function RegistrarDeliveryScreen({
   inlineClientSelection = false,
+  releaseNavigationGuardOnTransitionEnd = false,
   showClientSearch = true,
   showLargeTitle = false,
 }: {
   inlineClientSelection?: boolean;
+  releaseNavigationGuardOnTransitionEnd?: boolean;
   showClientSearch?: boolean;
   showLargeTitle?: boolean;
 } = {}) {
@@ -509,6 +531,14 @@ export function RegistrarDeliveryScreen({
   const insets = useAppSafeAreaInsets();
   const { reduceMotionEnabled, resolvedMode, theme } = useAppTheme();
   const router = useRouter();
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+  const isOpeningClientRouteRef = useRef(false);
+  const requestNavigationIntent = usePendingReturnNavigationIntent({
+    enabled: releaseNavigationGuardOnTransitionEnd,
+    expectedOutgoingRouteNames: ['registrar-entrega/[clientId]', 'clientes/novo'],
+    navigation,
+    sourceRouteName: 'registrar-entrega/clientes',
+  });
   const registrarCardSurface = getCardSurfaceColor(resolvedMode, theme.colors.surface);
   const {
     quantity: maskQuantity,
@@ -521,6 +551,17 @@ export function RegistrarDeliveryScreen({
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [clientSearchBlurRequestKey, setClientSearchBlurRequestKey] = useState(0);
   const [clientSearchFocused, setClientSearchFocused] = useState(false);
+  useEffect(() => {
+    if (!releaseNavigationGuardOnTransitionEnd) return;
+    return navigation.addListener('transitionEnd', ({ data }) => {
+      if (data.closing && isOpeningClientRouteRef.current) isOpeningClientRouteRef.current = false;
+    });
+  }, [navigation, releaseNavigationGuardOnTransitionEnd]);
+  const releaseWebReturnGuard = useCallback(() => {
+    if (!releaseNavigationGuardOnTransitionEnd || !isOpeningClientRouteRef.current) return;
+    isOpeningClientRouteRef.current = false;
+  }, [releaseNavigationGuardOnTransitionEnd]);
+  useReleaseNavigationGuardOnWebReturn(releaseWebReturnGuard);
   const [deliverySortMode, setDeliverySortMode] = useState<DeliverySortMode>('latest');
   const {
     allDeliveries: sourceDeliveries,
@@ -561,10 +602,40 @@ export function RegistrarDeliveryScreen({
         return;
       }
 
-      triggerLightImpactHaptic();
-      router.push({ pathname: '/registrar-entrega/[clientId]', params: { clientId } });
+      const isScreenFocused =
+        navigation.isFocused() &&
+        (!releaseNavigationGuardOnTransitionEnd ||
+          getNavigationTopRoute(navigation) === 'registrar-entrega/clientes');
+      if (isOpeningClientRouteRef.current) return;
+
+      const executeNavigation = (deferred: boolean) => {
+        if (isOpeningClientRouteRef.current) return;
+        isOpeningClientRouteRef.current = true;
+        if (!deferred) triggerLightImpactHaptic();
+        router.push({ pathname: '/registrar-entrega/[clientId]', params: { clientId } });
+      };
+
+      if (!releaseNavigationGuardOnTransitionEnd) {
+        if (!isScreenFocused) return;
+        executeNavigation(false);
+        return;
+      }
+
+      const decision = requestNavigationIntent({
+        key: `registrar_delivery_form:${clientId}`,
+        execute: executeNavigation,
+      });
+      if (decision === 'blocked') return;
+      if (decision === 'pending') triggerLightImpactHaptic();
     },
-    [clientSearchFocused, router, shouldShowClientSearch],
+    [
+      clientSearchFocused,
+      navigation,
+      releaseNavigationGuardOnTransitionEnd,
+      requestNavigationIntent,
+      router,
+      shouldShowClientSearch,
+    ],
   );
   const handleClientSearchFocus = useCallback(() => {
     setClientSearchFocused(true);
@@ -574,16 +645,24 @@ export function RegistrarDeliveryScreen({
     setClientSearchFocused(false);
   }, []);
   const handleOpenNewClient = useCallback(() => {
+    if (isOpeningClientRouteRef.current) return;
+    isOpeningClientRouteRef.current = true;
     router.push('/clientes/novo');
   }, [router]);
   useFocusEffect(
     useCallback(() => {
+      if (!releaseNavigationGuardOnTransitionEnd) {
+        isOpeningClientRouteRef.current = false;
+      }
       markRecentlyAddedDeliveryIds(consumeRecentlyAddedRegistrarDeliveryIds());
       setCurrentDate(todayIso());
 
       const refreshDate = setInterval(() => setCurrentDate(todayIso()), 60_000);
       return () => clearInterval(refreshDate);
-    }, [markRecentlyAddedDeliveryIds]),
+    }, [
+      markRecentlyAddedDeliveryIds,
+      releaseNavigationGuardOnTransitionEnd,
+    ]),
   );
   const todayDeliveries = useMemo(
     () =>
@@ -593,7 +672,12 @@ export function RegistrarDeliveryScreen({
         deliverySortMode,
         recentlyAddedDeliveryIds,
       ).map(toHistoryDelivery),
-    [currentDate, deliverySortMode, recentlyAddedDeliveryIds, sourceDeliveries],
+    [
+      currentDate,
+      deliverySortMode,
+      recentlyAddedDeliveryIds,
+      sourceDeliveries,
+    ],
   );
   const totalBuckets = todayDeliveries.reduce(
     (total, delivery) => total + delivery.quantidadeBaldes,

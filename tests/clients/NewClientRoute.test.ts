@@ -4,6 +4,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createElement, type ComponentType, type ReactNode } from 'react';
 
 const mockRouterBack = jest.fn();
+const mockAddNavigationListener = jest.fn(() => jest.fn());
+const mockRouteNavigation = { addListener: mockAddNavigationListener };
 const mockSaveCustomClient = jest.fn();
 const mockReloadClients = jest.fn();
 const mockUseClients = jest.fn();
@@ -11,6 +13,7 @@ let mockTestModeEnabled = false;
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockRouterBack }),
+  useNavigation: () => mockRouteNavigation,
 }));
 
 jest.mock('@/components/layout', () => ({
@@ -100,6 +103,7 @@ function renderRoute(): ReactTestRenderer {
 describe('NewClientRoute', () => {
   beforeEach(() => {
     mockRouterBack.mockClear();
+    mockAddNavigationListener.mockClear();
     mockSaveCustomClient.mockReset().mockResolvedValue(undefined);
     mockReloadClients.mockClear();
     mockTestModeEnabled = false;
@@ -165,6 +169,12 @@ describe('NewClientRoute', () => {
     );
     expect(mockRouterBack).toHaveBeenCalledTimes(1);
     expect(mockReloadClients).not.toHaveBeenCalled();
+  });
+
+  it('listens for native back gesture cancellation on the outgoing new-client route', () => {
+    renderRoute();
+
+    expect(mockAddNavigationListener).toHaveBeenCalledWith('gestureCancel', expect.any(Function));
   });
 
   it('shows canonical required-field validation and does not save invalid data', async () => {

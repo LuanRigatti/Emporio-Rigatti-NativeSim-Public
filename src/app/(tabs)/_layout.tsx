@@ -1,10 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack } from 'expo-router';
+import { Stack, useNavigation, type NativeStackNavigationProp } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { useEffect } from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 
 import { HomeProfileSheetProvider } from '@/features/home/profile/HomeProfileSheetProvider';
 import { useAppTheme } from '@/theme';
+import { observeRootTabsTransition } from '@/utils/navigation/rootTabsTransition';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 
@@ -21,6 +23,10 @@ function icon(
 }
 
 export default function PrototypeTabsLayout() {
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
+
+  useEffect(() => observeRootTabsTransition(navigation), [navigation]);
+
   return (
     <HomeProfileSheetProvider>
       <TabsNavigator />

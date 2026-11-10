@@ -19,6 +19,7 @@ import type {
   DeliveryFilters,
   InvoiceStatus,
   PaymentMethod,
+  DeliveryWorkflowMutation,
 } from '@/types/data';
 import { DeliveryRepository } from '@/repositories/DeliveryRepository';
 import { todayIso } from '@/utils/data';
@@ -77,7 +78,9 @@ export function useDeliveries(
                 revalidate: true,
               });
             } else {
-              await firestoreDeliveryDataSource.load(user.id, stableFilters, { force: isRefresh });
+              await firestoreDeliveryDataSource.load(user.id, stableFilters, {
+                force: isRefresh,
+              });
             }
             setFirestoreFallbackSnapshot(null);
           } catch (loadError) {
@@ -252,6 +255,42 @@ export function useDeliveries(
     [firestoreEnabled, mutate, refreshFirestoreState, user],
   );
 
+  const updatePaymentMethod = useCallback(
+    async (deliveryId: string, method: PaymentMethod) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.updatePaymentMethod(user.id, deliveryId, method);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.updatePaymentMethod(deliveryId, method));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
+
+  const reverseSettlement = useCallback(
+    async (deliveryId: string) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.reverseSettlement(user.id, deliveryId);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.reverseSettlement(deliveryId));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
+
+  const updateHistoryWorkflow = useCallback(
+    async (deliveryId: string, mutation: DeliveryWorkflowMutation) => {
+      if (firestoreEnabled && user) {
+        await firestoreDeliveryDataSource.updateHistoryWorkflow(user.id, deliveryId, mutation);
+        refreshFirestoreState();
+        return;
+      }
+      await mutate((service) => service.updateHistoryWorkflow(deliveryId, mutation));
+    },
+    [firestoreEnabled, mutate, refreshFirestoreState, user],
+  );
+
   const editMany = useCallback(
     async (deliveryIds: readonly string[], patch: DeliveryBulkPatch) => {
       if (firestoreEnabled && user) {
@@ -285,6 +324,9 @@ export function useDeliveries(
     updateInvoiceStatus,
     updateBoletoStatus,
     settle,
+    updatePaymentMethod,
+    reverseSettlement,
+    updateHistoryWorkflow,
     editMany,
   };
 }

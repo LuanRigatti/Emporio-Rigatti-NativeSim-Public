@@ -52,18 +52,39 @@ jobs:
       EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
       EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
-      EXPO_PUBLIC_QUICK_LOGIN_EMAIL: ${{ secrets.QUICK_LOGIN_EMAIL }}
-      EXPO_PUBLIC_QUICK_LOGIN_PASSWORD: ${{ secrets.QUICK_LOGIN_PASSWORD }}
+      EXPO_PUBLIC_QUICK_LOGIN_EMAIL: ${{ inputs.profile == 'cloud-simulator' && secrets.QUICK_LOGIN_EMAIL || '' }}
+      EXPO_PUBLIC_QUICK_LOGIN_PASSWORD: ${{ inputs.profile == 'cloud-simulator' && secrets.QUICK_LOGIN_PASSWORD || '' }}
 
     steps:
+      - name: Validate quick login secrets
+        if: inputs.profile == 'cloud-simulator'
+        shell: bash
+        run: |
+          set -euo pipefail
+          email="${EXPO_PUBLIC_QUICK_LOGIN_EMAIL:-}"
+          password="${EXPO_PUBLIC_QUICK_LOGIN_PASSWORD:-}"
+          if [[ -z "${email//[[:space:]]/}" || -z "$password" ]]; then
+            echo "::error::cloud-simulator requires QUICK_LOGIN_EMAIL and QUICK_LOGIN_PASSWORD GitHub Secrets."
+            exit 1
+          fi
+          echo "Quick-login secrets are configured for cloud-simulator."
+
       - name: Prepare project
         id: plan
         shell: bash
+        env:
+          CONFIG_JSON: ${{ inputs.config_json }}
         run: |
           set -euo pipefail
           # Fan the packed plan out into step outputs so later steps read it the
           # same way they would read a dispatch input.
-          echo '${{ inputs.config_json }}' > /tmp/eas-plan.json
+          # Keep the dispatch payload out of the command log; secrets belong in
+          # GitHub Secrets, never in config_json.
+          python3 - <<'PY'
+          import json, os
+          with open('/tmp/eas-plan.json', 'w') as fh:
+              json.dump(json.loads(os.environ['CONFIG_JSON']), fh)
+          PY
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
           with open('/tmp/eas-plan.json') as fh:
@@ -73,8 +94,7 @@ jobs:
                   continue
               print(f"{key}={value}")
           PY
-          echo "Resolved build plan:"
-          python3 -m json.tool /tmp/eas-plan.json
+          echo "Build plan parsed; environment payload omitted from logs."
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,7 +125,17 @@ jobs:
           import json
           with open('/tmp/eas-plan.json') as fh:
               plan = json.load(fh)
+          quick_login_keys = {
+              'EXPO_PUBLIC_QUICK_LOGIN_EMAIL',
+              'EXPO_PUBLIC_QUICK_LOGIN_PASSWORD',
+          }
           for key, value in json.loads(plan.get('env_json') or '{}').items():
+              if key in quick_login_keys:
+                  if value not in (None, ''):
+                      raise SystemExit(
+                          f'{key} must come from GitHub Secrets, not env_json.'
+                      )
+                  continue
               print(f"{key}={value}")
           PY
 

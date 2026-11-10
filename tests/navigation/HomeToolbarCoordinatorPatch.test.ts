@@ -185,8 +185,8 @@ describe('Home toolbar coordinator patch', () => {
     expect(pluginSource).toContain('RNSHomeToolbarItemArraysHaveSameInstances');
   });
 
-  it('uses the installed UITab-aware selection and controller resolvers from Screens 4.30.0', () => {
-    expect(screensPackage.version).toBe('4.30.0');
+  it('uses the installed UITab-aware selection and controller resolvers from Screens 4.30.1', () => {
+    expect(screensPackage.version).toBe('4.30.1');
     expect(screensControllerSource).toContain(
       '- (nonnull NSArray<RNSTabsScreenViewController *> *)installedScreenControllers',
     );
@@ -207,7 +207,7 @@ describe('Home toolbar coordinator patch', () => {
     );
   });
 
-  it('applies the Screens 4.30.0 plugin patch idempotently', () => {
+  it('applies the Screens 4.30.1 plugin patch idempotently', () => {
     const fixtureRoot = createScreensFixture();
     try {
       patchRNScreens(fixtureRoot);
